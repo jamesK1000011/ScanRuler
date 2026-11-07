@@ -132,7 +132,7 @@ try {
   await ok('workspace_set', { workspace: 'patent' })
   await page.waitForSelector('[data-test=patent-panel]', { timeout: 30_000 })
   const clickText = (t) => page.evaluate((t) => [...document.querySelectorAll('[data-test=patent-panel] button')].find((b) => b.textContent.trim() === t)?.click(), t)
-  check((await page.$$eval('[data-test=patent-panel] ol li', (l) => l.length)) === 6, 'the Patent workspace’s panel lists the six figures')
+  check((await page.$$eval('[data-test=patent-panel] [data-test=patent-figure]', (l) => l.length)) === 6, 'the Patent workspace’s panel lists the six figures')
   await clickText('Draw')
   await page.waitForSelector('[data-test=patent-sheet] img', { timeout: 120_000 })
   check(await page.$eval('[data-test=patent-sheet] img', (i) => i.complete && i.naturalWidth > 500), 'Draw in the panel puts sheet 1 on the stage')
