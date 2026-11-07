@@ -1,0 +1,29 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The Texture workspace's library grid. */
+.texture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+  margin: 6px 0 8px;
+}
+.texture-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  font-size: 10px;
+  line-height: 1.1;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+}
+.texture-grid button img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.texture-grid button.on {
+  border-color: var(--accent, #ff6a00);
+}

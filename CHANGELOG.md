@@ -7,6 +7,14 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **A Texture workspace** (2026-11-07, local fork). BumpMesh's texturing engine —
+  the code its Export button runs, vendored from a BumpMesh checkout — on the
+  part open here: library or your own textures, up to four layers, stamps,
+  cylindrical and outline-wrap mapping, and ScanRuler's regions (segments, marks,
+  boxes facing a way, a fill from a point) for where the texture goes and what
+  stays plain. An agent drives it through `texture.*` and the `texture` guide;
+  `texture.check` proves after an export that the plain surfaces are untouched.
+
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.

@@ -1,0 +1,199 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The Texture workspace's panel: the layers, each one's texture and the
+// settings that matter most, the surface it covers (painted with the
+// app's marking tools), how the part is built, and the buttons that build
+// it. Every control is the same verb an agent's command runs.
+
+import { useState } from 'react'
+import { useStore } from '../../../src/state/store'
+import { useMark } from '../../../src/state/markStore'
+import { InfoDot } from '../../../src/ui/InfoDot'
+import { MarkTools } from '../../../src/ui/MarkTools'
+import { NumberField } from '../../../src/ui/NumberField'
+import { MAX_LAYERS, useTexture, type LayerSettings, type MaskMode } from '../state/textureStore'
+import { LIBRARY, thumbOf } from '../app/textureSession'
+
+const MODES: { id: number; label: string }[] = [
+  { id: 5, label: 'Triplanar' },
+  { id: 6, label: 'Cubic' },
+  { id: 3, label: 'Cylindrical' },
+  { id: 8, label: 'Outline wrap' },
+  { id: 4, label: 'Spherical' },
+  { id: 0, label: 'Planar XY' },
+  { id: 1, label: 'Planar XZ' },
+  { id: 2, label: 'Planar YZ' },
+]
+
+export interface TexturePanelProps {
+  onPickTexture(name: string): void
+  onImage(file: File): void
+  onSettings(patch: Partial<LayerSettings>): void
+  onMaskMode(mode: MaskMode): void
+  onUseMarking(op: 'set' | 'add' | 'remove'): void
+  onShowMask(): void
+  onClearMask(): void
+  onClearMarking(): void
+  onPreview(): void
+  onExport(format: 'stl' | '3mf'): void
+  onStop(): void
+  onShow(what: 'result' | 'scan'): void
+}
+
+export function TexturePanel(p: TexturePanelProps) {
+  const st = useTexture()
+  const fileName = useStore((s) => s.fileName)
+  const marked = useMark((s) => s.count)
+  const [category, setCategory] = useState('grip')
+  const L = st.layers[st.active]
+  const busy = st.status === 'running'
+  const s = L.settings
+  const categories = [...new Set(LIBRARY.map((t) => t.category))]
+
+  if (!fileName) return <div className="panel"><p className="hint">Open a part to texture it.</p></div>
+
+  return (
+    <div className="panel" data-test="texture-panel">
+      <div className="group">
+        <div className="sec-head">
+          Layers
+          <InfoDot title="Texture layers">
+            <p>
+              Up to {MAX_LAYERS} layers, bottom first. Each has its own texture, settings and the surface it covers —
+              a coarse pattern on the body, a fine grip on the panels. A layer covers the ones below where it reaches,
+              or adds onto them.
+            </p>
+          </InfoDot>
+        </div>
+        <div className="moderow" role="radiogroup" aria-label="Layer">
+          {st.layers.map((layer, i) => (
+            <button key={layer.id} role="radio" aria-checked={i === st.active} className={i === st.active ? 'on' : undefined} disabled={busy} onClick={() => st.setActive(i)} title={layer.texture?.name ?? 'No texture yet'}>
+              {i + 1}{layer.visible ? '' : ' (hidden)'}
+            </button>
+          ))}
+          <button disabled={busy || st.layers.length >= MAX_LAYERS} onClick={() => st.addLayer()} title="Add a layer on top">+</button>
+        </div>
+        <div className="kv">
+          <label><input type="checkbox" checked={L.visible} disabled={busy} onChange={(e) => st.setVisible(st.active, e.target.checked)} /> Shown</label>
+          {st.active > 0 && (
+            <label><input type="checkbox" checked={L.blend === 'add'} disabled={busy} onChange={(e) => st.setBlend(st.active, e.target.checked ? 'add' : 'cover')} /> Add onto the layers below</label>
+          )}
+          <button disabled={busy} onClick={() => st.removeLayer(st.active)}>Remove layer</button>
+        </div>
+      </div>
+
+      <div className="group">
+        <div className="sec-head">Texture{L.texture ? `: ${L.texture.name}` : ''}</div>
+        <div className="field">
+          <span>Category</span>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="texture-grid" data-test="texture-grid">
+          {LIBRARY.filter((t) => t.category === category).map((t) => {
+            const thumb = thumbOf(t)
+            return (
+              <button key={t.name} className={L.texture?.kind === 'library' && L.texture.name === t.name ? 'on' : undefined} title={t.name} disabled={busy} onClick={() => p.onPickTexture(t.name)}>
+                {thumb ? <img src={thumb} alt="" /> : null}
+                <span>{t.name}</span>
+              </button>
+            )
+          })}
+        </div>
+        <label className="field">
+          <span>Your own heightmap</span>
+          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) p.onImage(f); e.target.value = '' }} />
+        </label>
+      </div>
+
+      {L.texture && (
+        <div className="group">
+          <div className="sec-head">Settings</div>
+          <div className="field">
+            <span>Mapping</span>
+            <select value={s.mappingMode} disabled={busy} onChange={(e) => p.onSettings({ mappingMode: Number(e.target.value) })}>
+              {MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
+          <NumberField label="Depth" kind="length" value={s.textureHeight} step={0.05} min={0} disabled={busy} onCommit={(v) => p.onSettings({ textureHeight: v })} hint="How far white in the image stands proud of the surface." />
+          <NumberField label="Tile width" kind="length" value={s.scaleU} step={0.5} min={0.01} disabled={busy} onCommit={(v) => p.onSettings({ scaleU: v })} hint="One repeat of the image across." />
+          {!s.lockScale && <NumberField label="Tile height" kind="length" value={s.scaleV} step={0.5} min={0.01} disabled={busy} onCommit={(v) => p.onSettings({ scaleV: v })} />}
+          <NumberField label="Rotation" unit="°" value={s.rotation} step={5} min={-360} disabled={busy} onCommit={(v) => p.onSettings({ rotation: v })} />
+          <NumberField label="Edge falloff" kind="length" value={s.boundaryFalloff} step={0.5} min={0} disabled={busy} onCommit={(v) => p.onSettings({ boundaryFalloff: v })} hint="Ramp the texture in over this distance from a masked edge." />
+          <div className="kv">
+            <label><input type="checkbox" checked={s.lockScale} disabled={busy} onChange={(e) => p.onSettings({ lockScale: e.target.checked })} /> Square tiles</label>
+            <label><input type="checkbox" checked={s.invertDisplacement} disabled={busy} onChange={(e) => p.onSettings({ invertDisplacement: e.target.checked })} /> Into the surface</label>
+            <label><input type="checkbox" checked={s.symmetricDisplacement} disabled={busy} onChange={(e) => p.onSettings({ symmetricDisplacement: e.target.checked })} /> Both ways</label>
+            <label><input type="checkbox" checked={s.invertTexture} disabled={busy} onChange={(e) => p.onSettings({ invertTexture: e.target.checked })} /> Invert image</label>
+            <label><input type="checkbox" checked={s.stampOnce} disabled={busy} onChange={(e) => p.onSettings({ stampOnce: e.target.checked })} /> Stamp once</label>
+          </div>
+        </div>
+      )}
+
+      <div className="group">
+        <div className="sec-head">
+          Where it goes
+          <InfoDot title="Painting where the texture goes">
+            <p>
+              <b>Keep plain</b>: paint the surfaces that must stay as they are — a mating face, a cutout, a button.
+              <b> Texture only</b>: paint the panels to texture, and the rest stays plain. Switching clears the paint.
+            </p>
+            <p>Mark the part with the window, brush or lasso, then take the marking into the layer.</p>
+          </InfoDot>
+        </div>
+        <div className="moderow" role="radiogroup" aria-label="Mask mode">
+          {(['exclude', 'include'] as const).map((m) => (
+            <button key={m} role="radio" aria-checked={L.maskMode === m} className={L.maskMode === m ? 'on' : undefined} disabled={busy} onClick={() => p.onMaskMode(m)}>
+              {m === 'exclude' ? 'Keep plain' : 'Texture only'}
+            </button>
+          ))}
+        </div>
+        <MarkTools escapeNote="The marking stays until you take it into the layer or clear it." onClear={p.onClearMarking} />
+        <div className="kv">
+          <button disabled={busy || marked === 0} onClick={() => p.onUseMarking('set')}>Use marking</button>
+          <button disabled={busy || marked === 0} onClick={() => p.onUseMarking('add')}>Add</button>
+          <button disabled={busy || marked === 0} onClick={() => p.onUseMarking('remove')}>Remove</button>
+        </div>
+        <div className="kv">
+          <span>{L.mask ? `${L.mask.length.toLocaleString()} vertices painted` : 'Nothing painted'}</span>
+          <button disabled={busy} onClick={p.onShowMask}>Show</button>
+          <button disabled={busy || !L.mask} onClick={p.onClearMask}>Clear</button>
+        </div>
+      </div>
+
+      <div className="group">
+        <div className="sec-head">Output</div>
+        <NumberField label="Resolution" kind="length" value={st.output.refineLength} step={0.05} min={0.02} disabled={busy} onCommit={(v) => st.setOutput({ refineLength: v })} hint="Edge length the textured surface is cut into. Smaller is finer and heavier." />
+        <NumberField label="Triangle budget" value={st.output.maxTriangles} step={50000} min={1000} disabled={busy} onCommit={(v) => st.setOutput({ maxTriangles: Math.round(v) })} />
+        <NumberField label="Plain below" unit="°" value={st.output.bottomAngleLimit} step={1} min={0} disabled={busy} onCommit={(v) => st.setOutput({ bottomAngleLimit: v })} hint="Faces within this angle of facing down stay plain — the bed face." />
+        <div className="kv">
+          <label><input type="checkbox" checked={st.output.preserveUntextured} disabled={busy} onChange={(e) => st.setOutput({ preserveUntextured: e.target.checked })} /> Leave plain faces exactly as they are</label>
+        </div>
+      </div>
+
+      <div className="group">
+        {busy ? (
+          <>
+            <p className="hint"><span className="spinner" /> {st.progress ? `${st.progress.stage} — ${Math.round(st.progress.fraction * 100)}%` : 'Working…'}</p>
+            <button onClick={p.onStop}>Stop</button>
+          </>
+        ) : (
+          <div className="kv">
+            <button className="primary" disabled={!st.layers.some((x) => x.texture)} onClick={p.onPreview}>Preview</button>
+            <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('stl')}>Export STL</button>
+            <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('3mf')}>Export 3MF</button>
+          </div>
+        )}
+        {st.result && !busy && (
+          <p className="hint">
+            {st.result.kind === 'preview' ? 'Preview' : 'Built'}: {st.result.triangles.toLocaleString()} triangles in {st.result.seconds} s.
+            {' '}
+            <button className="linklike" onClick={() => p.onShow(st.previewShown ? 'scan' : 'result')}>{st.previewShown ? 'Show the scan' : 'Show the result'}</button>
+          </p>
+        )}
+        {st.result?.warnings.map((w) => <p key={w} className="hint">{w}</p>)}
+        {st.error && !busy && <p className="hint">{st.error}</p>}
+      </div>
+    </div>
+  )
+}
