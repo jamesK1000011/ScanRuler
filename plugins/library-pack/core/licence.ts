@@ -81,11 +81,11 @@ export function compatible(upstream: LicenceId | null, chosen: LicenceId, opts: 
  *  pack and linked instead. */
 export const RESTRICTED_SOURCES = ['traceparts', 'mcmaster', 'misumi', 'grabcad']
 
-export function licenceFile(id: LicenceId, holder: string, year: number): string {
+export function licenceFile(id: LicenceId, holder: string, year: number, gplText?: string): string {
   const l = LICENCES[id]
   if (id === 'MIT')
     return `MIT License\n\nCopyright (c) ${year} ${holder}\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n`
   if (id === 'ARR') return `Copyright (c) ${year} ${holder}. All rights reserved.\n\nNo part of these files may be copied, changed or shared without the copyright holder's written permission.\n`
-  if (id === 'GPL-3.0-only') return `Copyright (C) ${year} ${holder}\n\nThis work is licensed under the GNU General Public License, version 3 only.\nThe full text of the licence must travel with it: replace this file with ${'https://www.gnu.org/licenses/gpl-3.0.txt'}\n(library-pack does not fetch it).\n`
+  if (id === 'GPL-3.0-only') return `Copyright (C) ${year} ${holder}\n\nThis work is licensed under the GNU General Public License, version 3 only.\n\n${gplText ?? 'The full text is at https://www.gnu.org/licenses/gpl-3.0.txt'}`
   return `Copyright (c) ${year} ${holder}\n\nThis work is licensed under the ${l.name} licence (${l.short}).\nTo view a copy of this licence, visit ${l.url}\n`
 }

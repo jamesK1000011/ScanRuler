@@ -38,6 +38,10 @@ describe('licences', () => {
 
   it('writes the LICENSE file', () => {
     expect(licenceFile('CC-BY-SA-4.0', 'Alex', 2026)).toMatch(/Attribution-ShareAlike 4\.0[\s\S]*creativecommons\.org\/licenses\/by-sa\/4\.0/)
+    const gpl = readFileSync(join(__dirname, '..', 'licences', 'GPL-3.0.txt'), 'utf8')
+    expect(gpl).toMatch(/^\s+GNU GENERAL PUBLIC LICENSE\n\s+Version 3, 29 June 2007/)
+    expect(gpl.length).toBe(35149)
+    expect(licenceFile('GPL-3.0-only', 'Alex', 2026, gpl)).toContain('END OF TERMS AND CONDITIONS')
     expect(licenceFile('MIT', 'Alex', 2026)).toMatch(/^MIT License\n\nCopyright \(c\) 2026 Alex/)
   })
 })
