@@ -6,7 +6,8 @@
 // (nav's frame sampling, extend's grip hunt, …) stays in that script.
 //
 // Env, honoured by every script: APP_URL, CHROME (chrome.exe path),
-// SHOT_DIR / OUT_DIR (screenshots, default <repo>/e2e-out).
+// SHOT_DIR / OUT_DIR (screenshots, default <repo>/e2e-out), PANEL_SHOTS (a
+// folder: the last state of every tab, tall enough to show a whole panel).
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -66,6 +67,19 @@ export async function finish(browser, consoleErrors) {
         writeFileSync(shotPath(`failure-${index}.html`), await page.content())
       }
     } catch (error) { console.error('Could not capture failure diagnostics:', error.message) }
+  }
+  if (process.env.PANEL_SHOTS) {
+    try {
+      mkdirSync(process.env.PANEL_SHOTS, { recursive: true })
+      const name = process.argv[1].split(/[\\/]/).pop().replace(/\.m?js$/, '')
+      for (const [index, page] of (await browser.pages()).entries()) {
+        if (page.url() === 'about:blank') continue
+        await page.bringToFront()
+        await page.setViewport({ width: 1500, height: 1900 })
+        await sleep(400)
+        await page.screenshot({ path: join(process.env.PANEL_SHOTS, `${name}-${index}.png`) })
+      }
+    } catch (error) { console.error('Could not take the panel shots:', error.message) }
   }
   await browser.close()
   if (failed) process.exitCode = 1
