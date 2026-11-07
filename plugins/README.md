@@ -9,6 +9,7 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
+| [catalog/](catalog/) | Parts catalog — standard parts by size, search links, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras |
 
 ## The rules

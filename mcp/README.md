@@ -305,7 +305,11 @@ the tab, for the plugins that need them. They are comma-separated, or `all`.
 `slicer_slice`, `slicer_jobs`, `slicer_result` and `slicer_compare`. These
 run OrcaSlicer, Bambu Studio or PrusaSlicer from their command lines and keep
 each run in a job folder under `SCANRULER_HOME` (`~/.scanruler` unless
-given). Unset, the server lists no extras.
+given). `catalog` adds `catalog_open_url`, `catalog_downloads` and
+`catalog_take`. These open a search page in the default browser, list the
+new CAD files in the downloads folder (`SCANRULER_DOWNLOADS`, else
+`~/Downloads`), and bring one in with its source and licence. Unset, the
+server lists no extras.
 
 ## Tools
 

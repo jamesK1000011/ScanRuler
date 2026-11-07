@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Tools beyond the page's and the server's own, for the plugins that need
 // this computer — a slicer to run, a printer on the network, a part
-// catalogue with a key. Listed only when SCANRULER_MCP_EXTRAS names them
-// ("slicer", "all"), so the server's own tools stay as they are for
+// catalogue's downloads. Listed only when SCANRULER_MCP_EXTRAS names them
+// ("slicer", "catalog", "all"), so the server's own tools stay as they are for
 // everyone who does not ask.
 
+import { downloads, openUrl, take } from './catalog.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
 
 export function extrasWanted(env = process.env) {
@@ -128,6 +129,42 @@ export function extraTools({ text, failure }, env = process.env) {
           byFeatureMm: Object.fromEntries(feats.map((f) => [f, pair(x.counted?.byFeatureMm?.[f], y.counted?.byFeatureMm?.[f])])),
         }
       },
+    )
+  }
+  if (wanted('catalog')) {
+    tool(
+      'catalog_open_url',
+      'Open a page in the person’s browser',
+      'Open a catalogue or library page (catalog_links gives them) in the default browser on this computer, for the person to sign in if the site asks and click download. Only http and https. Nothing is downloaded by this server.',
+      obj({ url: { type: 'string', description: 'The page.' } }, ['url']),
+      async ({ url }) => openUrl(url, env),
+      false,
+    )
+    tool(
+      'catalog_downloads',
+      'New CAD files in the downloads folder',
+      'The CAD files (STL, STEP, 3MF, OBJ, GLB, FBX … ) and zips that arrived in the person’s downloads folder (SCANRULER_DOWNLOADS, else ~/Downloads) in the last sinceMinutes (120), newest first. Changes nothing.',
+      obj({ dir: { type: 'string', description: 'Another folder to look in.' }, sinceMinutes: { type: 'number', description: 'How far back, minutes.' } }),
+      async ({ dir, sinceMinutes }) => downloads({ dir, sinceMinutes }, env),
+    )
+    tool(
+      'catalog_take',
+      'Bring a download into the imports folder',
+      'Copy a downloaded CAD file — or the CAD files inside a downloaded zip — into an imports folder (to; the ScanRuler folder’s imports/ by default, or the project’s own folder from scanruler_status), never overwriting, and record in that folder’s provenance.json where it came from: source, page, licence, whether it may be shared on (false unless its licence says so). Returns the files taken.',
+      obj(
+        {
+          file: { type: 'string', description: 'The download, from catalog_downloads.' },
+          to: { type: 'string', description: 'The imports folder.' },
+          source: { type: 'string', description: 'Where it came from: traceparts, mcmaster, misumi, printables, thangs, grabcad, or a name.' },
+          url: { type: 'string', description: 'The page it came from.' },
+          licence: { type: 'string', description: 'Its licence, as the page says.' },
+          redistribute: { type: 'boolean', description: 'May it be shared on.' },
+          note: { type: 'string', description: 'Anything else.' },
+        },
+        ['file', 'source'],
+      ),
+      async (a) => take(a, env),
+      false,
     )
   }
   return tools

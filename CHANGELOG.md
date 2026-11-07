@@ -7,6 +7,15 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Parts catalog** (2026-11-07, new plugin `catalog`, scanruler-mcp extras).
+  `catalog.match` names a standard screw, nut, washer or bearing from the
+  dimensions measured on it, using an offline table of nominal sizes.
+  `catalog.links` builds search pages on TraceParts, McMaster-Carr, MISUMI,
+  Printables, Thangs and GrabCAD, with what each one's terms allow. With
+  `SCANRULER_MCP_EXTRAS=catalog`, the server opens a page in your own browser
+  and lists what you downloaded. It brings a file in (or the CAD files in a
+  catalogue's zip) with its source and licence recorded, and the project
+  keeps that record.
 - **Slicing** (2026-11-07, new plugin `slicer-loop`, scanruler-mcp extras).
   With `SCANRULER_MCP_EXTRAS=slicer`, the MCP server slices from ScanRuler
   with OrcaSlicer, Bambu Studio or PrusaSlicer. It finds them, lists your
