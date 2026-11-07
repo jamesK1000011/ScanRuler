@@ -16,6 +16,7 @@ not in this repository.
 | [dfm-fdm/](dfm-fdm/) | Printability check — FDM rules from editable profiles, with findings you can waive |
 | [catalog/](catalog/) | Parts catalog — standard parts by size, search links, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras |
+| [wear-repair/](wear-repair/) | Wear repair — worn regions back onto the mirrored half or the CAD; prints pre-warped |
 
 ## The rules
 
