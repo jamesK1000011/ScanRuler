@@ -84,6 +84,7 @@ input.pl-input:disabled {
 
 .pl-inline .grow {
   flex: 1;
+  min-width: 0;
 }
 
 /* A number in a list — a figure, a reference numeral, a step, a BOM item. */
@@ -185,8 +186,10 @@ input.pl-input:disabled {
 }
 
 .pl-note > code {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-family: var(--cond);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--dim);
   margin-right: 6px;
 }
