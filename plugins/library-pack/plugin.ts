@@ -9,10 +9,19 @@ import { registerCommands, registerGuide, registerStateSection, type ScanRulerPl
 import { packCommands } from './app/packCommands'
 import { packSection } from './app/projectSection'
 import { usePack } from './state/packStore'
+import { usePackPlugin } from './app/usePackPlugin'
 
 const plugin: ScanRulerPlugin = {
   id: 'library-pack',
   name: 'Library pack',
+  workspace: {
+    id: 'pack',
+    label: 'Share',
+    title: 'Pack a finished part to share: licences checked, remixes credited, personal details taken out — a zip you upload yourself',
+    icon: 'save',
+    order: 42,
+  },
+  usePlugin: usePackPlugin,
   install() {
     registerProjectSection(packSection)
     registerCommands('pack', packCommands)

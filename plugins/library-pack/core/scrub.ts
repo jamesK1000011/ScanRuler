@@ -146,7 +146,7 @@ export function scrubStl(b: Uint8Array, t: Tally): Uint8Array {
     if (named !== text) t.add('the STL solid’s name made plain')
     return strToU8(named, true)
   }
-  if (/[A-Za-z]{3}/.test(head)) {
+  if (/[\\/]|@|[A-Za-z]:\\/.test(head)) {
     const out = new Uint8Array(b)
     out.fill(0, 0, 80)
     out.set(strToU8('library-pack', true), 0)

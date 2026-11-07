@@ -17,6 +17,7 @@ import printables from '../presets/printables.json'
 import thangs from '../presets/thangs.json'
 import makerworld from '../presets/makerworld.json'
 import thingiverse from '../presets/thingiverse.json'
+import gpl3 from '../licences/GPL-3.0.txt?raw'
 
 type Json = Record<string, unknown>
 const BUILT_IN: Preset[] = [printables, thangs, makerworld, thingiverse]
@@ -32,9 +33,13 @@ interface ReverseBody {
 
 function upstreamNow(): Upstream[] {
   const own = usePack.getState().upstream
-  const cat = (readStateSections().catalog as { parts?: { file: string; source: string; redistribute: boolean }[] } | undefined)?.parts ?? []
-  const fromCatalog = cat.filter((c) => !own.some((o) => o.part === c.file)).map((c) => ({ part: c.file, source: c.source, redistribute: c.redistribute }))
-  return [...own, ...fromCatalog]
+  const cat = (readStateSections().catalog as { parts?: { file: string; source: string; redistribute: boolean; url?: string; licence?: string }[] } | undefined)?.parts ?? []
+  const filled = own.map((o) => {
+    const c = cat.find((x) => x.file === o.part)
+    return c ? { ...o, source: o.source ?? c.source, url: o.url ?? c.url, licence: o.licence ?? c.licence, redistribute: o.redistribute ?? c.redistribute } : o
+  })
+  const fromCatalog = cat.filter((c) => !own.some((o) => o.part === c.file)).map((c) => ({ part: c.file, source: c.source, redistribute: c.redistribute, ...(c.url ? { url: c.url } : {}), ...(c.licence ? { licence: c.licence } : {}) }))
+  return [...filled, ...fromCatalog]
 }
 
 const planNow = (): Planned => plan(usePack.getState().settings, upstreamNow())
@@ -261,7 +266,7 @@ const build: Command<Record<string, never>> = {
     const entries: Record<string, Uint8Array> = {}
     for (const f of r.files) entries[`${root}/${f.path}`] = f.bytes
     entries[`${root}/README.md`] = strToU8(readme(input))
-    entries[`${root}/LICENSE`] = strToU8(licenceFile(s.licence!, s.author, new Date().getFullYear()))
+    entries[`${root}/LICENSE`] = strToU8(licenceFile(s.licence!, s.author, new Date().getFullYear(), gpl3))
     entries[`${root}/PLATFORM.md`] = strToU8(platformText(input, preset()))
     const zip = zipSync(entries, { level: 6 })
     return {
