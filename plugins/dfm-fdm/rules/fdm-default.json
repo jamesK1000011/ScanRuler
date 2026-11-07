@@ -3,13 +3,99 @@
   "label": "Generic FDM, 0.4 mm nozzle",
   "version": 1,
   "rules": [
-    { "id": "thin-wall", "check": "thinWall", "severity": "error", "params": { "minMm": 0.8, "minAreaMm2": 1 }, "rationale": "A wall thinner than two extrusion lines prints as one line, as gaps, or not at all.", "source": "Rule of thumb: two line widths of the nozzle (0.4 mm nozzle, about 0.45 mm lines)." },
-    { "id": "overhang", "check": "overhang", "severity": "warning", "params": { "maxDeg": 50, "minAreaMm2": 4 }, "rationale": "A face leaning further than this from vertical sags or curls without support.", "source": "Rule of thumb for PLA with part cooling; 45° is the conservative figure." },
-    { "id": "bridge", "check": "bridge", "severity": "warning", "params": { "maxMm": 10, "minAreaMm2": 4 }, "rationale": "A flat ceiling wider than this sags between its ends even when both are supported, and falls if one is not.", "source": "Rule of thumb; well-tuned printers bridge further." },
-    { "id": "small-hole", "check": "smallHole", "severity": "warning", "params": { "minDiameterMm": 2 }, "rationale": "Upright holes this small close up with the first layers' squash and the walls' rounding; drill or ream them, or model them larger.", "source": "Rule of thumb: about five line widths." },
-    { "id": "bed-contact", "check": "bedContact", "severity": "warning", "params": { "minShare": 0.05 }, "rationale": "A part that touches the bed over so little of its footprint can lift or be knocked over; add a brim or turn it.", "source": "Rule of thumb." },
-    { "id": "tall-thin", "check": "tallThin", "severity": "warning", "params": { "maxRatio": 8 }, "rationale": "A part much taller than its base is wide wobbles under the nozzle and can break off.", "source": "Rule of thumb for a moving-bed printer; a fixed-bed (CoreXY) printer tolerates more." },
-    { "id": "trapped-volume", "check": "trappedVolume", "severity": "info", "params": { "minVolumeMm3": 1 }, "rationale": "A closed cavity prints, but traps whatever is inside it: air on FDM, uncured resin on SLA, powder on SLS.", "source": "Geometry: a closed shell inside the part." },
-    { "id": "mesh-health", "check": "meshHealth", "severity": "error", "params": {}, "rationale": "Open or non-manifold edges leave the slicer guessing what is inside; repair the mesh before slicing.", "source": "Geometry: edges not shared by exactly two triangles." }
+    {
+      "id": "thin-wall",
+      "check": "thinWall",
+      "severity": "error",
+      "params": {
+        "minMm": 0.8,
+        "minAreaMm2": 1
+      },
+      "rationale": "A wall thinner than two extrusion lines prints as one line, as gaps, or not at all.",
+      "source": "Rule of thumb: two line widths of the nozzle (0.4 mm nozzle, about 0.45 mm lines)."
+    },
+    {
+      "id": "overhang",
+      "check": "overhang",
+      "severity": "warning",
+      "params": {
+        "maxDeg": 50,
+        "minAreaMm2": 4
+      },
+      "rationale": "A face leaning further than this from vertical sags or curls without support.",
+      "source": "Rule of thumb for PLA with part cooling; 45° is the conservative figure."
+    },
+    {
+      "id": "bridge",
+      "check": "bridge",
+      "severity": "warning",
+      "params": {
+        "maxMm": 10,
+        "minAreaMm2": 4
+      },
+      "rationale": "A flat ceiling wider than this sags between its ends even when both are supported, and falls if one is not.",
+      "source": "Rule of thumb; well-tuned printers bridge further."
+    },
+    {
+      "id": "small-hole",
+      "check": "smallHole",
+      "severity": "warning",
+      "params": {
+        "minDiameterMm": 2
+      },
+      "rationale": "Upright holes this small close up with the first layers' squash and the walls' rounding; drill or ream them, or model them larger.",
+      "source": "Rule of thumb: about five line widths."
+    },
+    {
+      "id": "bed-contact",
+      "check": "bedContact",
+      "severity": "warning",
+      "params": {
+        "minShare": 0.05
+      },
+      "rationale": "A part that touches the bed over so little of its footprint can lift or be knocked over; add a brim or turn it.",
+      "source": "Rule of thumb."
+    },
+    {
+      "id": "tall-thin",
+      "check": "tallThin",
+      "severity": "warning",
+      "params": {
+        "maxRatio": 8
+      },
+      "rationale": "A part much taller than its base is wide wobbles under the nozzle and can break off.",
+      "source": "Rule of thumb for a moving-bed printer; a fixed-bed (CoreXY) printer tolerates more."
+    },
+    {
+      "id": "trapped-volume",
+      "check": "trappedVolume",
+      "severity": "info",
+      "params": {
+        "minVolumeMm3": 1
+      },
+      "rationale": "A closed cavity prints, but traps whatever is inside it: air on FDM, uncured resin on SLA, powder on SLS.",
+      "source": "Geometry: a closed shell inside the part."
+    },
+    {
+      "id": "mesh-health",
+      "check": "meshHealth",
+      "severity": "error",
+      "params": {},
+      "rationale": "Open or non-manifold edges leave the slicer guessing what is inside; repair the mesh before slicing.",
+      "source": "Geometry: edges not shared by exactly two triangles."
+    },
+    {
+      "id": "build-volume",
+      "check": "buildVolume",
+      "severity": "error",
+      "params": {
+        "xMm": 0,
+        "yMm": 0,
+        "zMm": 0,
+        "dualXMm": 0
+      },
+      "rationale": "A part larger than the printer's build volume can't be printed in one piece; split it, scale it or turn it.",
+      "source": "The printer profile's build volume (0 when no printer profile is chosen: then it isn't checked)."
+    }
   ]
 }
