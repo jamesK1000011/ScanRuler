@@ -7,6 +7,8 @@
 
 import { downloads, openUrl, take } from './catalog.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
+import * as printer from './printer.js'
+import { KINDS as PRINTER_KINDS } from './printers/adapters.js'
 
 export function extrasWanted(env = process.env) {
   const v = String(env.SCANRULER_MCP_EXTRAS ?? '').toLowerCase()
@@ -166,6 +168,56 @@ export function extraTools({ text, failure }, env = process.env) {
       async (a) => take(a, env),
       false,
     )
+  }
+  if (wanted('printer')) {
+    const name = { type: 'string', description: 'The printer’s name in printers.json; the only one when there is one.' }
+    tool('printer_list', 'The printers set up', 'The printers in printers.json (the ScanRuler folder): name, kind, address, whether its secret is set (never the secret), and who starts a print on it; and the kinds there are, with what each needs. Changes nothing.', obj({}), async () => printer.list(env))
+    tool(
+      'printer_add',
+      'Set up a printer',
+      `Add a printer to printers.json, or change one by name. kind: ${Object.entries(PRINTER_KINDS).map(([k, v]) => `${k} (${v.label}; needs ${v.needs.join(', ') || 'nothing'}${v.secret ? `; secret: ${v.secret}` : ''})`).join('; ')}. host is an address on the local network (192.0.2.40, or http://name.local:7125). The secret — access code or API key — is never given here: the person sets it in a terminal with the command this answers, and it stays in the Keychain (or a file only they can read). Several printers of different kinds are fine.`,
+      obj({ name: { type: 'string', description: 'A name for it: "X1C", "Voron".' }, kind: { type: 'string', enum: Object.keys(PRINTER_KINDS) }, host: { type: 'string' }, port: { type: 'number' }, serial: { type: 'string', description: 'Bambu: the serial number (Settings → Device).' }, folder: { type: 'string', description: 'folder: where to copy files (an SD card path).' }, app: { type: 'string', description: 'bambu-studio: the app, if not BambuStudio.' }, storage: { type: 'string', description: 'prusalink: usb (the default) or local.' }, useAms: { type: 'boolean', description: 'Bambu: print from the AMS.' }, mqttPort: { type: 'number', description: 'Bambu: MQTT port, 8883 unless changed.' }, ftpPort: { type: 'number', description: 'Bambu: FTPS port, 990 unless changed.' } }, ['name', 'kind']),
+      async (a) => printer.add(a, env),
+      false,
+    )
+    tool('printer_remove', 'Remove a printer', 'Take a printer out of printers.json. Its secret stays where the person put it until they remove it.', obj({ name }, ['name']), async ({ name: n }) => printer.remove(n, env), false)
+    tool('printer_test', 'Check a printer can be reached', 'Connect to the printer and read its state. For a Bambu printer this also pins its certificate the first time (trust: true pins a new one after a reset). Sends no command.', obj({ name, trust: { type: 'boolean' } }), async ({ name: n, trust }) => printer.test(n, { trust }, env), false)
+    tool('printer_status', 'What a printer is doing', 'The printer’s state (idle, printing, paused, finished, failed), progress, time left, file, layer and temperatures, as far as its kind tells. Changes nothing.', obj({ name }), async ({ name: n }) => printer.status(n, env))
+    tool(
+      'printer_upload',
+      'Put a sliced job on a printer',
+      'Send a file to the printer, or open it in Bambu Studio for a bambu-studio printer — a slicer job by id (slicer_jobs; its 3MF for a Bambu printer, else its G-code) or a file path. Does not start it.',
+      obj({ printer: name, job: { type: 'string', description: 'A job from slicer_jobs.' }, file: { type: 'string', description: 'Or a G-code or 3MF file.' } }),
+      async (a) => printer.upload(a, env),
+      false,
+    )
+    tool(
+      'printer_start',
+      'Ask the person to start a print',
+      'Asks the person to start a file already on the printer (the last upload by default): a dialog on this Mac, or a page in their browser, shows the printer, file, time and filament with Start and Cancel. Nothing starts unless they press Start; this tool cannot start a print, and nothing here can answer the question for them. Returns the request; printer_requests shows the answer.',
+      obj({ printer: name, file: { type: 'string', description: 'The file on the printer; the last upload by default.' } }),
+      async (a) => printer.start(a, env),
+      false,
+    )
+    tool('printer_requests', 'Start requests and their answers', 'The requests to start a print, newest first: waiting, started, cancelled, expired (after 15 minutes), withdrawn or failed, with what the printer said. withdraw takes back one still waiting.', obj({ withdraw: { type: 'string', description: 'A waiting request’s id.' } }), async ({ withdraw }) => (withdraw ? { withdrawn: printer.withdraw(withdraw), ...printer.requests() } : printer.requests()), false)
+    tool('printer_pause', 'Pause a print', 'Pause the print running on the printer.', obj({ name }), async ({ name: n }) => printer.control(n, 'pause', env), false)
+    tool('printer_resume', 'Resume a print', 'Resume a paused print. Check the printer first: the person may have paused it for a reason.', obj({ name }), async ({ name: n }) => printer.control(n, 'resume', env), false)
+    tool('printer_stop', 'Stop a print', 'Stop (cancel) the print running on the printer. It cannot be resumed.', obj({ name }), async ({ name: n }) => printer.control(n, 'stop', env), false)
+    tools.push({
+      name: 'printer_camera',
+      title: 'A picture from the printer’s camera',
+      description: 'A snapshot from the printer’s webcam, where its kind has one this can read (Moonraker, OctoPrint). Changes nothing.',
+      inputSchema: obj({ name }),
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      call: async (args) => {
+        try {
+          const shot = await printer.camera(args?.name, env)
+          return { content: [{ type: 'image', data: Buffer.from(shot.bytes).toString('base64'), mimeType: shot.mimeType }] }
+        } catch (e) {
+          return failure(e)
+        }
+      },
+    })
   }
   return tools
 }
