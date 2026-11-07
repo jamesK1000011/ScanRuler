@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Patent kit** (2026-11-07, new plugin `patent-kit`). A starting draft to
+  take to a patent attorney, from the bodies in Reverse Engineer. It makes
+  black-and-white line drawings with hidden lines removed by OCCT: named
+  views, exploded views, and sections hatched part by part with the cut line
+  shown where they are taken. Reference numerals sit on lead lines that
+  don't cross, laid out to 37 CFR 1.84 on letter or A4. A draft description
+  uses the same numerals, so a part renamed in Reverse Engineer is renamed
+  in every paragraph. `patent.check` reads the 1.84 checklist and
+  `patent.save` writes a zip of SVG, PDF, Markdown and CSV. It makes no
+  network request: the drawings and text stay on this computer.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.

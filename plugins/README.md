@@ -9,6 +9,8 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
+| [patent-kit/](patent-kit/) | Patent kit — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
+| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG) and a zip writer; no plugin.ts |
 
 ## The rules
 
