@@ -308,8 +308,21 @@ each run in a job folder under `SCANRULER_HOME` (`~/.scanruler` unless
 given). `catalog` adds `catalog_open_url`, `catalog_downloads` and
 `catalog_take`. These open a search page in the default browser, list the
 new CAD files in the downloads folder (`SCANRULER_DOWNLOADS`, else
-`~/Downloads`), and bring one in with its source and licence. Unset, the
-server lists no extras.
+`~/Downloads`), and bring one in with its source and licence. `printer` adds
+`printer_list`, `printer_add`, `printer_remove`, `printer_test`,
+`printer_status`, `printer_upload`, `printer_start`, `printer_requests`,
+`printer_pause`, `printer_resume`, `printer_stop` and `printer_camera`, for
+the printers in `printers.json` under `SCANRULER_HOME`. They reach a Bambu
+Lab printer on the LAN (Developer Mode: MQTT and FTPS, its certificate pinned
+on first use), Moonraker, OctoPrint, PrusaLink, a folder or SD card, or hand
+a 3MF to Bambu Studio. A printer's access code or API key is never a tool
+input. The person stores it from a terminal with
+`node mcp/src/extras/secrets.js set printer:<name>`, and it goes to the
+macOS Keychain (elsewhere, `secrets.json` under `SCANRULER_HOME`, mode 600;
+`SCANRULER_SECRETS=file` forces the file). `printer_start` never starts a
+print. It asks the person, in a dialog on a Mac or on a one-time page in
+their browser (`SCANRULER_CONFIRM=dialog|page`), and only their Start sends
+the command. Unset, the server lists no extras.
 
 ## Tools
 

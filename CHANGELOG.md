@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Printer hand-off** (2026-11-07, new plugin `printer-handoff`, MCP extras
+  `printer`). A sliced job goes onto the printers set up on this computer:
+  a Bambu Lab printer on the LAN (Developer Mode: FTPS upload and MQTT
+  commands, its certificate pinned on first use), Bambu Studio (the 3MF
+  opened there), Klipper through Moonraker, OctoPrint, PrusaLink, or a
+  folder or SD card. Access codes and API keys are set by you in a
+  terminal, kept in the macOS Keychain, and never pass through the agent.
+  The agent can upload, watch, pause and stop. It cannot start a print:
+  `printer_start` asks you in a dialog on your Mac, or on a one-time page
+  in your browser, and only your Start sends the command.
 - **Parts catalog** (2026-11-07, new plugin `catalog`, scanruler-mcp extras).
   `catalog.match` names a standard screw, nut, washer or bearing from the
   dimensions measured on it, using an offline table of nominal sizes.
