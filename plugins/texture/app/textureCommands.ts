@@ -19,6 +19,7 @@ import {
   useTexture,
   type LayerSettings,
   type OutputSettings,
+  type TextureResult,
 } from '../state/textureStore'
 import { combine, DEFAULT_FACING_DEG, DEFAULT_SPREAD_DEG, regionStats, shapeVertices, triArea, type RegionShape } from './regions'
 import {
@@ -44,6 +45,14 @@ import { describeLayer, describeTexture, MASK_COLOR } from './textureReadout'
 
 type Json = Record<string, unknown>
 const t = () => useTexture.getState()
+
+/** A run as an answer gives it: what came of it, not the key it is cached under. */
+const runOut = (r: TextureResult | null | undefined) => {
+  if (!r) return r
+  const { key: _key, ...rest } = r
+  void _key
+  return rest
+}
 
 /** The workspace on screen, as a command that changes it puts it there. */
 function onScreen(): void {
@@ -454,7 +463,7 @@ const preview: Command<{ refineLength?: number }> = {
     requireScan()
     onScreen()
     const r = await runTexture('preview', { refineLength, show: true, onProgress: ctx.progress, signal: ctx.signal })
-    return { run: r, shown: true, note: 'texture.show { what: "scan" } puts the scan back.' }
+    return { run: runOut(r), shown: true, note: 'texture.show { what: "scan" } puts the scan back.' }
   },
 }
 
@@ -490,7 +499,7 @@ const exportCmd: Command<{ format?: 'stl' | '3mf' }> = {
     if (!lastMesh('full')) run = await runTexture('full', { show: true, onProgress: ctx.progress, signal: ctx.signal })
     else showResult()
     const file = await buildFile(format, scanName())
-    return { file, run, triangles: run?.triangles, warnings: run?.warnings ?? [] }
+    return { file, run: runOut(run), triangles: run?.triangles, warnings: run?.warnings ?? [] }
   },
 }
 
