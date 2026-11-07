@@ -10,6 +10,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
+import { Busy, Notes, Pager, Paper, Status } from '../../_shared/ui/kit'
 import { VIEW_NAMES } from '../../_shared/lineart/views'
 import { SECTIONS, type Section } from '../core/model'
 import { usePatent } from '../state/patentStore'
@@ -51,13 +52,22 @@ async function save(format: 'zip' | 'pdf' | 'md') {
 
 export function PatentSheet() {
   const url = usePatentView((s) => s.url)
-  if (!url) return null
-  return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'auto', background: '#e8e8e8', display: 'flex', justifyContent: 'center', padding: 16 }} data-test="patent-sheet">
-      <img src={url} alt="Patent drawing sheet" style={{ maxHeight: '100%', boxShadow: '0 2px 12px rgba(0,0,0,.25)', background: '#fff' }} />
-    </div>
-  )
+  return <Paper url={url} alt="Patent drawing sheet" testId="patent-sheet" fit />
 }
+
+const SECTION_NAMES: Record<Section, string> = {
+  title: 'Title',
+  field: 'Field of the invention',
+  background: 'Background',
+  summary: 'Summary',
+  drawings: 'Brief description of the drawings',
+  detailed: 'Detailed description',
+  claims: 'Claims',
+  abstract: 'Abstract',
+}
+
+const figureName = (f: Json) =>
+  f.kind === 'section' ? `Section on ${f.section?.axis} = ${f.section?.offset} mm` : `${f.kind === 'exploded' ? 'Exploded ' : ''}${typeof f.view === 'string' ? f.view : 'custom'} view`
 
 export function PatentPanel() {
   const st = usePatent()
@@ -67,117 +77,164 @@ export function PatentPanel() {
   const [cut, setCut] = useState({ axis: 'y', offset: 0, keep: 'above', from: '' })
   const busy = v.busy !== null
   const draftText = text ?? st.draft[section] ?? ''
+  const none = !st.figures.length
+  const flagged = v.findings?.filter((f) => f.level !== 'note').length ?? 0
 
   return (
-    <div className="panel" data-test="patent-panel">
+    <aside className="panel" data-test="patent-panel">
       <div className="group">
         <div className="sec-head">
-          Patent drawings
+          Drawing sheets
           <InfoDot title="A draft for your attorney">
-            <p>Line drawings and a draft description to take to a patent attorney. Nothing here is filed, uploaded or sent: Save writes to this computer only. The drawings aim at 37 CFR 1.84; the checklist is for the attorney to judge.</p>
+            <p>Line drawings and a draft description to take to a patent attorney. Nothing here is filed, uploaded or sent: Save writes to this computer only.</p>
+            <p>The drawings follow 37 CFR 1.84 — black lines, no shading, margins, numerals 3.2 mm or more. The checklist below is for the attorney to judge.</p>
           </InfoDot>
         </div>
-        <div className="kv">
-          <label>
-            Paper{' '}
-            <select value={st.settings.paper} disabled={busy} onChange={(e) => void run('settings', { paper: e.target.value })}>
-              <option value="letter">US letter</option>
-              <option value="a4">A4</option>
-            </select>
-          </label>
-          <label>
-            Figures a sheet{' '}
-            <select value={st.settings.figuresPerSheet} disabled={busy} onChange={(e) => void run('settings', { figuresPerSheet: Number(e.target.value) })}>
-              {[1, 2, 4].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <input type="checkbox" checked={st.settings.hidden === 'dashed'} disabled={busy} onChange={(e) => void run('settings', { hidden: e.target.checked ? 'dashed' : 'omit' })} /> Hidden lines dashed
-          </label>
-          <label>
-            Called{' '}
-            <input defaultValue={st.settings.title} disabled={busy} onBlur={(e) => e.target.value.trim() && e.target.value !== st.settings.title && void run('settings', { title: e.target.value.trim() })} style={{ width: '9em' }} />
-          </label>
-        </div>
+        <label className="field">
+          <span>Paper</span>
+          <select value={st.settings.paper} disabled={busy} onChange={(e) => void run('settings', { paper: e.target.value })}>
+            <option value="letter">US letter</option>
+            <option value="a4">A4</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Figures a sheet</span>
+          <select value={st.settings.figuresPerSheet} disabled={busy} onChange={(e) => void run('settings', { figuresPerSheet: Number(e.target.value) })}>
+            {[1, 2, 4].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>The device is called</span>
+          <input
+            key={st.settings.title}
+            type="text"
+            defaultValue={st.settings.title}
+            disabled={busy}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            onBlur={(e) => e.target.value.trim() && e.target.value !== st.settings.title && void run('settings', { title: e.target.value.trim() })}
+          />
+        </label>
+        <label className="checkrow">
+          <input type="checkbox" checked={st.settings.hidden === 'dashed'} disabled={busy} onChange={(e) => void run('settings', { hidden: e.target.checked ? 'dashed' : 'omit' })} />
+          Hidden lines dashed
+        </label>
       </div>
 
       <div className="group">
-        <div className="sec-head">Figures</div>
-        {st.figures.length === 0 && <p className="hint">Build the part in Reverse Engineer, then plan the figures.</p>}
-        <ol style={{ margin: '4px 0', paddingLeft: '1.6em' }}>
-          {st.figures.map((f) => (
-            <li key={f.id}>
-              {f.kind === 'section' ? `Section on ${f.section?.axis} = ${f.section?.offset}` : `${f.kind === 'exploded' ? 'Exploded ' : ''}${typeof f.view === 'string' ? f.view : 'custom'} view`}{' '}
-              <button title="Remove this figure" disabled={busy} onClick={() => void run('figures', { remove: [f.id] })}>×</button>
-            </li>
+        <div className="sec-head">
+          Figures <b>{st.figures.length || ''}</b>
+        </div>
+        {none && <p className="hint">Build the part in Reverse Engineer, then plan the figures.</p>}
+        <div>
+          {st.figures.map((f, i) => (
+            <div className="kv" key={f.id} data-test="patent-figure">
+              <span className="pl-num">{i + 1}</span>
+              <span className="name">{figureName(f)}</span>
+              <button className="x" title="Remove this figure" disabled={busy} onClick={() => void run('figures', { remove: [f.id] })}>
+                ×
+              </button>
+            </div>
           ))}
-        </ol>
-        <div className="kv">
-          <button disabled={busy} onClick={() => void run('figures', { plan: 'standard' })}>Plan standard figures</button>
+        </div>
+        <div className="toolrow">
+          <button disabled={busy} onClick={() => void run('figures', { plan: 'standard' })}>
+            Plan standard figures
+          </button>
           <select disabled={busy} value="" onChange={(e) => e.target.value && void run('figures', { add: [{ kind: 'view', view: e.target.value }] })}>
             <option value="">Add a view…</option>
             {VIEW_NAMES.map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
         </div>
-        <div className="kv">
-          Section on{' '}
+        <div className="pl-inline">
+          <span className="grow">Section on the plane</span>
           <select value={cut.axis} onChange={(e) => setCut({ ...cut, axis: e.target.value })}>
             {['x', 'y', 'z'].map((a) => (
               <option key={a}>{a}</option>
             ))}
-          </select>{' '}
-          at <input type="number" value={cut.offset} style={{ width: '5em' }} onChange={(e) => setCut({ ...cut, offset: Number(e.target.value) })} /> mm, from{' '}
-          <select value={cut.from} onChange={(e) => setCut({ ...cut, from: e.target.value })}>
-            <option value="">—</option>
+          </select>
+          <span>=</span>
+          <input type="number" value={cut.offset} step={1} onChange={(e) => setCut({ ...cut, offset: Number(e.target.value) })} />
+          <span>mm</span>
+        </div>
+        <div className="toolrow">
+          <select value={cut.from} title="The figure the section is marked on" onChange={(e) => setCut({ ...cut, from: e.target.value })}>
+            <option value="">Marked on no figure</option>
             {st.figures.map((f, i) => (
-              <option key={f.id} value={f.id}>FIG. {i + 1}</option>
+              <option key={f.id} value={f.id}>
+                Marked on FIG. {i + 1}
+              </option>
             ))}
-          </select>{' '}
-          <button disabled={busy} onClick={() => void run('figures', { add: [{ kind: 'section', view: 'front', section: { axis: cut.axis, offset: cut.offset, keep: cut.keep, ...(cut.from ? { from: cut.from } : {}) } }] })}>Add</button>
+          </select>
+          <button
+            disabled={busy}
+            onClick={() => void run('figures', { add: [{ kind: 'section', view: 'front', section: { axis: cut.axis, offset: cut.offset, keep: cut.keep, ...(cut.from ? { from: cut.from } : {}) } }] })}
+          >
+            Add section
+          </button>
         </div>
       </div>
 
       <div className="group">
-        <div className="sec-head">Reference numerals</div>
-        <table style={{ width: '100%' }}>
-          <tbody>
-            {st.numerals.map((n) => (
-              <tr key={n.n}>
-                <td style={{ width: '3em' }}><b>{n.n}</b></td>
-                <td>
-                  <input defaultValue={n.label} disabled={busy} style={{ width: '100%' }} onBlur={(e) => e.target.value.trim() && e.target.value !== n.label && void run('numerals', { set: [{ n: n.n, label: e.target.value.trim(), ...('at' in n.target ? { at: n.target.at, ...(n.target.body ? { body: n.target.body } : {}) } : { body: n.target.body }) }] })} />
-                </td>
-                <td style={{ width: '2em' }}><button title="Remove" disabled={busy} onClick={() => void run('numerals', { remove: [n.n] })}>×</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="kv">
-          <button disabled={busy} onClick={() => void run('numerals', { assign: 'bodies' })}>Number the bodies</button>
-          <button disabled={busy || !st.numerals.length} onClick={() => void run('numerals', { renumber: true })}>Renumber</button>
+        <div className="sec-head">
+          Reference numerals
+          <InfoDot title="Numerals">
+            <p>Each part, and each feature you point at, gets a numeral on every figure it shows in. Rename one here and the draft follows.</p>
+            <p>A feature — a hole, a face — gets its numeral from a point on it: ask the agent to set one with patent.numerals.</p>
+          </InfoDot>
+          <b>{st.numerals.length || ''}</b>
         </div>
-        <p className="hint">A feature (a hole, a face) gets its numeral from a point on it: ask the agent to set one with patent.numerals.</p>
+        <div>
+          {st.numerals.map((n) => (
+            <div className="kv" key={n.n} data-test="patent-numeral">
+              <span className="pl-num">{n.n}</span>
+              <input
+                key={n.label}
+                className="pl-input"
+                type="text"
+                defaultValue={n.label}
+                disabled={busy}
+                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                onBlur={(e) =>
+                  e.target.value.trim() &&
+                  e.target.value !== n.label &&
+                  void run('numerals', { set: [{ n: n.n, label: e.target.value.trim(), ...('at' in n.target ? { at: n.target.at, ...(n.target.body ? { body: n.target.body } : {}) } : { body: n.target.body }) }] })
+                }
+              />
+              <button className="x" title="Remove" disabled={busy} onClick={() => void run('numerals', { remove: [n.n] })}>
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="toolrow">
+          <button disabled={busy} onClick={() => void run('numerals', { assign: 'bodies' })}>
+            Number the bodies
+          </button>
+          <button disabled={busy || !st.numerals.length} onClick={() => void run('numerals', { renumber: true })}>
+            Renumber
+          </button>
+        </div>
       </div>
 
       <div className="group">
         <div className="sec-head">Sheets</div>
-        <div className="kv">
-          <button className="primary" disabled={busy || !st.figures.length} onClick={() => void draw(1)}>Draw</button>
-          <button disabled={busy || v.sheet <= 1 || !v.url} onClick={() => void draw(v.sheet - 1)}>‹</button>
-          <span>{v.sheets ? `Sheet ${v.sheet} of ${v.sheets}` : ''}</span>
-          <button disabled={busy || v.sheet >= v.sheets || !v.url} onClick={() => void draw(v.sheet + 1)}>›</button>
-          <label>
-            <input type="checkbox" checked={v.onStage} onChange={(e) => usePatentView.setState({ onStage: e.target.checked })} /> On the stage
-          </label>
-        </div>
-        {v.busy && <p className="hint">{v.busy}</p>}
-        <div className="kv">
+        {v.url ? (
+          <Pager label={`Sheet ${v.sheet} of ${v.sheets}`} canPrev={!busy && v.sheet > 1} canNext={!busy && v.sheet < v.sheets} onPrev={() => void draw(v.sheet - 1)} onNext={() => void draw(v.sheet + 1)} />
+        ) : null}
+        <div className="toolrow">
+          <button className={v.url ? '' : 'primary'} disabled={busy || none} onClick={() => void draw(v.url ? v.sheet : 1)}>
+            {v.url ? 'Redraw' : 'Draw'}
+          </button>
           <button
-            disabled={busy || !st.figures.length}
+            disabled={busy || none}
             onClick={() =>
               void run('check', {}, 'Checking…').then((r) => {
                 if (r) usePatentView.setState({ findings: r.findings as Json[] })
@@ -186,27 +243,30 @@ export function PatentPanel() {
           >
             Check against 1.84
           </button>
-          {v.findings && <span data-test="patent-findings">{v.findings.length === 0 ? 'Nothing flagged' : `${v.findings.length} to look at`}</span>}
         </div>
-        {v.findings && v.findings.length > 0 && (
-          <ul style={{ margin: '4px 0', paddingLeft: '1.2em', fontSize: 12 }}>
-            {v.findings.map((f, i) => (
-              <li key={i}>
-                <b>{f.rule}</b> {f.level}: {f.message}
-              </li>
-            ))}
-          </ul>
+        <label className="checkrow">
+          <input type="checkbox" checked={v.onStage} onChange={(e) => usePatentView.setState({ onStage: e.target.checked })} />
+          Show the sheet on the stage
+        </label>
+        <Busy text={v.busy} />
+        {v.findings && (
+          <Status tone={flagged ? 'warn' : 'ok'} testId="patent-findings">
+            {v.findings.length === 0 ? 'Nothing flagged' : `${v.findings.length} to look at`}
+          </Status>
         )}
+        {v.findings && <Notes items={v.findings.map((f) => ({ level: f.level, rule: f.rule, text: f.message }))} />}
       </div>
 
       <div className="group">
         <div className="sec-head">
           Draft
           <InfoDot title="Numeral tokens">
-            <p>Write [[10]] for "housing 10" and [[10#]] for the bare 10: a renamed part renames every paragraph. Every section is marked a draft for attorney review.</p>
+            <p>Write [[10]] for “housing 10” and [[10#]] for the bare 10: a renamed part renames every paragraph.</p>
+            <p>Every section is marked a draft for attorney review.</p>
           </InfoDot>
         </div>
-        <div className="kv">
+        <label className="field">
+          <span>Section</span>
           <select
             value={section}
             onChange={(e) => {
@@ -215,32 +275,47 @@ export function PatentPanel() {
             }}
           >
             {SECTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {SECTION_NAMES[s]}
+                {st.draft[s] ? '' : ' (empty)'}
+              </option>
             ))}
           </select>
-          <button disabled={busy} onClick={() => void run('draft', { generate: 'drawings' }).then(() => setSection('drawings'))}>Write the brief description</button>
+        </label>
+        <textarea className="pl-text" value={draftText} rows={7} onChange={(e) => setText(e.target.value)} placeholder="Ask the agent to draft from your notes, or write here." />
+        <div className="toolrow">
+          <button disabled={busy} onClick={() => void run('draft', { generate: 'drawings' }).then(() => setSection('drawings'))}>
+            Write the brief description
+          </button>
+          <button
+            className={text !== null ? 'primary' : ''}
+            disabled={busy || text === null}
+            onClick={() =>
+              void run('draft', { section, text: draftText }).then((r) => {
+                if (r) setText(null)
+              })
+            }
+          >
+            Save section
+          </button>
         </div>
-        <textarea value={draftText} rows={6} style={{ width: '100%' }} onChange={(e) => setText(e.target.value)} placeholder="Ask the agent to draft from your notes, or write here." />
-        <button
-          disabled={busy || text === null}
-          onClick={() =>
-            void run('draft', { section, text: draftText }).then((r) => {
-              if (r) setText(null)
-            })
-          }
-        >
-          Save section
-        </button>
       </div>
 
-      <div className="group">
-        <div className="sec-head">Save to this computer</div>
-        <div className="kv">
-          <button className="primary" disabled={busy || !st.figures.length} onClick={() => void save('zip')}>Save the kit (.zip)</button>
-          <button disabled={busy || !st.figures.length} onClick={() => void save('pdf')}>Drawings (.pdf)</button>
-          <button disabled={busy} onClick={() => void save('md')}>Draft (.md)</button>
+      <div className="divider" />
+      <div className="tailrow">
+        <button className="primary block" disabled={busy || none} onClick={() => void save('zip')}>
+          Save the kit (.zip)
+        </button>
+        <div className="toolrow">
+          <button disabled={busy || none} onClick={() => void save('pdf')}>
+            Drawings (.pdf)
+          </button>
+          <button disabled={busy} onClick={() => void save('md')}>
+            Draft (.md)
+          </button>
         </div>
+        <p className="hint">Saved to this computer only — nothing is filed or sent.</p>
       </div>
-    </div>
+    </aside>
   )
 }
