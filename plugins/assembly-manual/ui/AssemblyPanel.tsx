@@ -13,6 +13,7 @@ import { InfoDot } from '../../../src/ui/InfoDot'
 import { Busy, Notes, Pager, Paper, Status } from '../../_shared/ui/kit'
 import { bom } from '../core/assembly'
 import { lint } from '../core/lint'
+import { THEMES, themeOf } from '../core/themes'
 import { useAsm } from '../state/asmStore'
 
 type Json = Record<string, any>
@@ -76,6 +77,7 @@ export function AssemblyPanel() {
   const [pick, setPick] = useState<string[]>([])
   const [move, setMove] = useState('down')
   const [texts, setTexts] = useState<Record<string, string>>({})
+  const [accent, setAccent] = useState<string | null>(null)
   const busy = v.busy !== null
   const placed = new Set(st.steps.flatMap((s) => s.place.map((p) => p.part)))
   const rows = bom(st.parts)
@@ -103,6 +105,44 @@ export function AssemblyPanel() {
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             onBlur={(e) => e.target.value.trim() && e.target.value !== st.settings.title && void run('settings', { title: e.target.value.trim() })}
           />
+        </label>
+        <label className="field">
+          <span>
+            Look
+            <InfoDot title="Themes">
+              {THEMES.map((t) => (
+                <p key={t.id}>
+                  <b>{t.name}</b> — {t.about}
+                </p>
+              ))}
+              <p>The theme sets the saved HTML’s type, colours and layout, and the accent and balloons on the PDF pages. The colour key puts your own accent over it.</p>
+            </InfoDot>
+          </span>
+          <span className="pl-inline" style={{ flex: '0 1 172px', minWidth: 108 }}>
+            <select className="grow" data-test="asm-theme" value={themeOf(st.settings).id} disabled={busy} onChange={(e) => void run('settings', { theme: e.target.value })}>
+              {THEMES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <input
+              type="color"
+              title={st.settings.accent ? 'Your accent — right-click for the theme’s own' : 'The theme’s accent — pick your own'}
+              value={accent ?? themeOf(st.settings).accent}
+              disabled={busy}
+              style={{ width: 28, height: 26, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+              onChange={(e) => setAccent(e.target.value)}
+              onBlur={() => {
+                if (accent && accent !== themeOf(st.settings).accent) void run('settings', { accent })
+                setAccent(null)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                if (st.settings.accent) void run('settings', { accent: '' })
+              }}
+            />
+          </span>
         </label>
         <label className="field">
           <span>

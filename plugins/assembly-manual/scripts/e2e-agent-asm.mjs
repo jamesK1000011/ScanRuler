@@ -125,11 +125,33 @@ try {
   check(pg.images?.length === 1 && pg.json?.pages === 4, `asm_render shows step 3 as a picture (${pg.json?.pages} pages)`)
   await ok('asm_render', { page: 3, format: 'svg', path: join(out, 'step-3.svg') })
   const svg = readFileSync(join(out, 'step-3.svg'), 'utf8')
-  check(/Step 3/.test(svg) && /4 × Screw/.test(svg) && /M3×16 ISO 4762/.test(svg) && /Torque: 0.8 N·m/.test(svg) && /stroke="#999999"/.test(svg), 'step 3 has the box and lid in grey, the four screws listed with their torque')
+  check(/>Step</.test(svg) && /4 × Screw/.test(svg) && /M3×16 ISO 4762/.test(svg) && /Torque: 0.8 N·m/.test(svg) && /stroke="#999999"/.test(svg), 'step 3 has the box and lid in grey, the four screws listed with their torque')
 
   await ok('asm_save', { path: join(out, 'box-kit.html') })
   const h = readFileSync(join(out, 'box-kit.html'), 'utf8')
-  check(/<h1>Box kit<\/h1>/.test(h) && (h.match(/<section>/g) ?? []).length === 3 && !/<script|src="http/.test(h), 'the HTML manual is self-contained: cover and three steps')
+  check(/<h1>Box kit<\/h1>/.test(h) && (h.match(/<section class="sheet step"/g) ?? []).length === 3 && !/<script|src="http|<link|url\(/.test(h), 'the HTML manual is self-contained: cover and three steps')
+  check(/<li>Put the lid on the box\.<\/li><li>Align the four holes/.test(h) && /class="torque">0\.8 N·m/.test(h) && /<span class="balloon">3<\/span>/.test(h), 'each instruction on its own line, the torque and the balloons in the HTML')
+  const themes = await ok('asm_settings', {})
+  check(themes.json?.themes?.map((t) => t.id).join() === 'workshop,picture,technical,shopfloor' && themes.json.theme.id === 'workshop', `asm_settings lists the themes: ${themes.json?.themes?.map((t) => t.name).join(', ')}`)
+  const badColour = await call('asm_settings', { accent: 'green' })
+  check(Boolean(badColour.error) && /#rrggbb/.test(badColour.text), 'an accent that is no colour is refused')
+  const shots = {}
+  for (const theme of ['workshop', 'picture', 'technical', 'shopfloor']) {
+    await ok('asm_settings', { theme, accent: theme === 'technical' ? '#2a6f4b' : '' })
+    await ok('asm_save', { path: join(out, `box-kit-${theme}.html`) })
+    shots[theme] = readFileSync(join(out, `box-kit-${theme}.html`), 'utf8')
+  }
+  check(shots.technical.includes('--accent:#2a6f4b') && shots.technical.includes('badge-plain') && shots.picture.includes('badge-big balloons-outline') && shots.shopfloor.includes('font-size:20px'), 'each theme gives its own HTML, and the accent is the person’s own')
+  const look = await browser.newPage()
+  await look.setViewport({ width: 1100, height: 1400 })
+  for (const theme of Object.keys(shots)) {
+    await look.goto(`file://${join(out, `box-kit-${theme}.html`)}`)
+    await look.screenshot({ path: join(out, `manual-${theme}.png`), fullPage: true })
+  }
+  const printed = await look.pdf({ format: 'letter' })
+  check(printed.length > 10_000, `the HTML prints (${Math.round(printed.length / 1024)} kB from Chrome)`)
+  await look.close()
+  await ok('asm_settings', { theme: 'workshop', accent: '' })
   const z = await ok('asm_save', { format: 'zip', path: join(out, 'box-kit.zip') })
   check(readFileSync(join(out, 'box-kit.zip')).readUInt32LE(0) === 0x04034b50 && z.json?.files?.includes('box-kit.pdf'), `the zip: ${z.json?.files?.join(', ')}`)
 

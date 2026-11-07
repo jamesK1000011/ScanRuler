@@ -15,7 +15,9 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { bom, direction, issues, stepCamera, type Issue } from '../core/assembly'
 import type { Hit, PartIn } from '../core/geometry'
 import { lint, limitsOf } from '../core/lint'
-import { cover, html, stepPage } from '../core/manual'
+import { html } from '../core/htmlManual'
+import { cover, stepFigure, stepPage } from '../core/manual'
+import { THEMES, THEME_IDS, themeOf } from '../core/themes'
 import { DEFAULT_SETTINGS, DEFAULT_WORDS, type AsmSettings, type Part, type Step, type StyleName } from '../core/model'
 import { useAsm } from '../state/asmStore'
 import { drawInWorker, sweepInWorker } from './asmClient'
@@ -77,11 +79,25 @@ const hitWords = (h: Hit) => `Step ${h.step}: ${h.part} runs into ${h.hits} ${h.
 const settings: Command<Partial<AsmSettings>> = {
   name: 'settings',
   title: 'Assembly manual settings',
-  description: `The manual's title, paper (letter or a4), orientation (landscape or portrait) and how far new parts are pulled out in a step's drawing (explode, a share of their travel). With nothing, reads them. Defaults: ${JSON.stringify(DEFAULT_SETTINGS)}.`,
-  input: obj({ title: str(undefined, { minLength: 1 }), paper: enumOf(['letter', 'a4']), orientation: enumOf(['landscape', 'portrait']), explode: num(undefined, { minimum: 0.2, maximum: 5 }) }),
+  description: `The manual's title, paper (letter or a4), orientation (landscape or portrait), how far new parts are pulled out in a step's drawing (explode, a share of their travel), and how it looks: theme — ${THEMES.map((t) => `${t.id} (${t.name}: ${t.about})`).join('; ')} — and accent, your own colour as '#rrggbb' over the theme's ('' for the theme's own). The theme sets the HTML's type, colours and layout and the accent and balloons on the pages. With nothing, reads them, and the themes. Defaults: ${JSON.stringify(DEFAULT_SETTINGS)}.`,
+  input: obj({
+    title: str(undefined, { minLength: 1 }),
+    paper: enumOf(['letter', 'a4']),
+    orientation: enumOf(['landscape', 'portrait']),
+    explode: num(undefined, { minimum: 0.2, maximum: 5 }),
+    theme: enumOf(THEME_IDS),
+    accent: str('#rrggbb, or empty for the theme’s own.'),
+  }),
   run: async (input) => {
-    if (Object.keys(input).length) useAsm.getState().set({ settings: { ...useAsm.getState().settings, ...input } })
-    return { settings: useAsm.getState().settings }
+    if (input.accent && !/^#[0-9a-fA-F]{6}$/.test(input.accent)) throw new CommandError('invalid_input', `accent is a colour as '#rrggbb' — '#1877c0', say — or '' for the theme's own; not ${JSON.stringify(input.accent)}.`)
+    if (Object.keys(input).length) {
+      const next = { ...useAsm.getState().settings, ...input }
+      if (!next.accent) delete next.accent
+      useAsm.getState().set({ settings: next })
+    }
+    const now = useAsm.getState().settings
+    const t = themeOf(now)
+    return { settings: now, theme: { id: t.id, name: t.name, accent: t.accent }, themes: THEMES.map(({ id, name, about }) => ({ id, name, about })) }
   },
 }
 
@@ -263,7 +279,7 @@ const style: Command<{ name?: StyleName; add?: { avoid: string; use: string }[];
   },
 }
 
-async function pages(progress?: (t: string) => void): Promise<Sheet[]> {
+async function pages(progress?: (t: string) => void): Promise<Sheet[] & { figures: Sheet[] }> {
   const s = useAsm.getState()
   if (!s.steps.length) throw new CommandError('invalid_state', 'There are no steps yet: asm.step { add }.')
   const ins = await partsIn(progress)
@@ -271,7 +287,8 @@ async function pages(progress?: (t: string) => void): Promise<Sheet[]> {
   const drawings = await drawInWorker(ins, s.steps, s.steps.map(stepCamera), s.settings.explode).catch((e: Error) => {
     throw new CommandError('failed', `Drawing failed: ${e.message}`)
   })
-  return [cover(s.parts, s.steps, s.settings), ...s.steps.map((x, i) => stepPage(i, x, drawings[i], s.parts, s.steps.length, s.settings))]
+  const sheets = [cover(s.parts, s.steps, s.settings), ...s.steps.map((x, i) => stepPage(i, x, drawings[i], s.parts, s.steps.length, s.settings))]
+  return Object.assign(sheets, { figures: s.steps.map((_, i) => stepFigure(drawings[i], s.parts, s.settings)) })
 }
 
 const render: Command<{ page?: number; format?: 'png' | 'svg' | 'pdf' }> = {
@@ -297,7 +314,7 @@ const render: Command<{ page?: number; format?: 'png' | 'svg' | 'pdf' }> = {
 const save: Command<{ format?: 'html' | 'pdf' | 'zip' }> = {
   name: 'save',
   title: 'Save the manual',
-  description: 'The whole manual as one file to save on this computer: html (the default; self-contained, the drawings inline), pdf (a page a step after the cover), or zip (both, and every page as SVG). Give path to write it to a folder. Local only: nothing is sent anywhere.',
+  description: 'The whole manual as one file to save on this computer: html (the default; self-contained and styled by the theme — a cover with the bill of materials and contents, then a step a page with its drawing, parts, tools and instructions; prints a step a page), pdf (a page a step after the cover), or zip (both, and every page as SVG). Give path to write it to a folder. Local only: nothing is sent anywhere.',
   input: obj({ format: enumOf(['html', 'pdf', 'zip']) }),
   readOnly: true,
   long: true,
@@ -307,7 +324,7 @@ const save: Command<{ format?: 'html' | 'pdf' | 'zip' }> = {
     const s = useAsm.getState()
     const all = await pages((t) => ctx?.progress(t))
     const enc = new TextEncoder()
-    const doc = html(s.settings.title, s.parts, s.steps, all.slice(1))
+    const doc = html(s.settings, s.parts, s.steps, all.figures)
     const stem = s.settings.title.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'manual'
     if (format === 'html') return { file: { name: `${stem}.html`, mimeType: 'text/html', bytes: enc.encode(doc) }, pages: all.length }
     const pdf = toPdf(all)

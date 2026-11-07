@@ -17,10 +17,11 @@ export async function toPng(s: Sheet, pxPerMm = 4): Promise<Uint8Array> {
   g.lineCap = 'round'
   g.lineJoin = 'round'
   for (const m of s.marks) {
-    const grey = `rgb(${Array(3).fill(Math.round(('grey' in m ? (m.grey ?? 0) : 0) * 255)).join(',')})`
+    const own = m.rgb && /^#[0-9a-fA-F]{6}$/.test(m.rgb) ? m.rgb : null
+    const grey = own ?? `rgb(${Array(3).fill(Math.round(('grey' in m ? (m.grey ?? 0) : 0) * 255)).join(',')})`
     if (m.k === 'text') {
-      g.fillStyle = '#000000'
-      g.font = `${m.h / CAP}px Helvetica, Arial, sans-serif`
+      g.fillStyle = own ?? '#000000'
+      g.font = `${m.bold ? 'bold ' : ''}${m.h / CAP}px Helvetica, Arial, sans-serif`
       const w = textWidth(m.text, m.h)
       g.fillText(m.text, m.anchor === 'middle' ? m.x - w / 2 : m.anchor === 'end' ? m.x - w : m.x, m.y)
       continue
