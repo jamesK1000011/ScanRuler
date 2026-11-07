@@ -9,6 +9,7 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
+| [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab for Claude to look at |
 
 ## The rules
 

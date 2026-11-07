@@ -7,6 +7,13 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Screenshot for the agent** (2026-11-07, new plugin `snapshot`). A
+  camera button at the bottom right of every workspace captures the tab
+  as you see it, through the browser's own screen capture, after you pick
+  the tab. Write a note on the shot; the agent reads it with
+  `snapshot_latest` and cannot take one itself. Shots stay in the tab's
+  memory until you close it; Save PNG and Copy are there too.
+
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.
