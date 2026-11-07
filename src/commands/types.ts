@@ -133,6 +133,10 @@ export interface Command<I = Record<string, unknown>> {
    *  command's own fields — "one section at a time (section)". An agent's
    *  server writes such an answer to a file and puts this in its note. */
   askForLess?: string
+  /** For the agent's server only, never an agent's tool: a request the
+   *  server puts to the page — a card for the person, say. Listed with the
+   *  rest so the server can run it, and left out of the tools it offers. */
+  internal?: boolean
   /** Runs without the page — no scan, no viewport, no browser — so the
    *  app run headless offers it (src/headless/engine.ts). Off by default:
    *  a command is marked once it has been run so. */
@@ -173,6 +177,8 @@ export interface CommandInfo {
   names?: CommandNames
   /** Only when set — see Command.askForLess. */
   askForLess?: string
+  /** Only when true — see Command.internal. */
+  internal?: boolean
 }
 
 /** See Command.names. */
