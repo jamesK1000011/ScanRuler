@@ -1,0 +1,417 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The plugins' shared faceplate parts, on top of the app's stylesheet
+   (src/styles.css): its tokens, so the light and the dark chassis both hold,
+   and its rows (.group, .sec-head, .field, .toolrow, .checkrow, .kv, .hint)
+   for everything they already cover. Only what a plugin panel needs and the
+   app has no rule for is here: prose to write, a page to show on the stage,
+   a list of findings, a card per step, a pager. */
+
+.pl-text,
+input.pl-input {
+  font-family: var(--ui);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 6px 8px;
+  box-shadow: var(--inset);
+  width: 100%;
+  min-width: 0;
+}
+
+.pl-text {
+  resize: vertical;
+  min-height: 52px;
+}
+
+.pl-text:focus,
+input.pl-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pl-text:disabled,
+input.pl-input:disabled {
+  color: var(--dim);
+}
+
+/* A label over a control the width of the faceplate — prose, not a figure. */
+.pl-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pl-stack > span {
+  font-size: 12px;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pl-stack > select {
+  width: 100%;
+}
+
+/* A field's own row of small controls: axis, offset, from, Add. */
+.pl-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.pl-inline select {
+  flex: 0 0 auto;
+  padding: 4px 5px;
+}
+
+.pl-inline input[type='number'] {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 4px 6px;
+  box-shadow: var(--inset);
+  width: 64px;
+}
+
+.pl-inline .grow {
+  flex: 1;
+}
+
+/* A number in a list — a figure, a reference numeral, a step, a BOM item. */
+.pl-num {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 24px;
+  height: 18px;
+  line-height: 16px;
+  text-align: center;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--panel);
+}
+
+.kv input.pl-input {
+  flex: 1;
+  padding: 3px 6px;
+  box-shadow: none;
+  background: transparent;
+  border-color: transparent;
+}
+
+.kv input.pl-input:hover:not(:disabled) {
+  border-color: var(--line);
+}
+
+.kv input.pl-input:focus {
+  background: var(--well);
+  border-color: var(--accent);
+}
+
+.kv .pl-aside {
+  font-size: 11.5px;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+
+/* ‹ Sheet 2 of 3 › — the page shown on the stage. */
+.pl-pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pl-pager > b {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.pl-pager > button {
+  padding: 4px 10px;
+}
+
+/* What a check found: one line each, its rule in the margin, a stripe for
+   how much it matters. */
+.pl-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pl-note {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  padding: 5px 8px;
+  background: var(--well);
+  border-left: 2px solid var(--line-strong);
+  border-radius: 0 var(--r) var(--r) 0;
+}
+
+.pl-note[data-level='warn'],
+.pl-note[data-level='warning'] {
+  border-left-color: var(--amber);
+}
+
+.pl-note[data-level='error'],
+.pl-note[data-level='fail'],
+.pl-note[data-level='block'] {
+  border-left-color: var(--red);
+}
+
+.pl-note[data-level='ok'] {
+  border-left-color: var(--green);
+}
+
+.pl-note > code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--dim);
+  margin-right: 6px;
+}
+
+/* A result in one line, with the lamp of its outcome. */
+.pl-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.pl-status::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.pl-status[data-tone='ok']::before {
+  background: var(--green);
+}
+
+.pl-status[data-tone='warn']::before {
+  background: var(--amber);
+}
+
+.pl-status[data-tone='bad']::before {
+  background: var(--red);
+}
+
+.pl-busy {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+/* One step, one request: a recessed card in the faceplate. */
+.pl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 9px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.pl-card.live {
+  border-left: 3px solid var(--accent);
+}
+
+.pl-card .pl-text {
+  background: var(--panel);
+}
+
+.pl-cardhead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.pl-cardhead > .name {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.pl-cardhead > .pl-aside {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ticks that wrap — the parts a step puts in, the files a pack carries. */
+.pl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.pl-chips label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink);
+  padding: 3px 8px 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.pl-chips label:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-d);
+}
+
+.pl-chips input {
+  margin: 0;
+}
+
+/* A fact sheet: label left, value right, in the data face. */
+.pl-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.pl-facts dt {
+  color: var(--dim);
+}
+
+.pl-facts dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A fold for what is seldom needed — "Add a part you didn't design". */
+details.pl-fold > summary {
+  font-size: 12px;
+  color: var(--accent-d);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+details.pl-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.pl-fold > summary::before {
+  content: '+';
+  font-family: var(--mono);
+  width: 12px;
+}
+
+details.pl-fold[open] > summary::before {
+  content: '−';
+}
+
+details.pl-fold[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A page on the stage: the paper, lit, on the stage's own colour. */
+.pl-stage {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--stage);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 28px 24px 72px;
+}
+
+.pl-paper {
+  display: block;
+  max-width: min(100%, 900px);
+  height: auto;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 10px 30px rgba(0, 0, 0, 0.16);
+}
+
+.pl-stage.fit .pl-paper {
+  max-height: calc(100% - 8px);
+  width: auto;
+}
+
+/* Over every workspace: a request only the person answers. */
+.pl-ask {
+  position: fixed;
+  right: 18px;
+  top: 64px;
+  z-index: 1000;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 13px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--r);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.22);
+}
+
+.pl-ask .sec-head {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.pl-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pl-actions > button {
+  flex: 1;
+}
