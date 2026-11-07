@@ -17,6 +17,8 @@ not in this repository.
 | [catalog/](catalog/) | Parts catalog — standard parts by size, search links, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras |
 | [wear-repair/](wear-repair/) | Wear repair — worn regions back onto the mirrored half or the CAD; prints pre-warped |
+| [patent-kit/](patent-kit/) | Patent kit — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
+| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG) and a zip writer; no plugin.ts |
 
 ## The rules
 
