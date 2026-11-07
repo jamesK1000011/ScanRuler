@@ -52,12 +52,14 @@ ol.contents span{color:var(--muted);font-size:.88rem}
 .step header{grid-area:head;display:flex;align-items:center;gap:1rem;padding-bottom:.9rem;border-bottom:1px solid var(--rule)}
 .step header .of{margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--muted)}
 .badge-box .num{display:inline-flex;align-items:center;justify-content:center;width:2.8rem;height:2.8rem;background:var(--accent);color:#fff;font-family:var(--heading);font-weight:700;font-size:1.5rem;border-radius:4px}
-.badge-box .word{font-family:var(--heading);font-weight:700;font-size:1.3rem}
+.step header .what{font-family:var(--heading);font-weight:700;font-size:1.25rem}
+.badge-box .word,.badge-big .what{font-weight:600;color:var(--muted)}
 .badge-big .num{font-family:var(--heading);font-weight:800;font-size:4.2rem;line-height:.9;color:var(--accent);letter-spacing:-.03em}
-.badge-big .word{display:none}
+.badge-big .what{font-weight:600;color:var(--muted)}
 .badge-plain .num{display:none}
 .badge-plain .word{font-family:var(--heading);font-size:.85rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
 .badge-plain .word::after{content:" " attr(data-n)}
+.badge-plain .what{font-size:1.05rem;font-weight:600}
 .step label.done{display:flex;align-items:center;gap:.4rem;font-size:.8rem;color:var(--muted);cursor:pointer;user-select:none}
 .step:has(label.done input:checked){opacity:.45}
 figure{grid-area:fig;margin:0}
@@ -109,8 +111,9 @@ export function html(s: AsmSettings, parts: Part[], steps: Step[], figures: Shee
     }
     return [...got].map(([item, n]) => ({ item, n, row: all.find((x) => x.item === item) }))
   }
+  const summary = (st: Step) => takes(st).map((x) => `${x.n > 1 ? `${x.n}× ` : ''}${x.row?.name ?? ''}`).join(', ')
   const contents = steps
-    .map((st, i) => `<li><a href="#step-${i + 1}"><b>${String(i + 1).padStart(2, '0')}</b><span>${esc(takes(st).map((x) => `${x.n > 1 ? `${x.n}× ` : ''}${x.row?.name ?? ''}`).join(', '))}</span></a></li>`)
+    .map((st, i) => `<li><a href="#step-${i + 1}"><b>${String(i + 1).padStart(2, '0')}</b><span>${esc(summary(st))}</span></a></li>`)
     .join('\n')
   const sections = steps
     .map((st, i) => {
@@ -123,9 +126,9 @@ export function html(s: AsmSettings, parts: Part[], steps: Step[], figures: Shee
         st.torque ? `<div><h3>Torque</h3><div class="torque">${esc(st.torque)}</div></div>` : '',
         st.notes ? `<div class="note">${esc(st.notes)}</div>` : '',
       ].join('')
-      const svg = figures[i] ? toSvg(figures[i]).replace(/ width="[^"]*mm" height="[^"]*mm"/, ` role="img" aria-label="Step ${i + 1}"`) : ''
+      const svg = figures[i] ? toSvg(figures[i]).replace(/ width="[^"]*mm" height="[^"]*mm"/, ` role="img" aria-label="Step ${i + 1}"`).replace(/<rect [^>]*fill="#ffffff"\/>/, '') : ''
       return `<section class="sheet step" id="step-${i + 1}">
-<header><span class="num">${i + 1}</span><span class="word" data-n="${i + 1}">Step</span><span class="of">${i + 1} / ${steps.length}</span><label class="done"><input type="checkbox"> Done</label></header>
+<header><span class="num">${i + 1}</span><span class="word" data-n="${i + 1}">Step</span><span class="what">${esc(summary(st))}</span><span class="of">${i + 1} / ${steps.length}</span><label class="done"><input type="checkbox"> Done</label></header>
 <figure>${svg}</figure>
 <aside class="side">${side}</aside>
 ${said.length ? `<ol class="do${said.length === 1 ? ' one' : ''}">${said.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
