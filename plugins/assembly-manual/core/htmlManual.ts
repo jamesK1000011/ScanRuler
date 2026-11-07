@@ -53,7 +53,7 @@ ol.contents span{color:var(--muted);font-size:.88rem}
 .step header .of{margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--muted)}
 .badge-box .num{display:inline-flex;align-items:center;justify-content:center;width:2.8rem;height:2.8rem;background:var(--accent);color:#fff;font-family:var(--heading);font-weight:700;font-size:1.5rem;border-radius:4px}
 .step header .what{font-family:var(--heading);font-weight:700;font-size:1.25rem}
-.badge-box .word,.badge-big .what{font-weight:600;color:var(--muted)}
+.badge-box .word,.badge-big .word{display:none}
 .badge-big .num{font-family:var(--heading);font-weight:800;font-size:4.2rem;line-height:.9;color:var(--accent);letter-spacing:-.03em}
 .badge-big .what{font-weight:600;color:var(--muted)}
 .badge-plain .num{display:none}
