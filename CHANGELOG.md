@@ -7,6 +7,14 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Thread match** (2026-11-07, new plugin `thread-match`). `thread.identify`
+  names a scanned thread against ISO metric, UNC, UNF, UNEF, NPT, G, R,
+  metric trapezoidal, ACME and the 3D-print form. It reads the points along the
+  helix to get a sharper pitch, the flank angle, the taper, the hand and the
+  number of starts. When the scan can't tell two sizes apart, as with M5×0.8
+  and #10-32, it says so and gives the one hand measurement that would, with
+  what each size would read. It also adds `thread.lookup`, `thread.standards`,
+  `thread.note`, `thread.settings` and an agent guide.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.
