@@ -54,9 +54,13 @@ export interface AsmSettings {
   orientation: 'landscape' | 'portrait'
   /** How far new parts are pulled out along their move, as a share of their travel. */
   explode: number
+  /** How it looks — themes.ts: workshop, picture, technical, shopfloor. */
+  theme: string
+  /** The person's own accent colour, '#rrggbb', over the theme's. */
+  accent?: string
 }
 
-export const DEFAULT_SETTINGS: AsmSettings = { title: 'Assembly instructions', paper: 'letter', orientation: 'landscape', explode: 1 }
+export const DEFAULT_SETTINGS: AsmSettings = { title: 'Assembly instructions', paper: 'letter', orientation: 'landscape', explode: 1, theme: 'workshop' }
 
 export const DEFAULT_WORDS: Record<string, string> = {
   utilize: 'use',

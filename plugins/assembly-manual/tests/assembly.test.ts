@@ -6,7 +6,9 @@ import { toPdf, toSvg } from '../../_shared/lineart/sheet'
 import { bestView, bom, direction, issues, itemOf, stepCamera } from '../core/assembly'
 import { drawSteps, sweep, type AsmKernel, type PartIn } from '../core/geometry'
 import { lint, parseStyleFile } from '../core/lint'
-import { cover, html, stepPage, wrap } from '../core/manual'
+import { html, sentences } from '../core/htmlManual'
+import { cover, stepFigure, stepPage, wrap } from '../core/manual'
+import { THEMES, themeOf } from '../core/themes'
 import { DEFAULT_SETTINGS, DEFAULT_STYLE, type Part, type Step } from '../core/model'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,23 +144,46 @@ describe('the manual', () => {
     expect(third.paths).toHaveLength(4)
     const pages = steps.map((s, i) => stepPage(i, s, d[i], parts, steps.length, DEFAULT_SETTINGS))
     const svg = toSvg(pages[2])
-    expect(svg).toContain('Step 3')
+    expect(svg).toContain('>Step<')
+    expect(pages[2].marks.some((m) => m.k === 'text' && m.text === '3' && m.bold && m.h === 6.5)).toBe(true)
     expect(svg).toContain('4 × Screw')
     expect(svg).toContain('M3×16 ISO 4762')
     expect(svg).toContain('Torque: 0.8 N·m')
     expect(svg).toMatch(/stroke="#999999"/)
-    const balloons = pages[2].marks.filter((m) => m.k === 'text' && m.text === '3')
+    const balloons = pages[2].marks.filter((m) => m.k === 'text' && m.text === '3' && m.h === 2.6)
     expect(balloons.length).toBe(2)
+    expect(balloons.every((m) => m.k === 'text' && m.rgb === '#ffffff')).toBe(true)
+    const technical = stepPage(2, steps[2], d[2], parts, steps.length, { ...DEFAULT_SETTINGS, theme: 'technical' })
+    expect(technical.marks.some((m) => m.k === 'text' && m.text === 'Step 3' && m.rgb === themeOf({ theme: 'technical' }).accent)).toBe(true)
+    const picture = stepPage(2, steps[2], d[2], parts, steps.length, { ...DEFAULT_SETTINGS, theme: 'picture' })
+    expect(picture.marks.every((m) => !m.rgb || m.rgb === '#000000' || m.rgb === '#ffffff')).toBe(true)
+    const mine = stepPage(2, steps[2], d[2], parts, steps.length, { ...DEFAULT_SETTINGS, accent: '#2a9d4b' })
+    expect(mine.marks.some((m) => m.rgb === '#2a9d4b')).toBe(true)
     for (const p of pages) for (const m of p.marks) if (m.k !== 'text') for (let i = 0; i < m.pts.length; i += 2) {
       expect(m.pts[i]).toBeGreaterThanOrEqual(0)
       expect(m.pts[i]).toBeLessThanOrEqual(p.w)
     }
     const c = cover(parts, steps, DEFAULT_SETTINGS)
     expect(toSvg(c)).toContain('Bill of materials')
-    const doc = html('Box kit', parts, steps, pages)
-    expect(doc).toMatch(/<td>3<\/td><td>4<\/td><td>Screw<\/td><td>M3×16 ISO 4762<\/td>/)
-    expect(doc).not.toMatch(/<script/)
-    expect(new TextDecoder('latin1').decode(toPdf([c, ...pages]))).toContain('/Count 4')
+    const figures = steps.map((_, i) => stepFigure(d[i], parts, DEFAULT_SETTINGS))
+    expect(figures[2].marks.some((m) => m.k === 'text' && m.text === 'Step')).toBe(false)
+    for (const t of THEMES) {
+      const doc = html({ ...DEFAULT_SETTINGS, title: 'Box kit', theme: t.id }, parts, steps, figures)
+      expect(doc).toMatch(/<td class="item"><span class="balloon">3<\/span><\/td><td class="qty">4×<\/td><td>Screw<\/td><td class="des">M3×16 ISO 4762<\/td>/)
+      expect(doc).toContain(`--accent:${t.accent}`)
+      expect(doc).toContain(`badge-${t.badge} balloons-${t.balloon}`)
+      expect(doc).toContain('<li>Install the four screws.</li><li>Tighten them in a cross pattern.</li>')
+      expect(doc).toContain('<div class="torque">0.8 N·m</div>')
+      expect(doc).toContain('href="#step-3"')
+      expect(doc).toContain('@media print')
+      expect(doc).not.toMatch(/<script|<link|@import|url\(/)
+    }
+    expect(sentences('Put the lid on. Align the holes.\nTighten them.')).toEqual(['Put the lid on.', 'Align the holes.', 'Tighten them.'])
+    expect(sentences('Use an M3×10 screw, 2.5 mm hex key.')).toHaveLength(1)
+    const pdf = new TextDecoder('latin1').decode(toPdf([c, ...pages]))
+    expect(pdf).toContain('/Count 4')
+    expect(pdf).toContain('/Helvetica-Bold')
+    expect(pdf).toMatch(/0\.094 0\.467 0\.753 rg/)
     expect(wrap('one two three four five six', 3.5, 20).length).toBeGreaterThan(1)
   }, 120_000)
 })
