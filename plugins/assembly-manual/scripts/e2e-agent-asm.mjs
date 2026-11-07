@@ -133,6 +133,18 @@ try {
   const z = await ok('asm_save', { format: 'zip', path: join(out, 'box-kit.zip') })
   check(readFileSync(join(out, 'box-kit.zip')).readUInt32LE(0) === 0x04034b50 && z.json?.files?.includes('box-kit.pdf'), `the zip: ${z.json?.files?.join(', ')}`)
 
+  await ok('workspace_set', { workspace: 'assembly' })
+  await page.waitForSelector('[data-test=asm-panel]', { timeout: 30_000 })
+  const clickText = (t) => page.evaluate((t) => [...document.querySelectorAll('[data-test=asm-panel] button')].find((b) => b.textContent.trim() === t)?.click(), t)
+  check((await page.$$eval('[data-test=asm-step]', (l) => l.length)) === 3, 'the Assembly workspace’s panel lists the three steps')
+  await clickText('Check it goes together')
+  await page.waitForSelector('[data-test=asm-check]', { timeout: 120_000 })
+  check((await page.$eval('[data-test=asm-check]', (e) => e.textContent)) === 'Every part gets in', 'Check in the panel says every part gets in')
+  await clickText('Draw')
+  await page.waitForSelector('[data-test=asm-page] img', { timeout: 120_000 })
+  check(await page.$eval('[data-test=asm-page] img', (i) => i.complete && i.naturalWidth > 500), 'Draw in the panel puts step 1 on the stage')
+  await page.screenshot({ path: join(out, 'asm-panel.png') })
+
   const projectFile = join(OUT_DIR, 'asm.scanruler')
   await ok('project_save', { path: projectFile })
   await ok('project_load', { path: projectFile, discard: true })
