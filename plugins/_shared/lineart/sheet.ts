@@ -53,6 +53,10 @@ export function toSvg(s: Sheet): string {
 
 const PT = 72 / 25.4
 
+/** WinAnsi codes for the characters past Latin-1 a sheet may hold. */
+const WIN: Record<string, number> = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97, '™': 0x99 }
+const winAnsi = (t: string) => [...t].map((c) => (WIN[c] !== undefined ? String.fromCharCode(WIN[c]) : c.charCodeAt(0) < 256 ? c : '?')).join('')
+
 /** The sheets as one PDF, a page each. */
 export function toPdf(sheets: Sheet[]): Uint8Array {
   const objs: string[] = []
@@ -79,7 +83,7 @@ export function toPdf(sheets: Sheet[]): Uint8Array {
         const size = (m.h / CAP) * PT
         const w = textWidth(m.text, m.h)
         const x = m.anchor === 'middle' ? m.x - w / 2 : m.anchor === 'end' ? m.x - w : m.x
-        ops.push(`0 g BT /F1 ${f(size)} Tf ${X(x)} ${Y(m.y)} Td (${m.text.replace(/[\\()]/g, (c) => `\\${c}`)}) Tj ET`)
+        ops.push(`0 g BT /F1 ${f(size)} Tf ${X(x)} ${Y(m.y)} Td (${winAnsi(m.text).replace(/[\\()]/g, (c) => `\\${c}`)}) Tj ET`)
       }
     }
     const stream = ops.join('\n')
