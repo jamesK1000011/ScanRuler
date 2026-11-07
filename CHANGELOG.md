@@ -7,6 +7,13 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **More model formats** (2026-11-07, new plugin `import-plus`). GLB, glTF,
+  FBX, 3DS, Collada, AMF and VRML now open as the scan or the reference part,
+  either dropped on the page or through `import.open`. Each comes in at mm and
+  Z up from the format's own units and axes, and a size that suggests the
+  units are wrong is flagged. You can keep only some of a file's parts. A
+  `.blend` is converted by your own Blender through scanruler-mcp's new
+  `blender_convert` tool, which is listed when `SCANRULER_MCP_BLENDER` is set.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.

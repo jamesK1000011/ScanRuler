@@ -9,6 +9,7 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
+| [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML, and .blend through Blender |
 
 ## The rules
 

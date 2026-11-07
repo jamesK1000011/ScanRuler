@@ -30,6 +30,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
+import { convertBlend, findBlender } from './blender.js'
 
 /** The app's own commands as of this release, so the tools are there before
  *  a page connects — unless a page has connected before whose list was kept
@@ -1059,6 +1060,33 @@ export function createMcpServer({
       },
     },
   ]
+
+  // A Blender file turned into GLB on this computer, for import-plus to
+  // open: the page cannot read .blend, and only Blender can. Listed only
+  // when SCANRULER_MCP_BLENDER asks for it ("auto", or Blender's path), so
+  // the server's own tools stay the ones above for everyone else.
+  if (process.env.SCANRULER_MCP_BLENDER) own.push({
+    name: 'blender_convert',
+    title: 'Convert a Blender file to GLB',
+    description: 'Turn a .blend file into a .glb with the Blender installed on this computer — in the background, factory settings, scripts in the file switched off — for import_open (the import-plus plugin) to open as the scan or the reference part. Blender is looked for at SCANRULER_MCP_BLENDER (when it is a path), BLENDER_PATH, then where it installs (on a Mac, /Applications/Blender.app), then on PATH; found says which. out: where to write the .glb, by default a temporary folder. Returns its path and size. Nothing goes over the network.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', minLength: 1, description: 'The .blend file on this computer: an absolute path, or one relative to the folder this server started in.' },
+        out: { type: 'string', minLength: 1, description: 'Where to write the .glb; a temporary folder by default.' },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+    call: async (args) => {
+      try {
+        return text(await convertBlend({ path: args?.path, out: args?.out, blender: findBlender() }))
+      } catch (e) {
+        return failure(e)
+      }
+    },
+  })
 
   // A report beside the scan, written by this server: no grant of the
   // browser's to save a file, and nowhere but the scan's folder.
