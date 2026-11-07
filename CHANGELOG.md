@@ -22,7 +22,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   number of starts. When the scan can't tell two sizes apart, as with M5×0.8
   and #10-32, it says so and gives the one hand measurement that would, with
   what each size would read. It also adds `thread.lookup`, `thread.standards`,
-  `thread.note`, `thread.settings` and an agent guide.
+  `thread.settings` and an agent guide.
 
 - **Print fit** (2026-11-07, new plugin `fit-comp`). `fit.measure` reads a
   scanned print against the CAD it was printed from. It fits the print's scale

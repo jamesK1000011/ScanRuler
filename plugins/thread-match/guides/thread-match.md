@@ -26,8 +26,9 @@
      off-standard (worn, printed, or a less common size). Offer
      `deciding`-style checks only if it matters.
    - **ambiguous**: don't pick. Give the person the first item of `deciding`,
-     with what each candidate would read. Pin it with `thread.note` if they
-     aren't at the part right now. When they answer, call
+     with what each candidate would read. If they aren't at the part right
+     now, pin the question on it with `reverse.note.add { text, at }`, at
+     the axis origin from the answer. When they answer, call
      `thread.identify { axis, families }` narrowed to the family that fits, or
      state the answer outright.
    - **none**: say it repeats but matches no size. Try `detail: "full"` and

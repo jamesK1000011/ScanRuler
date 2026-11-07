@@ -178,25 +178,6 @@ export const lookupCommand: Command<{ designation: string }> = {
   },
 }
 
-export const note: Command<{ text: string; at?: number[] }> = {
-  name: 'note',
-  title: 'Pin the thread’s identity on the part',
-  description: 'Pin a note at the last thread identified (or at at, mm) with what it is, or with the measurement you asked the person for, so the answer is kept with the part — through reverse.note.add. The person can answer in the note’s box. No step of the undo history.',
-  input: obj({ text: str('What to pin: the designation and how sure, or the question to settle it.', { minLength: 1 }), at: vec3('Where, mm; the last identified axis by default.') }, ['text']),
-  history: false,
-  run: async ({ text, at }) => {
-    const last = useThreadMatch.getState().last
-    const where = (at as Vec3 | undefined) ?? last?.at
-    if (!where) throw new CommandError('invalid_input', 'Nothing identified yet — give at.')
-    try {
-      return await runCommand('reverse.note.add', { text, at: where })
-    } catch (e) {
-      if (e instanceof CommandError && e.code === 'unknown_command') throw new CommandError('unavailable', 'Notes live in the Reverse Engineer plugin, which this build does not have.')
-      throw e
-    }
-  },
-}
-
 export const settings: Command<{ families?: Family[]; pitchFloor?: number; reset?: boolean }> = {
   name: 'settings',
   title: 'Thread-match settings',
@@ -212,5 +193,5 @@ export const settings: Command<{ families?: Family[]; pitchFloor?: number; reset
   },
 }
 
-export const threadCommands = [identify, standards, lookupCommand, note, settings] as Command<never>[]
+export const threadCommands = [identify, standards, lookupCommand, settings] as Command<never>[]
 

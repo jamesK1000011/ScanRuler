@@ -21,7 +21,6 @@ angle, the taper, the hand and the number of starts.
 | `thread.identify` | nothing | The verdict, the reads, the tie, the deciding measurement, and the Reverse thread feature when it can be modelled |
 | `thread.standards` | nothing | Families and designations |
 | `thread.lookup` | nothing | One size's basic dimensions |
-| `thread.note` | a note | Pins the answer, or the question to settle it, on the part |
 | `thread.settings` | settings | Default families; `pitchFloor` (scanner scale error) |
 
 The agent guide is `guide.read { id: "thread-match" }`.
@@ -38,5 +37,5 @@ The agent guide is `guide.read { id: "thread-match" }`.
 | `tests/` | Synthetic scanned threads for each family, including the close pairs |
 | `scripts/e2e-agent-thread.mjs` | Drives it through scanruler-mcp end to end |
 
-It needs the Reverse Engineer plugin for `thread.identify` and `thread.note`.
+It needs the Reverse Engineer plugin for `thread.identify`. To pin an answer or a question on the part, the agent uses `reverse.note.add`.
 `thread.standards` and `thread.lookup` work without it.
