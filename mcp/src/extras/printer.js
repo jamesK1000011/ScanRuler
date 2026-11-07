@@ -16,7 +16,7 @@ import { getSecret, hasSecret } from './secrets.js'
 import { home, job as sliceJob } from './slicer.js'
 
 const tilde = (p) => (p.startsWith('~/') ? join(homedir(), p.slice(2)) : p)
-const FIELDS = ['name', 'kind', 'host', 'port', 'serial', 'folder', 'app', 'storage', 'useAms', 'amsMapping', 'plate', 'startUrl', 'mqttPort', 'ftpPort', 'fingerprint']
+const FIELDS = ['name', 'kind', 'host', 'port', 'serial', 'folder', 'app', 'storage', 'useAms', 'amsMapping', 'plate', 'startUrl', 'mqttPort', 'ftpPort', 'user', 'model', 'camera', 'cameraPort', 'ffmpeg', 'fingerprint']
 
 export async function loadPrinters(env = process.env) {
   const file = join(home(env), 'printers.json')

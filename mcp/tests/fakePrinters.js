@@ -5,6 +5,7 @@
 // records what it was sent, so a test can prove nothing started.
 
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import http from 'node:http'
 import tls from 'node:tls'
@@ -134,14 +135,20 @@ async function body(req) {
 }
 
 /** Moonraker, OctoPrint or PrusaLink, as far as the adapters use them. */
-export async function fakeHttp(kind, { key = 'k-123' } = {}) {
+export async function fakeHttp(kind, { key = 'k-123', user = null, password = null } = {}) {
   const seen = { calls: [], files: new Map(), state: 'idle' }
   const server = http.createServer(async (req, res) => {
     const b = await body(req)
     const url = new URL(req.url, 'http://x')
-    seen.calls.push({ method: req.method, path: url.pathname, query: url.search, headers: req.headers, body: b })
     const json = (code, v) => res.writeHead(code, { 'Content-Type': 'application/json' }).end(JSON.stringify(v))
-    if (key && req.headers['x-api-key'] !== key && kind !== 'moonraker-open') return json(kind === 'octoprint' ? 403 : 401, { error: 'key' })
+    if (user) {
+      const auth = req.headers.authorization ?? ''
+      const v = Object.fromEntries([...auth.matchAll(/(\w+)=(?:"([^"]*)"|([^,\s]+))/g)].map((m) => [m[1], m[2] ?? m[3]]))
+      const md5 = (x) => createHash('md5').update(x).digest('hex')
+      const want = v.nonce === 'n0nce' && md5(`${md5(`${user}:Printer API:${password}`)}:${v.nonce}:${v.nc}:${v.cnonce}:auth:${md5(`${req.method}:${v.uri}`)}`) === v.response
+      if (!auth.startsWith('Digest ') || !want) return res.writeHead(401, { 'WWW-Authenticate': 'Digest realm="Printer API", nonce="n0nce", qop="auth"' }).end()
+    } else if (key && req.headers['x-api-key'] !== key && kind !== 'moonraker-open') return json(kind === 'octoprint' ? 403 : 401, { error: 'key' })
+    seen.calls.push({ method: req.method, path: url.pathname, query: url.search, headers: req.headers, body: b })
     const multipartName = () => /filename="([^"]+)"/.exec(b.toString('latin1'))?.[1]
     if (kind.startsWith('moonraker')) {
       if (url.pathname === '/printer/info') return json(200, { result: { state: 'ready', software_version: 'v0.12-fake' } })
@@ -208,4 +215,27 @@ export async function fakeHttp(kind, { key = 'k-123' } = {}) {
 export function starts(fake) {
   if (fake.seen.requests) return fake.seen.requests.filter((r) => ['project_file', 'gcode_file'].includes(r.print?.command))
   return fake.seen.calls.filter((c) => c.path === '/printer/print/start' || (c.path.startsWith('/api/files/local/') && c.method === 'POST') || (c.path.startsWith('/api/v1/files/') && c.method === 'POST'))
+}
+
+/** A P1 / A1 camera on its port 6000: checks the 80-byte login, then sends one frame. */
+export async function fakeBambuCamera({ accessCode = '12345678', creds = throwawayCert() } = {}) {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 4, 1, 2, 0xff, 0xd9])
+  const seen = { logins: [] }
+  const server = tls.createServer(creds, (sock) => {
+    sock.on('error', () => {})
+    let buf = Buffer.alloc(0)
+    sock.on('data', (d) => {
+      buf = Buffer.concat([buf, d])
+      if (buf.length < 80) return
+      const user = buf.subarray(16, 48).toString('ascii').replace(/\0+$/, '')
+      const code = buf.subarray(48, 80).toString('ascii').replace(/\0+$/, '')
+      seen.logins.push({ head: [buf.readUInt32LE(0), buf.readUInt32LE(4)], user, ok: code === accessCode })
+      if (code !== accessCode) return sock.end()
+      const h = Buffer.alloc(16)
+      h.writeUInt32LE(jpeg.length, 0)
+      sock.write(Buffer.concat([h, jpeg]))
+    })
+  })
+  const port = await listen(server)
+  return { port, seen, jpeg, close: () => server.close() }
 }
