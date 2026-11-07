@@ -42,6 +42,16 @@ says the part is.
    `redistribute: true` only when that licence allows sharing.
 5. Record it with the project: `catalog.provenance { action: "record" }`.
 
+## McMaster-Carr and TraceParts accounts
+
+With an account set up, a part comes in without the browser.
+`catalog_sources` says whether each is on and how to set it up.
+`catalog_mcmaster { part }` fetches a McMaster part number's STEP.
+`catalog_traceparts { partNumber, catalog }` requests a TraceParts part's
+STEP and waits for it. Both land in the imports folder, recorded as not to be
+shared on. Their passwords and keys are set by the person in a terminal,
+never in the chat. Credit "Powered by TraceParts" where you show its parts.
+
 ## From a download to a repair
 
 - **A mesh** (STL, 3MF, OBJ, GLB …): open it as the reference with

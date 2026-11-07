@@ -44,7 +44,7 @@ function storedZip(entries) {
 }
 
 test('listed when asked for', () => {
-  assert.deepEqual(extraTools(helpers, { SCANRULER_MCP_EXTRAS: 'catalog' }).map((t) => t.name), ['catalog_open_url', 'catalog_watch', 'catalog_downloads', 'catalog_take'])
+  assert.deepEqual(extraTools(helpers, { SCANRULER_MCP_EXTRAS: 'catalog' }).map((t) => t.name), ['catalog_open_url', 'catalog_watch', 'catalog_sources', 'catalog_source', 'catalog_mcmaster', 'catalog_traceparts', 'catalog_downloads', 'catalog_take'])
   assert.equal(extraTools(helpers, { SCANRULER_MCP_EXTRAS: 'slicer' }).some((t) => t.name.startsWith('catalog_')), false)
 })
 

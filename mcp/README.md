@@ -308,7 +308,13 @@ each run in a job folder under `SCANRULER_HOME` (`~/.scanruler` unless
 given). `catalog` adds `catalog_open_url`, `catalog_downloads` and
 `catalog_take`. These open a search page in the default browser, list the
 new CAD files in the downloads folder (`SCANRULER_DOWNLOADS`, else
-`~/Downloads`), and bring one in with its source and licence. Unset, the
+`~/Downloads`), and bring one in with its source and licence. `catalog_watch`
+takes downloads in as they finish. `catalog_sources`, `catalog_source`,
+`catalog_mcmaster` and `catalog_traceparts` reach McMaster-Carr's Product
+Information API (an approved customer's client certificate) and the
+TraceParts API Gateway, once the person has set them up. Their passwords and
+keys are kept in the Keychain (`node mcp/src/extras/secrets.js set
+mcmaster:password`, `mcmaster:certificate`, `traceparts:apiKey`). Unset, the
 server lists no extras.
 
 ## Tools
