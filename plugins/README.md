@@ -12,6 +12,7 @@ not in this repository.
 | [texture/](texture/) | The Texture workspace — a printable surface texture with BumpMesh's engine |
 | [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
 | [fit-comp/](fit-comp/) | Print fit — scanned print against its CAD, to slicer settings or a compensated model |
+| [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML, and .blend through Blender |
 
 ## The rules
 
