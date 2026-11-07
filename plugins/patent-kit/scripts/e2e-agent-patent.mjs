@@ -129,6 +129,18 @@ try {
   check(/DRAFT — for attorney review/.test(mdText) && /\| 12 \| Dowel \|/.test(mdText), 'the draft is marked for attorney review, its numeral table current')
   check(Boolean(md), 'the Markdown alone saves too')
 
+  await ok('workspace_set', { workspace: 'patent' })
+  await page.waitForSelector('[data-test=patent-panel]', { timeout: 30_000 })
+  const clickText = (t) => page.evaluate((t) => [...document.querySelectorAll('[data-test=patent-panel] button')].find((b) => b.textContent.trim() === t)?.click(), t)
+  check((await page.$$eval('[data-test=patent-panel] ol li', (l) => l.length)) === 6, 'the Patent workspace’s panel lists the six figures')
+  await clickText('Draw')
+  await page.waitForSelector('[data-test=patent-sheet] img', { timeout: 120_000 })
+  check(await page.$eval('[data-test=patent-sheet] img', (i) => i.complete && i.naturalWidth > 500), 'Draw in the panel puts sheet 1 on the stage')
+  await page.screenshot({ path: join(out, 'patent-panel.png') })
+  await clickText('Check against 1.84')
+  await page.waitForSelector('[data-test=patent-findings]', { timeout: 120_000 })
+  check(/to look at|Nothing flagged/.test(await page.$eval('[data-test=patent-findings]', (e) => e.textContent)), 'Check in the panel lists what to look at')
+
   const projectFile = join(OUT_DIR, 'patent.scanruler')
   await ok('project_save', { path: projectFile })
   await ok('project_load', { path: projectFile, discard: true })

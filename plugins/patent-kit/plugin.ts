@@ -10,10 +10,19 @@ import { registerCommands, registerGuide, registerStateSection, type ScanRulerPl
 import { patentCommands } from './app/patentCommands'
 import { patentSection } from './app/projectSection'
 import { usePatent } from './state/patentStore'
+import { usePatentPlugin } from './app/usePatentPlugin'
 
 const plugin: ScanRulerPlugin = {
   id: 'patent-kit',
   name: 'Patent kit',
+  workspace: {
+    id: 'patent',
+    label: 'Patent',
+    title: 'Patent drawings with reference numerals, laid out to 37 CFR 1.84, and a draft description for your attorney — saved to this computer only',
+    icon: 'sheet',
+    order: 40,
+  },
+  usePlugin: usePatentPlugin,
   install() {
     registerProjectSection(patentSection)
     registerCommands('patent', patentCommands)
