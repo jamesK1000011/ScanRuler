@@ -9,6 +9,7 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
+| [wear-repair/](wear-repair/) | Wear repair — worn regions back onto the mirrored half or the CAD; prints pre-warped |
 
 ## The rules
 

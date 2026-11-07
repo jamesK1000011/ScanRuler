@@ -7,6 +7,13 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Wear repair** (2026-11-07, new plugin `wear-repair`). `wear.diff` reads how
+  much a part has worn, region by region, against its own mirrored other half
+  or against its CAD or a twin aligned in Deviation. `wear.rebuild` writes the
+  part with the worn regions brought back onto that reference, faded out at
+  the edges and never touching regions you keep. `wear.prewarp` moves a model
+  against the error a print of it shows, so the next print comes out true. It
+  runs as a loop that says when to stop.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.
