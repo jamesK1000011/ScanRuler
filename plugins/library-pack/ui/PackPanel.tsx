@@ -10,6 +10,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
+import { Busy, Notes, Status, TextField } from '../../_shared/ui/kit'
 import { LICENCES, PACK_LICENCES, readLicence } from '../core/licence'
 import { plan } from '../core/plan'
 import { usePack } from '../state/packStore'
@@ -34,16 +35,16 @@ async function run(name: string, input: Json = {}, busy?: string): Promise<Json 
 }
 
 const EMPTY = { part: '', title: '', author: '', url: '', licence: '', source: '', body: '' }
-
-function Field({ label, value, on, wide }: { label: string; value: string; on(v: string): void; wide?: boolean }) {
-  return (
-    <label style={{ display: 'block', margin: '3px 0' }}>
-      {label}
-      <br />
-      {wide ? <textarea defaultValue={value} rows={3} style={{ width: '100%' }} onBlur={(e) => e.target.value !== value && on(e.target.value)} /> : <input defaultValue={value} style={{ width: '100%' }} onBlur={(e) => e.target.value !== value && on(e.target.value)} />}
-    </label>
-  )
-}
+const UP_FIELDS: { k: keyof typeof EMPTY; label: string; hint?: string }[] = [
+  { k: 'part', label: 'Name in this project' },
+  { k: 'title', label: 'Its title' },
+  { k: 'author', label: 'Designer' },
+  { k: 'url', label: 'Page', hint: 'https://…' },
+  { k: 'licence', label: 'Licence', hint: 'as the page says: CC BY-SA 4.0' },
+  { k: 'source', label: 'Where from', hint: 'printables, mcmaster…' },
+  { k: 'body', label: 'Body it is', hint: 'the body’s name in Reverse Engineer' },
+]
+const PLATFORM_NAMES: Record<string, string> = { printables: 'Printables', thangs: 'Thangs', makerworld: 'MakerWorld', thingiverse: 'Thingiverse' }
 
 export function PackPanel() {
   const st = usePack()
@@ -53,103 +54,134 @@ export function PackPanel() {
   const s = st.settings
   const p = plan(s, st.upstream)
   const set = (patch: Json) => void run('settings', patch)
+  const licenceShort = (l: string) => (readLicence(l) ? LICENCES[readLicence(l)!].short : l)
 
   return (
-    <div className="panel" data-test="pack-panel">
+    <aside className="panel" data-test="pack-panel">
       <div className="group">
         <div className="sec-head">
           Share this part
           <InfoDot title="A pack you upload yourself">
-            <p>The model, renders, a README, a LICENSE and the upload form's text, as a zip saved here. Each upstream part's licence is checked against yours, remixes are credited, and personal details are taken out of every file. Nothing is uploaded or posted.</p>
+            <p>The model, renders, a README, a LICENSE and the upload form’s text, as a zip saved here.</p>
+            <p>Each upstream part’s licence is checked against yours, remixes are credited, and personal details are taken out of every file. Nothing is uploaded or posted.</p>
           </InfoDot>
         </div>
-        <Field label="Title" value={s.title} on={(title) => title.trim() && set({ title })} />
-        <Field label="Author (as you want to be credited)" value={s.author} on={(author) => set({ author })} />
-        <Field label="Summary" value={s.summary} on={(summary) => set({ summary })} wide />
-        <Field label="Print settings" value={s.printSettings} on={(printSettings) => set({ printSettings })} wide />
-        <div className="kv">
+        <TextField label="Title" value={s.title} disabled={busy} onCommit={(title) => title.trim() && set({ title })} />
+        <TextField label="Credit me as" value={s.author} disabled={busy} onCommit={(author) => set({ author })} />
+        <TextField label="Summary" value={s.summary} rows={3} disabled={busy} onCommit={(summary) => set({ summary })} />
+        <TextField label="Print settings" value={s.printSettings} rows={3} disabled={busy} placeholder="PETG, 0.2 mm layers, 4 walls…" onCommit={(printSettings) => set({ printSettings })} />
+      </div>
+
+      <div className="group">
+        <div className="sec-head">In the pack</div>
+        <label className="field">
+          <span>Renders</span>
+          <select value={s.renders} disabled={busy} onChange={(e) => set({ renders: Number(e.target.value) })}>
+            {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? 'None' : `${n} view${n > 1 ? 's' : ''}`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="pl-chips">
           <label>
-            Renders{' '}
-            <select value={s.renders} disabled={busy} onChange={(e) => set({ renders: Number(e.target.value) })}>
-              {[0, 1, 2, 3, 4, 5, 6].map((n) => (
-                <option key={n}>{n}</option>
-              ))}
-            </select>
+            <input type="checkbox" checked={s.includeStep} disabled={busy} onChange={(e) => set({ includeStep: e.target.checked })} />
+            STEP
           </label>
-          <label><input type="checkbox" checked={s.includeStep} disabled={busy} onChange={(e) => set({ includeStep: e.target.checked })} /> STEP</label>
-          <label><input type="checkbox" checked={s.include3mf} disabled={busy} onChange={(e) => set({ include3mf: e.target.checked })} /> 3MF</label>
-          <label><input type="checkbox" checked={s.includeManual} disabled={busy} onChange={(e) => set({ includeManual: e.target.checked })} /> Manual</label>
-          <label><input type="checkbox" checked={s.includeNotes} disabled={busy} onChange={(e) => set({ includeNotes: e.target.checked })} /> Notes</label>
-        </div>
-        <div className="kv">
           <label>
-            For{' '}
-            <select value={s.platform} disabled={busy} onChange={(e) => set({ platform: e.target.value })}>
-              {['printables', 'thangs', 'makerworld', 'thingiverse', ...st.presets.map((x) => x.id)].filter((x, i, a) => a.indexOf(x) === i).map((id) => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-            </select>
+            <input type="checkbox" checked={s.include3mf} disabled={busy} onChange={(e) => set({ include3mf: e.target.checked })} />
+            3MF project
+          </label>
+          <label>
+            <input type="checkbox" checked={s.includeManual} disabled={busy} onChange={(e) => set({ includeManual: e.target.checked })} />
+            Manual
+          </label>
+          <label>
+            <input type="checkbox" checked={s.includeNotes} disabled={busy} onChange={(e) => set({ includeNotes: e.target.checked })} />
+            Notes
           </label>
         </div>
+        <label className="field">
+          <span>Upload form for</span>
+          <select value={s.platform} disabled={busy} onChange={(e) => set({ platform: e.target.value })}>
+            {['printables', 'thangs', 'makerworld', 'thingiverse', ...st.presets.map((x) => x.id)]
+              .filter((x, i, a) => a.indexOf(x) === i)
+              .map((id) => (
+                <option key={id} value={id}>
+                  {PLATFORM_NAMES[id] ?? id}
+                </option>
+              ))}
+          </select>
+        </label>
       </div>
 
       <div className="group">
         <div className="sec-head">Licence</div>
-        <select value={s.licence ?? ''} disabled={busy} style={{ width: '100%' }} onChange={(e) => e.target.value && void run('licence', { id: e.target.value })} data-test="pack-licence">
-          <option value="">Choose a licence…</option>
-          {PACK_LICENCES.map((id) => (
-            <option key={id} value={id}>{LICENCES[id].name}</option>
-          ))}
-        </select>
-        {p.blocked.map((b) => (
-          <p key={b.part} className="hint" style={{ color: '#b3261e' }} data-test="pack-blocked">
-            <b>{b.part}:</b> {b.why}
-          </p>
-        ))}
-        {p.licence && !p.blocked.length && <p className="hint">Every upstream part allows it.</p>}
+        <label className="pl-stack">
+          <select value={s.licence ?? ''} disabled={busy} onChange={(e) => e.target.value && void run('licence', { id: e.target.value })} data-test="pack-licence">
+            <option value="">Choose a licence…</option>
+            {PACK_LICENCES.map((id) => (
+              <option key={id} value={id}>
+                {LICENCES[id].name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Notes testId="pack-blocked" items={p.blocked.map((b) => ({ level: 'block', rule: b.part, text: b.why }))} />
+        {p.licence && !p.blocked.length && <Status tone="ok">Every upstream part allows it.</Status>}
       </div>
 
       <div className="group">
-        <div className="sec-head">Upstream parts</div>
-        {st.upstream.map((u) => {
-          const left = p.leftOut.some((x) => x.part === u.part)
-          return (
-            <div key={u.part} className="kv" style={{ fontSize: 12 }}>
-              <span>
-                <b>{u.part}</b> {u.author ? `by ${u.author}` : ''} {u.licence ? `· ${readLicence(u.licence) ? LICENCES[readLicence(u.licence)!].short : u.licence}` : ''} {left ? '· left out, linked' : ''}
-              </span>
-              <button title="Remove" disabled={busy} onClick={() => void run('attrib', { remove: [u.part] })}>×</button>
-            </div>
-          )
-        })}
-        <details>
-          <summary>Add a part you didn't design</summary>
-          {(['part', 'title', 'author', 'url', 'licence', 'source', 'body'] as const).map((k) => (
-            <label key={k} style={{ display: 'block', margin: '2px 0' }}>
-              {k}{' '}
-              <input value={up[k]} style={{ width: '100%' }} onChange={(e) => setUp({ ...up, [k]: e.target.value })} placeholder={k === 'licence' ? 'as the page says: CC BY-SA 4.0' : k === 'source' ? 'printables, mcmaster…' : ''} />
+        <div className="sec-head">
+          Upstream parts <b>{st.upstream.length || ''}</b>
+        </div>
+        {st.upstream.length === 0 && <p className="hint">A part you didn’t design — a bolt from McMaster, a remix’s original — is credited here and its licence checked.</p>}
+        <div>
+          {st.upstream.map((u) => {
+            const left = p.leftOut.some((x) => x.part === u.part)
+            return (
+              <div key={u.part} className="kv" data-test="pack-upstream">
+                <span className="name" title={u.url ?? ''}>
+                  {u.part}
+                  {u.author ? <span className="pl-aside"> by {u.author}</span> : null}
+                </span>
+                <span className="pl-aside">{left ? 'left out, linked' : u.licence ? licenceShort(u.licence) : 'no licence'}</span>
+                <button className="x" title="Remove" disabled={busy} onClick={() => void run('attrib', { remove: [u.part] })}>
+                  ×
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <details className="pl-fold">
+          <summary>Add a part you didn’t design</summary>
+          {UP_FIELDS.map(({ k, label, hint }) => (
+            <label key={k} className="pl-stack">
+              <span>{label}</span>
+              <input className="pl-input" type="text" value={up[k]} placeholder={hint} onChange={(e) => setUp({ ...up, [k]: e.target.value })} />
             </label>
           ))}
-          <button
-            disabled={busy || !up.part.trim()}
-            onClick={() =>
-              void run('attrib', { set: [Object.fromEntries(Object.entries(up).filter(([, x]) => x.trim()))] }).then((r) => {
-                if (r) setUp(EMPTY)
-              })
-            }
-          >
-            Add
-          </button>
+          <div className="toolrow">
+            <button
+              disabled={busy || !up.part.trim()}
+              onClick={() =>
+                void run('attrib', { set: [Object.fromEntries(Object.entries(up).filter(([, x]) => x.trim()))] }).then((r) => {
+                  if (r) setUp(EMPTY)
+                })
+              }
+            >
+              Add the part
+            </button>
+          </div>
         </details>
       </div>
 
       <div className="group">
         <div className="sec-head">Build</div>
-        {p.problems.map((x) => (
-          <p key={x} className="hint">{x}</p>
-        ))}
+        <Notes items={p.problems.map((x) => ({ level: 'warn', text: x }))} />
         {st.added.length > 0 && <p className="hint">Added: {st.added.map((a) => a.name).join(', ')}</p>}
-        <div className="kv">
+        <div className="toolrow">
           <button
             disabled={busy}
             onClick={() =>
@@ -160,29 +192,42 @@ export function PackPanel() {
           >
             What the scrub takes out
           </button>
-          <button
-            className="primary"
-            disabled={busy || !p.ok}
-            onClick={() =>
-              void run('build', {}, 'Building the pack…').then((r) => {
-                if (!r) return
-                const f = r.file as FileOut
-                saveFile(f.name, new Blob([f.bytes as BlobPart], { type: f.mimeType }))
-                usePackView.setState({ built: r })
-              })
-            }
-          >
-            Build the pack
-          </button>
         </div>
-        {v.busy && <p className="hint">{v.busy}</p>}
-        {v.scrub && (
-          <ul style={{ margin: '4px 0', paddingLeft: '1.2em', fontSize: 12 }} data-test="pack-scrub">
-            {v.scrub.length === 0 ? <li>Nothing private found.</li> : v.scrub.map((c, i) => <li key={i}>{c.file}: {c.what}{c.count > 1 ? ` (${c.count})` : ''}</li>)}
-          </ul>
-        )}
-        {v.built && <p className="hint" data-test="pack-built">Saved {v.built.files.length} files. {v.built.next}</p>}
+        <Busy text={v.busy} />
+        {v.scrub &&
+          (v.scrub.length === 0 ? (
+            <Status tone="ok" testId="pack-scrub">
+              Nothing private found.
+            </Status>
+          ) : (
+            <Notes testId="pack-scrub" items={v.scrub.map((c) => ({ level: 'ok', rule: String(c.file).replace(/^files\//, ''), text: `${c.what}${c.count > 1 ? ` (${c.count})` : ''}` }))} />
+          ))}
       </div>
-    </div>
+
+      <div className="divider" />
+      <div className="tailrow">
+        <button
+          className="primary block"
+          disabled={busy || !p.ok}
+          onClick={() =>
+            void run('build', {}, 'Building the pack…').then((r) => {
+              if (!r) return
+              const f = r.file as FileOut
+              saveFile(f.name, new Blob([f.bytes as BlobPart], { type: f.mimeType }))
+              usePackView.setState({ built: r })
+            })
+          }
+        >
+          Build the pack
+        </button>
+        {v.built ? (
+          <Status tone="ok" testId="pack-built">
+            Saved {v.built.files.length} files. {v.built.next}
+          </Status>
+        ) : (
+          <p className="hint">A zip saved to this computer. Upload it yourself — nothing is posted from here.</p>
+        )}
+      </div>
+    </aside>
   )
 }
