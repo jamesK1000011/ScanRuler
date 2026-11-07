@@ -3,10 +3,11 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { hlr, lengthOf } from '../../_shared/lineart/hlr'
-import { toPdf, toSvg } from '../../_shared/lineart/sheet'
+import { textWidth, toPdf, toSvg, type Mark } from '../../_shared/lineart/sheet'
 import { camera } from '../../_shared/lineart/views'
 import { crc32, zip } from '../../_shared/zip'
 import { briefDescription, expand, numeralsIn, toMarkdown } from '../core/draft'
+import { SPEC_MARGIN, specification } from '../core/spec'
 import { drawFigures, type DrawKernel } from '../core/drawings'
 import { layout, MARGIN, PAPER, segmentsCross } from '../core/layout'
 import { DEFAULT_SETTINGS, type Figure, type Numeral } from '../core/model'
@@ -158,6 +159,48 @@ describe('numerals and the draft', () => {
     const md = toMarkdown({ title: 'Clamp', detailed: 'The [[10]].' }, [{ n: 10, label: 'jaw', auto: false, target: { body: 'Jaw' } }], figures, 'the clamp')
     expect(md.match(/DRAFT — for attorney review/g)!.length).toBe(3)
     expect(md).toContain('The jaw 10.')
+  })
+
+  it('the specification is laid out as 1.52 asks: margins, numbered paragraphs, claims and abstract on their own pages', () => {
+    const numerals = [{ n: 10, label: 'jaw', auto: false, target: { body: 'Jaw' } }, { n: 12, label: 'screw', auto: false, target: { body: 'Screw' } }]
+    const figures: Figure[] = [{ id: 'a', kind: 'view', view: 'iso' }, { id: 'b', kind: 'view', view: 'top' }]
+    const long = Array.from({ length: 40 }, (_, i) => `The [[10]] holds the [[12]] in place ${i}.`).join(' ')
+    const draft = { title: 'Bench clamp', field: 'This relates to clamps.', detailed: `${long}\nThe [[12#]] turns.\n${long}`, claims: '1. A clamp comprising a jaw.\n2. The clamp of claim 1.', abstract: 'A clamp with a jaw.' }
+    for (const paper of ['letter', 'a4'] as const) {
+      const sp = specification(draft, numerals, figures, { ...DEFAULT_SETTINGS, paper, title: 'the clamp' })
+      const W = paper === 'letter' ? 215.9 : 210
+      const H = paper === 'letter' ? 279.4 : 297
+      expect(sp.findings).toEqual([])
+      const texts = sp.sheets.map((sh) => sh.marks.filter((m) => m.k === 'text') as Extract<Mark, { k: 'text' }>[])
+      const body = texts.map((t) => t.filter((m) => !/DRAFT/.test(m.text) && m.text !== String(texts.indexOf(t) + 1)))
+      for (const page of body)
+        for (const m of page) {
+          const x0 = m.anchor === 'middle' ? m.x - textWidth(m.text, m.h) / 2 : m.x
+          expect(x0).toBeGreaterThanOrEqual(SPEC_MARGIN.left - 0.01 - (m.anchor === 'middle' ? 999 : 0))
+          expect(x0 + textWidth(m.text, m.h)).toBeLessThanOrEqual(W - 20)
+          expect(m.y - m.h).toBeGreaterThanOrEqual(20)
+          expect(m.y).toBeLessThanOrEqual(H - 20)
+          expect(m.h).toBeGreaterThanOrEqual(3.175)
+        }
+      const all = texts.flat().map((m) => m.text)
+      expect(all.filter((t) => /^\[\d{4}\]$/.test(t))).toEqual(['[0001]', '[0002]', '[0003]', '[0004]', '[0005]', '[0006]'])
+      expect(texts.flat().filter((m) => /^\[\d{4}\]$/.test(m.text)).every((m) => m.bold && m.x === SPEC_MARGIN.left)).toBe(true)
+      expect(all).toContain('BENCH CLAMP')
+      expect(all.join(' ')).toContain('The jaw 10 holds the screw 12 in place 0.')
+      const claimsPage = texts.findIndex((t) => t.some((m) => m.text === 'CLAIMS'))
+      const abstractPage = texts.findIndex((t) => t.some((m) => m.text === 'ABSTRACT'))
+      expect(claimsPage).toBeGreaterThan(0)
+      expect(abstractPage).toBe(claimsPage + 1)
+      expect(texts[claimsPage].some((m) => /^\[\d{4}\]$/.test(m.text))).toBe(false)
+      texts.forEach((t, i) => expect(t.some((m) => m.text === String(i + 1) && m.anchor === 'middle' && m.y > H - 25)).toBe(true))
+      const rows = [...new Set(texts[0].filter((m) => m.x === SPEC_MARGIN.left).map((m) => m.y))].sort((a, b) => a - b)
+      expect(Math.min(...rows.slice(1).map((y, i) => y - rows[i]))).toBeGreaterThanOrEqual((3.2 / 0.718) * 1.2 * 1.5 - 0.01)
+    }
+    const wordy = specification({ ...draft, abstract: Array(151).fill('word').join(' ') }, numerals, figures, DEFAULT_SETTINGS)
+    expect(wordy.findings.map((f) => f.rule)).toContain('1.72(b)')
+    const empty = specification({}, [], [], DEFAULT_SETTINGS)
+    expect(empty.findings.map((f) => f.rule).sort()).toEqual(['1.72(a)', '1.72(b)', '1.75', '1.77(b)', '1.77(b)'])
+    expect(new TextDecoder('latin1').decode(toPdf(specification(draft, numerals, figures, DEFAULT_SETTINGS).sheets))).toContain('/Helvetica-Bold')
   })
 
   it('a zip of the outputs reads back', () => {
