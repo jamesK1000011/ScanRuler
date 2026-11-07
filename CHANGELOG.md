@@ -109,6 +109,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
   in every paragraph. `patent.check` reads the 1.84 checklist and
   `patent.save` writes a zip of SVG, PDF, Markdown and CSV. It makes no
   network request: the drawings and text stay on this computer.
+- **Library pack** (2026-11-07, new plugin `library-pack`). A finished part
+  bundled for sharing. The pack holds STL, 3MF and STEP, renders, files you
+  add (a sliced 3MF with its profile), the assembly manual, a README, a
+  LICENSE and the text for the upload form. Each upstream part's licence is
+  checked against the one you pick, and a blocked pack says why. Parts from
+  TraceParts, McMaster and the like are left out and linked, and remixes
+  are credited. Every file, including those inside a 3MF, is scrubbed of
+  home-folder paths and the user name, access codes, API keys, printer
+  serials and addresses, e-mail addresses and picture EXIF. It builds a zip
+  on this computer; you upload it yourself.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.

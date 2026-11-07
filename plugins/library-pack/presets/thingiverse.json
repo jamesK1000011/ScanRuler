@@ -1,0 +1,1 @@
+{ "id": "thingiverse", "name": "Thingiverse", "images": { "count": 5, "width": 1600, "height": 1200 }, "folders": { "models": "files", "images": "images" }, "fields": { "title": 60, "summary": 140 }, "note": "Defaults, not the site's rules: check its upload form for image counts, sizes and field lengths, and edit this file to match." }
