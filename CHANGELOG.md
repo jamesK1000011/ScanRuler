@@ -7,6 +7,17 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Assembly manual** (2026-11-07, new plugin `assembly-manual`).
+  Step-by-step build instructions from parts modelled in their places. You
+  list the parts, with designations and sources for the bill of materials,
+  and the steps that put them in, each with the way it moves. `asm.check`
+  sweeps every part in along its move against what is already there, and
+  says what it runs into and how far short of its place. Each step is drawn
+  with the parts already in place in grey and its own parts in black,
+  pulled back, with path lines and balloons. Instructions are linted to a
+  style: ASD-STE100 habits by default, plain English, or your own style
+  file. The manual saves as self-contained HTML, PDF or a zip. Nothing is
+  sent anywhere.
 - **Patent kit** (2026-11-07, new plugin `patent-kit`). A starting draft to
   take to a patent attorney, from the bodies in Reverse Engineer. It makes
   black-and-white line drawings with hidden lines removed by OCCT: named
