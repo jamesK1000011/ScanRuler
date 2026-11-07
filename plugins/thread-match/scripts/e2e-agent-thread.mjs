@@ -4,7 +4,7 @@
 // are named through the tools alone. Two scanned rods are made here: an
 // M8×1.25 boss, which must match, and an M5×0.8, which a scan can't tell
 // from #10-32 UNF — it must come back ambiguous with calipers on the crests
-// as the deciding measurement. The answer is pinned on the part as a note.
+// as the deciding measurement. The question is pinned on the part as a note.
 //
 // Prereqs: dev server running (npm run dev), Chrome, the server's
 // dependencies (npm --prefix mcp ci).
@@ -88,7 +88,7 @@ try {
   check(waited.json?.connected === true && waited.json.page.plugins.includes('thread-match'), `the page connected with thread-match (${waited.json?.page?.plugins})`)
   const tools = (await agent.client.listTools()).tools
   const names = tools.map((t) => t.name)
-  const wanted = ['thread_identify', 'thread_standards', 'thread_lookup', 'thread_note', 'thread_settings']
+  const wanted = ['thread_identify', 'thread_standards', 'thread_lookup', 'thread_settings']
   check(wanted.every((n) => names.includes(n)), `the ${wanted.length} thread tools are listed (missing: ${wanted.filter((n) => !names.includes(n)).join(', ') || 'none'})`)
   const depth = (v) => (v !== null && typeof v === 'object' ? 1 + Math.max(0, ...Object.values(v).map(depth)) : 0)
   const heavy = tools.filter((t) => t.name.startsWith('thread_') && (JSON.stringify(t.inputSchema).length > 8000 || depth(t.inputSchema) > 12)).map((t) => t.name)
@@ -136,8 +136,8 @@ try {
   const state = await ok('session_state', {})
   check(state.json?.plugins?.thread?.last?.best === 'M5×0.8', `session_state carries the last thread: ${JSON.stringify(state.json?.plugins?.thread?.last)}`)
   await ok('thread_settings', { reset: true })
-  const pinned = await call('thread_note', { text: 'M5×0.8 or #10-32 UNF? Calipers across the crests: 5.00 vs 4.83 mm. Assuming M5×0.8.' })
-  check(!pinned.error, `thread_note pins the question on the part${pinned.error ? `: ${pinned.text}` : ''}`)
+  const pinned = await call('reverse_note_add', { text: 'M5×0.8 or #10-32 UNF? Calipers across the crests: 5.00 vs 4.83 mm. Assuming M5×0.8.', at: m5.json.axis.origin })
+  check(!pinned.error && !pinned.json?.queued, `the question is pinned on the part with reverse_note_add, as the guide says${pinned.error ? `: ${pinned.text}` : ''}`)
   await ok('view_render', { view: 'iso', fit: true, width: 800, height: 600, path: join(OUT_DIR, 'e2e-thread-note.png') })
 } finally {
   await agent.close?.()

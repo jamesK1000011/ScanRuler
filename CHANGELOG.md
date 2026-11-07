@@ -14,7 +14,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   number of starts. When the scan can't tell two sizes apart, as with M5×0.8
   and #10-32, it says so and gives the one hand measurement that would, with
   what each size would read. It also adds `thread.lookup`, `thread.standards`,
-  `thread.note`, `thread.settings` and an agent guide.
+  `thread.settings` and an agent guide.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.
