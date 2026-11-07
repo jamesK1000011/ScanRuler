@@ -16,7 +16,9 @@ Nothing is a hidden constant.
 1. `dfm.settings`: set the nozzle (0.4 by default), the material and the
    printer if the person said them, and `up` if the part isn't printed the
    way it is modelled. Profiles stack: default, then nozzle, then material,
-   then printer, then the project's own changes.
+   then printer, then the project's own changes. A printer profile (`h2d`
+   for the Bambu Lab H2D) also sets the build volume: a part too big is an
+   error, and one wider than both H2D nozzles reach is a warning.
 2. `dfm.check`. Read the verdict, then the findings in order: errors, then
    warnings, then notes.
 3. For each finding, tell the person what and where in one line, using its

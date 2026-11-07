@@ -273,6 +273,23 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
         }
         break
       }
+      case 'buildVolume': {
+        if (!(P.xMm > 0 && P.yMm > 0 && P.zMm > 0)) break
+        let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity
+        for (let i = 0; i < m.p.length; i += 3) {
+          xMin = Math.min(xMin, m.p[i])
+          xMax = Math.max(xMax, m.p[i])
+          yMin = Math.min(yMin, m.p[i + 1])
+          yMax = Math.max(yMax, m.p[i + 1])
+        }
+        const w = xMax - xMin, d = yMax - yMin, h = m.zMax - m.zMin
+        const fits = (X: number) => (w <= X && d <= P.yMm) || (d <= X && w <= P.yMm)
+        const at: [number, number, number] = [r((xMin + xMax) / 2), r((yMin + yMax) / 2), r(m.zMin)]
+        if (h > P.zMm) add(rule, { value: r(h, 1), limit: P.zMm, unit: 'mm tall', at, says: `${r(h, 1)} mm tall, over the ${P.zMm} mm the printer builds — lay it down, split it or scale it` })
+        else if (!fits(P.xMm)) add(rule, { value: r(Math.max(w, d), 1), limit: P.xMm, unit: 'mm across', at, says: `${r(w, 1)} × ${r(d, 1)} mm on the bed, over the ${P.xMm} × ${P.yMm} mm plate even turned — split it, scale it or stand it another way` })
+        else if (P.dualXMm > 0 && !fits(P.dualXMm)) add({ ...rule, severity: 'warning' }, { value: r(Math.max(w, d), 1), limit: P.dualXMm, unit: 'mm across', at, says: `${r(w, 1)} × ${r(d, 1)} mm fits printing from one nozzle, but not the ${P.dualXMm} mm both nozzles reach — print it in one material, or turn it` })
+        break
+      }
       case 'meshHealth': {
         const edges = new Map<string, number>()
         let degenerate = 0

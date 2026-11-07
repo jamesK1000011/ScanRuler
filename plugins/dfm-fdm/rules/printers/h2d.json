@@ -1,0 +1,20 @@
+{
+  "id": "h2d",
+  "label": "Bambu Lab H2D (dual nozzle, heated chamber)",
+  "source": "Bambu Lab H2D published specifications: 325 \u00d7 320 \u00d7 325 mm from one nozzle, 300 \u00d7 320 \u00d7 325 mm from both, 65 \u00b0C heated chamber, 350 \u00b0C nozzle.",
+  "overrides": {
+    "build-volume": {
+      "params": {
+        "xMm": 325,
+        "yMm": 320,
+        "zMm": 325,
+        "dualXMm": 300
+      }
+    },
+    "tall-thin": {
+      "params": {
+        "maxRatio": 12
+      }
+    }
+  }
+}

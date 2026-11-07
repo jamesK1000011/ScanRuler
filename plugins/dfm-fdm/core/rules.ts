@@ -4,7 +4,7 @@
 // overrides, each later one winning. Every parameter remembers which layer
 // set it, so a finding can say why its limit is what it is.
 
-export type Check = 'thinWall' | 'overhang' | 'bridge' | 'smallHole' | 'bedContact' | 'tallThin' | 'trappedVolume' | 'meshHealth'
+export type Check = 'thinWall' | 'overhang' | 'bridge' | 'smallHole' | 'bedContact' | 'tallThin' | 'trappedVolume' | 'meshHealth' | 'buildVolume'
 export type Severity = 'error' | 'warning' | 'info'
 
 export interface Rule {
@@ -47,7 +47,7 @@ export interface EffectiveRule extends Rule {
   setBy: Record<string, string>
 }
 
-export const CHECKS: readonly Check[] = ['thinWall', 'overhang', 'bridge', 'smallHole', 'bedContact', 'tallThin', 'trappedVolume', 'meshHealth']
+export const CHECKS: readonly Check[] = ['thinWall', 'overhang', 'bridge', 'smallHole', 'bedContact', 'tallThin', 'trappedVolume', 'meshHealth', 'buildVolume']
 
 export function stack(pack: RulePack, layers: readonly Layer[]): EffectiveRule[] {
   return pack.rules.map((rule) => {

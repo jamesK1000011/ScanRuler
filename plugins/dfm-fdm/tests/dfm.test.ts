@@ -7,6 +7,7 @@ import { stack, validatePack, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
 import petg from '../rules/materials/petg.json'
 import n06 from '../rules/nozzles/0.6.json'
+import h2d from '../rules/printers/h2d.json'
 import { ball, pin, plate } from './part'
 
 const rules = (layers: { name: string; overrides: Profile['overrides'] }[] = []) => stack(pack as RulePack, layers)
@@ -80,5 +81,29 @@ describe('rules', () => {
   test('the default pack is valid; a broken one is refused', () => {
     expect(validatePack(pack)).toEqual([])
     expect(validatePack({ id: 'x', rules: [{ id: 'a', check: 'nope', severity: 'bad', params: { x: 'y' } }] }).length).toBeGreaterThan(2)
+  })
+})
+
+
+describe('build volume', () => {
+  const box = (w: number, d: number, h: number) => {
+    const p = new Float64Array([0, 0, 0, w, 0, 0, w, d, 0, 0, d, 0, 0, 0, h, w, 0, h, w, d, h, 0, d, h])
+    const idx = new Uint32Array([0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7])
+    return { positions: p, indices: idx, thickness: null }
+  }
+  const find = (w: number, d: number, h: number, layers = [{ name: 'printer', overrides: h2d.overrides as Profile['overrides'] }]) => runChecks(box(w, d, h), rules(layers).filter((r) => r.check === 'buildVolume'))
+
+  test('without a printer profile there is no build volume to hold it to', () => {
+    expect(find(500, 500, 500, [])).toEqual({ findings: [], skipped: [] })
+  })
+
+  test('on the H2D: too big is an error, wider than both nozzles reach a warning, turned to fit is fine', () => {
+    expect(find(200, 200, 100).findings).toEqual([])
+    expect(find(310, 100, 20).findings).toEqual([])
+    expect(find(310, 310, 20).findings.map((f) => [f.severity, f.limit])).toEqual([['warning', 300]])
+    expect(find(330, 100, 20).findings.map((f) => [f.severity, f.limit])).toEqual([['error', 325]])
+    expect(find(100, 322, 20).findings.map((f) => f.severity)).toEqual(['warning'])
+    expect(find(100, 318, 20).findings).toEqual([])
+    expect(find(100, 100, 330).findings.map((f) => f.unit)).toEqual(['mm tall'])
   })
 })
