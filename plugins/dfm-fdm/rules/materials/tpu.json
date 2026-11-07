@@ -1,0 +1,1 @@
+{ "id": "tpu", "label": "TPU", "overrides": { "overhang": { "params": { "maxDeg": 40 } }, "bridge": { "params": { "maxMm": 5 } }, "tall-thin": { "params": { "maxRatio": 4 } } } }

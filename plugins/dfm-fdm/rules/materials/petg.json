@@ -1,0 +1,1 @@
+{ "id": "petg", "label": "PETG", "overrides": { "overhang": { "params": { "maxDeg": 45 } }, "bridge": { "params": { "maxMm": 8 } } } }

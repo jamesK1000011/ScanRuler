@@ -7,6 +7,15 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Printability check** (2026-11-07, new plugin `dfm-fdm`). `dfm.check` reads
+  a part for FDM printing: thin walls, overhangs, ledges held up on one side,
+  bridges spanning too far, small upright holes, too little bed contact, parts
+  too tall for their base, closed cavities and broken meshes. Each finding
+  gives its place, its value against the limit, and the rule it broke. The
+  rules are an editable pack stacked from nozzle, material and printer
+  profiles, and each says where its number comes from. Findings can be
+  waived with a reason that stays with the project, and `dfm.report` writes
+  the check out.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.
