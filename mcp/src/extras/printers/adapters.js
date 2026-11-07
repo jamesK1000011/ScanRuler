@@ -4,6 +4,8 @@
 // start is only ever called once a person has confirmed it (confirm.js).
 
 import { spawn } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
+import tls from 'node:tls'
 import { existsSync } from 'node:fs'
 import { access, copyFile, readdir, readFile, stat } from 'node:fs/promises'
 import { constants } from 'node:fs'
@@ -16,7 +18,7 @@ export const KINDS = {
   'bambu-lan': { label: 'Bambu Lab printer on the LAN', needs: ['host', 'serial'], secret: 'the access code from the printer’s screen', starts: 'after you confirm', note: 'Needs LAN Only and Developer Mode on the printer (Settings → Network). The printer then takes commands from the local network without Bambu’s cloud.' },
   moonraker: { label: 'Klipper (Moonraker)', needs: ['host'], secret: 'an API key, if Moonraker asks for one', starts: 'after you confirm', note: 'HTTP API.' },
   octoprint: { label: 'OctoPrint', needs: ['host'], secret: 'an API key (OctoPrint → Settings → Application Keys)', starts: 'after you confirm', note: 'REST API.' },
-  prusalink: { label: 'PrusaLink', needs: ['host'], secret: 'the API key shown in PrusaLink settings', starts: 'after you confirm', note: 'HTTP API, X-Api-Key.' },
+  prusalink: { label: 'PrusaLink', needs: ['host'], secret: 'the password (with user, usually "maker") or the API key shown in PrusaLink settings', starts: 'after you confirm', note: 'HTTP API: digest login when user is set (newer firmware), X-Api-Key otherwise.' },
   folder: { label: 'A folder or SD card', needs: ['folder'], secret: null, starts: 'you, at the printer', note: 'Copies the file there.' },
 }
 
@@ -26,14 +28,14 @@ const base = (p, fallbackPort) => {
   return `http://${h}${p.port ? `:${p.port}` : fallbackPort ? `:${fallbackPort}` : ''}`
 }
 
-async function http(url, { method = 'GET', headers = {}, body, timeoutMs = 15_000 } = {}) {
+async function http(url, { method = 'GET', headers = {}, body, timeoutMs = 15_000, via } = {}) {
   const ctl = new AbortController()
   const t = setTimeout(() => ctl.abort(), timeoutMs)
   try {
-    const r = await fetch(url, { method, headers, body, signal: ctl.signal })
+    const r = via ? await via.request(url, { method, headers, body, signal: ctl.signal }) : await fetch(url, { method, headers, body, signal: ctl.signal })
     const type = r.headers.get('content-type') ?? ''
     const data = type.includes('json') ? await r.json().catch(() => null) : type.startsWith('image/') ? new Uint8Array(await r.arrayBuffer()) : await r.text()
-    if (!r.ok) throw new Error(`${method} ${new URL(url).pathname} answered ${r.status}${r.status === 401 || r.status === 403 ? ' — the API key is missing or wrong' : ''}${typeof data === 'string' && data ? `: ${data.slice(0, 160)}` : ''}`)
+    if (!r.ok) throw new Error(`${method} ${new URL(url).pathname} answered ${r.status}${r.status === 401 || r.status === 403 ? ' — the API key or password is missing or wrong' : ''}${typeof data === 'string' && data ? `: ${data.slice(0, 160)}` : ''}`)
     return { data, type }
   } catch (e) {
     if (e.name === 'AbortError') throw new Error(`${new URL(url).host} did not answer in ${timeoutMs / 1000} s.`)
@@ -41,6 +43,42 @@ async function http(url, { method = 'GET', headers = {}, body, timeoutMs = 15_00
     throw e
   } finally {
     clearTimeout(t)
+  }
+}
+
+const md5 = (s) => createHash('md5').update(s).digest('hex')
+
+/** HTTP Digest (RFC 7616, MD5) for PrusaLink's username and password: the
+ *  challenge read from a 401, then each request signed with it. */
+export function digest(user, password) {
+  let challenge = null
+  let nc = 0
+  const sign = (method, url) => {
+    if (!challenge) return {}
+    const uri = new URL(url).pathname + new URL(url).search
+    const ha1 = md5(`${user}:${challenge.realm}:${password}`)
+    const ha2 = md5(`${method}:${uri}`)
+    const qop = /\bauth\b/.test(challenge.qop ?? '') ? 'auth' : null
+    const cnonce = randomBytes(8).toString('hex')
+    const n = (++nc).toString(16).padStart(8, '0')
+    const response = qop ? md5(`${ha1}:${challenge.nonce}:${n}:${cnonce}:${qop}:${ha2}`) : md5(`${ha1}:${challenge.nonce}:${ha2}`)
+    return { Authorization: `Digest username="${user}", realm="${challenge.realm}", nonce="${challenge.nonce}", uri="${uri}", response="${response}"${challenge.opaque ? `, opaque="${challenge.opaque}"` : ''}${qop ? `, qop=${qop}, nc=${n}, cnonce="${cnonce}"` : ''}` }
+  }
+  const read = (h) => {
+    if (!h || !/^Digest /i.test(h)) return false
+    const v = {}
+    for (const m of h.slice(7).matchAll(/(\w+)=(?:"([^"]*)"|([^,\s]+))/g)) v[m[1].toLowerCase()] = m[2] ?? m[3]
+    challenge = v
+    nc = 0
+    return true
+  }
+  return {
+    async request(url, opts = {}) {
+      const go = () => fetch(url, { ...opts, headers: { ...(opts.headers ?? {}), ...sign(opts.method ?? 'GET', url) } })
+      let r = await go()
+      if (r.status === 401 && read(r.headers.get('www-authenticate'))) r = await go()
+      return r
+    },
   }
 }
 
@@ -109,9 +147,76 @@ function bambu(p, secret) {
     resume: () => command('resume'),
     stop: () => command('stop'),
     async camera() {
-      throw new Error('Bambu cameras stream on their own protocol (RTSP on the X1, port 6000 on the P1 and A1); a snapshot is not built in. Use Bambu Studio or Handy to look.')
+      const how = p.camera ?? (/^(p1|a1)/i.test(p.model ?? '') ? 'jpeg' : 'rtsp')
+      if (how === 'jpeg') return { mimeType: 'image/jpeg', bytes: await bambuJpeg(p.host, p.cameraPort ?? 6000, secret, pin(p, seen)) }
+      if (how === 'rtsp') return { mimeType: 'image/jpeg', bytes: await rtspFrame(`rtsps://bblp:${encodeURIComponent(secret)}@${p.host}:${p.cameraPort ?? 322}/streaming/live/1`, p.ffmpeg) }
+      throw new Error(`${p.name} has camera: "none".`)
     },
   }
+}
+
+/** One JPEG off a P1 or A1's camera: TLS on port 6000, an 80-byte login
+ *  (0x40, 0x3000, 0, 0, then "bblp" and the access code, 32 bytes each),
+ *  then frames of a 16-byte header (payload length first) and a JPEG. */
+export function bambuJpeg(host, port, code, tlsOptions = {}, timeoutMs = 10_000) {
+  return new Promise((resolve, reject) => {
+    const sock = tls.connect({ host, port, rejectUnauthorized: false, ...tlsOptions })
+    let buf = Buffer.alloc(0)
+    const done = (e, v) => {
+      clearTimeout(t)
+      sock.destroy()
+      e ? reject(e) : resolve(v)
+    }
+    const t = setTimeout(() => done(new Error(`No picture from ${host}:${port} in ${timeoutMs / 1000} s.`)), timeoutMs)
+    sock.once('error', (e) => done(new Error(`Camera at ${host}:${port}: ${e.message}`)))
+    sock.once('secureConnect', () => {
+      try {
+        tlsOptions.check?.(sock)
+      } catch (e) {
+        return done(e)
+      }
+      const auth = Buffer.alloc(80)
+      auth.writeUInt32LE(0x40, 0)
+      auth.writeUInt32LE(0x3000, 4)
+      auth.write('bblp', 16, 'ascii')
+      auth.write(String(code), 48, 'ascii')
+      sock.write(auth)
+    })
+    sock.on('data', (d) => {
+      buf = Buffer.concat([buf, d])
+      if (buf.length < 16) return
+      const len = buf.readUInt32LE(0)
+      if (len === 0 || len > 20_000_000) return done(new Error('The camera sent no picture (is the access code right?).'))
+      if (buf.length < 16 + len) return
+      const jpg = buf.subarray(16, 16 + len)
+      if (jpg[0] !== 0xff || jpg[1] !== 0xd8) return done(new Error('The camera sent something that is not a JPEG.'))
+      done(null, new Uint8Array(jpg))
+    })
+    sock.on('close', () => done(new Error('The camera closed the connection (the access code may be wrong).')))
+  })
+}
+
+/** One frame of an RTSP stream (X1, H2D: rtsps on port 322), through ffmpeg
+ *  if it is installed. */
+export function rtspFrame(url, ffmpeg = 'ffmpeg', timeoutMs = 20_000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', 'tcp', '-i', url, '-frames:v', '1', '-f', 'image2', '-c:v', 'mjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const out = []
+    let err = ''
+    const t = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
+    child.stdout.on('data', (d) => out.push(d))
+    child.stderr.on('data', (d) => (err += d))
+    child.on('error', (e) => {
+      clearTimeout(t)
+      reject(new Error(e.code === 'ENOENT' ? 'This camera streams over RTSP; a snapshot needs ffmpeg (brew install ffmpeg).' : e.message))
+    })
+    child.on('close', (code) => {
+      clearTimeout(t)
+      const jpg = Buffer.concat(out)
+      if (code === 0 && jpg[0] === 0xff && jpg[1] === 0xd8) resolve(new Uint8Array(jpg))
+      else reject(new Error(`No picture from the RTSP stream${err ? `: ${err.replace(/rtsps:\/\/[^@\s]*@/g, 'rtsps://…@').trim().split('\n').pop()}` : ''}.`))
+    })
+  })
 }
 
 function moonraker(p, secret) {
@@ -179,31 +284,33 @@ function octoprint(p, secret) {
 
 function prusalink(p, secret) {
   const u = base(p)
-  if (!secret) throw new Error(`${p.name} has no API key yet. In a terminal: node mcp/src/extras/secrets.js set printer:${p.name}`)
-  const headers = { 'X-Api-Key': secret }
+  if (!secret) throw new Error(`${p.name} has no ${p.user ? 'password' : 'API key'} yet. In a terminal: node mcp/src/extras/secrets.js set printer:${p.name}`)
+  const via = p.user ? digest(p.user, secret) : undefined
+  const headers = p.user ? {} : { 'X-Api-Key': secret }
+  const call = (url, o = {}) => http(url, { ...o, via })
   const storage = p.storage ?? 'usb'
   const jobId = async () => {
-    const s = (await http(`${u}/api/v1/status`, { headers })).data ?? {}
+    const s = (await call(`${u}/api/v1/status`, { headers })).data ?? {}
     if (!s.job?.id) throw new Error('There is no job running.')
     return s.job.id
   }
   return {
     async test() {
-      const r = await http(`${u}/api/version`, { headers })
+      const r = await call(`${u}/api/version`, { headers })
       return { ok: true, software: r.data?.server ?? r.data?.text ?? null }
     },
     async status() {
-      const s = (await http(`${u}/api/v1/status`, { headers })).data ?? {}
+      const s = (await call(`${u}/api/v1/status`, { headers })).data ?? {}
       return { state: String(s.printer?.state ?? '').toLowerCase().replace('printing', 'printing') || null, percent: s.job?.progress ?? null, remainingMin: s.job?.time_remaining != null ? Math.round(s.job.time_remaining / 60) : null, nozzleC: s.printer?.temp_nozzle ?? null, bedC: s.printer?.temp_bed ?? null }
     },
     async upload(file) {
-      await http(`${u}/api/v1/files/${storage}/${encodeURIComponent(basename(file))}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/octet-stream', 'Overwrite-File': '?1', 'Print-After-Upload': '?0' }, body: await readFile(file), timeoutMs: 300_000 })
+      await call(`${u}/api/v1/files/${storage}/${encodeURIComponent(basename(file))}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/octet-stream', 'Overwrite-File': '?1', 'Print-After-Upload': '?0' }, body: await readFile(file), timeoutMs: 300_000 })
       return { name: basename(file), bytes: (await stat(file)).size }
     },
-    start: async (name) => (await http(`${u}/api/v1/files/${storage}/${encodeURIComponent(name)}`, { method: 'POST', headers }), { sent: 'start' }),
-    pause: async () => (await http(`${u}/api/v1/job/${await jobId()}/pause`, { method: 'PUT', headers }), { sent: 'pause' }),
-    resume: async () => (await http(`${u}/api/v1/job/${await jobId()}/resume`, { method: 'PUT', headers }), { sent: 'resume' }),
-    stop: async () => (await http(`${u}/api/v1/job/${await jobId()}`, { method: 'DELETE', headers }), { sent: 'stop' }),
+    start: async (name) => (await call(`${u}/api/v1/files/${storage}/${encodeURIComponent(name)}`, { method: 'POST', headers }), { sent: 'start' }),
+    pause: async () => (await call(`${u}/api/v1/job/${await jobId()}/pause`, { method: 'PUT', headers }), { sent: 'pause' }),
+    resume: async () => (await call(`${u}/api/v1/job/${await jobId()}/resume`, { method: 'PUT', headers }), { sent: 'resume' }),
+    stop: async () => (await call(`${u}/api/v1/job/${await jobId()}`, { method: 'DELETE', headers }), { sent: 'stop' }),
     async camera() {
       throw new Error('PrusaLink has no snapshot here; Prusa Connect shows the camera.')
     },

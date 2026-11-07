@@ -19,7 +19,7 @@ export function extrasWanted(env = process.env) {
 
 const obj = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false })
 
-export function extraTools({ text, failure }, env = process.env) {
+export function extraTools({ text, failure, page = null }, env = process.env) {
   const wanted = extrasWanted(env)
   const tools = []
   const tool = (name, title, description, inputSchema, call, readOnly = true) =>
@@ -219,7 +219,7 @@ export function extraTools({ text, failure }, env = process.env) {
       'printer_add',
       'Set up a printer',
       `Add a printer to printers.json, or change one by name. kind: ${Object.entries(PRINTER_KINDS).map(([k, v]) => `${k} (${v.label}; needs ${v.needs.join(', ') || 'nothing'}${v.secret ? `; secret: ${v.secret}` : ''})`).join('; ')}. host is an address on the local network (192.0.2.40, or http://name.local:7125). The secret — access code or API key — is never given here: the person sets it in a terminal with the command this answers, and it stays in the Keychain (or a file only they can read). Several printers of different kinds are fine.`,
-      obj({ name: { type: 'string', description: 'A name for it: "X1C", "Voron".' }, kind: { type: 'string', enum: Object.keys(PRINTER_KINDS) }, host: { type: 'string' }, port: { type: 'number' }, serial: { type: 'string', description: 'Bambu: the serial number (Settings → Device).' }, folder: { type: 'string', description: 'folder: where to copy files (an SD card path).' }, app: { type: 'string', description: 'bambu-studio: the app, if not BambuStudio.' }, storage: { type: 'string', description: 'prusalink: usb (the default) or local.' }, useAms: { type: 'boolean', description: 'Bambu: print from the AMS.' }, mqttPort: { type: 'number', description: 'Bambu: MQTT port, 8883 unless changed.' }, ftpPort: { type: 'number', description: 'Bambu: FTPS port, 990 unless changed.' } }, ['name', 'kind']),
+      obj({ name: { type: 'string', description: 'A name for it: "X1C", "Voron".' }, kind: { type: 'string', enum: Object.keys(PRINTER_KINDS) }, host: { type: 'string' }, port: { type: 'number' }, serial: { type: 'string', description: 'Bambu: the serial number (Settings → Device).' }, folder: { type: 'string', description: 'folder: where to copy files (an SD card path).' }, app: { type: 'string', description: 'bambu-studio: the app, if not BambuStudio.' }, storage: { type: 'string', description: 'prusalink: usb (the default) or local.' }, useAms: { type: 'boolean', description: 'Bambu: print from the AMS.' }, mqttPort: { type: 'number', description: 'Bambu: MQTT port, 8883 unless changed.' }, model: { type: 'string', description: 'Bambu: the model (X1C, P1S, A1, H2D…) — picks how its camera is read.' }, camera: { type: 'string', enum: ['jpeg', 'rtsp', 'none'], description: 'Bambu: jpeg (P1, A1: port 6000) or rtsp (X1, H2D: port 322, needs ffmpeg).' }, user: { type: 'string', description: 'PrusaLink: the user name (usually maker) for a password login; leave out for an API key.' }, confirm: { type: 'string', enum: ['dialog', 'app', 'page'], description: 'Where the person is asked to start a print on this printer: a dialog on the Mac, a card in ScanRuler, or a page in the browser; SCANRULER_CONFIRM, else dialog on a Mac, by default.' }, ftpPort: { type: 'number', description: 'Bambu: FTPS port, 990 unless changed.' } }, ['name', 'kind']),
       async (a) => printer.add(a, env),
       false,
     )
@@ -237,9 +237,9 @@ export function extraTools({ text, failure }, env = process.env) {
     tool(
       'printer_start',
       'Ask the person to start a print',
-      'Asks the person to start a file already on the printer (the last upload by default): a dialog on this Mac, or a page in their browser, shows the printer, file, time and filament with Start and Cancel. Nothing starts unless they press Start; this tool cannot start a print, and nothing here can answer the question for them. Returns the request; printer_requests shows the answer.',
+      'Asks the person to start a file already on the printer (the last upload by default): a dialog on this Mac, a card in ScanRuler (SCANRULER_CONFIRM=app), or a page in their browser, shows the printer, file, time and filament with Start and Cancel. Nothing starts unless they press Start; this tool cannot start a print, and nothing here can answer the question for them. Returns the request; printer_requests shows the answer.',
       obj({ printer: name, file: { type: 'string', description: 'The file on the printer; the last upload by default.' } }),
-      async (a) => printer.start(a, env),
+      async (a) => printer.start(a, env, process.platform, page),
       false,
     )
     tool('printer_requests', 'Start requests and their answers', 'The requests to start a print, newest first: waiting, started, cancelled, expired (after 15 minutes), withdrawn or failed, with what the printer said. withdraw takes back one still waiting.', obj({ withdraw: { type: 'string', description: 'A waiting request’s id.' } }), async ({ withdraw }) => (withdraw ? { withdrawn: printer.withdraw(withdraw), ...printer.requests() } : printer.requests()), false)
@@ -249,7 +249,7 @@ export function extraTools({ text, failure }, env = process.env) {
     tools.push({
       name: 'printer_camera',
       title: 'A picture from the printer’s camera',
-      description: 'A snapshot from the printer’s webcam, where its kind has one this can read (Moonraker, OctoPrint). Changes nothing.',
+      description: 'A snapshot from the printer’s camera: Moonraker and OctoPrint webcams; a Bambu printer’s own camera (P1 and A1 on port 6000; X1 and H2D over RTSP, which needs ffmpeg). Changes nothing.',
       inputSchema: obj({ name }),
       annotations: { readOnlyHint: true, openWorldHint: false },
       call: async (args) => {

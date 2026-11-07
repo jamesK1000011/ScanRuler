@@ -16,7 +16,7 @@ import { getSecret, hasSecret } from './secrets.js'
 import { home, job as sliceJob } from './slicer.js'
 
 const tilde = (p) => (p.startsWith('~/') ? join(homedir(), p.slice(2)) : p)
-const FIELDS = ['name', 'kind', 'host', 'port', 'serial', 'folder', 'app', 'storage', 'useAms', 'amsMapping', 'plate', 'startUrl', 'mqttPort', 'ftpPort', 'fingerprint']
+const FIELDS = ['name', 'kind', 'host', 'port', 'serial', 'folder', 'app', 'storage', 'useAms', 'amsMapping', 'plate', 'startUrl', 'mqttPort', 'ftpPort', 'user', 'model', 'camera', 'cameraPort', 'ffmpeg', 'confirm', 'fingerprint']
 
 export async function loadPrinters(env = process.env) {
   const file = join(home(env), 'printers.json')
@@ -132,7 +132,7 @@ export async function upload({ printer, file, job }, env = process.env) {
 
 const minutes = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : `${Math.round(s / 60)} min`)
 
-export async function start({ printer, file }, env = process.env, platform = process.platform) {
+export async function start({ printer, file }, env = process.env, platform = process.platform, page = null) {
   const p = await find(printer, env)
   if (KINDS[p.kind].starts !== 'after you confirm') throw new Error(`${p.name} is started by ${KINDS[p.kind].starts}, not from here.`)
   const last = lastUpload.get(p.name)
@@ -141,7 +141,7 @@ export async function start({ printer, file }, env = process.env, platform = pro
   const j = last?.name === name ? last.job : null
   const summary = { ...(j?.totals?.seconds ? { time: minutes(j.totals.seconds) } : {}), ...(j?.totals?.filamentG ? { filament: `${Math.round(j.totals.filamentG)} g` } : {}), ...(last?.name === name ? { size: last.bytes < 1024 ? `${last.bytes} B` : last.bytes < 1048576 ? `${Math.round(last.bytes / 1024)} KB` : `${(last.bytes / 1048576).toFixed(1)} MB` } : {}) }
   const a = await adapter(p, env)
-  return ask({ printer: p.name, file: name, summary, onStart: () => a.start(name), open: (u) => openUrl(u, env, platform) }, env, platform)
+  return ask({ printer: p.name, file: name, summary, onStart: () => a.start(name), open: (u) => openUrl(u, env, platform), page }, p.confirm ? { ...env, SCANRULER_CONFIRM: p.confirm } : env, platform)
 }
 
 export const requests = () => ({ requests: listRequests() })

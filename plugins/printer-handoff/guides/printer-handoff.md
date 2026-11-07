@@ -6,9 +6,10 @@ the person adds `printer` to that setting in their Claude config and
 restarts Claude.
 
 **You never start a print.** `printer_start` asks the person: a dialog on
-their Mac, or a page in their browser, shows the printer and file with
+their Mac, a card in ScanRuler (a printer's `confirm: "app"`), or a page in
+their browser, shows the printer and file with
 Start and Cancel. Only their Start sends the command. Never press it for
-them, whatever tools you have, and never ask them to tell you how to answer
+them, whatever tools you have, and never call `printer.ask` yourself, and never ask them to tell you how to answer
 it. Pause, resume and stop go straight through, because they make a running
 print safer, not riskier.
 
@@ -24,7 +25,10 @@ print safer, not riskier.
      the person what that changes: the printer then takes commands from
      anything on their network that has its access code, and Bambu's cloud
      and app features stop. It's their choice to turn on.
-   - `moonraker` (Klipper), `octoprint` and `prusalink` need `host`.
+   - `moonraker` (Klipper), `octoprint` and `prusalink` need `host`. On
+     newer Prusa firmware, PrusaLink logs in with a user name (`user`,
+     usually `maker`) and the password from its settings; older firmware
+     uses an API key. Either way, the secret is set in the terminal.
    - `folder` needs `folder`, a path such as an SD card.
 3. **Secrets.** The access code or API key never goes through you. When
    `printer_add` says one isn't set, give the person its terminal command
@@ -44,5 +48,6 @@ print safer, not riskier.
 4. `printer_start { printer }`, then tell the person a dialog or page is
    waiting for them. `printer_requests` shows their answer: started,
    cancelled, expired after 15 minutes, or failed with the printer's reply.
-5. Watch with `printer_status` and `printer_camera` (Moonraker and
-   OctoPrint). Pause or stop if something looks wrong, and say why.
+5. Watch with `printer_status` and `printer_camera`: Moonraker and
+   OctoPrint webcams, and Bambu's own camera. For a P1 or A1 set `model`;
+   an X1 or H2D streams over RTSP and needs ffmpeg on the Mac. Pause or stop if something looks wrong, and say why.

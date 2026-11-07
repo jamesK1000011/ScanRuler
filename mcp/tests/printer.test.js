@@ -14,7 +14,8 @@ import { extraTools } from '../src/extras/index.js'
 import { connectPacket, parse } from '../src/extras/printers/mqtt.js'
 import { _person } from '../src/extras/printers/confirm.js'
 import { setSecret } from '../src/extras/secrets.js'
-import { fakeBambu, fakeHttp, starts, throwawayCert } from './fakePrinters.js'
+import { fakeBambu, fakeBambuCamera, fakeHttp, starts, throwawayCert } from './fakePrinters.js'
+import { bambuJpeg, digest, rtspFrame } from '../src/extras/printers/adapters.js'
 
 const helpers = { text: (v) => ({ content: [{ type: 'text', text: JSON.stringify(v) }] }), failure: (e) => ({ isError: true, content: [{ type: 'text', text: String(e.message ?? e) }] }) }
 
@@ -45,7 +46,7 @@ const settle = async (id) => {
 }
 
 let bambu, moon, octo, prusa
-const SECRETS = { bambu: '87654321', moon: 'moon-key-xyz', octo: 'octo-key-xyz', prusa: 'prusa-key-xyz' }
+const SECRETS = { bambu: '87654321', moon: 'moon-key-xyz', octo: 'octo-key-xyz', prusa: 'prusa-key-xyz', prusaPass: 'Secr3tPass' }
 
 before(async () => {
   dir = await mkdtemp(join(tmpdir(), 'scanruler-printers-'))
@@ -166,7 +167,7 @@ test('OctoPrint: a wrong key is named; a withdrawn request starts nothing', asyn
   await ok('printer_add', { name: 'Ender', kind: 'octoprint', host: `127.0.0.1:${octo.port}` })
   await setSecret('printer:Ender', 'wrong', env)
   const bad = await call('printer_test', { name: 'Ender' })
-  assert.match(bad.text, /API key is missing or wrong/)
+  assert.match(bad.text, /API key or password is missing or wrong/)
   await setSecret('printer:Ender', SECRETS.octo, env)
   await ok('printer_test', { name: 'Ender' })
   await ok('printer_upload', { printer: 'Ender', file: join(dir, 'part.gcode') })
@@ -232,6 +233,71 @@ test('on a Mac the question is a dialog; only its Start button starts', async ()
   assert.equal(starts(moon).length, before + 1)
 })
 
+test('PrusaLink with a username and password: digest login, and a wrong password is named', async () => {
+  const prusa2 = await fakeHttp('prusalink', { user: 'maker', password: 'Secr3tPass' })
+  try {
+    await ok('printer_add', { name: 'CoreOne', kind: 'prusalink', host: `127.0.0.1:${prusa2.port}`, user: 'maker' })
+    await setSecret('printer:CoreOne', 'wrong', env)
+    assert.match((await call('printer_test', { name: 'CoreOne' })).text, /password is missing or wrong/)
+    await setSecret('printer:CoreOne', 'Secr3tPass', env)
+    await ok('printer_test', { name: 'CoreOne' })
+    await ok('printer_upload', { printer: 'CoreOne', file: join(dir, 'part.gcode') })
+    assert.ok(prusa2.seen.files.has('part.gcode'))
+    const r = await ok('printer_start', { printer: 'CoreOne' })
+    await answer(r.request, 'start')
+    assert.equal((await settle(r.request)).status, 'started')
+    assert.equal(starts(prusa2).length, 1)
+    assert.ok(prusa2.seen.calls.every((c) => !c.headers['x-api-key']), 'no API key header with a password login')
+    const d = digest('u', 'p')
+    assert.equal(typeof d.request, 'function')
+  } finally {
+    prusa2.close()
+  }
+})
+
+test('a Bambu camera: one JPEG off port 6000 with the access code; a wrong code says so; RTSP needs ffmpeg', async () => {
+  const cam = await fakeBambuCamera({ accessCode: SECRETS.bambu })
+  try {
+    const img = await bambuJpeg('127.0.0.1', cam.port, SECRETS.bambu)
+    assert.deepEqual([...img], [...cam.jpeg])
+    assert.deepEqual(cam.seen.logins[0], { head: [0x40, 0x3000], user: 'bblp', ok: true })
+    await assert.rejects(bambuJpeg('127.0.0.1', cam.port, 'nope'), /access code/)
+    const conf = JSON.parse(await readFile(join(env.SCANRULER_HOME, 'printers.json'), 'utf8'))
+    const x1 = conf.printers.find((p) => p.name === 'X1C')
+    Object.assign(x1, { model: 'P1S', cameraPort: cam.port, fingerprint: undefined })
+    await writeFile(join(env.SCANRULER_HOME, 'printers.json'), JSON.stringify(conf))
+    const shot = await call('printer_camera', { name: 'X1C' })
+    assert.equal(shot.content[0].type, 'image')
+    assert.equal(shot.content[0].mimeType, 'image/jpeg')
+    await assert.rejects(rtspFrame('rtsps://bblp:x@127.0.0.1:1/streaming/live/1', 'no-such-ffmpeg-here'), /needs ffmpeg/)
+  } finally {
+    cam.close()
+  }
+})
+
+test('in ScanRuler: the card gets the one-time address, the agent does not; only its Start starts', async () => {
+  const shown = []
+  const t = extraTools({ ...helpers, page: async (name, input) => (shown.push({ name, input }), { shown: true }) }, { ...env, SCANRULER_CONFIRM: 'app' })
+  const before = starts(moon).length
+  const r = await t.find((x) => x.name === 'printer_start').call({ printer: 'Voron', file: 'part.gcode' })
+  const said = JSON.parse(r.content[0].text)
+  assert.equal(said.how, 'app')
+  assert.ok(!r.content[0].text.includes('/confirm/'))
+  assert.equal(shown[0].name, 'printer.ask')
+  assert.match(shown[0].input.answer, /^http:\/\/127\.0\.0\.1:\d+\/confirm\/[A-Za-z0-9_-]{20,}$/)
+  await new Promise((s) => setTimeout(s, 200))
+  assert.equal(starts(moon).length, before)
+  const st0 = await (await fetch(`${shown[0].input.answer}/status`)).json()
+  assert.deepEqual(st0, { status: 'waiting' })
+  await fetch(shown[0].input.answer, { method: 'POST', body: new URLSearchParams({ action: 'start' }) })
+  assert.equal((await settle(said.request)).status, 'started')
+  assert.equal(starts(moon).length, before + 1)
+  const off = extraTools({ ...helpers, page: async () => { throw new Error('no page') } }, { ...env, SCANRULER_CONFIRM: 'app' })
+  const r2 = JSON.parse((await off.find((x) => x.name === 'printer_start').call({ printer: 'Voron', file: 'part.gcode' })).content[0].text)
+  assert.equal(r2.how, 'page', 'with no page connected it opens the browser page instead')
+  await ok('printer_requests', { withdraw: r2.request })
+})
+
 test('no answer ever carries a secret, and printer_list says only whether one is set', async () => {
   const list = await ok('printer_list')
   assert.deepEqual(list.printers.filter((p) => p.secret).map((p) => [p.name, p.secret]), [
@@ -239,6 +305,7 @@ test('no answer ever carries a secret, and printer_list says only whether one is
     ['Voron', 'set'],
     ['Ender', 'set'],
     ['MK4', 'set'],
+    ['CoreOne', 'set'],
   ])
   const all = said.join('\n')
   for (const s of Object.values(SECRETS)) assert.ok(!all.includes(s), `a secret leaked: ${s}`)

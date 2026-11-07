@@ -1090,7 +1090,7 @@ export function createMcpServer({
   })
   // The plugins' tools that need this computer, when SCANRULER_MCP_EXTRAS
   // asks for them (extras/index.js).
-  own.push(...extraTools({ text, failure }))
+  own.push(...extraTools({ text, failure, page: (name, input) => link.run(name, input) }))
 
   // A report beside the scan, written by this server: no grant of the
   // browser's to save a file, and nowhere but the scan's folder.
