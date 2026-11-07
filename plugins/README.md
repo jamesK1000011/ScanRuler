@@ -9,6 +9,7 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
+| [fit-comp/](fit-comp/) | Print fit — scanned print against its CAD, to slicer settings or a compensated model |
 
 ## The rules
 

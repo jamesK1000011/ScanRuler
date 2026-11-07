@@ -1,0 +1,12 @@
+{
+  "id": "prusaslicer",
+  "label": "PrusaSlicer",
+  "checked": "PrusaSlicer 2.6+ filament shrinkage compensation; print XY size compensation (2026-11)",
+  "keys": {
+    "contour": { "key": "xy_size_compensation", "section": "print", "kind": "add", "sign": -1, "note": "PrusaSlicer moves holes with the contour: a contour change opens or closes holes the other way." },
+    "hole": { "key": null, "kind": "unsupported", "note": "PrusaSlicer has no hole compensation: use fit.compensated_mesh to print the holes open." },
+    "foot": { "key": "elefant_foot_compensation", "section": "print", "kind": "add", "sign": 1 },
+    "scaleXY": { "key": "filament_shrinkage_compensation_xy", "section": "filament", "kind": "percentShrink" },
+    "scaleZ": { "key": "filament_shrinkage_compensation_z", "section": "filament", "kind": "percentShrink" }
+  }
+}
