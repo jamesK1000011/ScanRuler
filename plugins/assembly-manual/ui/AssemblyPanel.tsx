@@ -10,6 +10,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
+import { Busy, Notes, Pager, Paper, Status } from '../../_shared/ui/kit'
 import { bom } from '../core/assembly'
 import { lint } from '../core/lint'
 import { useAsm } from '../state/asmStore'
@@ -49,16 +50,25 @@ async function save(format: 'html' | 'pdf' | 'zip') {
 
 export function AsmPage() {
   const url = useAsmView((s) => s.url)
-  if (!url) return null
-  return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'auto', background: '#e8e8e8', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 16 }} data-test="asm-page">
-      <img src={url} alt="Manual page" style={{ maxWidth: '100%', boxShadow: '0 2px 12px rgba(0,0,0,.25)', background: '#fff' }} />
-    </div>
-  )
+  return <Paper url={url} alt="Manual page" testId="asm-page" />
 }
 
 const MOVES = ['down', 'up', '+x', '-x', '+y', '-y']
+const MOVE_WORDS: Record<string, string> = { down: 'down', up: 'up', '+x': 'along +x', '-x': 'along −x', '+y': 'along +y', '-y': 'along −y' }
 const moveName = (m: number[]) => ({ '0,0,-1': 'down', '0,0,1': 'up', '1,0,0': '+x', '-1,0,0': '-x', '0,1,0': '+y', '0,-1,0': '-y' })[m.join(',')] ?? `[${m.join(', ')}]`
+
+/** "Screw 1 down, Screw 2 down" as "4 × Screw down". */
+function placements(place: { part: string; move: number[] }[]) {
+  const groups = new Map<string, number>()
+  for (const p of place) {
+    const key = `${p.part.replace(/\s*\d+$/, '')}\u0000${MOVE_WORDS[moveName(p.move)] ?? moveName(p.move)}`
+    groups.set(key, (groups.get(key) ?? 0) + 1)
+  }
+  return [...groups].map(([k, n]) => {
+    const [part, move] = k.split('\u0000')
+    return `${n > 1 ? `${n} × ` : ''}${n > 1 ? part : place.find((p) => p.part.replace(/\s*\d+$/, '') === part)!.part} ${move}`
+  }).join(', ')
+}
 
 export function AssemblyPanel() {
   const st = useAsm()
@@ -69,115 +79,150 @@ export function AssemblyPanel() {
   const busy = v.busy !== null
   const placed = new Set(st.steps.flatMap((s) => s.place.map((p) => p.part)))
   const rows = bom(st.parts)
+  const left = st.parts.filter((p) => !placed.has(p.name))
+  const none = !st.steps.length
+  const issues = v.checked ? (v.checked.issues as Json[]).filter((x) => x.level !== 'note') : []
 
   return (
-    <div className="panel" data-test="asm-panel">
+    <aside className="panel" data-test="asm-panel">
       <div className="group">
         <div className="sec-head">
           Assembly manual
           <InfoDot title="How it works">
-            <p>List the parts — bodies in Reverse Engineer, in their assembled places — then the steps that put them in and the way each moves. Check sweeps every part in along its move against what is already there. Pages are drawn with the parts in place in grey and the step's own in black.</p>
+            <p>List the parts — bodies in Reverse Engineer, in their assembled places — then the steps that put them in and the way each moves.</p>
+            <p>Check sweeps every part in along its move against what is already there. Pages are drawn with the parts in place in grey and the step’s own in black.</p>
           </InfoDot>
         </div>
-        <div className="kv">
-          <label>
-            Title <input defaultValue={st.settings.title} disabled={busy} onBlur={(e) => e.target.value.trim() && e.target.value !== st.settings.title && void run('settings', { title: e.target.value.trim() })} />
-          </label>
-          <label>
-            Style{' '}
-            <select value={st.style.name} disabled={busy} onChange={(e) => void run('style', { name: e.target.value })}>
-              <option value="ste100">STE habits</option>
-              <option value="plain">Plain English</option>
-              {st.style.custom && <option value="custom">My style file</option>}
-            </select>
-          </label>
-        </div>
+        <label className="field">
+          <span>Title</span>
+          <input
+            key={st.settings.title}
+            type="text"
+            defaultValue={st.settings.title}
+            disabled={busy}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            onBlur={(e) => e.target.value.trim() && e.target.value !== st.settings.title && void run('settings', { title: e.target.value.trim() })}
+          />
+        </label>
+        <label className="field">
+          <span>
+            Writing style
+            <InfoDot title="Writing style">
+              <p>Each step’s words are checked as you write them. STE habits: one instruction a sentence, short sentences, the verb first, no “should”. Plain English is looser. A style file of your own can add words to avoid.</p>
+            </InfoDot>
+          </span>
+          <select value={st.style.name} disabled={busy} onChange={(e) => void run('style', { name: e.target.value })}>
+            <option value="ste100">STE habits</option>
+            <option value="plain">Plain English</option>
+            {st.style.custom && <option value="custom">My style file</option>}
+          </select>
+        </label>
       </div>
 
       <div className="group">
-        <div className="sec-head">Parts</div>
+        <div className="sec-head">
+          Parts <b>{rows.length || ''}</b>
+        </div>
         {st.parts.length === 0 && <p className="hint">Name the bodies in Reverse Engineer, then take them in as parts.</p>}
-        <table style={{ width: '100%', fontSize: 12 }}>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.item}>
-                <td style={{ width: '2em' }}><b>{r.item}</b></td>
-                <td>{r.qty} × {r.name}</td>
-                <td style={{ color: 'var(--muted, #777)' }}>{r.designation ?? r.source ?? ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="kv">
-          <button disabled={busy} onClick={() => void run('parts', { fromBodies: true })}>Take in the bodies</button>
+        <div>
+          {rows.map((r) => (
+            <div className="kv" key={r.item} data-test="asm-bom">
+              <span className="pl-num">{r.item}</span>
+              <span className="name">
+                {r.qty} × {r.name}
+              </span>
+              <span className="pl-aside">{r.designation ?? r.source ?? ''}</span>
+            </div>
+          ))}
+        </div>
+        <div className="toolrow">
+          <button disabled={busy} onClick={() => void run('parts', { fromBodies: true })}>
+            Take in the bodies
+          </button>
         </div>
         {st.parts.some((p) => p.kind === 'part' && /\d+$/.test(p.name)) && (
-          <p className="hint">Parts named "Screw 1", "Screw 2"… with one designation come out as one item with a count: set it with asm.parts, or ask the agent.</p>
+          <p className="hint">Parts named “Screw 1”, “Screw 2”… with one designation come out as one item with a count: set it with asm.parts, or ask the agent.</p>
         )}
       </div>
 
       <div className="group">
-        <div className="sec-head">Steps</div>
+        <div className="sec-head">
+          Steps <b>{st.steps.length || ''}</b>
+        </div>
         {st.steps.map((s, i) => {
           const t = texts[s.id] ?? s.text ?? ''
           const found = t ? lint(t, st.style) : []
           return (
-            <div key={s.id} style={{ borderTop: '1px solid var(--line, #ddd)', padding: '6px 0' }} data-test="asm-step">
-              <div className="kv">
-                <b>Step {i + 1}</b>
-                <span>{s.place.map((p) => `${p.part} ${moveName(p.move)}`).join(', ')}</span>
-                <button title="Earlier" disabled={busy || i === 0} onClick={() => void run('step', { move: { id: s.id, to: i } })}>↑</button>
-                <button title="Later" disabled={busy || i === st.steps.length - 1} onClick={() => void run('step', { move: { id: s.id, to: i + 2 } })}>↓</button>
-                <button title="Remove the step" disabled={busy} onClick={() => void run('step', { remove: s.id })}>×</button>
+            <div key={s.id} className="pl-card" data-test="asm-step">
+              <div className="pl-cardhead">
+                <span className="pl-num">{i + 1}</span>
+                <span className="pl-aside" title={s.place.map((p) => `${p.part} ${moveName(p.move)}`).join(', ')}>
+                  {placements(s.place)}
+                </span>
+                <button className="x edit" title="Earlier" disabled={busy || i === 0} onClick={() => void run('step', { move: { id: s.id, to: i } })}>
+                  ↑
+                </button>
+                <button className="x edit" title="Later" disabled={busy || i === st.steps.length - 1} onClick={() => void run('step', { move: { id: s.id, to: i + 2 } })}>
+                  ↓
+                </button>
+                <button className="x" title="Remove the step" disabled={busy} onClick={() => void run('step', { remove: s.id })}>
+                  ×
+                </button>
               </div>
-              <textarea rows={2} style={{ width: '100%' }} value={t} placeholder="Put the lid on the box." onChange={(e) => setTexts({ ...texts, [s.id]: e.target.value })} onBlur={() => texts[s.id] !== undefined && texts[s.id] !== (s.text ?? '') && void run('text', { step: s.id, text: texts[s.id] })} />
-              {found.length > 0 && (
-                <ul style={{ margin: '2px 0', paddingLeft: '1.2em', fontSize: 11 }} data-test="asm-lint">
-                  {found.map((f, j) => (
-                    <li key={j}>{f.message}</li>
-                  ))}
-                </ul>
-              )}
+              <textarea
+                className="pl-text"
+                rows={2}
+                value={t}
+                placeholder="Put the lid on the box."
+                onChange={(e) => setTexts({ ...texts, [s.id]: e.target.value })}
+                onBlur={() => texts[s.id] !== undefined && texts[s.id] !== (s.text ?? '') && void run('text', { step: s.id, text: texts[s.id] })}
+              />
+              <Notes testId="asm-lint" items={found.map((f) => ({ level: 'warn', text: f.message }))} />
             </div>
           )
         })}
-        <div style={{ borderTop: '1px solid var(--line, #ddd)', paddingTop: 6 }}>
-          <div className="hint">New step: tick the parts it puts in</div>
-          <div className="kv" style={{ flexWrap: 'wrap' }}>
-            {st.parts
-              .filter((p) => !placed.has(p.name))
-              .map((p) => (
+        {left.length > 0 && (
+          <div className="pl-card live">
+            <div className="pl-cardhead">
+              <span className="name">New step</span>
+              <span className="pl-aside">tick the parts it puts in</span>
+            </div>
+            <div className="pl-chips">
+              {left.map((p) => (
                 <label key={p.name}>
-                  <input type="checkbox" checked={pick.includes(p.name)} onChange={(e) => setPick(e.target.checked ? [...pick, p.name] : pick.filter((x) => x !== p.name))} /> {p.name}
+                  <input type="checkbox" checked={pick.includes(p.name)} onChange={(e) => setPick(e.target.checked ? [...pick, p.name] : pick.filter((x) => x !== p.name))} />
+                  {p.name}
                 </label>
               ))}
+            </div>
+            <div className="toolrow">
+              <select value={move} title="The way the parts go in" onChange={(e) => setMove(e.target.value)}>
+                {MOVES.map((m) => (
+                  <option key={m} value={m}>
+                    Moving {MOVE_WORDS[m]}
+                  </option>
+                ))}
+              </select>
+              <button
+                disabled={busy || pick.length === 0}
+                onClick={() =>
+                  void run('step', { add: { place: pick.map((part) => ({ part, move })) } }).then((r) => {
+                    if (r) setPick([])
+                  })
+                }
+              >
+                Add step
+              </button>
+            </div>
           </div>
-          <div className="kv">
-            moving{' '}
-            <select value={move} onChange={(e) => setMove(e.target.value)}>
-              {MOVES.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
-            <button
-              disabled={busy || pick.length === 0}
-              onClick={() =>
-                void run('step', { add: { place: pick.map((part) => ({ part, move })) } }).then((r) => {
-                  if (r) setPick([])
-                })
-              }
-            >
-              Add step
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="group">
         <div className="sec-head">Check</div>
-        <div className="kv">
+        <div className="toolrow">
           <button
-            disabled={busy || !st.steps.length}
+            disabled={busy || none}
             onClick={() =>
               void run('check', {}, 'Sweeping each part in…').then((r) => {
                 if (r) useAsmView.setState({ checked: r })
@@ -186,35 +231,52 @@ export function AssemblyPanel() {
           >
             Check it goes together
           </button>
-          {v.checked && <span data-test="asm-check">{v.checked.ok ? 'Every part gets in' : 'Something is in the way'}</span>}
         </div>
         {v.checked && (
-          <ul style={{ margin: '4px 0', paddingLeft: '1.2em', fontSize: 12 }}>
-            {(v.checked.issues as Json[]).filter((x) => x.level !== 'note').map((x, i) => (
-              <li key={i}>{x.message}</li>
-            ))}
-          </ul>
+          <Status tone={v.checked.ok ? 'ok' : 'bad'} testId="asm-check">
+            {v.checked.ok ? 'Every part gets in' : 'Something is in the way'}
+          </Status>
         )}
+        <Notes items={issues.map((x) => ({ level: x.level, text: x.message }))} />
       </div>
 
       <div className="group">
         <div className="sec-head">Pages</div>
-        <div className="kv">
-          <button className="primary" disabled={busy || !st.steps.length} onClick={() => void draw(v.url ? v.page : 1)}>Draw</button>
-          <button disabled={busy || !v.url || v.page <= 0} onClick={() => void draw(v.page - 1)}>‹</button>
-          <span>{v.url ? (v.page === 0 ? 'Cover' : `Step ${v.page} of ${v.pages}`) : ''}</span>
-          <button disabled={busy || !v.url || v.page >= v.pages} onClick={() => void draw(v.page + 1)}>›</button>
-          <label>
-            <input type="checkbox" checked={v.onStage} onChange={(e) => useAsmView.setState({ onStage: e.target.checked })} /> On the stage
-          </label>
+        {v.url && (
+          <Pager
+            label={v.page === 0 ? 'Cover' : `Step ${v.page} of ${v.pages}`}
+            canPrev={!busy && v.page > 0}
+            canNext={!busy && v.page < v.pages}
+            onPrev={() => void draw(v.page - 1)}
+            onNext={() => void draw(v.page + 1)}
+          />
+        )}
+        <div className="toolrow">
+          <button className={v.url ? '' : 'primary'} disabled={busy || none} onClick={() => void draw(v.url ? v.page : 1)}>
+            {v.url ? 'Redraw' : 'Draw'}
+          </button>
         </div>
-        {v.busy && <p className="hint">{v.busy}</p>}
-        <div className="kv">
-          <button disabled={busy || !st.steps.length} onClick={() => void save('html')}>Save HTML</button>
-          <button disabled={busy || !st.steps.length} onClick={() => void save('pdf')}>Save PDF</button>
-          <button disabled={busy || !st.steps.length} onClick={() => void save('zip')}>Both (.zip)</button>
+        <label className="checkrow">
+          <input type="checkbox" checked={v.onStage} onChange={(e) => useAsmView.setState({ onStage: e.target.checked })} />
+          Show the page on the stage
+        </label>
+        <Busy text={v.busy} />
+      </div>
+
+      <div className="divider" />
+      <div className="tailrow">
+        <button className="primary block" disabled={busy || none} onClick={() => void save('zip')}>
+          Save the manual (.zip)
+        </button>
+        <div className="toolrow">
+          <button disabled={busy || none} onClick={() => void save('html')}>
+            Save HTML
+          </button>
+          <button disabled={busy || none} onClick={() => void save('pdf')}>
+            Save PDF
+          </button>
         </div>
       </div>
-    </div>
+    </aside>
   )
 }
