@@ -13,6 +13,7 @@ not in this repository.
 | [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
 | [fit-comp/](fit-comp/) | Print fit — scanned print against its CAD, to slicer settings or a compensated model |
 | [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML, and .blend through Blender |
+| [dfm-fdm/](dfm-fdm/) | Printability check — FDM rules from editable profiles, with findings you can waive |
 
 ## The rules
 

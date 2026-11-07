@@ -1,0 +1,1 @@
+{ "id": "0.6", "label": "0.6 mm nozzle", "overrides": { "thin-wall": { "params": { "minMm": 1.2 } }, "small-hole": { "params": { "minDiameterMm": 3.0 } } } }

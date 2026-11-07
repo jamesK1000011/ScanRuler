@@ -1,0 +1,1 @@
+{ "id": "corexy", "label": "Fixed-bed CoreXY printer (Bambu, Voron, Prusa Core One)", "overrides": { "tall-thin": { "params": { "maxRatio": 12 } } } }

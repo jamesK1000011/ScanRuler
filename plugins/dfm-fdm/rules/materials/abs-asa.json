@@ -1,0 +1,1 @@
+{ "id": "abs-asa", "label": "ABS / ASA", "overrides": { "overhang": { "params": { "maxDeg": 45 } }, "bed-contact": { "params": { "minShare": 0.1 } }, "tall-thin": { "params": { "maxRatio": 6 } } } }
