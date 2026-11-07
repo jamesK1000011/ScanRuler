@@ -28,7 +28,8 @@ export function check(l: Layout, figures: Figure[], numerals: Numeral[], draft: 
     const inside = e.minX >= MARGIN.left - 0.01 && e.minY >= MARGIN.top - 0.01 && e.maxX <= paper.w - MARGIN.right + 0.01 && e.maxY <= paper.h - MARGIN.bottom + 0.01
     push({ rule: '1.84(g)', level: 'error', ok: inside, sheet: i + 1, message: inside ? `Sheet ${i + 1}: everything is inside the margins (top and left 2.5 cm, right 1.5 cm, bottom 1.0 cm).` : `Sheet ${i + 1}: something crosses a margin (marks span ${e.minX.toFixed(1)}–${e.maxX.toFixed(1)} × ${e.minY.toFixed(1)}–${e.maxY.toFixed(1)} mm).` })
   })
-  push({ rule: '1.84(a),(m)', level: 'error', ok: true, message: 'Black lines on white only: no colour, grey or shading.' })
+  const tinted = l.sheets.flatMap((sh, i) => (sh.marks.some((m) => (m.rgb && m.rgb.toLowerCase() !== '#000000') || ('grey' in m && m.grey)) ? [i + 1] : []))
+  push({ rule: '1.84(a),(m)', level: 'error', ok: !tinted.length, message: tinted.length ? `Sheet ${tinted.join(', ')}: something is in colour or grey; the drawings must be black on white.` : 'Black lines on white only: no colour, grey or shading.' })
   const numOk = s.numeralMm >= 3.2
   push({ rule: '1.84(p)(3)', level: 'error', ok: numOk, message: numOk ? `Reference numerals are ${s.numeralMm} mm high (3.2 mm, 1/8 inch, or more).` : `Reference numerals are ${s.numeralMm} mm high; they must be at least 3.2 mm (1/8 inch). patent.settings { numeralMm: 3.5 }.` })
   const figOk = s.figLabelMm > s.numeralMm

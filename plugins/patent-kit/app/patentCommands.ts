@@ -18,6 +18,7 @@ import { layout, type Layout } from '../core/layout'
 import { DEFAULT_SETTINGS, DRAFT_MARK, SECTIONS, type Figure, type Numeral, type PatentSettings, type Section } from '../core/model'
 import { assignBodies, nextNumeral, renumber, retoken, syncBodies, type BodyInfo } from '../core/numerals'
 import { check, type Finding } from '../core/rules'
+import { specification } from '../core/spec'
 import { usePatent } from '../state/patentStore'
 import { drawInWorker } from './hlrClient'
 
@@ -328,12 +329,12 @@ function sizeOf(b: { min: V3; max: V3 } | null | undefined): string | undefined 
   return [0, 1, 2].map((i) => (b.max[i] - b.min[i]).toFixed(1)).join(' × ') + ' mm'
 }
 
-const save: Command<{ format?: 'zip' | 'pdf' | 'md' }> = {
+const save: Command<{ format?: 'zip' | 'pdf' | 'spec' | 'md' }> = {
   name: 'save',
   title: 'Save the patent kit to disk',
   description:
-    'The kit as one file to save on this computer: zip (the default) holds every sheet as SVG, all of them as one PDF, the draft as Markdown, the numeral table as CSV and the checklist; pdf the sheets alone; md the draft alone. Give path to write it to a folder. Only a local save: there is no share, upload or send, and nothing goes anywhere else.',
-  input: obj({ format: enumOf(['zip', 'pdf', 'md']) }),
+    'The kit as one file to save on this computer: zip (the default) holds every sheet as SVG, all of them as one PDF, the specification as a PDF, the draft as Markdown, the numeral table as CSV and the checklist; pdf the drawing sheets alone; spec the specification alone — the draft laid out as 37 CFR 1.52 and 1.77 ask: margins, one column, 1½-spaced lines, paragraphs numbered [0001], claims and abstract each from a new page, pages numbered, marked a draft; md the draft alone. Give path to write it to a folder. Only a local save: there is no share, upload or send, and nothing goes anywhere else.',
+  input: obj({ format: enumOf(['zip', 'pdf', 'spec', 'md']) }),
   readOnly: true,
   long: true,
   returnsFile: true,
@@ -343,14 +344,18 @@ const save: Command<{ format?: 'zip' | 'pdf' | 'md' }> = {
     const s = usePatent.getState()
     const md = toMarkdown(s.draft, s.numerals, s.figures, s.settings.title)
     if (format === 'md') return { file: { name: 'patent-draft.md', mimeType: 'text/markdown', bytes: new TextEncoder().encode(md) } }
+    const spec = specification(s.draft, s.numerals, s.figures, s.settings)
+    const specPdf = toPdf(spec.sheets)
+    if (format === 'spec') return { file: { name: 'patent-specification.pdf', mimeType: 'application/pdf', bytes: specPdf }, pages: spec.sheets.length, paragraphs: spec.paragraphs, findings: spec.findings }
     const d = await drawAll((t) => ctx?.progress(t))
     const pdf = toPdf(d.layout.sheets)
     if (format === 'pdf') return { file: { name: 'patent-drawings.pdf', mimeType: 'application/pdf', bytes: pdf }, sheets: d.layout.sheets.length, checklist: brief(d.findings) }
     const enc = new TextEncoder()
-    const checklist = [`# 37 CFR 1.84 checklist`, '', `> ${DRAFT_MARK}. A target, not a guarantee.`, '', ...d.findings.map((f) => `- [${f.ok ? 'x' : ' '}] ${f.rule} (${f.level})${f.figure ? ` FIG. ${f.figure}` : ''}: ${f.message}`), ''].join('\n')
+    const checklist = [`# 37 CFR 1.84 checklist`, '', `> ${DRAFT_MARK}. A target, not a guarantee.`, '', ...d.findings.map((f) => `- [${f.ok ? 'x' : ' '}] ${f.rule} (${f.level})${f.figure ? ` FIG. ${f.figure}` : ''}: ${f.message}`), '', '## Specification (37 CFR 1.52, 1.72, 1.75, 1.77)', '', ...(spec.findings.length ? spec.findings.map((f) => `- [ ] ${f.rule} (${f.level}): ${f.message}`) : ['- [x] Every section the specification needs is there.']), ''].join('\n')
     const files = [
       ...d.layout.sheets.map((sh, i) => ({ name: `sheets/sheet-${i + 1}.svg`, bytes: enc.encode(toSvg(sh)) })),
       { name: 'patent-drawings.pdf', bytes: pdf },
+      { name: 'patent-specification.pdf', bytes: specPdf },
       { name: 'patent-draft.md', bytes: enc.encode(md) },
       { name: 'numerals.csv', bytes: enc.encode(numeralsCsv(s.numerals)) },
       { name: 'checklist.md', bytes: enc.encode(checklist) },

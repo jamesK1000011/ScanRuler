@@ -45,7 +45,7 @@ async function draw(sheet: number) {
   usePatentView.setState({ url: URL.createObjectURL(new Blob([f.bytes as BlobPart], { type: f.mimeType })), sheet, sheets: r.sheets as number })
 }
 
-async function save(format: 'zip' | 'pdf' | 'md') {
+async function save(format: 'zip' | 'pdf' | 'spec' | 'md') {
   const r = await run('save', { format }, 'Saving…')
   if (r) saveFile((r.file as FileOut).name, new Blob([(r.file as FileOut).bytes as BlobPart], { type: (r.file as FileOut).mimeType }))
 }
@@ -310,6 +310,11 @@ export function PatentPanel() {
           <button disabled={busy || none} onClick={() => void save('pdf')}>
             Drawings (.pdf)
           </button>
+          <button disabled={busy} title="The draft laid out as 37 CFR 1.52 asks: margins, 1½ spacing, paragraphs numbered [0001], claims and abstract on their own pages" onClick={() => void save('spec')}>
+            Specification (.pdf)
+          </button>
+        </div>
+        <div className="toolrow">
           <button disabled={busy} onClick={() => void save('md')}>
             Draft (.md)
           </button>
