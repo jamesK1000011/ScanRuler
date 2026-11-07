@@ -299,6 +299,14 @@ may add one — and the server says so on its stderr when a tab connects.
 `SCANRULER_MCP_TOKEN` overrides the stored token; `SCANRULER_MCP_CONFIG_DIR`
 moves the config folder.
 
+`SCANRULER_MCP_EXTRAS` lists tools that work on this computer rather than in
+the tab, for the plugins that need them. They are comma-separated, or `all`.
+`slicer` adds `slicer_detect`, `slicer_list`, `slicer_profiles`,
+`slicer_slice`, `slicer_jobs`, `slicer_result` and `slicer_compare`. These
+run OrcaSlicer, Bambu Studio or PrusaSlicer from their command lines and keep
+each run in a job folder under `SCANRULER_HOME` (`~/.scanruler` unless
+given). Unset, the server lists no extras.
+
 ## Tools
 
 Every command the ScanRuler tab offers is a tool, its name with dots turned

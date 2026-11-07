@@ -30,6 +30,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
+import { extraTools } from './extras/index.js'
 
 /** The app's own commands as of this release, so the tools are there before
  *  a page connects — unless a page has connected before whose list was kept
@@ -1059,6 +1060,10 @@ export function createMcpServer({
       },
     },
   ]
+
+  // The plugins' tools that need this computer, when SCANRULER_MCP_EXTRAS
+  // asks for them (extras/index.js).
+  own.push(...extraTools({ text, failure }))
 
   // A report beside the scan, written by this server: no grant of the
   // browser's to save a file, and nowhere but the scan's folder.
