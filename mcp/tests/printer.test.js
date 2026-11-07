@@ -275,6 +275,29 @@ test('a Bambu camera: one JPEG off port 6000 with the access code; a wrong code 
   }
 })
 
+test('in ScanRuler: the card gets the one-time address, the agent does not; only its Start starts', async () => {
+  const shown = []
+  const t = extraTools({ ...helpers, page: async (name, input) => (shown.push({ name, input }), { shown: true }) }, { ...env, SCANRULER_CONFIRM: 'app' })
+  const before = starts(moon).length
+  const r = await t.find((x) => x.name === 'printer_start').call({ printer: 'Voron', file: 'part.gcode' })
+  const said = JSON.parse(r.content[0].text)
+  assert.equal(said.how, 'app')
+  assert.ok(!r.content[0].text.includes('/confirm/'))
+  assert.equal(shown[0].name, 'printer.ask')
+  assert.match(shown[0].input.answer, /^http:\/\/127\.0\.0\.1:\d+\/confirm\/[A-Za-z0-9_-]{20,}$/)
+  await new Promise((s) => setTimeout(s, 200))
+  assert.equal(starts(moon).length, before)
+  const st0 = await (await fetch(`${shown[0].input.answer}/status`)).json()
+  assert.deepEqual(st0, { status: 'waiting' })
+  await fetch(shown[0].input.answer, { method: 'POST', body: new URLSearchParams({ action: 'start' }) })
+  assert.equal((await settle(said.request)).status, 'started')
+  assert.equal(starts(moon).length, before + 1)
+  const off = extraTools({ ...helpers, page: async () => { throw new Error('no page') } }, { ...env, SCANRULER_CONFIRM: 'app' })
+  const r2 = JSON.parse((await off.find((x) => x.name === 'printer_start').call({ printer: 'Voron', file: 'part.gcode' })).content[0].text)
+  assert.equal(r2.how, 'page', 'with no page connected it opens the browser page instead')
+  await ok('printer_requests', { withdraw: r2.request })
+})
+
 test('no answer ever carries a secret, and printer_list says only whether one is set', async () => {
   const list = await ok('printer_list')
   assert.deepEqual(list.printers.filter((p) => p.secret).map((p) => [p.name, p.secret]), [

@@ -63,13 +63,17 @@ const done = (r) => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 async function ensureServer() {
   if (server) return serverPort
   server = http.createServer((req, res) => {
-    const m = /^\/confirm\/([A-Za-z0-9_-]{20,})$/.exec(req.url ?? '')
+    const m = /^\/confirm\/([A-Za-z0-9_-]{20,})(\/status)?$/.exec(req.url ?? '')
     const r = m ? [...requests.values()].find((x) => x.token === m[1]) : null
     if (!r) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found.')
+      res.writeHead(404, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' }).end('Not found.')
       return
     }
     expire()
+    if (m[2] && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' }).end(JSON.stringify({ status: r.status, ...(r.outcome?.error ? { error: r.outcome.error } : {}) }))
+      return
+    }
     if (req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY' }).end(r.status === 'waiting' ? page(r) : done(r))
       return
@@ -114,20 +118,30 @@ function dialog(r, env, open) {
 
 /** A request to start a print: the person is asked, and onStart runs only
  *  if they say start. Returns what the agent may see. */
-export async function ask({ printer, file, summary, onStart, open }, env = process.env, platform = process.platform) {
+export async function ask({ printer, file, summary, onStart, open, page }, env = process.env, platform = process.platform) {
   expire()
   if ([...requests.values()].some((r) => r.printer === printer && r.status === 'waiting')) throw new Error(`There is already a request waiting for ${printer}; printer_requests shows it.`)
   const how = env.SCANRULER_CONFIRM ?? (platform === 'darwin' ? 'dialog' : 'page')
   const r = { id: randomUUID().slice(0, 8), token: randomBytes(24).toString('base64url'), printer, file, summary, onStart, status: 'waiting', createdAt: new Date().toISOString(), how }
   requests.set(r.id, r)
   if (how === 'dialog') dialog(r, env, open)
-  else {
+  else if (how === 'app' && page) {
+    const port = await ensureServer()
+    try {
+      await page('printer.ask', { request: r.id, printer, file, summary: summary ?? {}, answer: `http://127.0.0.1:${port}/confirm/${r.token}` })
+    } catch {
+      r.how = 'page'
+      await open(`http://127.0.0.1:${port}/confirm/${r.token}`)
+    }
+  } else {
+    if (how === 'app') r.how = 'page'
     const port = await ensureServer()
     await open(`http://127.0.0.1:${port}/confirm/${r.token}`)
   }
   return {
     ...publicView(r),
-    next: how === 'dialog' ? 'A dialog on this Mac asks the person to start it. printer_requests shows the answer.' : 'A page opened in the person’s browser asks them to start it. printer_requests shows the answer.',
+    how: r.how,
+    next: r.how === 'dialog' ? 'A dialog on this Mac asks the person to start it. printer_requests shows the answer.' : r.how === 'app' ? 'A card in ScanRuler asks the person to start it. printer_requests shows the answer.' : 'A page opened in the person’s browser asks them to start it. printer_requests shows the answer.',
   }
 }
 

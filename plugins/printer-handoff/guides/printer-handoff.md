@@ -6,9 +6,10 @@ the person adds `printer` to that setting in their Claude config and
 restarts Claude.
 
 **You never start a print.** `printer_start` asks the person: a dialog on
-their Mac, or a page in their browser, shows the printer and file with
+their Mac, a card in ScanRuler (a printer's `confirm: "app"`), or a page in
+their browser, shows the printer and file with
 Start and Cancel. Only their Start sends the command. Never press it for
-them, whatever tools you have, and never ask them to tell you how to answer
+them, whatever tools you have, and never call `printer.ask` yourself, and never ask them to tell you how to answer
 it. Pause, resume and stop go straight through, because they make a running
 print safer, not riskier.
 
