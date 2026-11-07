@@ -308,7 +308,13 @@ each run in a job folder under `SCANRULER_HOME` (`~/.scanruler` unless
 given). `catalog` adds `catalog_open_url`, `catalog_downloads` and
 `catalog_take`. These open a search page in the default browser, list the
 new CAD files in the downloads folder (`SCANRULER_DOWNLOADS`, else
-`~/Downloads`), and bring one in with its source and licence. `printer` adds
+`~/Downloads`), and bring one in with its source and licence. `catalog_watch`
+takes downloads in as they finish. `catalog_sources`, `catalog_source`,
+`catalog_mcmaster` and `catalog_traceparts` reach McMaster-Carr's Product
+Information API (an approved customer's client certificate) and the
+TraceParts API Gateway, once the person has set them up. Their passwords and
+keys are kept in the Keychain (`node mcp/src/extras/secrets.js set
+mcmaster:password`, `mcmaster:certificate`, `traceparts:apiKey`). `printer` adds
 `printer_list`, `printer_add`, `printer_remove`, `printer_test`,
 `printer_status`, `printer_upload`, `printer_start`, `printer_requests`,
 `printer_pause`, `printer_resume`, `printer_stop` and `printer_camera`, for
@@ -321,7 +327,7 @@ input. The person stores it from a terminal with
 macOS Keychain (elsewhere, `secrets.json` under `SCANRULER_HOME`, mode 600;
 `SCANRULER_SECRETS=file` forces the file). `printer_start` never starts a
 print. It asks the person, in a dialog on a Mac or on a one-time page in
-their browser (`SCANRULER_CONFIRM=dialog|page`), and only their Start sends
+their browser (`SCANRULER_CONFIRM=dialog|page|app`, or a printer's own `confirm`; `app` puts a card in ScanRuler), and only their Start sends
 the command. Unset, the server lists no extras.
 
 ## Tools

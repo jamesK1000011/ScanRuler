@@ -16,7 +16,7 @@ const plugin: ScanRulerPlugin = {
   install() {
     registerProjectSection(catalogSection)
     registerCommands('catalog', catalogCommands)
-    registerStateSection('catalog', () => ({ parts: useCatalog.getState().parts.map((p) => ({ file: p.file, source: p.source, redistribute: p.redistribute })) }))
+    registerStateSection('catalog', () => ({ parts: useCatalog.getState().parts.map((p) => ({ file: p.file, source: p.source, redistribute: p.redistribute, ...(p.url ? { url: p.url } : {}), ...(p.licence ? { licence: p.licence } : {}) })) }))
     registerGuide({
       id: 'catalog',
       title: 'Finding a part: standard sizes, catalogues and model libraries',

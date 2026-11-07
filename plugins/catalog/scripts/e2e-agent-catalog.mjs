@@ -10,7 +10,7 @@
 // dependencies (npm --prefix mcp ci).
 //   node plugins/catalog/scripts/e2e-agent-catalog.mjs
 // Env: APP_URL, CHROME, OUT_DIR.
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { check, fail, finish, launchAgent, launchApp, repoFile } from '../../../scripts/e2e-lib.mjs'
@@ -88,6 +88,19 @@ try {
   await ok('project_load', { path: projectFile, discard: true })
   const st = await ok('session_state', {})
   check(st.json?.plugins?.catalog?.parts?.[0]?.file === 'bracket-40x20.stl' && st.json.plugins.catalog.parts[0].redistribute === true, `the provenance comes back with the project: ${JSON.stringify(st.json?.plugins?.catalog?.parts)}`)
+  const w = await ok('catalog_open_url', { url: 'https://www.printables.com/model/000-hinge', watch: true, source: 'printables', licence: 'CC BY 4.0', redistribute: true, to: join(project, 'imports') })
+  check(w.json?.watching?.watching === true, 'catalog_open_url { watch: true } opens the page and watches the downloads folder')
+  writeFileSync(join(downloads, 'hinge.stl.crdownload'), readFileSync(SCAN))
+  await new Promise((r) => setTimeout(r, 1500))
+  renameSync(join(downloads, 'hinge.stl.crdownload'), join(downloads, 'hinge.stl'))
+  let watched
+  for (let i = 0; i < 20; i++) {
+    watched = await ok('catalog_watch', { action: 'status' })
+    if (watched.json?.taken?.length) break
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  check(watched.json?.taken?.[0]?.from === 'hinge.stl' && existsSync(join(project, 'imports', 'hinge.stl')), `the finished download came into the imports folder by itself: ${JSON.stringify(watched.json?.taken?.map((t) => t.from))}`)
+  await ok('catalog_watch', { action: 'stop' })
   const bad = await call('catalog_open_url', { url: 'file:///etc/hosts' })
   check(bad.error && /http/.test(bad.text), 'a non-web address is refused')
 } finally {

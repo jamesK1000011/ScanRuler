@@ -5,7 +5,8 @@
 // ("slicer", "catalog", "all"), so the server's own tools stay as they are for
 // everyone who does not ask.
 
-import { downloads, openUrl, take } from './catalog.js'
+import { downloads, openUrl, stopWatch, take, watch, watchStatus } from './catalog.js'
+import { mcmaster, saveSources, loadSources, sourcesStatus, traceparts } from './sources.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
 import * as printer from './printer.js'
 import { KINDS as PRINTER_KINDS } from './printers/adapters.js'
@@ -138,8 +139,50 @@ export function extraTools({ text, failure }, env = process.env) {
       'catalog_open_url',
       'Open a page in the person’s browser',
       'Open a catalogue or library page (catalog_links gives them) in the default browser on this computer, for the person to sign in if the site asks and click download. Only http and https. Nothing is downloaded by this server.',
-      obj({ url: { type: 'string', description: 'The page.' } }, ['url']),
-      async ({ url }) => openUrl(url, env),
+      obj({ url: { type: 'string', description: 'The page.' }, watch: { type: 'boolean', description: 'Also watch the downloads folder and take what arrives (catalog_watch), with source, licence and redistribute.' }, source: { type: 'string' }, licence: { type: 'string' }, redistribute: { type: 'boolean' }, to: { type: 'string' } }, ['url']),
+      async ({ url, watch: w, source, licence, redistribute, to }) => {
+        const opened = await openUrl(url, env)
+        if (!w) return opened
+        return { ...opened, watching: await watch({ source: source ?? new URL(url).hostname, url, licence, redistribute, to }, env), next: 'When the person clicks download, the file comes into the imports folder by itself; catalog_watch { action: "status" } shows what was taken.' }
+      },
+      false,
+    )
+    tool(
+      'catalog_watch',
+      'Take downloads into the imports folder as they arrive',
+      'Watch the downloads folder (SCANRULER_DOWNLOADS, else ~/Downloads): each new CAD file or zip, once it has finished downloading, is taken into the imports folder (to; the ScanRuler folder’s imports/ by default, or the project’s folder) with its source, page and licence recorded, as catalog_take does — so the person only clicks download. action: start (with source, and url, licence, redistribute, minutes — 30 by default), status (what was taken), stop. One watch at a time; a new start replaces it. Files already there when it starts are left alone.',
+      obj({ action: { type: 'string', enum: ['start', 'status', 'stop'] }, source: { type: 'string' }, url: { type: 'string' }, licence: { type: 'string' }, redistribute: { type: 'boolean' }, to: { type: 'string' }, minutes: { type: 'number' }, dir: { type: 'string' } }, ['action']),
+      async ({ action, ...a }) => (action === 'start' ? watch(a, env) : action === 'stop' ? stopWatch() : watchStatus()),
+      false,
+    )
+    tool('catalog_sources', 'The catalogue accounts set up', 'Which catalogue connections that need an account are on — McMaster-Carr (client certificate, user, password) and TraceParts (tenant id, API key) — and whether each credential is set, never the credential itself; for one that is off, how to set it up. Changes nothing.', obj({}), async () => sourcesStatus(env))
+    tool(
+      'catalog_source',
+      'Set up a catalogue account',
+      'Turn a catalogue connection on or off and say where its non-secret parts are: mcmaster { certPath (the .pfx McMaster issued), user }, traceparts { tenantUid, userEmail (TraceParts links each download to an account), cultureInfo (en) }. The passwords and keys are never given here: the person sets them in a terminal (catalog_sources says how).',
+      obj({ source: { type: 'string', enum: ['mcmaster', 'traceparts'] }, enabled: { type: 'boolean' }, certPath: { type: 'string' }, user: { type: 'string' }, tenantUid: { type: 'string' }, userEmail: { type: 'string' }, cultureInfo: { type: 'string' } }, ['source']),
+      async ({ source, ...a }) => {
+        const now = (await loadSources(env))[source] ?? {}
+        const keep = source === 'mcmaster' ? ['enabled', 'certPath', 'user'] : ['enabled', 'tenantUid', 'userEmail', 'cultureInfo']
+        await saveSources({ [source]: { ...now, ...Object.fromEntries(Object.entries(a).filter(([k, v]) => keep.includes(k) && v !== undefined)) } }, env)
+        return sourcesStatus(env)
+      },
+      false,
+    )
+    tool(
+      'catalog_mcmaster',
+      'Fetch a McMaster-Carr part’s CAD file',
+      'With McMaster’s Product Information API (an approved customer’s certificate and login, catalog_sources): the part number’s CAD file — STEP by default, or another format its page offers (format: "STEP", "SLDPRT", "DWG"…) — brought into the imports folder (to) with its provenance, marked not to be shared on. Returns the part’s description, status and the file taken.',
+      obj({ part: { type: 'string', description: 'The McMaster part number: 91290A115.' }, format: { type: 'string' }, to: { type: 'string' } }, ['part']),
+      async (a) => mcmaster(a, env),
+      false,
+    )
+    tool(
+      'catalog_traceparts',
+      'Fetch a TraceParts part’s CAD file',
+      'With the TraceParts API Gateway (tenant id and API key, catalog_sources): a part number in a supplier’s catalog, its CAD file requested in a format it offers (STEP by default), waited for and brought into the imports folder (to) with its provenance, marked not to be shared on. TraceParts’ terms: for computer-aided design only; credit "Powered by TraceParts" where you show it.',
+      obj({ partNumber: { type: 'string' }, catalog: { type: 'string', description: 'The supplier’s catalog, as TraceParts names it.' }, format: { type: 'string' }, to: { type: 'string' } }, ['partNumber', 'catalog']),
+      async (a) => traceparts(a, env),
       false,
     )
     tool(

@@ -30,13 +30,27 @@ says the part is.
 3. Open the most likely one with `catalog_open_url { url }`, in the person's
    own browser. Ask them to pick the model, sign in if the site asks, and
    click download. Don't scrape or download pages yourself.
-4. Run `catalog_downloads` to see what arrived, then `catalog_take { file,
+   With `watch: true` (and `source`, `licence`, `redistribute`, `to`) the
+   downloads folder is watched too. The finished file comes into the
+   imports folder by itself, and `catalog_watch { action: "status" }` says
+   what arrived. Ask for the licence first, so it's recorded with the file.
+4. Without a watch, run `catalog_downloads` to see what arrived, then `catalog_take { file,
    source, url, licence }`. It copies the file, or unpacks a catalogue's
    zip, into the imports folder and records where it came from. Use the
    project's folder from `scanruler_status` as `to` to keep the project
    together. Ask the person for the licence the model page shows. Set
    `redistribute: true` only when that licence allows sharing.
 5. Record it with the project: `catalog.provenance { action: "record" }`.
+
+## McMaster-Carr and TraceParts accounts
+
+With an account set up, a part comes in without the browser.
+`catalog_sources` says whether each is on and how to set it up.
+`catalog_mcmaster { part }` fetches a McMaster part number's STEP.
+`catalog_traceparts { partNumber, catalog }` requests a TraceParts part's
+STEP and waits for it. Both land in the imports folder, recorded as not to be
+shared on. Their passwords and keys are set by the person in a terminal,
+never in the chat. Credit "Powered by TraceParts" where you show its parts.
 
 ## From a download to a repair
 

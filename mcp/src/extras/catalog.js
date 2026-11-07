@@ -91,3 +91,70 @@ export async function take({ file, to, source, url, licence, redistribute = fals
   await writeFile(ledger, JSON.stringify(kept, null, 2) + '\n')
   return { taken, provenance: ledger, next: 'Open it: scan_open or import_open for a mesh, reverse_import_step for a STEP to build on; and catalog_provenance { action: "record" } to keep where it came from with the project.' }
 }
+
+const PARTIAL = /\.(crdownload|download|part|partial|tmp)$/i
+let watcher = null
+
+/** Watch the downloads folder: each new CAD file or zip, once its size has
+ *  stopped changing, is taken into the imports folder with the source,
+ *  page and licence given — no clicking through catalog_take. Runs for
+ *  `minutes` (30) or until stopped; one watch at a time. */
+export async function watch({ dir, to, source, url, licence, redistribute = false, note, minutes = 30, pollMs = 1000 } = {}, env = process.env) {
+  if (!source) throw new Error('Say where the downloads will come from (source), so their terms go with them.')
+  const folder = resolve(tilde(dir ?? env.SCANRULER_DOWNLOADS ?? '~/Downloads'))
+  if (!existsSync(folder)) throw new Error(`There is no folder ${folder}.`)
+  stopWatch()
+  const seen = new Map()
+  for (const name of await readdir(folder)) seen.set(name, 'old')
+  const w = { folder, to: resolve(tilde(to ?? join(home(env), 'imports'))), source, url, licence, redistribute, startedAt: new Date().toISOString(), until: new Date(Date.now() + minutes * 60_000).toISOString(), taken: [], errors: [], sizes: new Map(), timer: null }
+  const tick = async () => {
+    if (Date.now() > Date.parse(w.until)) return stopWatch()
+    let names
+    try {
+      names = await readdir(folder)
+    } catch {
+      return
+    }
+    for (const name of names) {
+      if (seen.get(name) === 'old' || seen.get(name) === 'done' || PARTIAL.test(name)) continue
+      const ext = extname(name).toLowerCase()
+      if (!CAD.includes(ext) && ext !== '.zip') continue
+      const p = join(folder, name)
+      let size
+      try {
+        size = (await stat(p)).size
+      } catch {
+        continue
+      }
+      const last = w.sizes.get(name)
+      w.sizes.set(name, size)
+      if (last === undefined || last !== size || size === 0) continue
+      seen.set(name, 'done')
+      try {
+        const r = await take({ file: p, to: w.to, source, url, licence, redistribute, note }, env)
+        w.taken.push({ from: name, files: r.taken, at: new Date().toISOString() })
+      } catch (e) {
+        w.errors.push({ from: name, error: String(e.message ?? e) })
+      }
+    }
+  }
+  w.timer = setInterval(tick, pollMs)
+  w.timer.unref?.()
+  watcher = w
+  return watchStatus()
+}
+
+export function stopWatch() {
+  if (!watcher) return { watching: false }
+  clearInterval(watcher.timer)
+  const was = watchStatus()
+  watcher.stopped = true
+  watcher.timer = null
+  return { ...was, watching: false }
+}
+
+export function watchStatus() {
+  if (!watcher) return { watching: false }
+  const { folder, to, source, url, licence, startedAt, until, taken, errors, stopped } = watcher
+  return { watching: !stopped && Date.now() <= Date.parse(until), folder, to, source, ...(url ? { url } : {}), ...(licence ? { licence } : {}), startedAt, until, taken, ...(errors.length ? { errors } : {}) }
+}
