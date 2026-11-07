@@ -74,6 +74,7 @@ export function listCommands(): CommandInfo[] {
       ...(c.long ? { long: true } : {}),
       ...(c.names ? { names: c.names } : {}),
       ...(c.askForLess ? { askForLess: c.askForLess } : {}),
+      ...(c.internal ? { internal: true } : {}),
     }))
 }
 

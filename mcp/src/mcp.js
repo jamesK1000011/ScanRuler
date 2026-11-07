@@ -508,7 +508,9 @@ export function createMcpServer({
   // A server shipped with a newer list than the one kept lists its own: the
   // kept one may be days old (listBeforePage).
   let lastPage = listBeforePage(remembered?.load() ?? null)
-  const commands = () => (link.page?.commands?.length ? link.page.commands : lastPage?.commands ?? SNAPSHOT)
+  // A command marked internal is the page's answer to this server — never
+  // a tool: link.run reaches it, an agent does not.
+  const commands = () => (link.page?.commands?.length ? link.page.commands : lastPage?.commands ?? SNAPSHOT).filter((c) => !c.internal)
   const remember = () => {
     const list = link.page?.commands
     if (!list?.length) return
