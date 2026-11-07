@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A drawing sheet as a list of black-and-white marks in millimetres, origin
-// top left and y down, written out as SVG or as PDF. No colour, no shading,
-// no fonts to embed: Helvetica, which every PDF reader has.
+// A drawing sheet as a list of marks in millimetres, origin top left and y
+// down, written out as SVG or as PDF. Black and white unless a mark says a
+// colour (rgb, '#rrggbb') — patent sheets never do; a manual's theme may.
+// No fonts to embed: Helvetica and Helvetica-Bold, which every PDF reader has.
 
 export type Mark =
-  | { k: 'line'; pts: number[]; w: number; dash?: number[]; grey?: number }
-  | { k: 'fill'; pts: number[]; grey?: number }
-  | { k: 'text'; x: number; y: number; h: number; text: string; anchor?: 'start' | 'middle' | 'end' }
+  | { k: 'line'; pts: number[]; w: number; dash?: number[]; grey?: number; rgb?: string }
+  | { k: 'fill'; pts: number[]; grey?: number; rgb?: string }
+  | { k: 'text'; x: number; y: number; h: number; text: string; anchor?: 'start' | 'middle' | 'end'; rgb?: string; bold?: boolean }
 
 export interface Sheet {
   w: number
@@ -25,6 +26,10 @@ const f = (n: number) => (Math.round(n * 1000) / 1000).toString()
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+/** '#rrggbb' as PDF's three 0–1 figures. */
+const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+const isRgb = (hex?: string): hex is string => typeof hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(hex)
+
 const greyHex = (g = 0) => {
   const v = Math.round(Math.max(0, Math.min(1, g)) * 255).toString(16).padStart(2, '0')
   return `#${v}${v}${v}`
@@ -38,13 +43,13 @@ export function toSvg(s: Sheet): string {
   for (const m of s.marks) {
     if (m.k === 'line') {
       const d = m.pts.reduce((a, v, i) => a + (i % 2 === 0 ? `${i === 0 ? 'M' : 'L'}${f(v)} ` : `${f(v)} `), '')
-      out.push(`<path d="${d.trim()}" fill="none" stroke="${greyHex(m.grey)}" stroke-width="${f(m.w)}" stroke-linecap="round" stroke-linejoin="round"${m.dash ? ` stroke-dasharray="${m.dash.map(f).join(' ')}"` : ''}/>`)
+      out.push(`<path d="${d.trim()}" fill="none" stroke="${isRgb(m.rgb) ? m.rgb : greyHex(m.grey)}" stroke-width="${f(m.w)}" stroke-linecap="round" stroke-linejoin="round"${m.dash ? ` stroke-dasharray="${m.dash.map(f).join(' ')}"` : ''}/>`)
     } else if (m.k === 'fill') {
       const d = m.pts.reduce((a, v, i) => a + (i % 2 === 0 ? `${i === 0 ? 'M' : 'L'}${f(v)} ` : `${f(v)} `), '')
-      out.push(`<path d="${d.trim()}Z" fill="${greyHex(m.grey)}" stroke="none"/>`)
+      out.push(`<path d="${d.trim()}Z" fill="${isRgb(m.rgb) ? m.rgb : greyHex(m.grey)}" stroke="none"/>`)
     } else {
       const anchor = m.anchor ?? 'start'
-      out.push(`<text x="${f(m.x)}" y="${f(m.y)}" font-family="Helvetica, Arial, sans-serif" font-size="${f(m.h / CAP)}" text-anchor="${anchor}" fill="#000000">${esc(m.text)}</text>`)
+      out.push(`<text x="${f(m.x)}" y="${f(m.y)}" font-family="Helvetica, Arial, sans-serif" font-size="${f(m.h / CAP)}"${m.bold ? ' font-weight="bold"' : ''} text-anchor="${anchor}" fill="${isRgb(m.rgb) ? m.rgb : '#000000'}">${esc(m.text)}</text>`)
     }
   }
   out.push('</svg>')
@@ -52,6 +57,10 @@ export function toSvg(s: Sheet): string {
 }
 
 const PT = 72 / 25.4
+
+/** WinAnsi codes for the characters past Latin-1 a sheet may hold. */
+const WIN: Record<string, number> = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97, '™': 0x99 }
+const winAnsi = (t: string) => [...t].map((c) => (WIN[c] !== undefined ? String.fromCharCode(WIN[c]) : c.charCodeAt(0) < 256 ? c : '?')).join('')
 
 /** The sheets as one PDF, a page each. */
 export function toPdf(sheets: Sheet[]): Uint8Array {
@@ -63,6 +72,7 @@ export function toPdf(sheets: Sheet[]): Uint8Array {
   const catalog = add('')
   const pages = add('')
   const font = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>')
+  const bold = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>')
   const kids: number[] = []
   for (const s of sheets) {
     const H = s.h
@@ -71,20 +81,20 @@ export function toPdf(sheets: Sheet[]): Uint8Array {
     const ops: string[] = ['1 J 1 j']
     for (const m of s.marks) {
       if (m.k === 'line') {
-        ops.push(`${f(m.grey ?? 0)} G ${f(m.w * PT)} w [${(m.dash ?? []).map((d) => f(d * PT)).join(' ')}] 0 d`)
+        ops.push(`${isRgb(m.rgb) ? `${rgbOf(m.rgb).map(f).join(' ')} RG` : `${f(m.grey ?? 0)} G`} ${f(m.w * PT)} w [${(m.dash ?? []).map((d) => f(d * PT)).join(' ')}] 0 d`)
         ops.push(`${X(m.pts[0])} ${Y(m.pts[1])} m ${m.pts.slice(2).reduce((a, v, i) => a + (i % 2 === 0 ? `${X(v)} ` : `${Y(v)} l `), '')}S`)
       } else if (m.k === 'fill') {
-        ops.push(`${f(m.grey ?? 0)} g ${X(m.pts[0])} ${Y(m.pts[1])} m ${m.pts.slice(2).reduce((a, v, i) => a + (i % 2 === 0 ? `${X(v)} ` : `${Y(v)} l `), '')}h f`)
+        ops.push(`${isRgb(m.rgb) ? `${rgbOf(m.rgb).map(f).join(' ')} rg` : `${f(m.grey ?? 0)} g`} ${X(m.pts[0])} ${Y(m.pts[1])} m ${m.pts.slice(2).reduce((a, v, i) => a + (i % 2 === 0 ? `${X(v)} ` : `${Y(v)} l `), '')}h f`)
       } else {
         const size = (m.h / CAP) * PT
         const w = textWidth(m.text, m.h)
         const x = m.anchor === 'middle' ? m.x - w / 2 : m.anchor === 'end' ? m.x - w : m.x
-        ops.push(`0 g BT /F1 ${f(size)} Tf ${X(x)} ${Y(m.y)} Td (${m.text.replace(/[\\()]/g, (c) => `\\${c}`)}) Tj ET`)
+        ops.push(`${isRgb(m.rgb) ? `${rgbOf(m.rgb).map(f).join(' ')} rg` : '0 g'} BT /${m.bold ? 'F2' : 'F1'} ${f(size)} Tf ${X(x)} ${Y(m.y)} Td (${winAnsi(m.text).replace(/[\\()]/g, (c) => `\\${c}`)}) Tj ET`)
       }
     }
     const stream = ops.join('\n')
     const content = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`)
-    kids.push(add(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 ${f(s.w * PT)} ${f(s.h * PT)}] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`))
+    kids.push(add(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 ${f(s.w * PT)} ${f(s.h * PT)}] /Resources << /Font << /F1 ${font} 0 R /F2 ${bold} 0 R >> >> /Contents ${content} 0 R >>`))
   }
   objs[catalog - 1] = `<< /Type /Catalog /Pages ${pages} 0 R >>`
   objs[pages - 1] = `<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(' ')}] /Count ${kids.length} >>`

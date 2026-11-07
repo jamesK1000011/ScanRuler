@@ -128,6 +128,9 @@ try {
   const mdText = readFileSync(join(out, 'patent-draft.md'), 'utf8')
   check(/DRAFT — for attorney review/.test(mdText) && /\| 12 \| Dowel \|/.test(mdText), 'the draft is marked for attorney review, its numeral table current')
   check(Boolean(md), 'the Markdown alone saves too')
+  const spec = await ok('patent_save', { format: 'spec', path: join(out, 'patent-specification.pdf') })
+  const specPdf = readFileSync(join(out, 'patent-specification.pdf')).toString('latin1')
+  check(specPdf.startsWith('%PDF') && /\[0001\]/.test(specPdf) && /\(CLAIMS\)/.test(specPdf) && /\(ABSTRACT\)/.test(specPdf) && spec.json?.pages >= 3 && saved.json.files.includes('patent-specification.pdf'), `the specification saves as a PDF: ${spec.json?.pages} pages, ${spec.json?.paragraphs} numbered paragraphs, ${spec.json?.findings?.length ?? 0} to look at`)
 
   await ok('workspace_set', { workspace: 'patent' })
   await page.waitForSelector('[data-test=patent-panel]', { timeout: 30_000 })
