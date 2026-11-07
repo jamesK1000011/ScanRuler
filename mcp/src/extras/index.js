@@ -5,7 +5,7 @@
 // ("slicer", "catalog", "all"), so the server's own tools stay as they are for
 // everyone who does not ask.
 
-import { downloads, openUrl, take } from './catalog.js'
+import { downloads, openUrl, stopWatch, take, watch, watchStatus } from './catalog.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
 
 export function extrasWanted(env = process.env) {
@@ -136,8 +136,20 @@ export function extraTools({ text, failure }, env = process.env) {
       'catalog_open_url',
       'Open a page in the person’s browser',
       'Open a catalogue or library page (catalog_links gives them) in the default browser on this computer, for the person to sign in if the site asks and click download. Only http and https. Nothing is downloaded by this server.',
-      obj({ url: { type: 'string', description: 'The page.' } }, ['url']),
-      async ({ url }) => openUrl(url, env),
+      obj({ url: { type: 'string', description: 'The page.' }, watch: { type: 'boolean', description: 'Also watch the downloads folder and take what arrives (catalog_watch), with source, licence and redistribute.' }, source: { type: 'string' }, licence: { type: 'string' }, redistribute: { type: 'boolean' }, to: { type: 'string' } }, ['url']),
+      async ({ url, watch: w, source, licence, redistribute, to }) => {
+        const opened = await openUrl(url, env)
+        if (!w) return opened
+        return { ...opened, watching: await watch({ source: source ?? new URL(url).hostname, url, licence, redistribute, to }, env), next: 'When the person clicks download, the file comes into the imports folder by itself; catalog_watch { action: "status" } shows what was taken.' }
+      },
+      false,
+    )
+    tool(
+      'catalog_watch',
+      'Take downloads into the imports folder as they arrive',
+      'Watch the downloads folder (SCANRULER_DOWNLOADS, else ~/Downloads): each new CAD file or zip, once it has finished downloading, is taken into the imports folder (to; the ScanRuler folder’s imports/ by default, or the project’s folder) with its source, page and licence recorded, as catalog_take does — so the person only clicks download. action: start (with source, and url, licence, redistribute, minutes — 30 by default), status (what was taken), stop. One watch at a time; a new start replaces it. Files already there when it starts are left alone.',
+      obj({ action: { type: 'string', enum: ['start', 'status', 'stop'] }, source: { type: 'string' }, url: { type: 'string' }, licence: { type: 'string' }, redistribute: { type: 'boolean' }, to: { type: 'string' }, minutes: { type: 'number' }, dir: { type: 'string' } }, ['action']),
+      async ({ action, ...a }) => (action === 'start' ? watch(a, env) : action === 'stop' ? stopWatch() : watchStatus()),
       false,
     )
     tool(

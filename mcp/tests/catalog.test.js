@@ -44,7 +44,7 @@ function storedZip(entries) {
 }
 
 test('listed when asked for', () => {
-  assert.deepEqual(extraTools(helpers, { SCANRULER_MCP_EXTRAS: 'catalog' }).map((t) => t.name), ['catalog_open_url', 'catalog_downloads', 'catalog_take'])
+  assert.deepEqual(extraTools(helpers, { SCANRULER_MCP_EXTRAS: 'catalog' }).map((t) => t.name), ['catalog_open_url', 'catalog_watch', 'catalog_downloads', 'catalog_take'])
   assert.equal(extraTools(helpers, { SCANRULER_MCP_EXTRAS: 'slicer' }).some((t) => t.name.startsWith('catalog_')), false)
 })
 
@@ -84,4 +84,30 @@ test('new downloads listed; a file and a zip taken in, with provenance', async (
   assert.equal(ledger.every((x) => x.redistribute === false), true)
   await assert.rejects(take({ file: join(dl, 'notes.pdf'), source: 'x' }, env), /not a CAD file/)
   await assert.rejects(take({ file: join(dl, 'bearing-608.step') }, env), /source/)
+})
+
+test('a watch takes each finished download into the imports folder, and leaves what was there', async () => {
+  const { watch, watchStatus, stopWatch } = await import('../src/extras/catalog.js')
+  const dir = await mkdtemp(join(tmpdir(), 'scanruler-watch-'))
+  const dl = join(dir, 'Downloads')
+  const { mkdir, rename } = await import('node:fs/promises')
+  await mkdir(dl)
+  await writeFile(join(dl, 'old.stl'), 'solid old\nendsolid old\n')
+  const env = { SCANRULER_HOME: join(dir, 'home'), SCANRULER_DOWNLOADS: dl }
+  await watch({ source: 'printables', url: 'https://www.printables.com/model/1', licence: 'CC BY 4.0', redistribute: true, pollMs: 40 }, env)
+  await writeFile(join(dl, 'bracket.stl.crdownload'), 'solid b\n')
+  await new Promise((s) => setTimeout(s, 200))
+  assert.equal(watchStatus().taken.length, 0, 'a partial download is not taken')
+  await writeFile(join(dl, 'bracket.stl.crdownload'), 'solid b\nfacet normal 0 0 1\nendfacet\nendsolid b\n')
+  await rename(join(dl, 'bracket.stl.crdownload'), join(dl, 'bracket.stl'))
+  for (let i = 0; i < 50 && !watchStatus().taken.length; i++) await new Promise((s) => setTimeout(s, 40))
+  const st = watchStatus()
+  assert.equal(st.taken.length, 1)
+  assert.equal(st.taken[0].from, 'bracket.stl')
+  const ledger = JSON.parse(await readFile(join(dir, 'home', 'imports', 'provenance.json'), 'utf8'))
+  assert.deepEqual(ledger.map((x) => [x.file, x.source, x.licence, x.redistribute]), [['bracket.stl', 'printables', 'CC BY 4.0', true]])
+  assert.equal(stopWatch().watching, false)
+  await writeFile(join(dl, 'late.stl'), 'solid late\n')
+  await new Promise((s) => setTimeout(s, 150))
+  assert.equal(watchStatus().taken.length, 1, 'nothing is taken after the watch stops')
 })

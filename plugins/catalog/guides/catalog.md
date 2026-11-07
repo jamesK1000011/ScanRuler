@@ -30,7 +30,11 @@ says the part is.
 3. Open the most likely one with `catalog_open_url { url }`, in the person's
    own browser. Ask them to pick the model, sign in if the site asks, and
    click download. Don't scrape or download pages yourself.
-4. Run `catalog_downloads` to see what arrived, then `catalog_take { file,
+   With `watch: true` (and `source`, `licence`, `redistribute`, `to`) the
+   downloads folder is watched too. The finished file comes into the
+   imports folder by itself, and `catalog_watch { action: "status" }` says
+   what arrived. Ask for the licence first, so it's recorded with the file.
+4. Without a watch, run `catalog_downloads` to see what arrived, then `catalog_take { file,
    source, url, licence }`. It copies the file, or unpacks a catalogue's
    zip, into the imports folder and records where it came from. Use the
    project's folder from `scanruler_status` as `to` to keep the project
