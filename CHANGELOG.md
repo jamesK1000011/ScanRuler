@@ -24,6 +24,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
   what each size would read. It also adds `thread.lookup`, `thread.standards`,
   `thread.note`, `thread.settings` and an agent guide.
 
+- **Print fit** (2026-11-07, new plugin `fit-comp`). `fit.measure` reads a
+  scanned print against the CAD it was printed from. It fits the print's scale
+  on X, Y and Z, how far its walls stand out, how far its holes close, and its
+  elephant foot, each with a standard error. It also says when the part can't
+  separate them, or when warping means the numbers shouldn't be trusted.
+  `fit.suggest` turns the result into OrcaSlicer, Bambu Studio or PrusaSlicer
+  settings, added to the ones in use. `fit.compensated_mesh` exports the model
+  pre-compensated instead. Runs, profiles per printer and material, and your
+  own slicer key maps are kept with the project.
+
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.

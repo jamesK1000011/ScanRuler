@@ -1,0 +1,12 @@
+{
+  "id": "bambustudio",
+  "label": "Bambu Studio",
+  "checked": "Same process keys as OrcaSlicer, its fork (2026-11); no filament shrinkage setting",
+  "keys": {
+    "contour": { "key": "xy_contour_compensation", "section": "process", "kind": "add", "sign": -1 },
+    "hole": { "key": "xy_hole_compensation", "section": "process", "kind": "add", "sign": 1 },
+    "foot": { "key": "elefant_foot_compensation", "section": "process", "kind": "add", "sign": 1 },
+    "scaleXY": { "key": null, "kind": "objectScale", "note": "Bambu Studio has no shrinkage setting: scale the object in X and Y by the percentage given." },
+    "scaleZ": { "key": null, "kind": "objectScale", "note": "Scale the object in Z by the percentage given." }
+  }
+}

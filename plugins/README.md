@@ -11,6 +11,7 @@ not in this repository.
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
 | [texture/](texture/) | The Texture workspace — a printable surface texture with BumpMesh's engine |
 | [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
+| [fit-comp/](fit-comp/) | Print fit — scanned print against its CAD, to slicer settings or a compensated model |
 
 ## The rules
 
