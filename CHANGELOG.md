@@ -52,6 +52,15 @@ saves carry the same number as `appVersion`. How a release is cut is in
   waived with a reason that stays with the project, and `dfm.report` writes
   the check out.
 
+- **Slicing** (2026-11-07, new plugin `slicer-loop`, scanruler-mcp extras).
+  With `SCANRULER_MCP_EXTRAS=slicer`, the MCP server slices from ScanRuler
+  with OrcaSlicer, Bambu Studio or PrusaSlicer. It finds them, lists your
+  profiles, slices with settings overridden by key (fit-comp's corrections go
+  straight in), and reads time, filament, layers and filament by feature back
+  from the G-code. Two runs can be compared. Every run keeps its inputs,
+  command line and log in a job folder. A flag the installed slicer doesn't
+  list is refused by name, and nothing is sent to a printer.
+
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.
