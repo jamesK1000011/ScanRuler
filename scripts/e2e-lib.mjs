@@ -92,13 +92,13 @@ export async function finish(browser, consoleErrors) {
  *  `url` opens it at another address than APP_URL — with a fragment, say;
  *  `headless: false` opens a window on the screen (a real tab, which a
  *  minimised window hides as a person's would); `agentDataOk: false` leaves the
- *  agent connection's warning unanswered.
+ *  agent connection's warning unanswered; `args` more of Chrome's switches.
  *  Returns { browser, page, consoleErrors }. */
-export async function launchApp({ width = 1500, height = 950, protocolTimeout, url = APP_URL, headless = 'new', agentDataOk = true } = {}) {
+export async function launchApp({ width = 1500, height = 950, protocolTimeout, url = APP_URL, headless = 'new', agentDataOk = true, args = [] } = {}) {
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless,
-    args: [`--window-size=${width},${height}`, '--no-sandbox', ...(process.env.CI ? ['--enable-unsafe-swiftshader'] : [])],
+    args: [`--window-size=${width},${height}`, '--no-sandbox', ...(process.env.CI ? ['--enable-unsafe-swiftshader'] : []), ...args],
     defaultViewport: { width, height },
     ...(protocolTimeout ? { protocolTimeout } : {}),
   })

@@ -23,6 +23,7 @@ not in this repository.
 | [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG) and a zip writer; no plugin.ts |
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
+| [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab for Claude to look at |
 
 ## The rules
 
