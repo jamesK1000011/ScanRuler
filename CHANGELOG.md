@@ -119,6 +119,12 @@ saves carry the same number as `appVersion`. How a release is cut is in
   home-folder paths and the user name, access codes, API keys, printer
   serials and addresses, e-mail addresses and picture EXIF. It builds a zip
   on this computer; you upload it yourself.
+- **Scanner profiles** (2026-11-07, new plugin `scanner-profiles`).
+  `scanner.noise` reads how noisy a scan is off the scan itself: flat
+  ground only, robust, and corrected for the neighbours' noise. Profiles
+  you keep (name, noise, spacing, note) are available in every project,
+  and the one a project uses is kept with it. Other plugins plan
+  thresholds from the session's `scanner` noise.
 - **Contributors are credited** (2026-11-01). Each publish to this repository now
   names the people whose work it brings as co-authors, starting with Jozkah and
   Starzrng. CONTRIBUTING.md says how it works.
