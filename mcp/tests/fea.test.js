@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { decodeSurface, facesOn, feaTools, G, gravityOf, judge, layerAxes, MATERIAL_ALIASES, MATERIALS, materialOf, nodalForces, readFrd, readMsh, solve, surfaceOf, writeInp } from '../src/extras/fea.js'
+import { decodeSurface, facesOn, feaTools, G, gravityOf, invertedElements, judge, layerAxes, MATERIAL_ALIASES, MATERIALS, materialOf, nodalForces, readFrd, readMsh, solve, surfaceOf, writeInp } from '../src/extras/fea.js'
 
 const quad = (o, u, v) => {
   const c = (s, t) => [0, 1, 2].map((a) => o[a] + u[a] * s + v[a] * t)
@@ -390,4 +390,31 @@ test('a STEP in inches, as CAD writes it, solves as millimetres', { skip, timeou
   const inch = await solve(axial(readFileSync(new URL('./fea-beam-inches.step', import.meta.url), 'utf8')))
   assert.ok(Math.abs(inch.worst.displacement / mm.worst.displacement - 1) < 0.01, `${inch.worst.displacement} vs ${mm.worst.displacement}`)
   assert.ok(Math.abs(inch.mesh.size - mm.mesh.size) < 1e-3)
+})
+
+test('a Gridfinity bin (small round faces on the lip): no element turned inside out reaches CalculiX', { skip, timeout: 300_000 }, async () => {
+  // Gmsh curves its second-order elements onto the lip's small rounds and
+  // turns some inside out; CalculiX refused them ("nonpositive jacobian").
+  const raw = readFileSync(new URL('./fea-gridbin.step', import.meta.url), 'utf8')
+  const r = await solve({
+    step: raw,
+    build: [0, 0, 1],
+    material: { id: 'pla' },
+    fixtures: [{ name: 'end', triangles: quad([-41.75, -15, 6], [0, 30, 0], [0, 0, 18]) }],
+    loads: [{ name: 'far end', triangles: quad([41.75, -15, 6], [0, 30, 0], [0, 0, 18]), force: [0, 0, -20] }],
+    gravity: { direction: [0, 0, -1], g: 50 },
+  })
+  assert.ok(Number.isFinite(r.worst.displacement) && r.worst.displacement > 0)
+  assert.ok(Number.isFinite(r.worst.safety) && r.worst.safety > 0)
+})
+
+test('the Jacobian check: a sound quadratic tet passes, one with a mid node pushed through a face fails', () => {
+  const m = readMsh(MSH)
+  assert.equal(invertedElements(m), 0)
+  const bent = { xyz: Float64Array.from(m.xyz), elements: m.elements }
+  // Node 5 of the CalculiX order (edge 1–2) dragged far past the opposite corner.
+  const k = (m.elements[4] - 1) * 3
+  bent.xyz[k + 1] = 3
+  bent.xyz[k + 2] = 3
+  assert.equal(invertedElements(bent), 1)
 })

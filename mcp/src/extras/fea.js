@@ -253,6 +253,8 @@ export function readMsh(text, { linear = false } = {}) {
     return id.get(n)
   }
   const EDGES = [[0, 1], [1, 2], [2, 0], [0, 3], [1, 3], [2, 3]]
+  const GMSH_EDGES = [[0, 1], [1, 2], [0, 2], [0, 3], [2, 3], [1, 3]]
+  const edgeKey = (x, y) => (x < y ? `${x} ${y}` : `${y} ${x}`)
   const elements = new Int32Array(tets.length * 10)
   tets.forEach((t, e) => {
     const c = t.slice(0, 4).map(use)
@@ -264,22 +266,18 @@ export function readMsh(text, { linear = false } = {}) {
     let order = [0, 1, 2, 3]
     if (v < 0) order = [0, 2, 1, 3]
     const cc = order.map((k) => c[k])
-    const pp = order.map((k) => pc[k])
     for (let k = 0; k < 4; k++) elements[e * 10 + k] = cc[k]
-    const left = [...mids]
+    // Gmsh writes a TET10's mid-side nodes on the edges 0-1, 1-2, 0-2, 0-3,
+    // 2-3, 1-3 of its corners (read off a straight-edged mesh, every node
+    // at its edge's midpoint); each goes to its edge by the corners it joins,
+    // not by where it lies — a curved element's mid node can sit nearer
+    // another edge's midpoint.
+    const onEdge = new Map()
+    GMSH_EDGES.forEach(([a, b], k) => onEdge.set(edgeKey(c[a], c[b]), mids[k]))
     EDGES.forEach(([a, b], k) => {
-      const m = mid(pp[a], pp[b])
-      let best = 0
-      let d = Infinity
-      left.forEach((n, j) => {
-        const q = at(n)
-        const dd = (q[0] - m[0]) ** 2 + (q[1] - m[1]) ** 2 + (q[2] - m[2]) ** 2
-        if (dd < d) {
-          d = dd
-          best = j
-        }
-      })
-      elements[e * 10 + 4 + k] = left.splice(best, 1)[0]
+      const m = onEdge.get(edgeKey(cc[a], cc[b]))
+      if (m === undefined) throw new Error('The mesh has an element whose mid-side nodes do not match its edges.')
+      elements[e * 10 + 4 + k] = m
     })
   })
   return { xyz: Float64Array.from(xyz), elements }
@@ -754,6 +752,41 @@ function piecesOf(mesh) {
 }
 
 /** Mesh, solve and judge a part. progress(phase, detail) says how far. */
+/**
+ * How many quadratic tetrahedra are turned inside out somewhere CalculiX
+ * looks: the Jacobian's determinant at its four integration points (C3D10,
+ * ccx's order of nodes), not above zero. Gmsh's own count comes before its
+ * optimiser has run, so it can't be taken as the mesh's.
+ */
+export function invertedElements(mesh) {
+  const { xyz, elements } = mesh
+  const a = 0.1381966011250105
+  const b = 0.5854101966249685
+  const points = [[a, a, a], [b, a, a], [a, b, a], [a, a, b]]
+  let bad = 0
+  for (let e = 0; e < elements.length; e += 10) {
+    const P = (k) => (elements[e + k] - 1) * 3
+    let worst = Infinity
+    for (const [r, s2, t] of points) {
+      const L = [1 - r - s2 - t, r, s2, t]
+      // dL/d(r, s, t) for the four corners.
+      const dL = [[-1, -1, -1], [1, 0, 0], [0, 1, 0], [0, 0, 1]]
+      const J = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+      const add = (k, g) => {
+        const o = P(k)
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) J[i][j] += xyz[o + i] * g[j]
+      }
+      for (let k = 0; k < 4; k++) add(k, dL[k].map((d) => (4 * L[k] - 1) * d))
+      const MIDS = [[0, 1], [1, 2], [2, 0], [0, 3], [1, 3], [2, 3]]
+      MIDS.forEach(([p, q], k) => add(4 + k, dL[p].map((d, j) => 4 * (d * L[q] + L[p] * dL[q][j]))))
+      const d = J[0][0] * (J[1][1] * J[2][2] - J[1][2] * J[2][1]) - J[0][1] * (J[1][0] * J[2][2] - J[1][2] * J[2][0]) + J[0][2] * (J[1][0] * J[2][1] - J[1][1] * J[2][0])
+      worst = Math.min(worst, d)
+    }
+    if (!(worst > 0)) bad++
+  }
+  return bad
+}
+
 export async function solve(job, env = process.env, { signal, progress = () => {} } = {}) {
   const check = () => {
     if (signal?.aborted) throw cancelled()
@@ -813,16 +846,34 @@ export async function solve(job, env = process.env, { signal, progress = () => {
     if (guess > cap * 1.5) throw new Error(`Elements of ${size.toPrecision(2)} mm come to about ${guess.toLocaleString('en')} — more than this computer solves (about ${cap.toLocaleString('en')}). Ask for a coarser mesh (fineness: "coarse", or a size of ${((volume * 6 * Math.SQRT2) / cap) ** (1 / 3) > 0 ? (((volume * 6 * Math.SQRT2) / cap) ** (1 / 3)).toPrecision(2) : '—'} mm or more).`)
     check()
     progress('meshing', `elements about ${size.toPrecision(2)} mm`)
-    const g = await run(tools.gmsh.path, ['part.geo', '-3', '-order', '2', '-clmax', String(size), '-clmin', String(size / 4), '-setnumber', 'Mesh.MeshSizeFromCurvature', '12', '-format', 'msh22', '-o', 'part.msh', '-nt', '4'], { cwd: dir, env: gEnv, signal, timeoutMs: 600_000 })
-    if (g.code !== 0 || g.signal || !existsSync(join(dir, 'part.msh'))) throw new Error(`Gmsh could not mesh the part: ${gmshSaid(g) || ending('Gmsh', g)}`)
+    // Second-order elements curved onto small round faces can come out
+    // turned inside out, which CalculiX refuses ("nonpositive jacobian").
+    // Gmsh's high-order optimiser untangles them; where it can't, the mesh
+    // is made again with straight-edged elements, which never are.
+    const gmshArgs = (extra) => ['part.geo', '-3', '-order', '2', '-clmax', String(size), '-clmin', String(size / 4), '-setnumber', 'Mesh.MeshSizeFromCurvature', '12', ...extra, '-format', 'msh22', '-o', 'part.msh', '-nt', '4']
+    const meshWith = async (extra) => {
+      const g = await run(tools.gmsh.path, gmshArgs(extra), { cwd: dir, env: gEnv, signal, timeoutMs: 600_000 })
+      if (g.code !== 0 || g.signal || !existsSync(join(dir, 'part.msh'))) throw new Error(`Gmsh could not mesh the part: ${gmshSaid(g) || ending('Gmsh', g)}`)
+      check()
+      return readMsh(await readFile(join(dir, 'part.msh'), 'utf8'))
+    }
+    let mesh = await meshWith(['-setnumber', 'Mesh.HighOrderOptimize', '2'])
+    let straightened = false
+    if (invertedElements(mesh) > 0) {
+      progress('meshing', 'again with straight-edged elements')
+      mesh = await meshWith(['-setnumber', 'Mesh.SecondOrderLinear', '1'])
+      const still = invertedElements(mesh)
+      if (still > 0) throw new Error(`Gmsh made ${still} element${still === 1 ? '' : 's'} turned inside out even with straight edges: a face of the part is too thin or too small for this mesh size. Try a finer mesh, or mend the part (reverse.body.check).`)
+      straightened = true
+    }
     check()
-    const mesh = readMsh(await readFile(join(dir, 'part.msh'), 'utf8'))
     const elements = mesh.elements.length / 10
     if (elements > cap) throw new Error(`The mesh came to ${elements.toLocaleString('en')} elements — more than this computer solves (about ${cap.toLocaleString('en')}). Ask for a coarser mesh (fineness: "coarse", or a larger size).`)
     check()
     const surface = surfaceOf(mesh)
     const tol = Math.max(0.05, diag * 2e-3)
     const warnings = []
+    if (straightened) warnings.push('Some curved elements came out turned inside out, so the mesh was made with straight-edged elements instead: a touch stiffer on curved faces. Solve finer to check.')
     const groups = (list, tris, what) =>
       list.map((g, i) => {
         const faces = facesOn(surface, tris[i], tol)
