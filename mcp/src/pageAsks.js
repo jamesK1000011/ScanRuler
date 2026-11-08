@@ -46,8 +46,8 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
       await link.run('catalog.answer', { req, ok: false, error: 'Too many asks at once: wait for one to finish.' }).catch(() => {})
       return
     }
-    if (data.action === 'open' && data.as !== 'scan' && data.as !== 'reference') {
-      await link.run('catalog.answer', { req, ok: false, error: 'Open it as the scan or as the reference.' }).catch(() => {})
+    if (data.action === 'open' && data.as !== 'scan' && data.as !== 'reference' && data.as !== 'body') {
+      await link.run('catalog.answer', { req, ok: false, error: 'Open it as the scan, the reference or a body.' }).catch(() => {})
       return
     }
     const ctl = new AbortController()
@@ -64,12 +64,14 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
       } else if (data.action === 'open') {
         const path = String(data.path ?? '')
         if (!taken.has(path)) throw new Error('Only a file just brought in from a library opens from here.')
-        const as = data.as === 'scan' ? 'scan.open' : 'deviation.open_reference'
+        // A body: a STEP file into Reverse Engineer as bodies of its own.
+        if (data.as === 'body' && !/\.(step|stp)$/i.test(path)) throw new Error('Only a STEP file opens as a body.')
+        const as = data.as === 'scan' ? 'scan.open' : data.as === 'body' ? 'reverse.import.step' : 'deviation.open_reference'
         const bytes = new Uint8Array(await readFile(path))
         // Cancelled while the file was read: it is not opened.
         if (signal.aborted) return
         await link.run(as, { bytes, name: basename(path), ...(as === 'scan.open' && data.discard === true ? { discard: true } : {}) }, 'bytes')
-        result = { opened: basename(path), as: as === 'scan.open' ? 'scan' : 'reference' }
+        result = { opened: basename(path), as: data.as }
       } else result = await librariesStatus(env)
       answer = { req, ok: true, result }
     } catch (e) {

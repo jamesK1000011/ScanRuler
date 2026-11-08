@@ -39,7 +39,7 @@ export function GenPanel() {
   const len = useLength()
   const g = generatorOf(s.generator) ?? GENERATORS[0]
   const values: Record<string, Value> = { ...g.defaults, ...(s.values[g.id] ?? {}) }
-  const why = g.check(values)
+  const why = g.board && !s.board ? 'No board yet: bring one in from the Boards workspace.' : g.check(values, s.board)
   const setOne = (key: string, v: Value) => void run('set', { generator: g.id, params: { [key]: v } })
   return (
     <div className="group" data-test="gen-panel">
@@ -60,6 +60,14 @@ export function GenPanel() {
         </select>
       </label>
       <p className="hint">{g.blurb}</p>
+      {g.board && s.board && (
+        <div className="kv" data-test="gen-board">
+          <span className="name">{s.board.name ?? 'Board'}</span>
+          <span className="pl-aside">
+            {s.board.holes.length} hole{s.board.holes.length === 1 ? '' : 's'}, {s.board.openings.length} opening{s.board.openings.length === 1 ? '' : 's'}
+          </span>
+        </div>
+      )}
       {g.params.map((p) =>
         p.kind === 'bool' ? (
           <label key={p.key} className="gen-row" title={p.tip}>

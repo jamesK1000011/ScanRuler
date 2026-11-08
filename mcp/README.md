@@ -328,7 +328,12 @@ macOS Keychain (elsewhere, `secrets.json` under `SCANRULER_HOME`, mode 600;
 `SCANRULER_SECRETS=file` forces the file). `printer_start` never starts a
 print. It asks the person, in a dialog on a Mac or on a one-time page in
 their browser (`SCANRULER_CONFIRM=dialog|page|app`, or a printer's own `confirm`; `app` puts a card in ScanRuler), and only their Start sends
-the command. Unset, the server lists no extras.
+the command. `pcb` adds `kicad_tools`, `kicad_board`, `kicad_drc` and
+`kicad_fab`. These read a KiCad board and run KiCad's `kicad-cli` (found
+where KiCad installs, on the PATH, or at `SCANRULER_KICAD_CLI`) for its
+design rule check and fabrication package. Each run is kept in a job folder
+under `SCANRULER_HOME`'s `boards/`. The Boards workspace asks for the same
+work through the page without them. Unset, the server lists no extras.
 
 ## Tools
 

@@ -1,0 +1,194 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The Boards workspace's panel: the board file, its import, the enclosure,
+// the fab package and the DRC. Every control runs a pcb.* command.
+
+import { useEffect, useState } from 'react'
+import { runCommand } from '../../../src/commands/registry'
+import { useStore } from '../../../src/state/store'
+import { useLength } from '../../../src/app/useUnits'
+import { saveFile } from '../../../src/app/exports'
+import { InfoDot } from '../../../src/ui/InfoDot'
+import { NumberField } from '../../../src/ui/NumberField'
+import { Busy, Status, TextField } from '../../_shared/ui/kit'
+import { usePcb } from '../state/pcbStore'
+import './pcb.css'
+
+const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
+const run = (name: string, input: Record<string, unknown> = {}) => runCommand(`pcb.${name}`, input).catch(report)
+
+interface Param {
+  key: string
+  label: string
+  kind: string
+  min?: number
+  step?: number
+  tip: string
+}
+
+/** The enclosure's settings shown here; the rest are in Generate. */
+const SHOWN = ['standoff', 'headroom', 'gap', 'wall', 'margin', 'inserts', 'cutouts']
+
+const SIDE: Record<string, string> = { '+x': 'right', '-x': 'left', '+y': 'back', '-y': 'front' }
+
+async function fabNow() {
+  const r = (await run('fab')) as { file?: { name: string; mimeType: string; bytes: Uint8Array } } | undefined
+  if (r?.file) saveFile(r.file.name, new Blob([r.file.bytes as BlobPart], { type: r.file.mimeType }))
+}
+
+export function PcbPanel() {
+  const s = usePcb()
+  const len = useLength()
+  const [params, setParams] = useState<{ params: Param[]; defaults: Record<string, number | boolean> } | null>(null)
+  useEffect(() => {
+    // The enclosure's parameters as Generate lists them.
+    runCommand('gen.list', { generator: 'board_box' })
+      .then((r) => {
+        const g = (r as { generators: { params: Param[]; defaults: Record<string, number | boolean> }[] }).generators[0]
+        setParams({ params: g.params, defaults: g.defaults })
+      })
+      .catch(() => setParams(null))
+  }, [])
+  const busy = s.busy !== null
+  const b = s.board
+  const values = { ...(params?.defaults ?? {}), ...s.enclosure }
+  return (
+    <div className="group" data-test="pcb-panel">
+      <div className="sec-head">
+        Boards
+        <InfoDot title="Boards">
+          <p>A KiCad board brought in as solids, a box made round it, and its files for the board house. KiCad’s own kicad-cli does the KiCad work, on this computer, through the agent connection.</p>
+        </InfoDot>
+      </div>
+      <div className="kv" data-test="pcb-tools">
+        <span className="name">KiCad</span>
+        <span className="pl-aside">{s.tools ? (s.tools.found ? `${s.tools.version ?? '?'}${s.tools.ready ? '' : ' — not usable'}` : 'not found') : 'not checked'}</span>
+        <button disabled={busy} title="Look for kicad-cli on this computer" onClick={() => void run('tools', { fresh: true })}>
+          Check
+        </button>
+      </div>
+      {s.tools?.note && <Status tone={s.tools.ready ? 'idle' : 'warn'}>{s.tools.note}</Status>}
+
+      <TextField label="Board file" value={s.path} placeholder="/path/to/board.kicad_pcb" disabled={busy} testId="pcb-path" onCommit={(v) => void (v.trim() ? run('open', { path: v.trim() }) : run('close'))} />
+      {b && (
+        <div className="pl-card live" data-test="pcb-board">
+          <div className="kv">
+            <span className="name">{b.name}</span>
+            <span className="pl-aside">
+              {len.fmt(b.size[0], 1)} × {len.fmt(b.size[1], 1)} × {len.fmt(b.thickness, 2)}
+            </span>
+          </div>
+          <p className="hint">
+            {b.holes.length} mounting hole{b.holes.length === 1 ? '' : 's'}, {b.connectors.length} connector{b.connectors.length === 1 ? '' : 's'} at the edge, {b.footprints.count} footprints
+          </p>
+          {b.connectors.map((c) => (
+            <label key={c.ref} className="pcb-row" title={`${c.footprint}${c.opening.typical ? ' — typical opening size' : ''}`}>
+              <input type="checkbox" aria-label={`Opening for ${c.ref}`} disabled={busy} checked={!s.skip.includes(c.ref)} onChange={(e) => void run('set', { skip: e.target.checked ? s.skip.filter((r) => r !== c.ref) : [...s.skip, c.ref] })} />
+              <span>
+                {c.ref} {c.label}
+              </span>
+              <span className="pl-aside">{SIDE[c.side]}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div className="pcb-checks">
+        <label title="Bring the parts in with the board, each a body">
+          <input type="checkbox" disabled={busy} checked={s.components} onChange={(e) => void run('set', { components: e.target.checked })} /> With parts
+        </label>
+        <label title="KiCad’s STEP models in place of VRML ones of the same name">
+          <input type="checkbox" disabled={busy} checked={s.subst} onChange={(e) => void run('set', { subst: e.target.checked })} /> STEP models
+        </label>
+      </div>
+      <div className="toolrow">
+        <button className="primary" disabled={busy || !s.path} data-test="pcb-import" title="Export the board as STEP with KiCad and bring it into Reverse Engineer" onClick={() => void run('import')}>
+          Import
+        </button>
+      </div>
+      {s.imported && (
+        <div className="pl-card" data-test="pcb-imported">
+          <div className="kv">
+            <span className="name">{s.imported.body ?? 'Imported'}</span>
+            <span className="pl-aside">{s.imported.bodies} bodies</span>
+          </div>
+          <p className="hint">
+            Parts reach {len.fmt(s.imported.above, 1)} above, {len.fmt(s.imported.below, 1)} below.
+            {s.imported.warnings.length ? ` KiCad: ${s.imported.warnings.length} warning${s.imported.warnings.length === 1 ? '' : 's'} (3D models not found).` : ''}
+          </p>
+        </div>
+      )}
+
+      <div className="sec-head">Enclosure</div>
+      {!params && <Status tone="idle">The enclosure comes from the Generate workspace.</Status>}
+      {params &&
+        params.params
+          .filter((p) => SHOWN.includes(p.key))
+          .map((p) =>
+            p.kind === 'bool' ? (
+              <label key={p.key} className="pcb-row" title={p.tip}>
+                <input type="checkbox" aria-label={p.label} disabled={busy} checked={values[p.key] === true} onChange={(e) => void run('set', { enclosure: { [p.key]: e.target.checked } })} />
+                <span>{p.label}</span>
+              </label>
+            ) : (
+              <NumberField key={p.key} label={p.label} testId={`pcb-${p.key}`} value={values[p.key] as number} step={p.step ?? 0.1} min={p.min ?? 0} kind="length" disabled={busy} hint={<p>{p.tip}</p>} onCommit={(v) => void run('set', { enclosure: { [p.key]: v } })} />
+            ),
+          )}
+      <NumberField label="Parts above" testId="pcb-above" value={s.above ?? s.imported?.above ?? 0} step={0.5} min={0} kind="length" disabled={busy} hint={<p>How far the parts reach above the board; measured on import unless set here.</p>} onCommit={(v) => void run('set', { above: v })} />
+      <NumberField label="Parts below" testId="pcb-below" value={s.below ?? s.imported?.below ?? 0} step={0.5} min={0} kind="length" disabled={busy} hint={<p>How far pins and parts reach below the board.</p>} onCommit={(v) => void run('set', { below: v })} />
+      <div className="toolrow">
+        <button className="primary" disabled={busy || !b || !params} data-test="pcb-enclosure" title="Make the box and lid round the board in Reverse Engineer" onClick={() => void run('enclosure')}>
+          Make enclosure
+        </button>
+        <button disabled={busy || (!Object.keys(s.enclosure).length && s.above === null && s.below === null)} title="The enclosure’s settings back to the defaults; the parts’ reach measured again" onClick={() => void run('set', { reset: true, above: null, below: null })}>
+          Defaults
+        </button>
+      </div>
+      {s.enclosureMade && <p className="hint">Made: {s.enclosureMade.bodies.join(', ')}.</p>}
+
+      <div className="sec-head">Fabrication</div>
+      <label className="pcb-row" title="fab: Protel extensions and JLCPCB’s column names, read by JLCPCB and PCBWay; KiCad: KiCad’s own names">
+        <span>File names</span>
+        <select value={s.naming} disabled={busy} aria-label="File names" onChange={(e) => void run('set', { naming: e.target.value })}>
+          <option value="fab">Board house (JLCPCB, PCBWay)</option>
+          <option value="kicad">KiCad’s own</option>
+        </select>
+      </label>
+      <div className="toolrow">
+        <button disabled={busy || !s.path} data-test="pcb-fab" title="Gerbers, drill files, placement and parts lists and the DRC report, zipped" onClick={() => void fabNow()}>
+          Fab package
+        </button>
+        <button disabled={busy || !s.path} data-test="pcb-drc" title="KiCad’s design rule check" onClick={() => void run('drc')}>
+          Check rules
+        </button>
+      </div>
+      {s.fab && (
+        <div className="pl-card" data-test="pcb-fab-result">
+          <p className="hint" title={s.fab.job}>
+            {s.fab.files.length} files, saved in {s.fab.job.split(/[\\/]/).pop()}
+          </p>
+          {s.fab.notes.map((n) => (
+            <p key={n} className="hint">
+              {n}
+            </p>
+          ))}
+        </div>
+      )}
+      {s.drc && (
+        <div className="pl-card" data-test="pcb-drc-result">
+          <Status tone={s.drc.clean ? 'ok' : 'warn'}>{s.drc.clean ? 'No violations.' : `${s.drc.violations} violation${s.drc.violations === 1 ? '' : 's'}, ${s.drc.unconnected} unconnected`}</Status>
+          {s.drc.items.slice(0, 8).map((i, n) => (
+            <p key={n} className="hint">
+              {i.severity}: {i.description}
+            </p>
+          ))}
+        </div>
+      )}
+      <Busy text={s.busy ? `${s.busy}${s.progress ? ` ${s.progress}` : ''}` : null} />
+      {busy && (
+        <div className="toolrow">
+          <button onClick={() => void run('stop')}>Stop</button>
+        </div>
+      )}
+    </div>
+  )
+}

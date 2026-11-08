@@ -7,6 +7,28 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Boards** (2026-11-08, new plugin `pcb`). KiCad circuit boards in
+  ScanRuler. `pcb.open` reads a `.kicad_pcb` without KiCad: its outline,
+  thickness, mounting holes, and the connectors at its edge with the wall
+  each faces. `pcb.import` exports the board as STEP with KiCad's own
+  `kicad-cli`, run on your computer by the agent's server. The board comes
+  into Reverse Engineer as a body named after its file, with the edge
+  connectors named after their references, and the parts' reach measured.
+  `pcb.enclosure` makes a box round it with Generate's new `board_box`:
+  standoffs under the holes with heat-set insert or self-tapping holes, room
+  for the parts, openings in the walls for USB-C, micro-USB, barrel jacks,
+  pin headers, JST and other connectors (typical sizes, or the part's 3D
+  box), and a lid on a lip. `pcb.fab` makes the fabrication package: Gerbers,
+  Excellon drills with plated and unplated holes apart, the placement and
+  parts lists, and the DRC report, zipped with Protel extensions and
+  JLCPCB's column names. `pcb.drc` runs KiCad's design rule check. Each
+  kicad-cli command's flags are read off its `--help` first, for KiCad 7 to
+  10. The Catalog now also searches KiCad's 3D model library
+  (kicad-packages3D, CC-BY-SA 4.0 with the KiCad libraries exception) by
+  package name and records its licence, and a STEP taken there opens as a
+  body. With `SCANRULER_MCP_EXTRAS=pcb` the server offers `kicad_tools`,
+  `kicad_board`, `kicad_drc` and `kicad_fab` on their own.
+
 - **A Texture workspace** (2026-11-07, local fork). BumpMesh's texturing engine —
   the code its Export button runs, vendored from a BumpMesh checkout — on the
   part open here: library or your own textures, up to four layers, stamps,

@@ -24,7 +24,8 @@ not in this repository.
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
-| [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, made to size as solids |
+| [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, a board enclosure, made to size as solids |
+| [pcb/](pcb/) | Boards — KiCad boards brought in as solids, an enclosure round them, Gerbers, drills and DRC through kicad-cli |
 
 ## The rules
 

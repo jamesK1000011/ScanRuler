@@ -5,6 +5,7 @@
 import { create } from 'zustand'
 import { GENERATORS, type Value } from '../core/generators'
 import type { GenPart } from '../core/genWorker'
+import type { BoardSpec } from '../core/boardBox'
 
 export interface Made {
   generator: string
@@ -18,6 +19,8 @@ export interface GenSetup {
   generator: string
   /** Values set, per generator — only those that differ from its defaults. */
   values: Record<string, Record<string, Value>>
+  /** The board a board enclosure goes round (the Boards workspace sets it). */
+  board: BoardSpec | null
 }
 
 interface GenState extends GenSetup {
@@ -29,7 +32,7 @@ interface GenState extends GenSetup {
   reset(): void
 }
 
-export const DEFAULT_GEN: GenSetup = { generator: GENERATORS[0].id, values: {} }
+export const DEFAULT_GEN: GenSetup = { generator: GENERATORS[0].id, values: {}, board: null }
 
 export const useGen = create<GenState>((set) => ({
   ...DEFAULT_GEN,
@@ -49,4 +52,4 @@ export const useGen = create<GenState>((set) => ({
   reset: () => set({ ...DEFAULT_GEN, busy: false, status: '', made: null }),
 }))
 
-export const setupOf = (s: GenSetup): GenSetup => ({ generator: s.generator, values: s.values })
+export const setupOf = (s: GenSetup): GenSetup => ({ generator: s.generator, values: s.values, board: s.board })
