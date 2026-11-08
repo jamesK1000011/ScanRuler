@@ -17,6 +17,9 @@ says the part is.
    `loose` may be worn, printed or a maker's own size: say so.
 3. A standard part usually needs no CAD. Say what to buy: "608 bearing,
    8 × 22 × 7".
+4. The other way round: `catalog.lookup { designation }` gives a standard
+   part's nominal dimensions by name — "M5 socket head", "608", "M8 washer",
+   or "M4" for every M4 part.
 
 ## Finding the CAD
 

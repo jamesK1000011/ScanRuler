@@ -11,5 +11,9 @@ The session's `scanner` part says what to plan with (`noise.sigmaMm`).
 3. Without a profile, plugins go by the measured noise. With neither, say
    so and ask before choosing a tolerance.
 
+`scanner.list` gives the profiles kept in this browser, the one this
+project uses and the measured noise. `scanner.remove { name }` drops a
+profile; a project using it keeps its copy.
+
 Don't guess a scanner's noise from its marketing figures. Measure it, or
 use what the person tells you.

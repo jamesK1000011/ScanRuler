@@ -19,6 +19,9 @@
 2. Run `thread.identify { axis }`. Check `families` first if the person has
    said what the part is: an American plumbing fitting means
    `["npt","unc","unf"]`, a European one `["bspp","bspt","metric"]`.
+   `thread.standards { families?, query?, limit? }` lists the families with
+   their flank angle, taper and source standard, and their designations
+   (`query: "M6"` or `"1/2"`).
 3. Act on the `verdict`:
    - **match / high**: name it. If `ruledOut` is present, say what else fits
      by pitch and diameter and why it was set aside, in one line.

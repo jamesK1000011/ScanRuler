@@ -10,6 +10,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
+import { NumberField } from '../../../src/ui/NumberField'
 import { Busy, Notes, Pager, Paper, Status } from '../../_shared/ui/kit'
 import { bom } from '../core/assembly'
 import { lint } from '../core/lint'
@@ -289,6 +290,21 @@ export function AssemblyPanel() {
             Take in the bodies
           </button>
         </div>
+        {st.parts.length > 0 && (
+          <details className="pl-fold" data-test="asm-parts-edit">
+            <summary>Edit the parts</summary>
+            {st.parts.map((p) => (
+              <div key={p.name} data-test="asm-part">
+                <div className="kv">
+                  <span className="name" title={p.body ? `Body: ${p.body}` : 'No body: listed only'}>{p.name}</span>
+                  <button className="x" disabled={busy} title={`Take ${p.name} off the parts list`} onClick={() => void run('parts', { remove: [p.name] })}>×</button>
+                </div>
+                <TextField label="Designation" value={p.designation ?? ''} placeholder="M3×10 ISO 4762" disabled={busy} onCommit={(designation) => void run('parts', { set: [{ name: p.name, designation }] })} />
+                {!p.body && <NumberField label="Quantity" value={p.qty ?? 1} step={1} min={1} disabled={busy} onCommit={(qty) => void run('parts', { set: [{ name: p.name, qty: Math.max(1, Math.round(qty)) }] })} />}
+              </div>
+            ))}
+          </details>
+        )}
         {st.parts.some((p) => p.kind === 'part' && /\d+$/.test(p.name)) && (
           <p className="hint">Parts named “Screw 1”, “Screw 2”… with one designation come out as one item with a count: set it with asm.parts, or ask the agent.</p>
         )}

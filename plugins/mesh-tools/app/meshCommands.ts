@@ -40,8 +40,11 @@ import {
   useMeshTools,
   type CutKeep,
   type MeshTool,
+  type MeshView,
   type MirrorMode,
   type OffsetDirection,
+  type TrimView,
+  type WrapView,
 } from '../state/meshStore'
 import { editedCopy } from '../state/editedCopy'
 import { booleanSolids } from './booleanSolids'
@@ -265,20 +268,52 @@ const parts: Command = {
   run: async () => partsOut(),
 }
 
-const show: Command<{ scan?: boolean; reduced?: boolean; piece?: boolean; bodies?: string[]; deviation?: boolean }> = {
+const show: Command<{ scan?: boolean; reduced?: boolean; piece?: boolean; bodies?: string[]; deviation?: boolean; reduceView?: MeshView; wrapView?: WrapView; trimView?: TrimView }> = {
   name: 'show',
   title: 'Show or hide parts',
   description:
-    'Say what the viewport shows, as the parts list’s eyes do — for a view.render picture of it. Puts Mesh Tools on screen (from whatever workspace was) and the tool in hand away, so the list says what is shown: view.render then pictures these parts — the scan or its edited copy, the reduced mesh, the piece, the lent bodies see-through — and not another workspace’s view, until workspace.set puts that one back (the answer’s back says which). The scan and the reduced mesh lie on one surface and are shown one at a time: showing one hides the other. bodies are the bodies other workspaces lend, by key or name, drawn see-through — the list given is all that is shown. deviation colours the edited copy by its signed distance from the scan in use. Not a step of the history. Returns what is shown, workspace (mesh), and when it changed the screen, back: the workspace it took the place of.',
+    'Say what the viewport shows, as the parts list’s eyes do — for a view.render picture of it. Puts Mesh Tools on screen (from whatever workspace was) and the tool in hand away, so the list says what is shown: view.render then pictures these parts — the scan or its edited copy, the reduced mesh, the piece, the lent bodies see-through — and not another workspace’s view, until workspace.set puts that one back (the answer’s back says which). The scan and the reduced mesh lie on one surface and are shown one at a time: showing one hides the other. bodies are the bodies other workspaces lend, by key or name, drawn see-through — the list given is all that is shown. deviation colours the edited copy by its signed distance from the scan in use. reduceView, wrapView or trimView instead (one of them, and none of the parts-list keys beside it) put that tool in hand with its view key pressed, as the panel’s keys do: reduceView reduced / deviation / scan (the reduced mesh, the scan painted with how far it strays, the scan alone — after mesh.reduce), wrapView wrap / inside / scan (after mesh.wrap), trimView piece / gap / break (after mesh.trim). Not a step of the history. Returns what is shown, workspace (mesh), and when it changed the screen, back: the workspace it took the place of.',
   input: obj({
     scan: bool('The scan — the edited copy in its place, while there is one.'),
     reduced: bool('The reduced mesh.'),
     piece: bool('The piece Trim to scan made.'),
     bodies: arr(str(undefined, { minLength: 1 }), 'The bodies to show, by key or name; [] for none.'),
     deviation: bool('Colour the edited copy by how far it is from the scan in use, grey where an edit made surface the scan never had.'),
+    reduceView: enumOf(['reduced', 'deviation', 'scan'], 'With Reduce mesh in hand: the reduced mesh, the scan painted with how far it strays, or the scan alone.'),
+    wrapView: enumOf(['wrap', 'inside', 'scan'], 'With Wrap in hand: the wrap, the scan inside it, or the scan alone.'),
+    trimView: enumOf(['piece', 'gap', 'break'], 'With Trim to scan in hand: the piece, the gap to the part, or the break.'),
   }),
   readOnly: true,
-  run: async ({ scan, reduced, piece, bodies, deviation }) => {
+  scene: true,
+  run: async ({ scan, reduced, piece, bodies, deviation, reduceView, wrapView, trimView }) => {
+    const views = [reduceView, wrapView, trimView].filter((v) => v !== undefined).length
+    if (views > 0) {
+      if (views > 1) invalid('Give one of reduceView, wrapView and trimView.')
+      if (scan !== undefined || reduced !== undefined || piece !== undefined || bodies !== undefined) invalid('A view key puts its tool in hand, and the parts list shows only with none: give the view key alone, or the parts without it.')
+      if (deviation && m().copyTriangles === null) throw new CommandError('invalid_state', 'There is no edited copy to colour — the first edit makes one.')
+      const was = useShell.getState().workspace
+      if (reduceView !== undefined) {
+        if (!m().report) throw new CommandError('invalid_state', 'There is no reduced mesh — mesh.reduce makes one.')
+        inHand('reduce')
+        m().setView(reduceView)
+      } else if (wrapView !== undefined) {
+        if (!m().wrapMade) throw new CommandError('invalid_state', 'There is no wrap — mesh.wrap makes one.')
+        inHand('wrap')
+        m().setWrapView(wrapView)
+      } else if (trimView !== undefined) {
+        if (!m().trimMade) throw new CommandError('invalid_state', 'There is no piece — mesh.trim makes one.')
+        inHand('trim')
+        m().setTrimView(trimView)
+      }
+      if (deviation !== undefined) m().setCopyDeviation(deviation)
+      return {
+        tool: m().tool,
+        view: reduceView ?? wrapView ?? trimView,
+        deviation: m().copyDeviation,
+        workspace: 'mesh',
+        ...(was !== 'mesh' ? { back: was, note: `Mesh Tools is on screen in place of ${was}; workspace.set { workspace: "${was}" } puts it back.` } : {}),
+      }
+    }
     const lent = offeredSolids()
     const keys = bodies?.map((b) => solidNamed(b, lent).key)
     if (deviation && m().copyTriangles === null) throw new CommandError('invalid_state', 'There is no edited copy to colour — the first edit makes one.')
@@ -361,6 +396,7 @@ const mark: Command<{ region: RegionIn; for?: keyof typeof MARK_COLORS }> = {
     'Mark a region on the part, as the window, brush and lasso do — in place of whatever is marked — with the tool that is to work on it in hand: delete (orange, the default), flip (amber), smooth or offset (a marked region, blue or violet). Then look at it (view.render) and run that tool with region: "marked", or let the person at the screen put the marking right first. Not a step of the history. Needs the viewport. Returns how many vertices are marked.',
   input: obj({ region: regionSchema('The surface to mark.'), for: enumOf(['delete', 'flip', 'smooth', 'offset'], 'The tool the marking is for.') }, ['region']),
   readOnly: true,
+  scene: true,
   run: async ({ region, for: tool }) => {
     requireScan()
     if (region === 'marked') invalid('Name the region to mark with a box, a sphere or vertices.')
@@ -863,6 +899,42 @@ const exportPart: Command<{ part: 'edited' | 'reduced' | 'piece'; format?: MeshF
   },
 }
 
+// ---- stopping and putting previews away ---------------------------------------------------
+
+const discard: Command<{ what: 'reduced' | 'wrap' }> = {
+  name: 'discard',
+  title: 'Put a preview away',
+  description:
+    'Throw away the reduced mesh (what: "reduced") or the wrap (what: "wrap") on hand, as the panel’s Discard does: the mesh it was made of is shown again, and nothing is applied. Not a step of the history. Returns what is left on hand.',
+  input: obj({ what: enumOf(['reduced', 'wrap'], 'Which preview.') }, ['what']),
+  history: false,
+  run: async ({ what }) => {
+    if (what === 'reduced') {
+      if (!m().report) throw new CommandError('invalid_state', 'There is no reduced mesh to discard.')
+      session().discardReduction()
+      return { discarded: 'reduced', reduced: reductionOut() }
+    }
+    if (!m().wrapMade) throw new CommandError('invalid_state', 'There is no wrap to discard.')
+    if (m().wrapStatus === 'running') throw new CommandError('busy', 'A wrap is being worked out — mesh.stop stops it first.')
+    session().discardWrap()
+    return { discarded: 'wrap', wrap: wrapOut() }
+  },
+}
+
+const stop: Command = {
+  name: 'stop',
+  title: 'Stop the mesh work',
+  description: 'Stop a mesh.wrap that is being worked out. A reduction, a trim and the edits run to their end — they cannot be stopped. Changes nothing else. Returns whether a wrap was stopped.',
+  input: noInput,
+  history: false,
+  interrupts: true,
+  run: async () => {
+    const running = m().wrapStatus === 'running'
+    await stopMeshWork()
+    return { stopped: running }
+  },
+}
+
 /** The workspace's commands, in the order a cleanup goes: what is there,
  *  islands and marked surface off, the normals the right way, the cut, a
  *  mirror, the holes, smoothing, a shrink
@@ -891,6 +963,8 @@ export const meshCommands = [
   useEdited,
   discardEdited,
   exportPart,
+  discard,
+  stop,
 ] as Command<never>[]
 
 /** What the workspace is busy with that a command must not run over. */

@@ -168,6 +168,9 @@ act on the active layer unless `layer` says otherwise.
 
 ## 8. Preview, budget, export
 
+- `texture.settings { layer? }` reads every setting of the active layer
+  (or the one named) and of the output, with what each means — read it
+  before changing them. It changes nothing.
 - `texture.estimate` first: the textured area, how many triangles it comes
   to at `refineLength`, and whether `maxTriangles` will squeeze it. The
   resolution is the part's diagonal / 250 unless set; it should be at most a

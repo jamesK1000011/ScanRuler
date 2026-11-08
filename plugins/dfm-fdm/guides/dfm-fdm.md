@@ -19,6 +19,8 @@ Nothing is a hidden constant.
    then printer, then the project's own changes. A printer profile (`h2d`
    for the Bambu Lab H2D) also sets the build volume: a part too big is an
    error, and one wider than both H2D nozzles reach is a warning.
+   `dfm.profiles` lists the rule pack and the nozzle, material and printer
+   profiles to stack on it, each with what it changes, and the ones chosen.
 2. `dfm.check`. Read the verdict, then the findings in order: errors, then
    warnings, then notes.
 3. For each finding, tell the person what and where in one line, using its

@@ -35,6 +35,21 @@ instructions. The cover carries the bill of materials.
 6. **Save.** `asm.save { path }` writes the manual as HTML (self-contained),
    `format: "pdf"`, or `"zip"` with both and every page as SVG. Local only.
 
+## Settings, themes and review
+
+- `asm.settings` with nothing reads the title, paper (letter / a4),
+  orientation, explode, theme, layout and the cover's product, version,
+  publisher, intended use, safety and disposal, with the themes and presets
+  on offer. Given keys change; `preset` sets theme, layout, words, partsBox
+  and hardwarePage at once.
+- `asm.theme` lists themes (the default); `export` writes one as a JSON
+  file to share, `import { file, apply? }` takes one in (its CSS cleaned),
+  `remove { id }` drops an imported one.
+- `asm.review` holds the manual against what IEC/IEEE 82079-1 asks a manual
+  to carry (product, supplier, edition, intended use, safety, parts and
+  tools, every step, end of life) and says what to set for each gap. A
+  checklist for the person, not a certificate.
+
 ## Notes
 
 - A clash is two parts overlapping in their places: a press fit, or a model

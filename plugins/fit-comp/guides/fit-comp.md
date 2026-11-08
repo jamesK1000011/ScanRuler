@@ -18,12 +18,17 @@ The result can be slicer settings or a pre-compensated model.
    Check the alignment's RMS. A bad alignment reads as offsets.
 2. `fit.settings`: set `up` if the part wasn't printed CAD-Z-up. Set
    `printer`, `material` and `nozzle` if the person said them. Set `slicer`
-   (`orcaslicer`, `bambustudio` or `prusaslicer`). Set `current` to the slicer
+   (`orcaslicer`, `bambustudio` or `prusaslicer`; `fit.keymaps` lists which
+   setting each correction moves, and `add` / `remove` a map of your own
+   for another slicer). Set `current` to the slicer
    values it was printed with, if any are non-zero. Ask the person when you
    don't know, because corrections add to what was in use.
 3. `fit.features`: see which walls, floors, holes and bosses will be read. Tag
    pocket and slot walls `inner` (the slicer treats them as holes). Tag
-   anything deliberately loose, trimmed or known-warped `ignore`.
+   anything deliberately loose, trimmed or known-warped `ignore`:
+   `fit.tag { ids, as: "inner" | "contour" | "ignore" | "use" }` (`contour`
+   and `use` take a tag back). Kept with the project; it counts from the
+   next `fit.measure`.
 4. `fit.measure`. Read it before passing anything on:
    - `fit` near 1 or under: the model explains the part. Over about 4: it
      doesn't (warping, a lifted corner, a bad alignment). Say so, show the

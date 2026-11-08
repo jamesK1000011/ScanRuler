@@ -226,6 +226,9 @@ Example: `{ body: 7, name: "Housing" }`
 
 Also: the name is what the panel lists; a body is told by its id, which stays with it while the feature that made it does.
 
+**`reverse_body_clearance`** `{ body, against? }` — the clearance between a solid and others (every other solid by default): per body the least distance (`gap`, mm), or where they touch or run into each other `gap: 0` and the shared `overlap`, mm³ — a part in its case, a board on its standoffs. Nearest first. Changes nothing.
+Example: `{ body: "Board", against: ["Case"] }`
+
 **`reverse_body_section`** `{ plane, offsets?, bodies? }` — the bodies cut at a plane, exact, no scan needed: chains of lines, arcs and circles in its [u, v]. **`reverse_body_probe`** `{ points?, rays? }` — distance to the nearest face (negative inside); a ray `{ from, dir }`'s `span`: a width, a thickness.
 
 **`reverse_body_fillet_read`** `{ body, edges, shape?: "round" | "chamfer", stations?, reach? }` — the round the scan has along each edge, read in cuts square to it at `stations` places (3; 7 on an edge read off the body’s mesh; 9 at most): straight edges between two flats, straight or circle/arc edges between a flat and a cylinder, cone or sphere by their faces’ surfaces, any other edge (a blade’s root on a dish, two curved faces) off the body’s own faces cut at each place. Per edge `{ edge, mid, round: true, radius, sigma, nominal, off, sigmas, residual: { rms, points }, radii, stations: [{ t, at }], linear: { radius: [start, end], rms, medianRms } }` — `sigma` the larger of the fit’s and the spread, `nominal` the nearest half millimetre, `sigmas` |off|/sigma, `t` 0 at the edge’s first end as `reverse_body_describe` lists it (a closed edge from its seam); `rms` well under `medianRms` is a round running evenly from one size to another — `edges: [{ edge, radius: "fit" }]` on a fillet takes it as a variable radius; R2→R10→R2 goes into the profiles. `round: false` with `why` where only some places read one, `places` a verdict each: "R0.8" or why — sharp, no scan, chamfer better, "S-profile: 45 % on the arc", "step 0.8 mm on face 2 — reach ≤ 0.9", "another face 1.7 mm off within the reach — reach ≤ 1.5" (a face ending within the reach holds it to 0.9 of itself); `round: null` for an edge it cannot read; edges no place reads a round on (sharp, the other shape, a gap, a round past the reach) are one row, `sharp: { edges, why }`. `reach` (5 % of the part’s size, 3 mm at least, 5 for a chamfer; a few times the largest round expected) caps the radius: left out, a round at the top of the search, or none, is read again at 2× and 4× (the row’s `reach` says which); given, an empty read says "no round within N mm (reach)" — give a larger one. Then `rounds`, `median`, `spread`. `shape: "chamfer"` (straight traces only): `chamfer`, `distance`, `setbacks` [face0, face1], `setbackSigma`, on a hole’s mouth `countersink: { angleDeg (included), diameter (at the flat face), depth, sigma }`, `chamfers` counted; `distance: "fit"` takes the same edges and `reach`. Needs a scan.
@@ -300,6 +303,11 @@ Example: `{ parameter: "t", expression: "6.2" }`
 
 **`reverse_parameter_list`** `{}` — the table with values and who reads each.
 Example: `{}`
+
+**`reverse_parameter_rename`** `{ parameter, name }` — renames it and rewrites every expression that reads it (features' fields, sketch dimensions, other parameters); answers the parameter and the features rewritten.
+Example: `{ parameter: "t", name: "wall" }`
+
+**`reverse_parameter_remove`** `{ parameter }` — takes it out of the table. Refused while anything reads it: take it out of those expressions first (a number set over a field's expression lets it go).
 
 **`reverse_note_list`** `{ note?, all? }` — open notes (or all, or one) with what each is on: a face or edge by index with `madeBy`, a corner, or the scan with `nearest`.
 Example: `{ note: 4 }`

@@ -4,7 +4,7 @@
 // Build — a zip saved on this computer for you to upload yourself. Every
 // button runs the pack.* command an agent does.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { create } from 'zustand'
 import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
@@ -52,12 +52,21 @@ const UP_FIELDS: { k: keyof typeof EMPTY; label: string; hint?: string }[] = [
   { k: 'source', label: 'Where from', hint: 'printables, mcmaster…' },
   { k: 'body', label: 'Body it is', hint: 'the body’s name in Reverse Engineer' },
 ]
+/** What pack.add takes: models, slicer projects, pictures, drawings, notes. */
+const ADD_ACCEPT = '.stl,.3mf,.step,.stp,.obj,.png,.jpg,.jpeg,.webp,.gif,.svg,.dxf,.pdf,.md,.txt'
+
+async function addFile(f: File) {
+  const bytes = new Uint8Array(await f.arrayBuffer())
+  await run('add', { bytes, name: f.name }, 'Adding the file…')
+}
+
 const PLATFORM_NAMES: Record<string, string> = { printables: 'Printables', thangs: 'Thangs', makerworld: 'MakerWorld', thingiverse: 'Thingiverse' }
 
 export function PackPanel() {
   const st = usePack()
   const v = usePackView()
   const [up, setUp] = useState(EMPTY)
+  const fileInput = useRef<HTMLInputElement>(null)
   const busy = v.busy !== null
   const s = st.settings
   const p = plan(s, st.upstream)
@@ -122,6 +131,20 @@ export function PackPanel() {
               ))}
           </select>
         </label>
+        <div className="field">
+          <span>Other files {st.added.length ? <b>{st.added.length}</b> : null}</span>
+          <button disabled={busy} title="A sliced 3MF, a photo of the print, a drawing — scrubbed with the rest; kept for this session only" onClick={() => fileInput.current?.click()} data-test="pack-add-file">
+            Add file…
+          </button>
+          <input ref={fileInput} type="file" hidden accept={ADD_ACCEPT} onChange={(e) => { const f = e.target.files?.[0]; if (f) void addFile(f); e.target.value = '' }} />
+        </div>
+        {st.added.map((a) => (
+          <div className="kv" key={a.name} data-test="pack-added">
+            <span className="name">{a.name}</span>
+            <span className="pl-aside">{(a.bytes.length / 1024).toFixed(0)} kB</span>
+            <button className="x" disabled={busy} title={`Take ${a.name} out of the pack`} onClick={() => void run('files', { remove: [a.name] })}>×</button>
+          </div>
+        ))}
       </div>
 
       <div className="group">

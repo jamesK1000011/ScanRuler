@@ -5,6 +5,7 @@
 // it. Every control is the same verb an agent's command runs.
 
 import { useRef, useState } from 'react'
+import { runCommand } from '../../../src/commands/registry'
 import { useStore } from '../../../src/state/store'
 import { useMark } from '../../../src/state/markStore'
 import { InfoDot } from '../../../src/ui/InfoDot'
@@ -12,6 +13,10 @@ import { MarkTools } from '../../../src/ui/MarkTools'
 import { NumberField } from '../../../src/ui/NumberField'
 import { MAX_LAYERS, useTexture, type LayerSettings, type MaskMode } from '../state/textureStore'
 import { LIBRARY, thumbOf } from '../app/textureSession'
+
+const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
+const layerCmd = (input: Record<string, unknown>) => { runCommand('texture.layer', input).catch(report) }
+const outputCmd = (settings: Record<string, unknown>) => { runCommand('texture.output', { settings }).catch(report) }
 
 const MODES: { id: number; label: string }[] = [
   { id: 5, label: 'Triplanar' },
@@ -67,18 +72,18 @@ export function TexturePanel(p: TexturePanelProps) {
         </div>
         <div className="moderow" role="radiogroup" aria-label="Layer">
           {st.layers.map((layer, i) => (
-            <button key={layer.id} role="radio" aria-checked={i === st.active} className={i === st.active ? 'on' : undefined} disabled={busy} onClick={() => st.setActive(i)} title={layer.texture?.name ?? 'No texture yet'}>
+            <button key={layer.id} role="radio" aria-checked={i === st.active} className={i === st.active ? 'on' : undefined} disabled={busy} onClick={() => layerCmd({ action: 'activate', layer: i + 1 })} title={layer.texture?.name ?? 'No texture yet'}>
               {i + 1}{layer.visible ? '' : ' (hidden)'}
             </button>
           ))}
-          <button disabled={busy || st.layers.length >= MAX_LAYERS} onClick={() => st.addLayer()} title="Add a layer on top">+</button>
+          <button disabled={busy || st.layers.length >= MAX_LAYERS} onClick={() => layerCmd({ action: 'add' })} title="Add a layer on top">+</button>
         </div>
         <div className="kv">
-          <label><input type="checkbox" checked={L.visible} disabled={busy} onChange={(e) => st.setVisible(st.active, e.target.checked)} /> Shown</label>
+          <label><input type="checkbox" checked={L.visible} disabled={busy} onChange={(e) => layerCmd({ action: 'visible', layer: st.active + 1, visible: e.target.checked })} /> Shown</label>
           {st.active > 0 && (
-            <label><input type="checkbox" checked={L.blend === 'add'} disabled={busy} onChange={(e) => st.setBlend(st.active, e.target.checked ? 'add' : 'cover')} /> Add onto the layers below</label>
+            <label><input type="checkbox" checked={L.blend === 'add'} disabled={busy} onChange={(e) => layerCmd({ action: 'blend', layer: st.active + 1, blend: e.target.checked ? 'add' : 'cover' })} /> Add onto the layers below</label>
           )}
-          <button disabled={busy} onClick={() => st.removeLayer(st.active)}>Remove layer</button>
+          <button disabled={busy} onClick={() => layerCmd({ action: 'remove', layer: st.active + 1 })}>Remove layer</button>
         </div>
       </div>
 
@@ -169,11 +174,11 @@ export function TexturePanel(p: TexturePanelProps) {
 
       <div className="group">
         <div className="sec-head">Output</div>
-        <NumberField label="Resolution" kind="length" value={st.output.refineLength} step={0.05} min={0.02} disabled={busy} onCommit={(v) => st.setOutput({ refineLength: v })} hint="Edge length the textured surface is cut into. Smaller is finer and heavier." />
-        <NumberField label="Triangle budget" value={st.output.maxTriangles} step={50000} min={1000} disabled={busy} onCommit={(v) => st.setOutput({ maxTriangles: Math.round(v) })} />
-        <NumberField label="Plain below" unit="°" value={st.output.bottomAngleLimit} step={1} min={0} disabled={busy} onCommit={(v) => st.setOutput({ bottomAngleLimit: v })} hint="Faces within this angle of facing down stay plain — the bed face." />
+        <NumberField label="Resolution" kind="length" value={st.output.refineLength} step={0.05} min={0.02} disabled={busy} onCommit={(v) => outputCmd({ refineLength: v })} hint="Edge length the textured surface is cut into. Smaller is finer and heavier." />
+        <NumberField label="Triangle budget" value={st.output.maxTriangles} step={50000} min={1000} disabled={busy} onCommit={(v) => outputCmd({ maxTriangles: Math.round(v) })} />
+        <NumberField label="Plain below" unit="°" value={st.output.bottomAngleLimit} step={1} min={0} disabled={busy} onCommit={(v) => outputCmd({ bottomAngleLimit: v })} hint="Faces within this angle of facing down stay plain — the bed face." />
         <label className="checkrow">
-          <input type="checkbox" checked={st.output.preserveUntextured} disabled={busy} onChange={(e) => st.setOutput({ preserveUntextured: e.target.checked })} />
+          <input type="checkbox" checked={st.output.preserveUntextured} disabled={busy} onChange={(e) => outputCmd({ preserveUntextured: e.target.checked })} />
           <span>Leave plain faces exactly as they are</span>
         </label>
       </div>

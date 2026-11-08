@@ -10,6 +10,10 @@ so every site's terms stay in their hands.
 1. **Settings.** `pack.settings`: the title, the author (the name they
    want credited, which may not be their account name), a summary, print
    settings as they'd tell a friend, and the platform. Ask; don't invent.
+   `pack.presets` lists the platform presets (Printables, Thangs,
+   MakerWorld, Thingiverse: folder names, render size and count, field
+   lengths — defaults, not the sites' rules); `add` puts in your own,
+   `remove` drops it.
 2. **Licence.** Ask which licence they want (`pack.licence { id }`) and
    explain the choice in a sentence if they're unsure. CC BY lets anyone
    use it with credit; CC BY-NC forbids selling; CC BY-SA keeps remixes
@@ -28,6 +32,8 @@ so every site's terms stay in their hands.
    the author. This is a guide, not legal advice.
 5. **Extras.** `pack.add { path }` for the sliced 3MF with its print
    profile (slicer_slice's job folder), photos of the print, and so on.
+   `pack.files` lists what was added; `pack.files { remove: [name] }` takes
+   files out. Added files last for the session only.
 6. **Scrub.** `pack.scrub` shows what will be taken out: home folder paths
    and the user name in them, access codes, API keys, printer serials and
    addresses, e-mail addresses, STEP author fields, and EXIF in pictures.

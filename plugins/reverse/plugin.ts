@@ -12,7 +12,9 @@ import { reverseKeyboard } from './app/keyboard'
 import { ReverseNotices } from './ui/ReverseNotices'
 import './ui/reverse.css'
 import { evaluateParameters } from './core/parameters'
-import { useReverse } from './state/reStore'
+import { coordinatePlaneShown, useReverse } from './state/reStore'
+import { useStore } from '../../src/state/store'
+import { WORLD_AXES } from '../../src/core/section/frame'
 import { reverseCommands } from './app/reCommands'
 import { registerReverseGuides } from './guides/guides'
 import { settleHeld } from './app/reCommandCore'
@@ -185,6 +187,76 @@ const plugin: ScanRulerPlugin = {
         applies: () => usePrefs.getState().agentLink,
         shown: () => useNotes.getState().pinsShown,
         show: (on) => useNotes.getState().setPinsShown(on),
+      },
+      // The view bar's menus, as their switches set them — straight on the
+      // store, not through the actions the history records: a picture's
+      // show is no step of it.
+      {
+        key: 'curvature',
+        description: 'the curvature map on the scan (Curvature in the Scan key’s menu: flats green, convex rounds red, hollows blue); it puts the deviation map out',
+        applies: onReverse,
+        shown: () => useReverse.getState().curvatureMap,
+        show: (on) => useReverse.getState().setCurvatureMap(on),
+        save: () => ({ bodyMap: useReverse.getState().bodyMap, curvatureMap: useReverse.getState().curvatureMap }),
+        restore: (saved) => {
+          const was = saved as { bodyMap: boolean; curvatureMap: boolean }
+          useReverse.getState().setBodyMap(was.bodyMap)
+          useReverse.getState().setCurvatureMap(was.curvatureMap)
+        },
+        // Read by the mesh worker once asked for: a picture waits for it.
+        settle: async (ms) => {
+          const until = Date.now() + ms
+          while (useReverse.getState().curvatureMap && useReverse.getState().curvature === null && Date.now() < until) await new Promise((done) => setTimeout(done, 50))
+        },
+        why: () => (useStore.getState().fileName ? null : 'no scan loaded'),
+      },
+      {
+        key: 'scanSeeThrough',
+        description: 'the scan drawn see-through over the bodies (Transparent in the Scan key’s menu; see-through while a body is shown until set)',
+        applies: onReverse,
+        shown: () => {
+          const s = useReverse.getState()
+          return s.scanSeeThrough ?? (!s.bodiesHidden && s.bodies.some((b) => b.visible))
+        },
+        show: (on) => useReverse.setState({ scanSeeThrough: on }),
+        save: () => useReverse.getState().scanSeeThrough,
+        restore: (saved) => useReverse.setState({ scanSeeThrough: saved as boolean | null }),
+      },
+      {
+        key: 'bodiesSeeThrough',
+        description: 'the bodies drawn see-through (Transparent in the Bodies key’s menu)',
+        applies: onReverse,
+        shown: () => useReverse.getState().bodiesSeeThrough,
+        show: (on) => useReverse.setState({ bodiesSeeThrough: on }),
+      },
+      {
+        key: 'overlaps',
+        description: 'where two bodies run into each other, hatched red (Overlaps in the Bodies key’s menu)',
+        applies: onReverse,
+        shown: () => useReverse.getState().overlapsShown,
+        show: (on) => useReverse.setState({ overlapsShown: on }),
+      },
+      // The app's own elements key, taken over here: the workspace draws
+      // the elements by its own switch, the view bar's Elements key.
+      {
+        key: 'elements',
+        description: 'the elements and sections measured in 3D Measure, drawn on the part (the view bar’s Elements key)',
+        applies: onReverse,
+        shown: () => useReverse.getState().elementsShown,
+        show: (on) => useReverse.setState({ elementsShown: on }),
+      },
+      {
+        key: 'planes',
+        description: 'the coordinate planes at the origin (their eyes in the body list; shown on their own until a scan is loaded)',
+        applies: onReverse,
+        shown: () => {
+          const s = useReverse.getState()
+          const hasScan = useStore.getState().fileName !== null
+          return WORLD_AXES.some((a) => coordinatePlaneShown(s.planesShown, a, hasScan))
+        },
+        show: (on) => useReverse.setState({ planesShown: { x: on, y: on, z: on } }),
+        save: () => useReverse.getState().planesShown,
+        restore: (saved) => useReverse.setState({ planesShown: saved as ReturnType<typeof useReverse.getState>['planesShown'] }),
       },
     ])
     // A build under way is stopped for a change that throws the work away

@@ -7,12 +7,12 @@
 
 import { useEffect, useState } from 'react'
 import { useAgentLink } from '../../../src/commands/agentLink'
+import { runCommand } from '../../../src/commands/registry'
 import { useStore } from '../../../src/state/store'
 import { CopyButton } from '../../../src/ui/CopyButton'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
 import { ask, Cancelled, useModels, type Library, type ModelFile, type ModelHit } from '../state/modelsStore'
-import { useCatalog } from '../state/catalogStore'
 
 const LIBS: { id: Library; label: string; note: string; get: string; how: string; form: string }[] = [
   { id: 'sketchfab', label: 'Sketchfab', note: 'Searches with no account; downloads take your Sketchfab API token', get: 'https://sketchfab.com/settings/password', how: 'Sign in, open Settings → Password & API, copy the API token.', form: 'the token' },
@@ -141,12 +141,15 @@ async function bringIn(hit: ModelHit, file: ModelFile, licence: string | null) {
     const r = await ask<{ taken: string[]; url: string | null; licence: string | null; redistribute: boolean }>('take', { source: hit.source, id: hit.id, file: file.id }, WAIT.take, signal)
     const paths = Array.isArray(r?.taken) ? r.taken.filter((p): p is string => typeof p === 'string') : []
     if (!paths.length) throw new Error('The take answered with no file brought in.')
-    // Shown first, then recorded straight into the ledger: a busy session
-    // (a build, a render) must not leave a file brought in unrecorded.
+    // Shown first, then recorded through catalog.provenance — readOnly, so it
+    // runs even while the session is busy (a build, a render): a file
+    // brought in is never left unrecorded.
     useModels.setState({ taken: { hit, paths } })
     const url = web(r.url) ?? web(hit.url)
     const lic = r.licence ?? licence
-    for (const p of paths) useCatalog.getState().record({ file: p.split(/[\\/]/).pop()!, source: hit.source, ...(url ? { url } : {}), ...(lic ? { licence: lic } : {}), redistribute: r.redistribute === true && mayShare(lic), note: `${hit.name}${hit.author ? ` by ${hit.author}` : ''}`, at: new Date().toISOString() })
+    for (const p of paths) {
+      await runCommand('catalog.provenance', { action: 'record', file: p.split(/[\\/]/).pop()!, source: hit.source, ...(url ? { url } : {}), ...(lic ? { licence: lic } : {}), redistribute: r.redistribute === true && mayShare(lic), note: `${hit.name}${hit.author ? ` by ${hit.author}` : ''}` })
+    }
   } catch (e) {
     report(e)
   } finally {

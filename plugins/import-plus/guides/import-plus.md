@@ -21,6 +21,8 @@ app as STL.
    installed on this computer, headless, with autoexec off, and writes a
    `.glb`. If Blender isn't found, say so: the person can set `BLENDER_PATH`
    or export a GLB from Blender themselves.
+   `import.formats` lists the formats, their extensions and the units and up
+   axis each is taken in when the file doesn't say.
 2. `import.inspect { path }`: look at `parts`, `sizeMm` and `unitsWarning`
    before opening. A game or scene file often holds props, a floor or a
    rig. Pick the part that is the object with `parts`.

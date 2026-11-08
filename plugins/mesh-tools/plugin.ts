@@ -3,7 +3,7 @@
 // what each part of this is to the app.
 
 import type { HintStep } from '../../src/core/hints'
-import { registerBusy, registerCommands, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerBusy, registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { pick, registerHistory } from '../../src/state/historyStore'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { meshSection } from './app/projectSection'
@@ -83,6 +83,12 @@ const plugin: ScanRulerPlugin = {
     registerCommands('mesh', meshCommands)
     registerStateSection('mesh', describeMesh)
     registerBusy('mesh', meshBusy, [useMeshTools], stopMeshWork)
+    registerGuide({
+      id: 'mesh-tools',
+      title: 'Cleaning up and editing a scan',
+      when: 'cleaning a scan up in the Mesh Tools workspace — islands, holes, scatter, cutting a base off — or editing it (mirror, offset, boolean, shell, wrap, trim to a break) and reducing it to a light mesh for CAD',
+      text: () => import('./guides/mesh-tools.md?raw').then((m) => m.default),
+    })
     registerHistory({
       // The settings and the list of edits: a reduction on hand stays what
       // it was made with, and the panel says so when the two part ways.

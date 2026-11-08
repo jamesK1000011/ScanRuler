@@ -24,6 +24,9 @@
    vertex moved onto the reference, faded out over `blendMm`. `mode: add`
    (the default) only brings lost material back; `both` trims what stands
    proud too. The answer's `before` and `after` show the change.
+   `wear.settings` with nothing reads tolerance (what counts as worn, 0.05
+   mm), blendMm (1), maxMm (how far the reference may be and still be the
+   same surface, 2) and mode; given keys change, kept with the project.
 5. **A piece broken off** has no scan surface left to move. Say so, and
    model it instead: open the reference as the part, or rebuild with
    Reverse features, keeping the repair a feature of its own.
