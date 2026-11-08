@@ -200,7 +200,7 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
         </p>
       )}
       {(w.atAHold || w.atALoad) && w.awayFromHolds && (
-        <p className="hint" title="A perfectly rigid hold, or a load on a small spot, makes stress no real part sees">
+        <p className="hint" title="Rigid holds and point loads overstate stress right there">
           That spot is on a {w.atAHold ? 'hold' : 'load'}; away from holds and loads: {w.awayFromHolds.safety}
           {w.awayFromHolds.mode ? ` (${MODE_WORDS[w.awayFromHolds.mode] ?? w.awayFromHolds.mode})` : ''}.
         </p>
