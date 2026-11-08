@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The fork's own gate: the checks ci.yml runs on main, run on the fork's
+# working branches, plus the private-details scan. Browser end-to-end runs
+# stay local (they need a GPU-less Chrome and minutes per plugin).
+name: Fork CI
+
+on:
+  push:
+    branches: [suite, fork-fixes, plugin-ui]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    if: github.repository != 'CNCKitchen/ScanRuler'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Nothing tracked carries private details
+        run: npm run -s check:private
+      - name: Nothing outside plugins/ imports from it
+        run: node scripts/check-plugin-boundary.mjs
+      - name: Lengths on screen go through the display units
+        run: node scripts/check-units.mjs
+      - name: Types
+        run: npx tsc --noEmit -p .
+      - run: npm test
+      - name: The agent server (mcp/)
+        run: npm --prefix mcp ci && npm --prefix mcp test
+      - run: npm run build
