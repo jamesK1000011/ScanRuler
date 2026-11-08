@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.mass-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.mass-row > span:first-child { flex: 0 0 96px; color: var(--muted, #888); font-size: 12px; }
+.mass-row > select, .mass-row > input { flex: 1; min-width: 0; }
