@@ -337,6 +337,22 @@ function finish(a: PlanArgs, placed: Placed, offsets: V2[], cut: Cut, notes0: st
   const centres = offsets.map(([du, dv]) => placed.entry.map((x, i) => r3(x + du * placed.basisU[i] + dv * placed.basisV[i])) as V3)
   const depth = cutDepth(cut)
   const notes = [...notes0]
+  // A blind hole deeper than the body: it comes out the far side (an insert
+  // hole 6.7 deep in a floor 5.75 over the bed, say). The body's box says
+  // it surely does; inside the box, the body may still be thinner there.
+  const box = embed ? null : boxOf(placed.body)
+  if (box && typeof depth === 'number') {
+    let out = -Infinity
+    for (const c of centres)
+      for (let i = 0; i < 3; i++) {
+        const d = placed.direction[i]
+        if (Math.abs(d) < 1e-9) continue
+        const end = c[i] + depth * d
+        out = Math.max(out, d < 0 ? box.min[i] - end : end - box.max[i])
+      }
+    if (out > EPS) notes.push(`Warning: ${r3(depth)} deep, the hole comes out ${r3(out)} past ${placed.body}’s far side: it will be open there. Give a shorter depth, a smaller size, or drill it from the other side.`)
+    else if (out > -0.6) notes.push(`Warning: only ${r3(-out)} would be left under the hole before ${placed.body}’s far side: it may print open there.`)
+  }
   if (placed.face && placed.face.area > 0) {
     // A face's reach, roughly: a copy further from its centre than a
     // square of its area is wide may miss it.

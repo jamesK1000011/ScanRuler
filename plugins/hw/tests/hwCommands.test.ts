@@ -104,10 +104,13 @@ const fake: Command<Json>[] = [
   },
 ]
 
+/** The Block's box, given in the tests that read it. */
+let blockBounds: { min: V3; max: V3 } | null = null
+
 beforeAll(() => {
   registerCommands('reverse', fake as Command<never>[])
   registerCommands('hw', hwCommands)
-  registerStateSection('reverse', () => ({ features: features.map((f) => ({ name: f.name })), bodies: [{ id: 1, name: 'Block' }] }))
+  registerStateSection('reverse', () => ({ features: features.map((f) => ({ name: f.name })), bodies: [{ id: 1, name: 'Block', ...(blockBounds ? { bounds: blockBounds } : {}) }] }))
 })
 
 const plan = (input: Json) => runCommand('hw.plan', input) as Promise<Json>
@@ -130,6 +133,19 @@ function planeDepth(p: Json, entry: V3, dir: V3): number {
 }
 
 describe('hw.plan', () => {
+  test('a blind hole deeper than the body says it comes out the far side', async () => {
+    blockBounds = { min: [-10, -10, 0], max: [10, 10, 10] }
+    try {
+      // An M3 insert hole is 6.7 deep: from Z 10 it stops at 3.3, inside.
+      const ok = await plan({ kind: 'insert', size: 'M3', at: { body: 'Block', face: 0 } })
+      expect(ok.notes.some((n: string) => /far side/.test(n))).toBe(false)
+      // A pilot for M8 is 2d + 1 deep: from Z 10 it runs out the bottom.
+      const out = await plan({ kind: 'pilot', size: 'M8', at: { body: 'Block', face: 0 } })
+      expect(out.notes.some((n: string) => /comes out .* past Block’s far side/.test(n))).toBe(true)
+    } finally {
+      blockBounds = null
+    }
+  })
   test('into the top face: the XY plane at its height, drilled down', async () => {
     const p = await plan({ kind: 'screw', size: 'M3', at: { body: 'Block', face: 0 } })
     expect(p.at).toMatchObject({ entry: [0, 0, 10], direction: [0, 0, -1], plane: 'the XY plane', level: false })
