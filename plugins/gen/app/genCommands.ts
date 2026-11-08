@@ -11,6 +11,8 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { generatorOf, GENERATORS, matchParts, valuesOf, type Generator, type Value } from '../core/generators'
 import type { GenPart } from '../core/genWorker'
 import { boardIn, type BoardSpec } from '../core/boardBox'
+import { bodiesBox } from '../../_shared/bodiesBox'
+import type { Box3 } from '../../_shared/clear'
 import { build, stop } from './genClient'
 import { useGen } from '../state/genStore'
 
@@ -130,10 +132,10 @@ function inTurn<T>(job: () => Promise<T>): Promise<T> {
   return mine
 }
 
-async function run(g: Generator, v: Record<string, Value>, out: 'step' | 'stl' | 'info', signal?: AbortSignal, chord?: number, board?: BoardSpec | null) {
+async function run(g: Generator, v: Record<string, Value>, out: 'step' | 'stl' | 'info', signal?: AbortSignal, chord?: number, board?: BoardSpec | null, avoid?: Box3 | null) {
   useGen.setState({ busy: true, status: `Building ${g.label.toLowerCase()}…` })
   try {
-    return await build({ generator: g.id, params: v, out, ...(chord ? { chord } : {}), ...(board ? { board } : {}) }, signal)
+    return await build({ generator: g.id, params: v, out, ...(chord ? { chord } : {}), ...(board ? { board } : {}), ...(avoid ? { avoid } : {}) }, signal)
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e)
     throw new CommandError('failed', m === 'Stopped.' ? 'Stopped.' : `${g.label} could not be built: ${m}`)
@@ -165,7 +167,8 @@ const make: Command<{ generator?: string; params?: Record<string, unknown>; name
     if (name !== undefined && name.length > 60) throw new CommandError('invalid_input', 'name: up to 60 characters.')
     return inTurn(async () => {
       ctx.progress(`Building ${g.label.toLowerCase()}…`)
-      const a = await run(g, v, 'step', ctx.signal, undefined, b)
+      // Clear of the bodies standing — but a board's box stands round its board.
+      const a = await run(g, v, 'step', ctx.signal, undefined, b, g.board ? null : bodiesBox())
       if (!a.step) throw new CommandError('failed', `${g.label} gave no STEP.`)
       if (givenBoard !== undefined) useGen.setState({ board: b })
       ctx.signal?.throwIfAborted()

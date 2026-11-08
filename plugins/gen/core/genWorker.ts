@@ -5,6 +5,7 @@
 // other request.
 
 import wasmUrl from 'occt-wasm/dist/occt-wasm.wasm?url'
+import { clearOf, type Box3 } from '../../_shared/clear'
 import { generatorOf, type Value } from './generators'
 import type { GenKernel, H } from './kernel'
 import type { BoardSpec } from './boardBox'
@@ -17,6 +18,8 @@ export interface GenAsk {
   chord?: number
   /** For a generator that takes one: the board. */
   board?: BoardSpec
+  /** The box round the bodies standing: the parts are moved clear of it. */
+  avoid?: Box3 | null
 }
 
 export interface GenPart {
@@ -39,8 +42,13 @@ type Kernel = GenKernel & {
 
 let kernel: Promise<Kernel> | null = null
 
+const boxOf = (k: Kernel, shape: H): Box3 => {
+  const b = k.getBoundingBox(shape)
+  return { min: [b.xmin, b.ymin, b.zmin], max: [b.xmax, b.ymax, b.zmax] }
+}
+
 self.onmessage = async (e: MessageEvent<GenAsk>) => {
-  const { id, generator, params, out, chord, board } = e.data
+  const { id, generator, params, out, chord, board, avoid } = e.data
   const post = (m: unknown, t: Transferable[] = []) => (self as unknown as Worker).postMessage(m, t)
   try {
     const g = generatorOf(generator)
@@ -52,7 +60,10 @@ self.onmessage = async (e: MessageEvent<GenAsk>) => {
       throw err
     })
     try {
-      const made = g.build(k, params, board)
+      let made = g.build(k, params, board)
+      // Clear of the bodies standing, where it would land in them.
+      const move = clearOf(made.map(({ shape }) => boxOf(k, shape)), avoid ?? null)
+      if (move) made = made.map((m) => ({ ...m, shape: k.translate(m.shape, ...move) }))
       const parts: GenPart[] = made.map(({ name, shape }) => {
         const b = k.getBoundingBox(shape)
         return { name, volume: k.getVolume(shape), box: { min: [b.xmin, b.ymin, b.zmin], max: [b.xmax, b.ymax, b.zmax] } }

@@ -8,6 +8,8 @@
 // changing anything and made in Reverse Engineer by fit.apply; the test
 // coupon made there at once; any of them as a file.
 
+import { bodiesBox } from '../../_shared/bodiesBox'
+import type { Box3 } from '../../_shared/clear'
 import { runWithin } from '../../../src/commands/registry'
 import { anyObject, arr, bool, enumOf, int, num, obj, str, type JsonSchema } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
@@ -174,10 +176,10 @@ function inTurn<T>(job: () => Promise<T>): Promise<T> {
   return mine
 }
 
-async function run(geo: Geo, label: string, out: 'step' | 'stl' | 'info', signal?: AbortSignal, chord?: number) {
+async function run(geo: Geo, label: string, out: 'step' | 'stl' | 'info', signal?: AbortSignal, chord?: number, avoid?: Box3 | null) {
   useFits.setState({ busy: true, status: `Building ${label}…` })
   try {
-    return await build({ ...geo, out, ...(chord ? { chord } : {}) }, signal)
+    return await build({ ...geo, out, ...(chord ? { chord } : {}), ...(avoid ? { avoid } : {}) }, signal)
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e)
     throw new CommandError('failed', m === 'Stopped.' ? 'Stopped.' : `The ${label} could not be built: ${m}`)
@@ -214,7 +216,8 @@ function matchParts(parts: FitsPart[], bodies: ReverseBody[]): (FitsPart | undef
 async function make(plan: ReturnType<typeof planOf>, c: { progress(t: string): void; signal?: AbortSignal }) {
   return inTurn(async () => {
     c.progress(`Building the ${plan.label}…`)
-    const a = await run(geoOf(plan), plan.label, 'step', c.signal)
+    // Clear of the bodies standing, where it would land in them.
+    const a = await run(geoOf(plan), plan.label, 'step', c.signal, undefined, bodiesBox())
     if (!a.step) throw new CommandError('failed', `The ${plan.label} gave no STEP.`)
     c.signal?.throwIfAborted()
     const before = reverseBodies()
