@@ -26,6 +26,7 @@ not in this repository.
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
 | [fea/](fea/) | Strength — FEA of a printed part, weaker across its layers; Gmsh and CalculiX on your computer |
 | [mass/](mass/) | Mass and balance — weight, balance point and inertia as printed; ballast pockets to hit a target |
+| [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, made to size as solids |
 
 ## The rules
 
