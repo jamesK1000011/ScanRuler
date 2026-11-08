@@ -4,7 +4,9 @@
 // bridge figures); a hole planned — exactly what it would cut, and where —
 // without changing anything; the plan cut into a Reverse Engineer body as
 // named sketch and extrude-cut features, one undo step; a pattern of them;
-// and a round hole already on a body checked against the table.
+// a round hole already on a body checked against the table; and parts
+// encased in the print — a pocket closed under a roof, and the layer the
+// print pauses at for each.
 
 import { runWithin } from '../../../src/commands/registry'
 import { bool, enumOf, int, num, obj, oneOf, str, vec3, type JsonSchema } from '../../../src/commands/schema'
@@ -13,8 +15,9 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { fitsOf } from '../core/check'
 import { featuresOf, overlapping, patternOffsets, type Pattern, type Placement, type V2, type V3 } from '../core/features'
 import { FITS, type Fit, type Head, HEADS, type Kind, KINDS, sizesOf, table } from '../core/hardware'
-import { cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings, type Spec } from '../core/plan'
-import { settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
+import { boundaryDown, boundaryUp, EMBED_KINDS, type EmbedKind, encasedCut, EPS, type Layers, type ObjectSpec, pauseLayer, profileReach, schedule } from '../core/embed'
+import { type Cut, cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings, type Spec } from '../core/plan'
+import { type Embed, type EmbedPlan, settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
 
 type Json = Record<string, unknown>
 type Ref = string | number
@@ -219,8 +222,24 @@ const patternIn = oneOf(
   'Copies about the point, on the sketch sheet ([u, v]; the answer’s frame gives the ways u and v run).',
 )
 
+const encaseIn = oneOf(
+  [
+    bool('true: closed under the least roof (roofLayers × layerHeight).'),
+    obj({ roof: num('Material over the pocket, mm.', { exclusiveMinimum: 0, maximum: 50 }), roofLayers: int('Or this many layers of it.', { minimum: 1, maximum: 50 }) }, [], 'The roof over it.'),
+  ],
+  'Sink the pocket under a roof, closed all round, for a part dropped in mid-print; the print pauses at its top (hw.pauses). nut, magnet, bearing, insert or object.',
+)
+
+const objectIn = oneOf(
+  [
+    obj({ shape: enumOf(['box']), size: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3, description: '[width along u, length along v, height along the hole], mm.' }, angleDeg: num('Turned on the sheet, degrees from +u.') }, ['shape', 'size'], 'A box.'),
+    obj({ shape: enumOf(['cylinder']), diameter: num('mm', { exclusiveMinimum: 0 }), height: num('Along the hole, mm.', { exclusiveMinimum: 0 }) }, ['shape', 'diameter', 'height'], 'A cylinder.'),
+  ],
+  'kind object: the part dropped in, measured — a weight, a tag, a sensor. The pocket takes the clearance round it.',
+)
+
 const specFields: Record<string, JsonSchema> = {
-  kind: enumOf(KINDS, 'screw (clearance with a head recess), nut (hex trap), insert (heat-set), pilot (thread-forming screw), magnet (disc), bearing.'),
+  kind: enumOf([...KINDS, 'object'], 'screw (clearance with a head recess), nut (hex trap), insert (heat-set), pilot (thread-forming screw), magnet (disc), bearing; object (a part of your own, encased only).'),
   size: str('M2–M8 for screw, nut and pilot; M2, M2.5, M3, M3 short, M4, M5 for insert; "6x3" for a magnet (Ø × thickness); 608, 625, 6800… for a bearing. hw.list gives them.', { minLength: 1 }),
   head: enumOf(HEADS, 'A screw’s head: socket (ISO 4762, the default), button (ISO 7380), countersunk (ISO 10642), none.'),
   fit: enumOf(FITS, 'ISO 273 clearance class; the setting by default.'),
@@ -231,13 +250,17 @@ const specFields: Record<string, JsonSchema> = {
   relief: bool('A bearing: a hole through behind it clear of the inner race (default true).'),
   allowance: num('mm added to the diameters, in place of the kind’s setting.', { minimum: -1, maximum: 2 }),
   teardrop: bool('A level hole drawn as a teardrop: the setting by default (clearance and pilot holes); true teardrops every round step, false none.'),
+  encase: encaseIn,
+  object: objectIn,
+  clearance: num('Encased: mm on the pocket’s diameter or each side, in place of the setting.', { minimum: 0, maximum: 3 }),
+  what: str('Encased: what goes in, for the pause’s message (“a 6x3 magnet” by default).', { minLength: 1 }),
 }
 
 const planFields: Record<string, JsonSchema> = { ...specFields, at: atIn, name: str('The features’ base name; the hardware’s by default, numbered.', { minLength: 1 }) }
 
 interface PlanArgs {
-  kind: Kind
-  size: string
+  kind: Kind | 'object'
+  size?: string
   head?: Head
   fit?: Fit
   depth?: number | null
@@ -250,6 +273,10 @@ interface PlanArgs {
   at: AtIn
   name?: string
   pattern?: Pattern
+  encase?: boolean | { roof?: number; roofLayers?: number }
+  object?: ObjectSpec
+  clearance?: number
+  what?: string
 }
 
 /** Names already taken in Reverse Engineer, lower case. */
@@ -263,8 +290,15 @@ function settings(): Settings {
 async function planOf(a: PlanArgs) {
   if (a.name !== undefined && a.name.trim().length > 60) invalid('name: up to 60 characters.')
   const offsets = patternOffsets(a.pattern)
+  const encase = a.encase !== undefined && a.encase !== false
+  if (!encase) {
+    if (a.kind === 'object') invalid('object: an encased pocket only — give encase: true (or use hw.embed).')
+    for (const k of ['object', 'clearance', 'what'] as const) if (a[k] !== undefined) invalid(`${k}: an encased pocket’s only — give encase: true (or use hw.embed).`)
+    if (a.size === undefined) invalid('size: needed.')
+  }
   const placed = await place(a.at, offsets)
-  const spec: Spec = { kind: a.kind, size: a.size, head: a.head, fit: a.fit, depth: a.depth, sunk: a.sunk, shaft: a.shaft, relief: a.relief, allowance: a.allowance, teardrop: a.teardrop }
+  if (encase) return encasedPlan(a, placed, offsets)
+  const spec: Spec = { kind: a.kind as Kind, size: a.size!, head: a.head, fit: a.fit, depth: a.depth, sunk: a.sunk, shaft: a.shaft, relief: a.relief, allowance: a.allowance, teardrop: a.teardrop }
   if (a.slot) {
     if (a.kind !== 'nut') invalid('slot: a nut’s only.')
     let angleDeg = a.slot.angleDeg
@@ -286,6 +320,11 @@ async function planOf(a: PlanArgs) {
     if (e instanceof PlanError) invalid(e.message)
     throw e
   }
+  return finish(a, placed, offsets, cut, cut.notes)
+}
+
+/** The plan's features, names, centres and notes, from its cut. */
+function finish(a: PlanArgs, placed: Placed, offsets: V2[], cut: Cut, notes0: string[], embed?: EmbedPlan) {
   const near = overlapping(cut, offsets)
   if (near !== null) invalid(`The pattern puts two holes ${r3(near)} apart, closer than the widest step: space them further.`)
   const count = offsets.length
@@ -297,7 +336,7 @@ async function planOf(a: PlanArgs) {
   for (let n = given ? 2 : 1; !built || clash(built.names); n++) built = featuresOf(cut, placed.placement, `${base0} ${n}`)
   const centres = offsets.map(([du, dv]) => placed.entry.map((x, i) => r3(x + du * placed.basisU[i] + dv * placed.basisV[i])) as V3)
   const depth = cutDepth(cut)
-  const notes = [...cut.notes]
+  const notes = [...notes0]
   if (placed.face && placed.face.area > 0) {
     // A face's reach, roughly: a copy further from its centre than a
     // square of its area is wide may miss it.
@@ -316,18 +355,126 @@ async function planOf(a: PlanArgs) {
     face: placed.face,
     features: built.features,
     names: built.names,
+    ...(embed ? { embed } : {}),
   }
+}
+
+/** The settings' layers. */
+const layersOf = (s: Settings): Layers => ({ height: s.layerHeight, first: s.firstLayer })
+
+/** A body's lowest point in the part's frame — where it meets the bed —
+ *  from Reverse Engineer's bounds; null where it has none. */
+function baseOf(body: string): number | null {
+  const bs = ((readStateSections().reverse as { bodies?: { name: string; bounds?: { min: number[] } | null }[] } | undefined)?.bodies) ?? []
+  const z = bs.find((b) => b.name === body)?.bounds?.min?.[2]
+  return typeof z === 'number' && Number.isFinite(z) ? z : null
+}
+
+/**
+ * An encased pocket, placed: sunk under its roof and, where the body's
+ * place on the bed is known and the hole is upright, its top put on a
+ * layer boundary — the roof made thicker going down, the pocket deeper
+ * going up — so the layer it falls in is not printed closed a layer early.
+ * Each copy's top, the roof over it, the span it bridges and the pause.
+ */
+function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
+  if (!(EMBED_KINDS as readonly string[]).includes(a.kind)) invalid(`A ${a.kind} is not dropped in: encase takes ${EMBED_KINDS.join(', ')}.`)
+  for (const k of ['sunk', 'slot', 'relief', 'head', 'teardrop'] as const) if (a[k] !== undefined) invalid(`${k}: not with encase — the pocket is closed all round${k === 'teardrop' ? ' (a level one is teardropped by the setting)' : ''}.`)
+  if (a.depth === null) invalid('depth: an encased pocket has a floor — give a number, or leave it out.')
+  if (a.kind === 'object' ? a.size !== undefined : a.size === undefined) invalid(a.kind === 'object' ? 'size: hardware’s only — an object gives object.' : 'size: needed.')
+  if (a.kind !== 'object' && a.object !== undefined) invalid('object: kind object’s only.')
+  const S = settings()
+  const layers = layersOf(S)
+  const e = a.encase === true || a.encase === undefined ? {} : (a.encase as { roof?: number; roofLayers?: number })
+  if (e.roof !== undefined && e.roofLayers !== undefined) invalid('encase: roof or roofLayers, not both.')
+  const minRoof = r3((e.roofLayers ?? S.roofLayers) * S.layerHeight)
+  let roof = e.roof ?? minRoof
+  const dz = placed.direction[2]
+  const down = dz < -1 + 1e-6
+  const up = dz > 1 - 1e-6
+  const base = baseOf(placed.body)
+  const notes: string[] = []
+  const make = (r: number, depth?: number) => {
+    try {
+      return encasedCut({ kind: a.kind as EmbedKind, size: a.size, object: a.object, what: a.what, roof: r, clearance: a.clearance, allowance: a.allowance, depth: depth ?? (a.depth ?? undefined), shaft: a.shaft, fit: a.fit, count: offsets.length }, S, placed.level)
+    } catch (err) {
+      if (err instanceof PlanError) invalid(err.message)
+      throw err
+    }
+  }
+  let cut = make(roof)
+  if (base !== null && down) {
+    // The top, above the bed, brought down onto a boundary: more roof.
+    const top = placed.entry[2] - base - roof
+    const b = boundaryDown(top, layers)
+    if (b === null || b <= EPS) invalid(`The pocket's top would be ${r3(top)} above the bed, inside the first layer: the part is too thin here for it under a ${r3(roof)} roof.`)
+    const more = placed.entry[2] - base - b! - roof
+    if (more > EPS) {
+      roof = r3(roof + more)
+      notes.push(`Roof made ${roof} (from ${r3(roof - more)}) so the pocket's top lands on a layer boundary, ${r3(b!)} above the bed.`)
+      cut = make(roof)
+    }
+  } else if (base !== null && up) {
+    // Cut up from below: the pocket made deeper, onto a boundary.
+    const pocket = cut.steps[0]
+    const top = placed.entry[2] - base + (pocket.to as number)
+    const more = boundaryUp(top, layers) - top
+    if (more > EPS) {
+      cut = make(roof, r3(cut.height + more))
+      notes.push(`Pocket made ${cut.height} deep so its top lands on a layer boundary, ${r3(top + more)} above the bed.`)
+    }
+  }
+  const pocket = cut.steps[0]
+  const reach = profileReach(pocket, [placed.basisU[2], placed.basisV[2]])
+  const along = Math.max((pocket.from as number) * dz, (pocket.to as number) * dz)
+  const tops = offsets.map(([du, dv]) => r3(placed.entry[2] + du * placed.basisU[2] + dv * placed.basisV[2] + along + reach))
+  const measured = down ? roof : null
+  const warn: string[] = []
+  if (measured !== null && measured < minRoof - EPS) warn.push(`Warning: the roof is ${measured}, under ${e.roofLayers ?? S.roofLayers} layers (${minRoof}): it may print thin or open.`)
+  if (!down) notes.push(up ? `The part over the pocket is the body's own: check it is ${minRoof} thick at least (section.cut through it).` : `The material round the pocket is the body's own: check it is ${minRoof} thick at least, above it most of all (section.cut through it).`)
+  if (placed.level) notes.push('Level pocket: its roof is built up in steps to the teardrop’s point, not bridged.')
+  else if (cut.span > S.bridgeMax + EPS) {
+    const at = base !== null ? pauseLayer(Math.min(...tops) - base, layers) : null
+    warn.push(`Warning: the roof spans ${cut.span}, more than a safe bridge (${S.bridgeMax}). ${at ? `Layer ${at.layer} (Z ${at.printZ})` : 'The first layer over it'} bridges it: print it as a bridge (the slicer's bridge settings), narrow the pocket, or turn it so the short side spans.`)
+  }
+  const pauses = base === null ? [] : [...new Set(tops)].map((t) => ({ top: t, ...pauseLayer(t - base, layers) }))
+  for (const p of pauses) if (!p.onBoundary) warn.push(`Warning: the pocket's top (${r3(p.top - base!)} above the bed) is not on a layer boundary at ${S.layerHeight} layers (first ${S.firstLayer}): the layer it falls in may be printed closed over it. Pause is before layer ${p.layer}; check the slice.`)
+  if (base === null) notes.push('The body’s place on the bed was not read (is it built?): hw.pauses gives the layer once it is.')
+  const embed: EmbedPlan = { kind: a.kind, label: cut.label, what: cut.what, tops, roof: measured, minRoof, span: cut.span, ...(pauses.length ? { pauses: pauses.map((p) => ({ layer: p.layer, z: p.z, printZ: p.printZ, onBoundary: p.onBoundary })) } : {}) }
+  return finish(a, placed, offsets, cut, [...cut.notes, ...notes, ...warn], embed)
 }
 
 const asInput = (a: PlanArgs): PlanInput => JSON.parse(JSON.stringify(a)) as PlanInput
 
 // ---- the commands -------------------------------------------------------------------------
 
+/** A new encased part's id: E and the next number. */
+const nextId = (have: Embed[]) => `E${Math.max(0, ...have.map((e) => Number(/^E(\d+)$/.exec(e.id)?.[1] ?? 0))) + 1}`
+
+/** The plan's pockets recorded, one per height (copies at one height are
+ *  one, counted). */
+function record(e: EmbedPlan, body: string, features: string[]): Embed[] {
+  const groups = new Map<number, number>()
+  for (const t of e.tops) groups.set(t, (groups.get(t) ?? 0) + 1)
+  const all = [...st().embeds]
+  const added: Embed[] = []
+  for (const [top, count] of groups) {
+    const one: Embed = { id: nextId(all), body, kind: e.kind, label: e.label, what: count > 1 && groups.size > 1 ? e.what.replace(/ ×\d+$/, '') + ` ×${count}` : e.what, top, roof: e.roof, minRoof: e.minRoof, span: e.span, count, features }
+    all.push(one)
+    added.push(one)
+  }
+  st().setEmbeds(all)
+  return added
+}
+
+const brief = (e: Embed) => ({ id: e.id, body: e.body, what: e.what, top: e.top, roof: e.roof, ...(e.count > 1 ? { count: e.count } : {}), ...(e.source ? { source: e.source } : {}) })
+
 export function describeHw() {
   const s = st()
   return {
     settings: settingsOf(s),
-    ...(s.plan ? { plan: { label: s.plan.label, input: s.plan.input, steps: s.plan.steps, centres: s.plan.centres, notes: s.plan.notes, ...(s.plan.stale ? { stale: 'the settings changed since: hw.apply plans it again with them' } : {}) } } : {}),
+    ...(s.embeds.length ? { encased: s.embeds.map(brief) } : {}),
+    ...(s.plan ? { plan: { label: s.plan.label, input: s.plan.input, steps: s.plan.steps, centres: s.plan.centres, notes: s.plan.notes, ...(s.plan.embed ? { encased: s.plan.embed } : {}), ...(s.plan.stale ? { stale: 'the settings changed since: hw.apply plans it again with them' } : {}) } } : {}),
     ...(s.made ? { made: s.made } : {}),
     ...(s.check ? { check: { diameter: s.check.diameter, ...(s.check.body ? { body: s.check.body, face: s.check.face } : {}), best: s.check.matches.slice(0, 3) } } : {}),
   }
@@ -351,6 +498,12 @@ interface SetIn {
   bridgeLayer?: number
   insertExtra?: number
   magnetExtra?: number
+  roofLayers?: number
+  layerHeight?: number
+  firstLayer?: number
+  bridgeMax?: number
+  dropClearance?: number
+  dropHeadroom?: number
   reset?: boolean
 }
 
@@ -359,7 +512,7 @@ const lengthIn = (d: string, max: number) => num(`${d}, mm.`, { minimum: 0, maxi
 const set: Command<SetIn> = {
   name: 'set',
   title: 'Hole settings',
-  description: 'How holes are sized: allowance (mm added to each diameter and across-flats, FDM holes printing small — one number for every kind, or by kind: screw 0.2, nut 0.2, insert 0, pilot 0, magnet 0.2, bearing 0.1 by default), fit (ISO 273 class, medium), headMargin (counterbore over the head, 0.4), headSink (head below the surface, 0.2), teardrop (level clearance holes, on), bridgeLayer (a sacrificial layer at each step of an upright hole, 0 for none), insertExtra (hole past the insert, 1), magnetExtra (pocket past the magnet, 0.2). reset: true for the defaults. Saved with the project.',
+  description: 'How holes are sized: allowance (mm added to each diameter and across-flats, FDM holes printing small — one number for every kind, or by kind: screw 0.2, nut 0.2, insert 0, pilot 0, magnet 0.2, bearing 0.1 by default), fit (ISO 273 class, medium), headMargin (counterbore over the head, 0.4), headSink (head below the surface, 0.2), teardrop (level clearance holes, on), bridgeLayer (a sacrificial layer at each step of an upright hole, 0 for none), insertExtra (hole past the insert, 1), magnetExtra (pocket past the magnet, 0.2); for encased parts: roofLayers (3), layerHeight and firstLayer (0.2 — as the slicer profile prints), bridgeMax (widest roof over air without a warning, 10), dropClearance (0.3) and dropHeadroom (0.2). reset: true for the defaults. Saved with the project.',
   input: obj({
     allowance: oneOf([num('Every kind, mm.', { minimum: -1, maximum: 2 }), obj(Object.fromEntries(KINDS.map((k) => [k, num('mm', { minimum: -1, maximum: 2 })])), [], 'By kind, mm.')], 'mm added to diameters.'),
     fit: enumOf(FITS),
@@ -369,6 +522,12 @@ const set: Command<SetIn> = {
     bridgeLayer: lengthIn('Sacrificial layer at a step; 0 for none', 1),
     insertExtra: lengthIn('Hole past the insert', 5),
     magnetExtra: lengthIn('Pocket past the magnet', 3),
+    roofLayers: int('Encased: layers of roof at least.', { minimum: 1, maximum: 50 }),
+    layerHeight: num('The layer height printed at, mm.', { minimum: 0.01, maximum: 2 }),
+    firstLayer: num('The first layer’s height, mm.', { minimum: 0.01, maximum: 2 }),
+    bridgeMax: lengthIn('Widest roof over air without a warning', 200),
+    dropClearance: lengthIn('Encased: on a pocket’s diameter or side', 3),
+    dropHeadroom: lengthIn('Encased: over the part, to the pocket’s top', 5),
     reset: bool('Back to the defaults.'),
   }),
   history: false,
@@ -392,14 +551,14 @@ const plan: Command<PlanArgs> = {
   name: 'plan',
   title: 'Plan a hole',
   description: 'The hole a piece of hardware takes, placed on a Reverse Engineer body, without changing anything: each step (head counterbore, 90° countersink, shaft, hex nut trap or side slot, insert hole, pocket, relief) with its profile, diameter (a hex: across flats), and the depths it runs between (from the surface, mm; through), the entry point, direction and sketch frame, notes on how it sits, and the exact reverse.feature.add features hw.apply would add. at: { body, face } drills square into a flat face (at its centre, or point); { body, point, direction } along a coordinate axis or level. A level hole is teardropped point up by the setting. pattern repeats it (bolt circle, rectangle, grid). Kept for hw.apply.',
-  input: obj({ ...planFields, pattern: patternIn }, ['kind', 'size', 'at']),
+  input: obj({ ...planFields, pattern: patternIn }, ['kind', 'at']),
   readOnly: true,
   run: async (a) => planAndKeep(a),
 }
 
 async function planAndKeep(a: PlanArgs) {
   const p = await planOf(a)
-  const out: PlanOut = { input: asInput(a), label: p.label, steps: p.steps, notes: p.notes, centres: p.centres, features: p.features, ...(p.face ? { face: p.face } : {}) }
+  const out: PlanOut = { input: asInput(a), label: p.label, steps: p.steps, notes: p.notes, centres: p.centres, features: p.features, ...(p.face ? { face: p.face } : {}), ...(p.embed ? { embed: p.embed } : {}) }
   useHw.setState({ plan: out })
   return p
 }
@@ -416,12 +575,12 @@ const pattern: Command<PlanArgs & { pattern: Pattern }> = {
 const apply: Command<Partial<PlanArgs>> = {
   name: 'apply',
   title: 'Cut the hole',
-  description: 'Cut the hole hw.plan or hw.pattern planned — or the one given here, as hw.plan takes it — into its Reverse Engineer body: a sketch per step on a plane square to the hole and an extrude cut into that body alone, named after the hardware ("M3 cap screw 1 head"), so each stays editable there. Planned afresh from the body as it stands. One undo step; if any feature fails to build, none is kept. Returns the features and their status.',
+  description: 'Cut the hole hw.plan or hw.pattern planned — or the one given here, as hw.plan takes it — into its Reverse Engineer body: a sketch per step on a plane square to the hole and an extrude cut into that body alone, named after the hardware ("M3 cap screw 1 head"), so each stays editable there. Planned afresh from the body as it stands. One undo step; if any feature fails to build, none is kept. An encased pocket (hw.embed, or encase) is recorded for its pause (hw.pauses). Returns the features and their status.',
   input: obj({ ...planFields, pattern: patternIn }),
   label: (a) => `cut ${a.kind ? `${a.size ?? ''} ${a.kind}` : 'planned hole'}`.replace(/\s+/g, ' '),
   run: async (a) => {
     const asked = a.kind !== undefined
-    if (asked && (a.size === undefined || a.at === undefined)) invalid('Give kind, size and at — or nothing, to cut the hole planned last.')
+    if (asked && ((a.size === undefined && a.kind !== 'object') || a.at === undefined)) invalid('Give kind, size and at — or nothing, to cut the hole planned last.')
     const kept0 = st().plan
     const args = (asked ? a : (kept0?.input as unknown as PlanArgs | undefined)) ?? invalid('Plan it first (hw.plan or hw.pattern), or give the hole here.')
     useHw.setState({ busy: 'Cutting…' })
@@ -444,8 +603,9 @@ const apply: Command<Partial<PlanArgs>> = {
         throw new CommandError('failed', `${p.label} could not be cut: ${why}${r.stopped ? '' : ` (${p.names[bad]})`}. ${stuck.length ? `These could not be taken out again: ${stuck.join(', ')} — undo the step (history.undo).` : 'Nothing was kept.'}`)
       }
       const made = { label: p.label, body: p.body, features: p.names }
-      useHw.setState({ made, plan: { input: asInput(args as PlanArgs), label: p.label, steps: p.steps, notes: p.notes, centres: p.centres, features: p.features, ...(p.face ? { face: p.face } : {}) } })
-      return { cut: made, steps: p.steps, centres: p.centres, notes: p.notes, features: added.map((x) => ({ name: ((x.feature as Json | undefined)?.name ?? x.name) as string, status: status(x) ?? 'ok', ...((x.result as Json | null)?.warning ? { warning: (x.result as Json).warning } : {}) })) }
+      const recorded = p.embed ? record(p.embed, p.body, p.names) : []
+      useHw.setState({ made, plan: { input: asInput(args as PlanArgs), label: p.label, steps: p.steps, notes: p.notes, centres: p.centres, features: p.features, ...(p.face ? { face: p.face } : {}), ...(p.embed ? { embed: p.embed } : {}) } })
+      return { cut: made, steps: p.steps, centres: p.centres, notes: p.notes, features: added.map((x) => ({ name: ((x.feature as Json | undefined)?.name ?? x.name) as string, status: status(x) ?? 'ok', ...((x.result as Json | null)?.warning ? { warning: (x.result as Json).warning } : {}) })), ...(recorded.length ? { encased: recorded.map(brief), next: 'hw.pauses gives the layer to pause at, and the pauses for slicer_slice.' } : {}) }
     } finally {
       useHw.setState({ busy: null })
     }
@@ -491,4 +651,161 @@ const clearPlan: Command<Record<string, never>> = {
   },
 }
 
-export const hwCommands = [list, set, plan, pattern, apply, check, clearPlan] as Command<never>[]
+const embed: Command<PlanArgs> = {
+  name: 'embed',
+  title: 'Plan an encased part',
+  description: 'As hw.plan, for a part dropped in mid-print and printed over: a nut, magnet, bearing, insert (dropped in, not pressed hot) or object (a box or cylinder of your own — a weight, a tag), its pocket sunk under a roof (encase: { roof } or { roofLayers }; roofLayers × layerHeight by default) and closed all round. Where the hole is upright and the body built, the pocket’s top is put on a layer boundary. Returns the plan, each pocket’s top (Z, part frame), the roof, the span it bridges, the pause layer at the settings’ layers, and warnings: a thin roof, a span past bridgeMax, a top off a boundary. Changes nothing; hw.apply cuts it and records the pause.',
+  input: obj({ ...planFields, pattern: patternIn }, ['kind', 'at']),
+  readOnly: true,
+  run: async (a) => {
+    if (a.encase === false) invalid('encase: hw.embed always encases — use hw.plan for an open hole.')
+    return planAndKeep({ ...a, encase: a.encase ?? true })
+  },
+}
+
+interface RecordIn {
+  body?: string
+  top?: number
+  what?: string
+  span?: number
+  roof?: number | null
+  count?: number
+  from?: 'mass'
+}
+
+const recordCmd: Command<RecordIn> = {
+  name: 'record',
+  title: 'Record an encased part',
+  description: 'Record a pocket already in a body for a pause: its body, top (Z of the pocket’s top, part frame, mm), what goes in, and span (its roof’s shortest span), roof (material over it) and count if known. from: "mass" takes the ballast pocket the Mass workspace planned (mass.ballast) — its body, top, and the filler — before or after mass.apply cuts it. hw.pauses lists it with the rest.',
+  input: obj({ body: str('The body, by name.', { minLength: 1 }), top: num('Z of the pocket’s top, part frame, mm.'), what: str('What goes in.', { minLength: 1 }), span: num('Its roof’s shortest span, mm.', { minimum: 0 }), roof: oneOf([num('mm', { minimum: 0 }), { type: 'null' }], 'Material over it, mm.'), count: int('How many.', { minimum: 1, maximum: 10000 }), from: enumOf(['mass'], 'The Mass workspace’s planned ballast pocket.') }),
+  label: () => 'record encased part',
+  run: async (a) => {
+    let r: Omit<Embed, 'id'>
+    const S = settings()
+    const minRoof = r3(S.roofLayers * S.layerHeight)
+    if (a.from === 'mass') {
+      for (const k of ['body', 'top', 'span', 'roof'] as const) if (a[k] !== undefined) invalid(`${k}: from the Mass plan — leave it out.`)
+      const m = readStateSections().mass as { pocket?: { body: string; at: number[]; size: number[]; count?: number; fillerMass?: number }; setup?: { filler?: string } } | undefined
+      if (m === undefined) invalid('The Mass workspace is not in this build.')
+      const pk = m!.pocket ?? invalid('Mass has no ballast pocket planned: mass.ballast first (record it before mass.apply clears the plan, or give body and top).')
+      if (!Array.isArray(pk.at) || !Array.isArray(pk.size) || pk.at.length !== 3 || pk.size.length !== 3) invalid('The Mass plan’s pocket is not one this reads.')
+      const fid = String(m!.setup?.filler ?? 'filler')
+      const filler = fid === 'steel-bb' ? 'steel BB' : fid.replace(/-/g, ' ')
+      if (a.what !== undefined && (a.what.trim().length === 0 || a.what.length > 60)) invalid('what: 1 to 60 characters.')
+      r = { body: pk.body, kind: 'ballast', label: 'Ballast', what: (a.what?.trim() || (pk.count ? `${pk.count} ${filler}s` : `${r3(pk.fillerMass ?? 0)} g of ${filler}`)).slice(0, 60), top: r3(pk.at[2] + pk.size[2] / 2), roof: null, minRoof, span: r3(Math.min(pk.size[0], pk.size[1])), count: 1, features: [], source: 'mass' }
+    } else {
+      if (a.body === undefined || a.top === undefined || a.what === undefined) invalid('Give body, top and what — or from: "mass".')
+      if (a.what!.trim().length === 0 || a.what!.length > 60) invalid('what: 1 to 60 characters.')
+      if (!Number.isFinite(a.top)) invalid('top: a number.')
+      const bodies = ((readStateSections().reverse as { bodies?: { name: string }[] } | undefined)?.bodies ?? []).map((b) => b.name)
+      if (bodies.length && !bodies.includes(a.body!)) invalid(`There is no body "${a.body}" (bodies: ${bodies.join(', ')}).`)
+      r = { body: a.body!, kind: 'cavity', label: a.what!.trim(), what: a.what!.trim(), top: r3(a.top!), roof: a.roof ?? null, minRoof, span: r3(a.span ?? 0), count: a.count ?? 1, features: [] }
+    }
+    const all = [...st().embeds]
+    if (all.some((e) => e.body === r.body && Math.abs(e.top - r.top) < EPS && e.what === r.what)) invalid(`${r.what} at ${r.top} in ${r.body} is recorded already.`)
+    const one: Embed = { id: nextId(all), ...r }
+    st().setEmbeds([...all, one])
+    const warn = r.span > S.bridgeMax + EPS ? [`Warning: the roof spans ${r.span}, more than a safe bridge (${S.bridgeMax}): print the first layer over it as a bridge.`] : []
+    return { recorded: brief(one), ...(warn.length ? { warnings: warn } : {}), next: 'hw.pauses gives the layer to pause at.' }
+  },
+}
+
+interface PausesIn {
+  layerHeight?: number
+  firstLayer?: number
+  together?: string[]
+  bodies?: string[]
+}
+
+/** The pauses for the encased parts: each pocket's top above the bed —
+ *  its body's lowest point on the bed, or the lowest of the bodies printed
+ *  together as one object — at the layers given or set. */
+export function pausesOf(a: PausesIn = {}) {
+  const S = settings()
+  const layers = { height: a.layerHeight ?? S.layerHeight, first: a.firstLayer ?? S.firstLayer }
+  try {
+    pauseLayer(1, layers)
+  } catch (e) {
+    if (e instanceof PlanError) invalid(e.message)
+    throw e
+  }
+  const feats = new Set((((readStateSections().reverse as { features?: { name: string }[] } | undefined)?.features) ?? []).map((f) => f.name))
+  const all = st().embeds.filter((e) => !a.bodies || a.bodies.includes(e.body))
+  const together = a.together && a.together.length ? a.together : null
+  const unplaced: string[] = []
+  const gone: string[] = []
+  const items = []
+  let groupBase: number | null = null
+  if (together) {
+    const bs = together.map(baseOf)
+    if (bs.some((b) => b === null)) invalid(`No place on the bed for ${together.filter((_, i) => bs[i] === null).join(', ')}: is it built?`)
+    groupBase = Math.min(...(bs as number[]))
+  }
+  for (const e of all) {
+    if (e.features.length && !e.features.every((f) => feats.has(f))) {
+      gone.push(e.id)
+      continue
+    }
+    const base = together && together.includes(e.body) ? groupBase : baseOf(e.body)
+    if (base === null) {
+      unplaced.push(e.id)
+      continue
+    }
+    items.push({ id: e.id, body: e.body, what: e.what, z: r3(e.top - base) })
+  }
+  let sched
+  try {
+    sched = schedule(items, layers)
+  } catch (e) {
+    if (e instanceof PlanError) invalid(e.message)
+    throw e
+  }
+  const byId = new Map(all.map((e) => [e.id, e]))
+  const warnings: string[] = []
+  for (const p of sched) {
+    if (!p.onBoundary) warnings.push(`Layer ${p.layer}: ${p.items.filter((i) => Math.abs(i.z - p.z) > EPS).map((i) => `${i.id} (top ${i.z})`).join(', ')} not on a layer boundary — the layer below may print closed over it; check the slice.`)
+    for (const i of p.items) {
+      const e = byId.get(i.id)!
+      if (e.roof !== null && e.roof < e.minRoof - EPS) warnings.push(`${e.id}: roof ${e.roof}, under the ${e.minRoof} asked for.`)
+      if (e.span > S.bridgeMax + EPS) warnings.push(`${e.id}: its roof spans ${e.span}, more than a safe bridge (${S.bridgeMax}) — layer ${p.layer} (Z ${p.printZ}) bridges it: print it as a bridge.`)
+    }
+  }
+  return {
+    layers: { height: layers.height, first: layers.first },
+    pauses: sched.map((p) => ({ layer: p.layer, afterLayer: p.afterLayer, z: p.z, printZ: p.printZ, note: p.note, items: p.items.map((i) => ({ id: i.id, body: i.body, what: i.what, top: i.z })) })),
+    slicer: { pauses: sched.map((p) => ({ z: Math.max(...p.items.map((i) => i.z)), note: p.note })) },
+    ...(gone.length ? { gone: `${gone.join(', ')}: the features that cut ${gone.length === 1 ? 'it are' : 'them are'} gone — left out (hw.unembed to forget ${gone.length === 1 ? 'it' : 'them'}).` } : {}),
+    ...(unplaced.length ? { unplaced: `${unplaced.join(', ')}: ${unplaced.length === 1 ? 'its body has' : 'their bodies have'} no place on the bed (not built?) — left out.` } : {}),
+    ...(warnings.length ? { warnings } : {}),
+  }
+}
+
+const pauses: Command<PausesIn> = {
+  name: 'pauses',
+  title: 'Pauses for encased parts',
+  description: 'The layers the print pauses at for the encased parts: for each, the layer to pause before (from 1; the first whose bottom is at or above the pocket’s top), the height above the bed it pauses at, the Z the slicer shows that layer at, and what to drop in — parts at one layer merged. Heights are above the bed: a body’s lowest point sits on it, or the lowest of together (bodies exported as one object). layerHeight and firstLayer as the slicer profile prints (the settings by default). slicer.pauses goes straight into slicer_slice { pauses }. Parts whose cut is gone, or whose body is not built, are left out and named. Changes nothing.',
+  input: obj({ layerHeight: num('mm', { minimum: 0.01, maximum: 2 }), firstLayer: num('mm', { minimum: 0.01, maximum: 2 }), together: { type: 'array', items: { type: 'string' }, description: 'Bodies exported as one object (one STL): they share the bed.' }, bodies: { type: 'array', items: { type: 'string' }, description: 'Only these bodies’ parts.' } }),
+  readOnly: true,
+  run: async (a) => pausesOf(a),
+}
+
+const unembed: Command<{ id?: string; all?: boolean }> = {
+  name: 'unembed',
+  title: 'Forget an encased part',
+  description: 'Take an encased part (id from hw.pauses) — or all of them — off the pause list. Its pocket stays cut in the body: remove those features in Reverse Engineer.',
+  input: obj({ id: str('E1, E2…', { minLength: 1 }), all: bool('Every one.') }),
+  label: (a) => (a.all ? 'forget encased parts' : `forget ${a.id ?? ''}`),
+  run: async ({ id, all }) => {
+    if ((id === undefined) === (all !== true)) invalid('Give id, or all: true.')
+    const have = st().embeds
+    if (all) {
+      st().setEmbeds([])
+      return { removed: have.map((e) => e.id) }
+    }
+    if (!have.some((e) => e.id === id)) invalid(`No encased part "${id}" (${have.map((e) => e.id).join(', ') || 'none recorded'}).`)
+    st().setEmbeds(have.filter((e) => e.id !== id))
+    return { removed: [id] }
+  },
+}
+
+export const hwCommands = [list, set, plan, pattern, embed, apply, check, clearPlan, recordCmd, pauses, unembed] as Command<never>[]

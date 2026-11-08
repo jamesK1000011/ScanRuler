@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The Hardware workspace's panel: the hardware and its size, the body and
 // face it goes in, a pattern, the plan and the cut; the hole settings; and
-// a round hole checked against the table. Every control runs a hw.*
-// command.
+// a round hole checked against the table; parts encased mid-print and the
+// layers the print pauses at for them. Every control runs a hw.* command.
 
 import { useState } from 'react'
 import { runCommand } from '../../../src/commands/registry'
@@ -24,9 +24,18 @@ const HEAD_LABEL: Record<Head, string> = { socket: 'Socket cap', button: 'Button
 const ROLE_LABEL: Record<string, string> = { head: 'Head', countersink: 'Countersink', shaft: 'Shaft', nut: 'Nut', bore: 'Hole', pocket: 'Pocket', relief: 'Relief' }
 
 type PatternKind = 'none' | 'circle' | 'rectangle' | 'grid'
+type FormKind = Kind | 'object'
+const ENCASED: readonly FormKind[] = ['nut', 'magnet', 'bearing', 'insert', 'object']
 
 interface Form {
-  kind: Kind
+  kind: FormKind
+  encase: boolean
+  roofLayers: number
+  shape: 'box' | 'cylinder'
+  objW: number
+  objL: number
+  objH: number
+  what: string
   size: string
   head: Head
   fit: string
@@ -51,10 +60,18 @@ interface Form {
 const bodyNames = () => (((readStateSections().reverse as { bodies?: { name: string; surface?: boolean }[] } | undefined)?.bodies) ?? []).filter((b) => !b.surface).map((b) => b.name)
 
 function formOf(input: Record<string, unknown> | undefined): Form {
-  const i = (input ?? {}) as Partial<{ kind: Kind; size: string; head: Head; fit: string; depth: number | null; sunk: number; slot: { length: number }; relief: boolean; at: { body?: unknown; face?: unknown } }> & { pattern?: Partial<{ kind: PatternKind; count: number; diameter: number; width: number; height: number; countU: number; countV: number; stepU: number; stepV: number }> }
+  const i = (input ?? {}) as Partial<{ kind: FormKind; encase: boolean | { roofLayers?: number }; object: { shape: 'box'; size: number[] } | { shape: 'cylinder'; diameter: number; height: number }; what: string; size: string; head: Head; fit: string; depth: number | null; sunk: number; slot: { length: number }; relief: boolean; at: { body?: unknown; face?: unknown } }> & { pattern?: Partial<{ kind: PatternKind; count: number; diameter: number; width: number; height: number; countU: number; countV: number; stepU: number; stepV: number }> }
   const p = i.pattern ?? {}
+  const o = i.object
   return {
     kind: i.kind ?? 'screw',
+    encase: i.encase !== undefined && i.encase !== false,
+    roofLayers: typeof i.encase === 'object' && i.encase.roofLayers ? i.encase.roofLayers : 0,
+    shape: o?.shape ?? 'box',
+    objW: o ? (o.shape === 'box' ? o.size[0] : o.diameter) : 10,
+    objL: o?.shape === 'box' ? o.size[1] : 10,
+    objH: o ? (o.shape === 'box' ? o.size[2] : o.height) : 5,
+    what: i.what ?? '',
     size: i.size ?? 'M3',
     head: i.head ?? 'socket',
     fit: i.fit ?? '',
@@ -82,6 +99,17 @@ function inputOf(f: Form): Record<string, unknown> {
   const deep = f.kind === 'screw' || f.kind === 'nut'
   const pattern =
     f.pattern === 'circle' ? { kind: 'circle', count: f.count, diameter: f.circle } : f.pattern === 'rectangle' ? { kind: 'rectangle', width: f.width, height: f.height } : f.pattern === 'grid' ? { kind: 'grid', countU: f.countU, countV: f.countV, stepU: f.stepU, stepV: f.stepV } : undefined
+  const where = { at: { body: f.body, face: f.face }, ...(pattern ? { pattern } : {}) }
+  if (f.encase) {
+    return {
+      kind: f.kind,
+      ...(f.kind === 'object' ? { object: f.shape === 'box' ? { shape: 'box', size: [f.objW, f.objL, f.objH] } : { shape: 'cylinder', diameter: f.objW, height: f.objH } } : { size: f.size }),
+      ...(f.kind === 'nut' && f.fit ? { fit: f.fit } : {}),
+      encase: f.roofLayers > 0 ? { roofLayers: f.roofLayers } : true,
+      ...(f.what.trim() ? { what: f.what.trim() } : {}),
+      ...where,
+    }
+  }
   return {
     kind: f.kind,
     size: f.size,
@@ -90,9 +118,72 @@ function inputOf(f: Form): Record<string, unknown> {
     ...(deep ? { depth: f.through ? null : f.depth } : {}),
     ...(f.kind === 'nut' ? { sunk: f.sunk, ...(f.slot > 0 ? { slot: { length: f.slot } } : {}) } : {}),
     ...(f.kind === 'bearing' ? { relief: f.relief } : {}),
-    at: { body: f.body, face: f.face },
-    ...(pattern ? { pattern } : {}),
+    ...where,
   }
+}
+
+interface PauseRow {
+  layer: number
+  z: number
+  printZ: number
+  note: string
+  items: { id: string; body: string; what: string; top: number }[]
+}
+
+/** The pauses, as hw.pauses gives them. */
+function Pauses() {
+  const s = useHw()
+  const len = useLength()
+  const [list, setList] = useState<{ pauses: PauseRow[]; warnings?: string[]; gone?: string; unplaced?: string } | null>(null)
+  const refresh = () => void runCommand('hw.pauses', {}).then((r) => setList(r as typeof list)).catch(report)
+  return (
+    <>
+      <div className="sec-head">
+        Pauses
+        <InfoDot title="Pauses">
+          <p>Parts encased in the print. It pauses before the first layer at or above each pocket’s top: drop the part in, then resume.</p>
+        </InfoDot>
+      </div>
+      <NumberField label="Layer height" kind="length" value={s.layerHeight} step={0.04} min={0.01} hint={<p>As the slicer profile prints.</p>} onCommit={(v) => void run('set', { layerHeight: v }).then(() => list && refresh())} />
+      <NumberField label="First layer" kind="length" value={s.firstLayer} step={0.04} min={0.01} onCommit={(v) => void run('set', { firstLayer: v }).then(() => list && refresh())} />
+      <div className="toolrow">
+        <button data-test="hw-pauses" disabled={s.embeds.length === 0} title="Work out the pause layers" onClick={refresh}>
+          List pauses
+        </button>
+        <button data-test="hw-from-mass" title="Record the ballast pocket planned in Mass" onClick={() => void run('record', { from: 'mass' }).then(() => list && refresh())}>
+          From Mass
+        </button>
+      </div>
+      {s.embeds.length === 0 && <p className="hint">Nothing encased yet.</p>}
+      {list && (
+        <div className="pl-card live" data-test="hw-pauses-card">
+          {list.pauses.length === 0 && <p className="hint">No pauses.</p>}
+          {list.pauses.map((p) => (
+            <div key={p.layer} className="kv">
+              <span className="name">{`Layer ${p.layer} (${len.fmt(p.printZ, 2)})`}</span>
+              <span className="pl-aside">{p.note}</span>
+            </div>
+          ))}
+          {[...(list.warnings ?? []), ...(list.gone ? [list.gone] : []), ...(list.unplaced ? [list.unplaced] : [])].map((w, i) => (
+            <Status key={i} tone="warn">
+              {w}
+            </Status>
+          ))}
+        </div>
+      )}
+      {s.embeds.map((e) => (
+        <div key={e.id} className="kv" data-test="hw-embed-row">
+          <span className="pl-aside">{`${e.id} ${e.what}`}</span>
+          <span className="pl-aside">
+            {`top ${len.fmt(e.top, 2)}`}
+            <button className="x" title="Take it off the pause list" onClick={() => void run('unembed', { id: e.id }).then(() => list && refresh())}>
+              ×
+            </button>
+          </span>
+        </div>
+      ))}
+    </>
+  )
 }
 
 export function HwPanel() {
@@ -102,7 +193,7 @@ export function HwPanel() {
   const [f, setF] = useState<Form>(() => formOf(s.plan?.input))
   const [checkFace, setCheckFace] = useState(0)
   const put = (p: Partial<Form>) => setF((x) => ({ ...x, ...p }))
-  const sizes = sizesOf(f.kind)
+  const sizes = f.kind === 'object' ? [] : sizesOf(f.kind)
   const metric = metricOf(f.size)
   const heads = metric ? headsOf(metric) : []
   const bodies = bodyNames()
@@ -118,16 +209,45 @@ export function HwPanel() {
       <label className="hw-row">
         <span>Kind</span>
         <select value={f.kind} aria-label="Kind" data-test="hw-kind" onChange={(e) => {
-          const kind = e.target.value as Kind
-          put({ kind, size: sizesOf(kind).includes(f.size) ? f.size : sizesOf(kind)[Math.min(2, sizesOf(kind).length - 1)] })
+          const kind = e.target.value as FormKind
+          if (kind === 'object') put({ kind })
+          else put({ kind, size: sizesOf(kind).includes(f.size) ? f.size : sizesOf(kind)[Math.min(2, sizesOf(kind).length - 1)] })
         }}>
-          {KINDS.map((k) => (
+          {(f.encase ? ENCASED : KINDS).map((k) => (
             <option key={k} value={k}>
-              {KIND_LABEL[k]}
+              {k === 'object' ? 'Your own part' : KIND_LABEL[k]}
             </option>
           ))}
         </select>
       </label>
+      <label className="hw-row">
+        <span>Encase</span>
+        <input type="checkbox" aria-label="Encase" data-test="hw-encase" title="Closed under a roof, the print paused to drop it in" checked={f.encase} onChange={(e) => put({ encase: e.target.checked, ...(e.target.checked && !ENCASED.includes(f.kind) ? { kind: 'magnet', size: '6x3' } : !e.target.checked && f.kind === 'object' ? { kind: 'screw', size: 'M3' } : {}) })} />
+      </label>
+      {f.encase && (
+        <>
+          {f.kind === 'object' && (
+            <>
+              <label className="hw-row">
+                <span>Shape</span>
+                <select value={f.shape} aria-label="Shape" onChange={(e) => put({ shape: e.target.value as Form['shape'] })}>
+                  <option value="box">Box</option>
+                  <option value="cylinder">Cylinder</option>
+                </select>
+              </label>
+              <NumberField label={f.shape === 'box' ? 'Width' : 'Diameter'} kind="length" value={f.objW} step={0.5} min={0.1} onCommit={(v) => put({ objW: v })} />
+              {f.shape === 'box' && <NumberField label="Length" kind="length" value={f.objL} step={0.5} min={0.1} onCommit={(v) => put({ objL: v })} />}
+              <NumberField label="Height" kind="length" value={f.objH} step={0.5} min={0.1} hint={<p>Along the hole.</p>} onCommit={(v) => put({ objH: v })} />
+            </>
+          )}
+          <NumberField label="Roof layers" unit="" value={f.roofLayers} step={1} min={0} hint={<p>0 for the setting.</p>} onCommit={(v) => put({ roofLayers: Math.max(0, Math.round(v)) })} />
+          <label className="hw-row">
+            <span>What</span>
+            <input className="pl-input" aria-label="What goes in" placeholder="for the printer’s screen" maxLength={60} value={f.what} onChange={(e) => put({ what: e.target.value })} />
+          </label>
+        </>
+      )}
+      {f.kind !== 'object' && (
       <label className="hw-row">
         <span>Size</span>
         <select value={f.size} aria-label="Size" data-test="hw-size" onChange={(e) => put({ size: e.target.value })}>
@@ -138,6 +258,7 @@ export function HwPanel() {
           ))}
         </select>
       </label>
+      )}
       {f.kind === 'screw' && (
         <label className="hw-row">
           <span>Head</span>
@@ -150,7 +271,7 @@ export function HwPanel() {
           </select>
         </label>
       )}
-      {(f.kind === 'screw' || f.kind === 'nut') && (
+      {!f.encase && (f.kind === 'screw' || f.kind === 'nut') && (
         <>
           <label className="hw-row">
             <span>Clearance</span>
@@ -170,13 +291,13 @@ export function HwPanel() {
           {!f.through && <NumberField label="Depth" kind="length" value={f.depth} step={0.5} min={0.1} onCommit={(v) => put({ depth: v })} />}
         </>
       )}
-      {f.kind === 'nut' && (
+      {!f.encase && f.kind === 'nut' && (
         <>
           <NumberField label="Sunk" kind="length" value={f.sunk} step={0.5} min={0} hint={<p>How deep the nut’s near face sits; 0 opens the trap at the surface.</p>} onCommit={(v) => put({ sunk: v })} />
           <NumberField label="Side slot" kind="length" value={f.slot} step={1} min={0} hint={<p>From the nut’s centre to the part’s side; 0 for none.</p>} onCommit={(v) => put({ slot: v })} />
         </>
       )}
-      {f.kind === 'bearing' && (
+      {!f.encase && f.kind === 'bearing' && (
         <label className="hw-row">
           <span>Relief</span>
           <input type="checkbox" aria-label="Relief behind the bearing" checked={f.relief} onChange={(e) => put({ relief: e.target.checked })} />
@@ -227,7 +348,7 @@ export function HwPanel() {
         </>
       )}
       <div className="toolrow">
-        <button disabled={busy || !f.body} data-test="hw-plan" title="Work out the hole without cutting it" onClick={() => void run(f.pattern === 'none' ? 'plan' : 'pattern', inputOf(f))}>
+        <button disabled={busy || !f.body} data-test="hw-plan" title="Work out the hole without cutting it" onClick={() => void run(f.encase ? 'embed' : f.pattern === 'none' ? 'plan' : 'pattern', inputOf(f))}>
           Plan
         </button>
         <button className="primary" disabled={busy || !plan} data-test="hw-apply" title="Cut the planned hole into the body" onClick={() => void run('apply')}>
@@ -251,9 +372,27 @@ export function HwPanel() {
               </span>
             </div>
           ))}
+          {plan.embed && (
+            <div className="kv" data-test="hw-plan-encased">
+              <span className="pl-aside">Encased</span>
+              <span className="pl-aside">
+                {`top ${len.fmt(plan.embed.tops[0], 2)}${plan.embed.roof !== null ? `, roof ${len.fmt(plan.embed.roof, 2)}` : ''}`}
+                {plan.embed.pauses?.length ? `, pause before layer ${plan.embed.pauses[0].layer}` : ''}
+              </span>
+            </div>
+          )}
+          {plan.notes
+            .filter((n) => n.startsWith('Warning'))
+            .map((n, i) => (
+              <Status key={i} tone="warn">
+                {n.replace(/^Warning: /, '')}
+              </Status>
+            ))}
         </div>
       )}
       {s.made && <Status tone="ok">{`${s.made.label} cut into ${s.made.body}: ${s.made.features.length} features.`}</Status>}
+
+      <Pauses />
 
       <details className="hw-settings">
         <summary>Settings</summary>

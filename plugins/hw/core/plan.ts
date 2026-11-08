@@ -28,6 +28,19 @@ export interface Settings {
   insertExtra: number
   /** A magnet's pocket past its thickness. */
   magnetExtra: number
+  /** Layers of roof at least over an encased pocket. */
+  roofLayers: number
+  /** The layer height the part prints at, and its first layer's: where
+   *  an encased pocket's top is put and its pause falls. */
+  layerHeight: number
+  firstLayer: number
+  /** The widest roof printed over air without a warning. */
+  bridgeMax: number
+  /** On the diameter (or each side) of a pocket something is dropped into
+   *  mid-print, at least. */
+  dropClearance: number
+  /** Above what is dropped in, to the pocket's top, at least. */
+  dropHeadroom: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -39,6 +52,12 @@ export const DEFAULT_SETTINGS: Settings = {
   bridgeLayer: 0,
   insertExtra: 1,
   magnetExtra: 0.2,
+  roofLayers: 3,
+  layerHeight: 0.2,
+  firstLayer: 0.2,
+  bridgeMax: 10,
+  dropClearance: 0.3,
+  dropHeadroom: 0.2,
 }
 
 export interface Slot {
@@ -72,13 +91,18 @@ export interface Spec {
   teardrop?: boolean
 }
 
-export type Profile = 'circle' | 'hex' | 'hexSlot'
+export type Profile = 'circle' | 'hex' | 'hexSlot' | 'rect'
 
 export interface Step {
   role: 'head' | 'countersink' | 'shaft' | 'nut' | 'bore' | 'pocket' | 'relief'
   profile: Profile
-  /** A circle's diameter; a hex's across flats. */
+  /** A circle's diameter; a hex's across flats; a rectangle's width along
+   *  the sheet's u. */
   diameter: number
+  /** A rectangle: its length along v. */
+  length?: number
+  /** A rectangle: turned on the sheet, degrees from +u. */
+  angleDeg?: number
   /** Depth the cut starts at; negative above the surface. */
   from: number
   /** Depth it ends at; null through the part. */
@@ -93,7 +117,7 @@ export interface Step {
 }
 
 export interface Cut {
-  kind: Kind
+  kind: Kind | 'object'
   size: string
   label: string
   steps: Step[]
@@ -104,7 +128,7 @@ export interface Cut {
 /** How far a cut starts above the surface, so it opens cleanly. */
 export const LEAD = 0.5
 
-const r3 = (x: number) => Math.round(x * 1000) / 1000
+export const r3 = (x: number) => Math.round(x * 1000) / 1000
 
 export class PlanError extends Error {}
 const fail = (m: string): never => {

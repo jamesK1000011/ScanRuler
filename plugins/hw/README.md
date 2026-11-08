@@ -11,7 +11,10 @@ bodies as named sketch and extrude-cut features that stay editable there:
 - heat-set inserts, pilots for thread-forming screws, disc magnets, and
   bearing seats (623–608, 6800–6806) with a relief behind — typical figures,
   adjustable;
-- bolt circles, rectangles and grids of any of them.
+- bolt circles, rectangles and grids of any of them;
+- parts encased in the print — nuts, magnets, bearings, inserts, or a box or
+  cylinder of your own (a weight, a tag) — in a pocket closed under a roof,
+  with the layer the print pauses at to drop each one in.
 
 Every diameter gets a printing allowance (0.2 mm by default; by kind). Level
 holes are teardropped point up, and an upright stepped hole can keep a
@@ -32,8 +35,20 @@ geometry is ScanRuler's own; no CAD package's code is used.
 | `hw.apply` | Cut the plan (or a hole given) into the body: one undo step, all or none |
 | `hw.check` | What a round hole on a body, or a diameter, fits |
 | `hw.clear` | Put the plan and the check away |
+| `hw.embed` | An encased pocket planned: sunk under its roof, its top on a layer boundary, its pause |
+| `hw.record` | A pocket cut another way (or Mass's ballast) recorded for its pause |
+| `hw.pauses` | The pause layers, merged per layer, and `slicer_slice`'s `pauses` |
+| `hw.unembed` | Forget an encased part (its cut stays) |
 
-The settings are saved with the project and are part of the undo history. The
+The settings and the encased parts are saved with the project and are part
+of the undo history.
+
+The pause goes before the first layer whose bottom is at or above the
+pocket's top. Layer n runs from `firstLayer + (n − 2) × layerHeight` (0 for
+the first) to `firstLayer + (n − 1) × layerHeight`, above the bed. A
+pocket's top above the bed is its Z less its body's lowest point (the
+slicer sets an object's lowest point on the bed), or the lowest of the
+bodies exported together. The
 cuts are Reverse Engineer features, saved and undone there.
 
 `hw.apply` makes its change through `reverse.feature.add` with `runWithin`
@@ -55,3 +70,11 @@ caller.
 - fit checks;
 - the project section's reading of a saved file;
 - the tool solids' volumes in OCCT against their closed forms.
+
+`tests/embed.test.ts` checks the pause layer, with a first layer of its own
+height, a top on a boundary, a hair either side and between two, floating
+steps that don't add up, and several parts on one layer and two bodies. It
+also checks each kind's encased pocket, an outline's reach and the project
+file. `tests/embedCommands.test.ts` runs `hw.embed`, `hw.apply`,
+`hw.record`, `hw.pauses` and `hw.unembed` against a stand-in Reverse
+Engineer.

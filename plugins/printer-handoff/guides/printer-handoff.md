@@ -48,6 +48,13 @@ print safer, not riskier.
 4. `printer_start { printer }`, then tell the person a dialog or page is
    waiting for them. `printer_requests` shows their answer: started,
    cancelled, expired after 15 minutes, or failed with the printer's reply.
-5. Watch with `printer_status` and `printer_camera`: Moonraker and
+5. **A job with pauses** (parts dropped in mid-print) says so when it's
+   uploaded, and its start request lists them. Before asking to start, tell
+   the person what goes in at each layer and to have the parts ready. When
+   the printer pauses (`printer_status` says paused, `printer_camera`
+   shows it), remind them what goes in. They resume at the printer, or you
+   ask with `printer_resume`, which asks them. Never resume by any other
+   route.
+6. Watch with `printer_status` and `printer_camera`: Moonraker and
    OctoPrint webcams, and Bambu's own camera. For a P1 or A1 set `model`;
    an X1 or H2D streams over RTSP and needs ffmpeg on the Mac. Pause or stop if something looks wrong, and say why.

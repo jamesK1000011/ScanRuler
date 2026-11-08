@@ -18,6 +18,7 @@ that stay editable in Reverse Engineer.
 - **Pilots** for thread-forming screws in plastic (typical).
 - **Disc magnets**, given as "6x3" (diameter × thickness).
 - **Bearings.** 623, 624, 625, 688, 608 and 6800–6806.
+- Inserts also carry their outside diameter (typical), for one dropped in.
 
 ## Settings
 
@@ -105,7 +106,63 @@ or `{ diameter, depth? }`. It lists every size within 0.5 mm of the hole
 Use it on a scanned or imported part to say what screw a hole was made for, or
 whether a modelled bore will take a bearing.
 
+## Parts encased in the print
+
+A nut, magnet, bearing, insert, weight, RFID tag or any part of the person's
+own can be sealed inside a print: the pocket is printed open, the print
+pauses, the part is dropped in, and the layers above close over it.
+
+1. Set the layers the slicer profile prints at: `hw.set { layerHeight,
+   firstLayer }` (0.2 and 0.2 by default). Ask the person if you don't know.
+2. `hw.embed { kind, size, at }` plans the pocket, as `hw.plan` does, sunk
+   under a roof. `kind` is `nut`, `magnet`, `bearing`, `insert` (dropped in
+   by its outside diameter, not pressed in hot) or `object` with
+   `object: { shape: "box", size: [w, l, h] }` or `{ shape: "cylinder",
+   diameter, height }`, `h` and `height` along the hole. `what` names it for
+   the printer's screen. `encase: { roof }` or `{ roofLayers }` sets the
+   roof; `roofLayers` (3) × `layerHeight` by default. `hw.plan` and
+   `hw.apply` take `encase` too.
+   - The pocket is the part plus `dropClearance` (0.3) across, and
+     `dropHeadroom` (0.2) above it, so it drops in and the nozzle clears it.
+   - Drilled down from a top face, the roof is made thicker, and drilled up
+     from a bottom face the pocket is made deeper, so its top lands on a
+     layer boundary. The notes say so. This needs the body built, so its
+     place on the bed is known.
+   - The answer gives each pocket's top (Z, part frame), the roof, the span
+     the roof bridges, and the pause layer.
+   - It warns about a roof under `roofLayers`, a span wider than `bridgeMax`
+     (10), naming the layer that bridges it, and a top off a layer boundary,
+     where the layer it falls in may print closed over the pocket.
+3. `hw.apply` cuts it and records it: E1, E2… A sealed pocket is a void in
+   the body. `reverse.body.check` reports it as one, which is expected here.
+4. `hw.record { body, top, what }` records a pocket cut some other way.
+   `hw.record { from: "mass" }` takes the ballast pocket the Mass workspace
+   planned. Record it before `mass.apply`, which clears the plan.
+5. `hw.pauses` lists the pauses: for each, the layer to pause before (from
+   1), the height above the bed, the Z the slicer shows for that layer, and
+   what goes in. Parts on one layer are merged.
+   - The rule: pause before the first layer whose bottom is at or above
+     the pocket's top. The layers below are printed, so the pocket stands
+     open.
+   - Heights are above the bed: each body's lowest point sits on it. Give
+     `together: [bodies]` for bodies exported as one STL (they share the
+     lowest point).
+   - `slicer.pauses` in the answer goes straight to `slicer_slice {
+     pauses }`. The slicer side reads the layers from the G-code and puts
+     the pause in (see the slicer-loop guide).
+   - A part whose cut was removed, or whose body isn't built, is left out
+     and named. `hw.unembed { id }` or `{ all: true }` forgets one.
+6. Tell the person, per pause: the layer, what goes in, and which way up (a
+   magnet's poles). They press resume on the printer, or through
+   `printer_resume`, which asks them.
+
 ## Limits
+
+- Encased pockets are placed like holes. The roof is measured only for a
+  pocket drilled straight down. Otherwise check the part around it with
+  `section.cut`.
+- Bodies printed object by object (sequential printing) can't take pauses
+  by height.
 
 - A hole is placed square to a flat face, or along a coordinate axis, or
   level. A tilted direction without a face is refused.

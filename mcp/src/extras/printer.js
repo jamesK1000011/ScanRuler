@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The printers set up on this computer (printers.json in the ScanRuler
 // folder), and getting a sliced job onto one: test, status, upload, and a
-// start that only asks the person. Pause, resume and stop go straight
-// through. Secrets come from the Keychain or the secrets file (secrets.js)
+// start that only asks the person. Pause and stop go straight through; a
+// resume asks too. A job with pauses for parts dropped in says so when it
+// asks: what goes in, at which layer. Secrets come from the Keychain or the secrets file (secrets.js)
 // and never appear in an answer.
 
 import { lookup } from 'node:dns/promises'
@@ -16,6 +17,7 @@ import { adapterFor, KINDS } from './printers/adapters.js'
 import { ask, cancelRequest, listRequests } from './printers/confirm.js'
 import { getSecret, hasSecret } from './secrets.js'
 import { home, job as sliceJob } from './slicer.js'
+import { zipEntries } from './zip.js'
 
 const tilde = (p) => (p.startsWith('~/') ? join(homedir(), p.slice(2)) : p)
 /** Fields only the person sets, by editing printers.json: a program to run
@@ -146,6 +148,33 @@ export async function status(name, env = process.env) {
 
 const lastUpload = new Map()
 
+/** The pauses put into a file (pauses.js marks each): layer, Z and what. */
+export function pausesIn(text) {
+  const out = []
+  for (const m of String(text).matchAll(/^;\s*ScanRuler pause: before layer (\d+), Z ([\d.]+)(?:: (.*))?$/gm)) out.push({ layer: Number(m[1]), z: Number(m[2]), note: (m[3] ?? '').trim() })
+  return out
+}
+
+async function pausesOfFile(path) {
+  try {
+    if (/\.(gcode|gco|g)$/i.test(path)) {
+      const buf = await readFile(path)
+      return buf.toString('latin1', 0, 4) === 'GCDE' ? [] : pausesIn(buf.toString('utf8'))
+    }
+    if (/\.3mf$/i.test(path)) {
+      const z = await zipEntries(path)
+      const e = z.entries.find((x) => /(^|\/)plate_\d+\.gcode$/i.test(x.name))
+      return e ? pausesIn(z.read(e).toString('utf8')) : []
+    }
+  } catch {
+    // Unreadable: the printer takes it or not; the summary says nothing.
+  }
+  return []
+}
+
+/** The pauses in words, for the person asked to start or resume. */
+export const pausesWords = (ps) => (ps.length ? ps.map((p) => `layer ${p.layer} (Z ${p.z})${p.note ? `: ${p.note.replace(/^Insert /, '')}` : ''}`).join('; ') : null)
+
 /** The file for a slicer job: its 3MF for a Bambu printer, else its G-code. */
 async function fileFor(p, { file, job }, env) {
   if (file) {
@@ -174,8 +203,9 @@ export async function upload({ printer, file, job }, env = process.env) {
     path = staged
   }
   const r = await (await adapter(p, env)).upload(path)
-  lastUpload.set(p.name, { name: basename(path), job: f.job ?? null, bytes: (await stat(path)).size })
-  return { printer: p.name, next: KINDS[p.kind].starts === 'after you confirm' ? 'printer_start asks the person to start it.' : `It is started by ${KINDS[p.kind].starts}.`, ...r }
+  const pauses = await pausesOfFile(path)
+  lastUpload.set(p.name, { name: basename(path), job: f.job ?? null, bytes: (await stat(path)).size, pauses })
+  return { printer: p.name, ...(pauses.length ? { pauses: `${pauses.length} pause${pauses.length > 1 ? 's' : ''} to drop parts in: ${pausesWords(pauses)}. Each resumes through printer_resume, which asks the person.` } : {}), next: KINDS[p.kind].starts === 'after you confirm' ? 'printer_start asks the person to start it.' : `It is started by ${KINDS[p.kind].starts}.`, ...r }
 }
 
 const minutes = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : `${Math.round(s / 60)} min`)
@@ -187,7 +217,8 @@ export async function start({ printer, file }, env = process.env, platform = pro
   const name = file ?? last?.name
   if (!name) throw new Error(`Name the file on ${p.name}, or printer_upload one first.`)
   const j = last?.name === name ? last.job : null
-  const summary = { ...(j?.totals?.seconds ? { time: minutes(j.totals.seconds) } : {}), ...(j?.totals?.filamentG ? { filament: `${Math.round(j.totals.filamentG)} g` } : {}), ...(last?.name === name ? { size: last.bytes < 1024 ? `${last.bytes} B` : last.bytes < 1048576 ? `${Math.round(last.bytes / 1024)} KB` : `${(last.bytes / 1048576).toFixed(1)} MB` } : {}) }
+  const ps = last?.name === name ? (last.pauses ?? []) : []
+  const summary = { ...(ps.length ? { pauses: `${ps.length}: ${pausesWords(ps)}` } : {}), ...(j?.totals?.seconds ? { time: minutes(j.totals.seconds) } : {}), ...(j?.totals?.filamentG ? { filament: `${Math.round(j.totals.filamentG)} g` } : {}), ...(last?.name === name ? { size: last.bytes < 1024 ? `${last.bytes} B` : last.bytes < 1048576 ? `${Math.round(last.bytes / 1024)} KB` : `${(last.bytes / 1048576).toFixed(1)} MB` } : {}) }
   const a = await adapter(p, env)
   return ask({ printer: p.name, file: name, summary, onStart: () => a.start(name), open: (u) => openUrl(u, env, platform), page }, p.confirm ? { ...env, SCANRULER_CONFIRM: p.confirm } : env, platform)
 }
@@ -199,7 +230,8 @@ export async function control(name, what, env = process.env, platform = process.
   const p = await find(name, env)
   if (what === 'resume' && KINDS[p.kind].starts === 'after you confirm') {
     const a = await adapter(p, env)
-    return ask({ verb: 'resume', printer: p.name, file: lastUpload.get(p.name)?.name ?? 'the paused print', summary: {}, onStart: () => a.resume(), open: (u) => openUrl(u, env, platform), page }, p.confirm ? { ...env, SCANRULER_CONFIRM: p.confirm } : env, platform)
+    const ps = lastUpload.get(p.name)?.pauses ?? []
+    return ask({ verb: 'resume', printer: p.name, file: lastUpload.get(p.name)?.name ?? 'the paused print', summary: ps.length ? { pauses: `check the part is in — ${pausesWords(ps)}` } : {}, onStart: () => a.resume(), open: (u) => openUrl(u, env, platform), page }, p.confirm ? { ...env, SCANRULER_CONFIRM: p.confirm } : env, platform)
   }
   return { printer: p.name, ...(await (await adapter(p, env))[what]()) }
 }

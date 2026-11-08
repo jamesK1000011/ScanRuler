@@ -11,7 +11,7 @@ export const askCommand: Command<{ request: string; verb?: 'start' | 'resume'; p
   name: 'ask',
   title: 'Show a print start request',
   description: 'Used by the agent’s server (printer_start with SCANRULER_CONFIRM=app): shows the person a card in ScanRuler with the printer and file, and Start and Cancel. Only the person’s Start starts the print; this cannot.',
-  input: obj({ request: str(), verb: enumOf(['start', 'resume'], 'start a print, or resume a paused one.'), printer: str(), file: str(), summary: { type: 'object', description: 'time, filament, size' }, answer: str('The server’s one-time address for the answer.') }, ['request', 'printer', 'file', 'answer']),
+  input: obj({ request: str(), verb: enumOf(['start', 'resume'], 'start a print, or resume a paused one.'), printer: str(), file: str(), summary: { type: 'object', description: 'time, filament, size, pauses' }, answer: str('The server’s one-time address for the answer.') }, ['request', 'printer', 'file', 'answer']),
   readOnly: true,
   history: false,
   internal: true,

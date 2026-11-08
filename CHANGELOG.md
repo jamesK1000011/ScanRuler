@@ -7,6 +7,23 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Encased parts** (2026-11-08, `hw`, `slicer-loop`, `printer-handoff`).
+  Nuts, magnets, bearings, inserts, or a box or cylinder of your own (BBs,
+  a weight, an RFID tag) sealed inside a print. `hw.embed` sinks the pocket
+  under a roof of N layers and puts its top on a layer boundary. It warns
+  about a thin roof, a span past a safe bridge and a top off a boundary.
+  `hw.apply` cuts and records it, and `hw.record` takes a pocket cut another
+  way, or Mass's ballast. `hw.pauses` gives the layer to pause before (the
+  first whose bottom is at or above the pocket's top, measured from each
+  body's lowest point on the bed), parts on one layer merged.
+  `slicer_slice { pauses }` reads the layers from the sliced G-code and puts
+  the pause in: the profile's own pause G-code, else M601 (Prusa/Marlin;
+  M600 on request), PAUSE (Klipper) or M400 U1 (Bambu Lab), with an M117
+  message where the printer shows one. It also does the plates of an
+  exported 3MF and their MD5. The printer start request lists the pauses,
+  and resuming goes through the same gate. Two slicing jobs started in the
+  same second no longer share a folder.
+
 - **Hardware** (2026-11-08, new plugin `hw`). Holes for the hardware a printed
   part takes, cut into Reverse Engineer bodies as editable features: ISO 273
   screw clearances with ISO 4762 / 7380 counterbores or ISO 10642

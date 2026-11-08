@@ -30,8 +30,14 @@ call, never the agent's).
   Start sends the command. The page's address never appears in any
   answer, and no tool can answer a request. Requests expire after 15
   minutes.
+- **Pauses.** A job sliced with `pauses` (or a G-code or 3MF carrying
+  `; ScanRuler pause:` lines) says so. `printer_upload` lists them, and the
+  start request shows a Pauses row: each layer, its Z and what goes in.
+  Resuming after one goes through `printer_resume`, and so through the same
+  gate. The person is asked, with the pauses to check against.
 - **Tests.** `mcp/tests/printer.test.js` runs against stand-in printers
   (`mcp/tests/fakePrinters.js`): a Bambu MQTT broker and FTPS server over
   TLS with a throwaway certificate, and Moonraker, OctoPrint and PrusaLink.
   It proves `printer_start` alone sends no start, that cancelled and
-  withdrawn requests send none, and that no answer carries a secret.
+  withdrawn requests send none, and that no answer carries a secret. A job with pauses shows them at the start
+  and the resume, and resumes only on the person's answer.

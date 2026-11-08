@@ -11,6 +11,9 @@
 // slicer's log and its output, so a run can be looked at and repeated. The
 // slicer runs as a child process with a time limit, in that folder only.
 // Nothing is uploaded and nothing is sent to a printer.
+//
+// Pauses for parts dropped in mid-print (pauses.js) go into the G-code the
+// slicer wrote, after it has run, and into the .3mf it exported.
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -18,6 +21,7 @@ import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/pro
 import { homedir } from 'node:os'
 import { basename, extname, join, resolve } from 'node:path'
 import { readGcode } from './gcode.js'
+import { addPauses, checkPauses, COMMANDS } from './pauses.js'
 import { zipEntries } from './zip.js'
 
 export const KINDS = {
@@ -151,7 +155,10 @@ async function overridden(path, overrides, out) {
 
 const PROCESS_KEYS = new Set(['xy_hole_compensation', 'xy_contour_compensation', 'elefant_foot_compensation', 'layer_height', 'wall_loops', 'sparse_infill_density', 'top_shell_layers', 'bottom_shell_layers', 'enable_support'])
 
-export async function slice({ slicerId, model, machine, process: proc, filament, print, printer, overrides = {}, name, timeoutMs }, env = process.env) {
+export async function slice({ slicerId, model, machine, process: proc, filament, print, printer, overrides = {}, name, timeoutMs, pauses, pauseCommand }, env = process.env) {
+  // The pauses checked before the slicer runs, not after.
+  if (pauses !== undefined) checkPauses(pauses)
+  if (pauseCommand !== undefined && !COMMANDS.includes(pauseCommand)) throw new Error(`pauseCommand is one of ${COMMANDS.join(', ')}.`)
   const { slicers } = await loadConfig(env)
   const slicer = slicers.find((s) => s.id === slicerId) ?? (slicers.length === 1 && !slicerId ? slicers[0] : null)
   if (!slicer) throw new Error(slicers.length ? `No slicer "${slicerId}" — have ${slicers.map((s) => s.id).join(', ')}.` : 'No slicer is set up — run slicer_detect { save: true } first.')
@@ -159,7 +166,11 @@ export async function slice({ slicerId, model, machine, process: proc, filament,
   if (!model || !existsSync(src)) throw new Error(`There is no model at ${src} — export the part first (export_stl { path }), then give its path.`)
   const kind = KINDS[slicer.kind]
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  const jobId = `${stamp}-${(name ?? basename(src, extname(src))).replace(/[^A-Za-z0-9._-]+/g, '_')}`
+  const base = `${stamp}-${(name ?? basename(src, extname(src))).replace(/[^A-Za-z0-9._-]+/g, '_')}`
+  // A folder of its own: two jobs in one second must not share one, or the
+  // second could read the first's G-code.
+  let jobId = base
+  for (let n = 2; existsSync(join(home(env), 'slices', jobId)); n++) jobId = `${base}-${n}`
   const dir = join(home(env), 'slices', jobId)
   await mkdir(join(dir, 'out'), { recursive: true })
   const modelCopy = join(dir, basename(src))
@@ -199,8 +210,18 @@ export async function slice({ slicerId, model, machine, process: proc, filament,
     await writeFile(join(dir, 'job.json'), JSON.stringify({ ...job, ok: false }, null, 2))
     throw new Error(`${slicer.label ?? kind.label} wrote no G-code (exit ${result.code}): ${tail || 'no output'} — the log is ${join(dir, 'slicer.log')}.`)
   }
+  let paused = null
+  if (pauses !== undefined) {
+    try {
+      paused = await addPauses({ gcode, tmf: join(dir, 'out', 'job.3mf'), pauses, pauseCommand })
+    } catch (e) {
+      await writeFile(join(dir, 'job.json'), JSON.stringify({ ...job, ok: false, pauseError: String(e.message ?? e) }, null, 2))
+      throw new Error(`Sliced, but the pauses could not be put in: ${e.message ?? e} The job is not marked done (${jobId}).`)
+    }
+    delete paused.text
+  }
   const read = await readGcode(gcode)
-  const out = { ...job, ok: true, gcode, ...read }
+  const out = { ...job, ok: true, gcode, ...read, ...(paused ? { pauses: paused } : {}) }
   await writeFile(join(dir, 'job.json'), JSON.stringify(out, null, 2))
   return out
 }
