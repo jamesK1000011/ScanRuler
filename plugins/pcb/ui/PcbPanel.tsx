@@ -30,6 +30,18 @@ const SHOWN = ['standoff', 'headroom', 'gap', 'wall', 'margin', 'inserts', 'cuto
 
 const SIDE: Record<string, string> = { '+x': 'right', '-x': 'left', '+y': 'back', '-y': 'front' }
 
+/** pcb.plan's answer, as far as the preview reads it. */
+interface Plan {
+  notes: string[]
+  plan?: {
+    W: number
+    D: number
+    height: number
+    standoffs: { ref?: string; screw: string | null; note?: string }[]
+    openings: { side: string; label?: string; w: number; lo: number; hi: number; round: boolean }[]
+  }
+}
+
 async function fabNow() {
   const r = (await run('fab')) as { file?: { name: string; mimeType: string; bytes: Uint8Array } } | undefined
   if (r?.file) saveFile(r.file.name, new Blob([r.file.bytes as BlobPart], { type: r.file.mimeType }))
@@ -48,6 +60,9 @@ export function PcbPanel() {
       })
       .catch(() => setParams(null))
   }, [])
+  const [preview, setPreview] = useState<Plan | null>(null)
+  // A change of board or setting makes the preview stale.
+  useEffect(() => setPreview(null), [s.board, s.enclosure, s.above, s.below, s.skip, s.imported])
   const busy = s.busy !== null
   const b = s.board
   const values = { ...(params?.defaults ?? {}), ...s.enclosure }
@@ -136,6 +151,9 @@ export function PcbPanel() {
       <NumberField label="Parts above" testId="pcb-above" value={s.above ?? s.imported?.above ?? 0} step={0.5} min={0} kind="length" disabled={busy} hint={<p>How far the parts reach above the board; measured on import unless set here.</p>} onCommit={(v) => void run('set', { above: v })} />
       <NumberField label="Parts below" testId="pcb-below" value={s.below ?? s.imported?.below ?? 0} step={0.5} min={0} kind="length" disabled={busy} hint={<p>How far pins and parts reach below the board.</p>} onCommit={(v) => void run('set', { below: v })} />
       <div className="toolrow">
+        <button disabled={busy || !b || !params} data-test="pcb-plan" title="Sizes, standoffs and openings, nothing made" onClick={() => void run('plan').then((r) => r && setPreview(r as Plan))}>
+          Preview
+        </button>
         <button className="primary" disabled={busy || !b || !params} data-test="pcb-enclosure" title="Make the box and lid round the board in Reverse Engineer" onClick={() => void run('enclosure')}>
           Make enclosure
         </button>
@@ -143,6 +161,41 @@ export function PcbPanel() {
           Defaults
         </button>
       </div>
+      {preview?.plan && (
+        <div className="pl-card" data-test="pcb-plan-result">
+          <div className="kv">
+            <span className="name">Box</span>
+            <span className="pl-aside">
+              {len.fmt(preview.plan.W, 1)} × {len.fmt(preview.plan.D, 1)} × {len.fmt(preview.plan.height, 1)}
+            </span>
+          </div>
+          <p className="hint">
+            {preview.plan.standoffs.filter((x) => x.screw).length} standoff{preview.plan.standoffs.filter((x) => x.screw).length === 1 ? '' : 's'}
+            {preview.plan.standoffs.some((x) => x.screw) ? ` (${[...new Set(preview.plan.standoffs.map((x) => x.screw).filter(Boolean))].join(', ')})` : ''}, {preview.plan.openings.length} opening{preview.plan.openings.length === 1 ? '' : 's'}
+            {preview.plan.standoffs.some((x) => x.note) && (
+              <InfoDot title="Standoffs">
+                <p>Some mounting holes get no standoff, or a standoff shorter than its insert: {preview.plan.standoffs.filter((x) => x.note).map((x) => x.ref ?? 'a hole').join(', ')}. A taller standoff or a thicker floor gives an insert its length.</p>
+              </InfoDot>
+            )}
+          </p>
+          {preview.plan.openings.map((o, i) => (
+            <div key={i} className="kv">
+              <span className="name">{o.label ?? 'Opening'}</span>
+              <span className="pl-aside">
+                {SIDE[o.side] ?? o.side}, {o.round ? `⌀${len.fmt(o.w, 1)}` : `${len.fmt(o.w, 1)} × ${len.fmt(o.hi - o.lo, 1)}`}
+              </span>
+            </div>
+          ))}
+          {preview.notes.length > 0 && (
+            <Status tone="warn">
+              {preview.notes.length} size{preview.notes.length === 1 ? '' : 's'} guessed
+              <InfoDot title="Guessed sizes">
+                <p>An opening sized as a typical part, or from its footprint with no 3D model, or the parts’ reach not measured. Check each part’s sheet, import the board with its parts, or set the reach above.</p>
+              </InfoDot>
+            </Status>
+          )}
+        </div>
+      )}
       {s.enclosureMade && <p className="hint">Made: {s.enclosureMade.bodies.join(', ')}.</p>}
 
       <div className="sec-head">Fabrication</div>
