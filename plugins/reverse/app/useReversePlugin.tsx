@@ -65,11 +65,10 @@ function scaleShown(scale: FieldScale, units: DisplayUnits, power: 1 | -1): Fiel
 const signedShown = (units: DisplayUnits) => (units === 'mm' ? formatSigned : (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(lengthDecimals(3, units))}`)
 
 /** The three ways of drawing the tangent edges, in the Bodies key's menu. */
-const NEVER_DRAWN = 'A round face\'s seam and the cut a join leaves across one surface are never drawn'
 const TANGENT_EDGE_CHOICES: readonly { id: TangentEdges; label: string; title: string }[] = [
-  { id: 'visible', label: 'Drawn', title: 'Tangent edges drawn — where a round runs into a flat — as the sharp ones are, the way CAD draws them' },
+  { id: 'visible', label: 'Drawn', title: 'Draw tangent edges like sharp ones, as CAD does' },
   { id: 'dimmed', label: 'Dimmed', title: 'Tangent edges dimmed' },
-  { id: 'removed', label: 'Off', title: 'Tangent edges left out, and not picked: a round shows by its outline against the background' },
+  { id: 'removed', label: 'Off', title: 'Hide tangent edges' },
 ]
 
 /** What of the part lies under a sketch: none of it, the bare sheet; the
@@ -77,8 +76,8 @@ const TANGENT_EDGE_CHOICES: readonly { id: TangentEdges; label: string; title: s
 type SketchPartView = 'none' | 'cut' | 'full'
 const SKETCH_PART_VIEWS: readonly { id: SketchPartView; icon: IconName; label: string; title: string }[] = [
   { id: 'none', icon: 'eyeOff', label: 'No part', title: 'The sketch on the bare stage, the 3D view under it put away' },
-  { id: 'cut', icon: 'slice', label: 'Section', title: 'The part under the sketch, facing the sketch plane and following the sheet\'s pan and zoom, cut open at the plane where the plane runs through it — the half toward you taken away, so the slice being drawn on is the face in view' },
-  { id: 'full', icon: 'model', label: 'Full part', title: 'The whole part under the sketch, facing the sketch plane and following the sheet\'s pan and zoom, nothing cut away' },
+  { id: 'cut', icon: 'slice', label: 'Section', title: 'The part under the sketch, cut open at the plane' },
+  { id: 'full', icon: 'model', label: 'Full part', title: 'The whole part under the sketch' },
 ]
 
 export function useReversePlugin(host: PluginHost): PluginRuntime {
@@ -481,7 +480,7 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
         label="Curvature"
         testId="toggle-curvature"
         value={curvatureSwitch}
-        title="Colour the scan by how sharply it bends — flats green, convex rounds towards red, hollows towards blue, sharp edges dark. Where a flat ends and a round or a blend begins is where a surface region should end. While a feature is being set up its ghost takes the map over. Puts the Deviation key's map out"
+        title="Colour the scan by how sharply it bends"
       />
     ),
     menuChanged: !sketchStage && anyChanged([curvatureSwitch]),
@@ -502,7 +501,7 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
           set: (on) => re().setBodiesHidden(!on),
           disabled: hasBodies ? undefined : 'Build a body first',
         }}
-        title="Show the bodies, or put them away as a whole and leave the scan to stand alone — with the deviation map still on it, read against the bodies as they are. Each body's own eye in the panel takes it out of the model and the map instead"
+        title="Show or hide all bodies"
         changed={anyChanged([bodiesSolid, overlapsSwitch]) || tangentEdges !== 'visible'}
       >
         <PartOption
@@ -510,14 +509,14 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
           label="Transparent"
           testId="toggle-bodies-transparent"
           value={bodiesSolid}
-          title="Draw the bodies transparent — the scan, the elements and the bodies inside them show through. With the scan solid as well, each part shows where it stands proud of the other"
+          title="See-through bodies"
         />
         <PartOption
           icon={<Icon name="opIntersect" size={16} />}
           label="Overlaps"
           testId="toggle-body-overlaps"
           value={overlapsSwitch}
-          title="Draw where two bodies run into each other in hatched red — what they share, over the faces of both that would otherwise fight for the same pixels. Off for bodies that overlap on purpose, a modifier volume for a slicer; saved with the project"
+          title="Hatch where bodies overlap in red"
         />
         <PartChoice
           icon={<KeyIcon name="tangentEdges" size={16} />}
@@ -526,7 +525,7 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
           value={tangentEdges}
           options={TANGENT_EDGE_CHOICES}
           onChange={(mode) => re().setTangentEdges(mode)}
-          title={`How the edges are drawn where a round runs into a flat. ${NEVER_DRAWN}`}
+          title={'How edges between rounds and flats are drawn'}
         />
       </PartKey>
       <PartKey
@@ -540,7 +539,7 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
             ? undefined
             : 'Nothing measured yet — fit elements or cut sections in the 3D Measure workspace and they show here',
         }}
-        title="Show the elements and sections measured in the 3D Measure workspace on the part — the planes, cylinders and cuts the model is built against"
+        title="Show the shapes and sections measured in 3D Measure"
       />
       {notesOn && hasNotes && (
         <PartKey
@@ -548,7 +547,7 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
           label="Notes"
           testId="toggle-notes"
           shown={{ on: pinsShown, set: (on) => useNotes.getState().setPinsShown(on) }}
-          title="Show the notes' pins on the part, or put them away. The notes stay, and the agent still reads them. Pinning or opening a note brings the pins back"
+          title="Show or hide the note pins"
         />
       )}
     </>
@@ -586,7 +585,7 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
         onClick={() => re().setBodyMap(!bodyMap)}
         title={
           hasBodies
-            ? 'Colour the scan by how far it lies from the bodies, on the deviation colour map at the range set in the feature boxes — outside the bodies up the ramp, inside down it — and violet where the scan lies deep inside them: a hole, a pocket or a slot the bodies lack. While a feature is being set up its ghost takes the map over. Puts the curvature colouring out'
+            ? 'Colour the scan by its distance from the bodies'
             : 'Build a body first — the map reads the scan against it'
         }
       >

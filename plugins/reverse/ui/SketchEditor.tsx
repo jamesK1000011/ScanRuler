@@ -40,18 +40,18 @@ import { CORNER_GAP_MM } from '../core/corners'
 import { BuildSays } from './featureFields'
 
 const TOOLS: { id: SketchTool; icon: KeyIconName; label: string; title: string }[] = [
-  { id: 'select', icon: 'select', label: 'Select', title: 'Click a piece to select it, a second to pair it; click empty sheet to clear. Drag over empty sheet for a box: rightward it takes what lies wholly inside, leftward whatever it touches; hold Shift or Ctrl to add to the selection. Drag an end, a centre or a piece to move it — it snaps to other ends, the slice and the pieces, and a line moves square to itself; hold Ctrl to move it freely. The right button pans' },
-  { id: 'line', icon: 'line', label: 'Line (L)', title: 'Click the start, then every next corner — each line carries on from the last. Press on the last end and drag for an arc tangent to the piece before it. Escape, Enter or a second click on the last end ends the chain; so does landing on another piece’s end. Hold Ctrl to place a point without snapping' },
-  { id: 'rectangle', icon: 'rectangle', label: 'Rectangle (R)', title: 'Two opposite corners, the centre and a corner, or one side and the far side at any angle — rest the cursor on the key to choose; the key shows the way last chosen. The rectangle follows the cursor between the clicks' },
-  { id: 'polygon', icon: 'polygon', label: 'Polygon', title: 'A regular polygon: its centre, then a corner — or the middle of a side, for one sized across its flats like a hex nut. The sides are equal and drawn about a construction circle to dimension; how many there are is set under the keys while the tool is in hand' },
-  { id: 'circle', icon: 'circle', label: 'Circle (C)', title: 'The centre and a point on the rim, the two ends of a diameter, or three points on the rim — rest the cursor on the key to choose; the key shows the way last chosen. The circle follows the cursor between the clicks' },
-  { id: 'arc', icon: 'arc', label: 'Arc', title: 'The start, the end and a point it passes through, or the centre, the start and where it ends — rest the cursor on the key to choose; the key shows the way last chosen. The arc follows the cursor' },
-  { id: 'spline', icon: 'spline', label: 'Spline (S)', title: 'A smooth curve through the points clicked: click each point in turn — the curve follows the cursor. Click the last point again (or double-click it), press Enter or Escape to end it open; click the first point to close it round. Drag a fit point to bend it. Joined to a line or an arc at an end, it can be held tangent there. With a spline selected, Fit to slice pulls it onto the slice it was drawn over' },
-  { id: 'fillet', icon: 'filletCorner', label: 'Fillet (F)', title: 'Round a corner: click the corner point where two lines meet, or one line and then the other. With two lines selected, the key rounds those. The lines need not touch — a short piece bridging their ends is replaced by the round. The radius comes out as a dimension to type over; the next round starts with the last radius' },
-  { id: 'chamfer', icon: 'chamferCorner', label: 'Chamfer', title: 'Cut a corner off straight: click the corner point where two lines meet, or one line and then the other. With two lines selected, the key chamfers those. The two distances come out as dimensions to type over — alike for an even chamfer, apart for an uneven one; the next chamfer starts with the last distance' },
-  { id: 'point', icon: 'sketchPoint', label: 'Point', title: 'A point at each click — held where it snaps: an end, a centre, the middle of a line, a quadrant of a circle or an arc, on a piece or an axis. A place to hang a relation or a dimension on, as CAD’s sketch point is; it takes no part in the regions' },
-  { id: 'trim', icon: 'trim', label: 'Trim (T)', title: 'Click a line, an arc or a circle: the stretch of it between the two nearest places other pieces cross it is taken away — it lights under the cursor first. A piece nothing crosses goes whole; a stretch from the middle leaves two pieces, held in line. Ends the cut moved are held where they now lie, on the piece that cut them' },
-  { id: 'project', icon: 'project', label: 'Project', title: 'Click an edge of a body, or a piece of another sketch, on the part under the sheet: it comes into this sketch as a piece of its own, fixed where it lies — to close a profile with, or to hang relations and dimensions on. It lights under the cursor when it can be taken' },
+  { id: 'select', icon: 'select', label: 'Select', title: 'Select, box-select and drag pieces' },
+  { id: 'line', icon: 'line', label: 'Line (L)', title: 'Draw a chain of lines; drag from the end for an arc' },
+  { id: 'rectangle', icon: 'rectangle', label: 'Rectangle (R)', title: 'Draw a rectangle; hover to pick how' },
+  { id: 'polygon', icon: 'polygon', label: 'Polygon', title: 'Draw a regular polygon, like a hex nut' },
+  { id: 'circle', icon: 'circle', label: 'Circle (C)', title: 'Draw a circle; hover to pick how' },
+  { id: 'arc', icon: 'arc', label: 'Arc', title: 'Draw an arc; hover to pick how' },
+  { id: 'spline', icon: 'spline', label: 'Spline (S)', title: 'Draw a smooth curve through clicked points' },
+  { id: 'fillet', icon: 'filletCorner', label: 'Fillet (F)', title: 'Round a corner between two lines' },
+  { id: 'chamfer', icon: 'chamferCorner', label: 'Chamfer', title: 'Cut a corner off straight' },
+  { id: 'point', icon: 'sketchPoint', label: 'Point', title: 'Place points to hang relations and dimensions on' },
+  { id: 'trim', icon: 'trim', label: 'Trim (T)', title: 'Click a stretch of a piece to cut it away' },
+  { id: 'project', icon: 'project', label: 'Project', title: 'Bring a body edge or other sketch piece in' },
 ]
 
 /** The relation keys: the tooltip is the name alone, as a CAD sketcher's
@@ -75,8 +75,8 @@ interface DrawMode { id: string; icon: KeyIconName; label: string; title: string
 const DRAW_MODES: { [K in keyof DrawModes]: (DrawMode & { id: DrawModes[K] })[] } = {
   rectangle: [
     { id: 'corners', icon: 'rectangle', label: 'Corner rectangle', title: 'Two opposite corners', clicks: ['Click one corner.', 'Click the opposite corner.'] },
-    { id: 'center', icon: 'rectangleCenter', label: 'Centre rectangle', title: 'The centre, then a corner — the rectangle stays about its centre, a point where its construction diagonals cross', clicks: ['Click the centre.', 'Click a corner.'] },
-    { id: 'threePoint', icon: 'rectangleThreePoint', label: '3-point rectangle', title: 'The two ends of one side, then where the opposite side lies — a rectangle at any angle', clicks: ['Click one end of a side.', 'Click the other end of that side.', 'Click where the opposite side lies.'] },
+    { id: 'center', icon: 'rectangleCenter', label: 'Centre rectangle', title: 'The centre, then a corner', clicks: ['Click the centre.', 'Click a corner.'] },
+    { id: 'threePoint', icon: 'rectangleThreePoint', label: '3-point rectangle', title: 'One side, then the far side, at any angle', clicks: ['Click one end of a side.', 'Click the other end of that side.', 'Click where the opposite side lies.'] },
   ],
   circle: [
     { id: 'center', icon: 'circle', label: 'Centre circle', title: 'The centre, then a point on the rim', clicks: ['Click the centre.', 'Click a point on the rim.'] },
@@ -85,11 +85,11 @@ const DRAW_MODES: { [K in keyof DrawModes]: (DrawMode & { id: DrawModes[K] })[] 
   ],
   arc: [
     { id: 'threePoint', icon: 'arc', label: '3-point arc', title: 'The start, the end, then a point the arc passes through', clicks: ['Click the start.', 'Click the end.', 'Click a point the arc passes through.'] },
-    { id: 'center', icon: 'arcCenter', label: 'Centre arc', title: 'The centre, the start, then where it ends — the shorter way round; a longer arc is drawn through three points', clicks: ['Click the centre.', 'Click the start — how far it lies is the radius.', 'Click where it ends — it runs the shorter way round.'] },
+    { id: 'center', icon: 'arcCenter', label: 'Centre arc', title: 'The centre, the start, then the end', clicks: ['Click the centre.', 'Click the start — how far it lies is the radius.', 'Click where it ends — it runs the shorter way round.'] },
   ],
   polygon: [
-    { id: 'inscribed', icon: 'polygon', label: 'Inscribed polygon', title: 'The centre, then a corner — the corners lie on the construction circle', clicks: ['Click the centre.', 'Click a corner.'] },
-    { id: 'circumscribed', icon: 'polygonOutside', label: 'Circumscribed polygon', title: 'The centre, then the middle of a side — the sides touch the construction circle, whose diameter is the width across flats', clicks: ['Click the centre.', 'Click the middle of a side.'] },
+    { id: 'inscribed', icon: 'polygon', label: 'Inscribed polygon', title: 'The centre, then a corner', clicks: ['Click the centre.', 'Click a corner.'] },
+    { id: 'circumscribed', icon: 'polygonOutside', label: 'Circumscribed polygon', title: 'The centre, then mid-side (sized across flats)', clicks: ['Click the centre.', 'Click the middle of a side.'] },
   ],
 }
 
@@ -232,7 +232,7 @@ function NominalChip({ value, kind, testId, onTake }: { value: number; kind: Nom
   const n = nominalOf(value, kind)
   if (n === null) return null
   return (
-    <button className="chip nominal" data-test={testId} tabIndex={-1} title="The round number this was probably designed at — click to take it" onClick={() => onTake(n)}>
+    <button className="chip nominal" data-test={testId} tabIndex={-1} title="Use the likely design value" onClick={() => onTake(n)}>
       → {nominalText(n, kind, units)}
     </button>
   )
@@ -281,7 +281,7 @@ function PictureRow({ draft }: { draft: SketchDraft }) {
     return (
       <div className="toolrow">
         {input}
-        <button className="withicon" data-test="sketch-image-add" title="Lay a photo of the part or a dimensioned drawing under the sketch, to trace — then bring it to scale by two points a known length apart" onClick={() => file.current?.click()}>
+        <button className="withicon" data-test="sketch-image-add" title="Trace over a photo or drawing, scaled by two points" onClick={() => file.current?.click()}>
           <KeyIcon name="sketchImage" size={18} />
           Picture…
         </button>
@@ -328,7 +328,7 @@ function PictureRow({ draft }: { draft: SketchDraft }) {
           </button>
         </div>
       )}
-      <label className="field" title="How much of the picture shows: faded, the scan and the pieces show through it">
+      <label className="field" title="How strongly the picture shows">
         <span>Shown</span>
         <input type="range" min={0.1} max={1} step={0.05} value={image.opacity} data-test="sketch-image-opacity" onChange={(e) => re.setSketchImage({ ...image, opacity: Number(e.target.value) })} />
       </label>
@@ -536,7 +536,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
             : null)
 
   const finishKey = (testId: string) => (
-    <button className="primary block" data-test={testId} title="Finish the sketch — Enter or a middle click does the same. With nothing drawn, nothing is made." onClick={() => re.getState().commitSketch()}>
+    <button className="primary block" data-test={testId} title="Finish the sketch (Enter or middle click)" onClick={() => re.getState().commitSketch()}>
       Finish sketch
     </button>
   )
@@ -571,6 +571,60 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
             to be typed; Escape takes it back. Later it is dragged to where it reads best, and
             clicked to be typed over.
           </p>
+          <p>
+            <b>Select</b>: click a piece, a second to pair it, empty sheet to clear. Drag a box over
+            empty sheet — rightward takes what lies wholly inside, leftward whatever it touches;
+            Shift or Ctrl adds. Drag an end, a centre or a piece to move it; it snaps to ends, the
+            slice and pieces, and Ctrl moves it freely. The right button pans.
+          </p>
+          <p>
+            <b>Line</b>: Escape, Enter, a second click on the last end or landing on another
+            piece's end ends the chain; Ctrl places a point without snapping. <b>Rectangle</b>,{' '}
+            <b>Circle</b>, <b>Arc</b> and <b>Polygon</b> draw several ways — rest the cursor on the
+            key to choose; the key shows the way last chosen. A centre rectangle stays about its
+            centre, where its construction diagonals cross; a centre arc runs the shorter way round.
+            A polygon's sides are drawn about a construction circle — its corners on it, or its
+            sides touching it for one sized across flats like a hex nut; the side count is set
+            under the keys.
+          </p>
+          <p>
+            <b>Spline</b>: click each point; click the last again, double-click, Enter or Escape to
+            end it open, the first point to close it. Drag a fit point to bend it; joined to a line
+            or arc it can be held tangent. <b>Fit spline to slice</b> makes the slice points along
+            it — within a twentieth of its length — its soft data, and pulls the curve onto them as
+            far as its relations allow; add fit points where the outline bends more than it follows.
+          </p>
+          <p>
+            <b>Fillet</b> and <b>Chamfer</b>: click the corner point, or one line then the other;
+            with two lines selected the key works on those. The lines need not touch — a short
+            bridging piece is replaced. The radius or distances come out as dimensions to type
+            over, and the next one starts from the last. <b>Sharp corner</b> takes the round or
+            chamfer off and runs its lines back to the corner.
+          </p>
+          <p>
+            <b>Project</b>: click a body's edge, or a piece of another sketch, under the sheet; it
+            comes in fixed where it lies, to close a profile or hang relations on. It lights when it
+            can be taken. <b>Construction</b> pieces take no part in the regions — an axis to
+            revolve about, a mirror line. <b>Pattern</b> copies keep the relations and dimensions
+            among the pieces. <b>Align</b> turns only the sheet, so a crooked scan edge reads
+            horizontal; nothing moves on the part. <b>Snap to grid</b> off leaves the grid only to
+            read against; with <b>Show relations</b> off only the selected relation is drawn.
+          </p>
+          <p>
+            <b>Level</b> cuts the scan that far off the plane and fits that outline into the same
+            sketch — another height of a stacked part. Fit all chains then lands on the pieces
+            already drawn: walls they have are not fitted again, and new ones end on theirs. 0 cuts
+            at the plane (a face's a hair inside it). Loose pieces are drawn in the loose colour.
+          </p>
+          <p>
+            <b>Point</b> places a point where it snaps — an end, a centre, a line's middle, a
+            circle's quadrant — to hang a relation or dimension on; it takes no part in the regions.{' '}
+            <b>Trim</b> (T) cuts away the stretch of a line, arc or circle between the two nearest
+            crossings; a piece nothing crosses goes whole, a middle stretch leaves two pieces held in
+            line, and the moved ends stay on the piece that cut them. A distance between two points
+            is measured along X, along Y or straight across: click its chip to switch, or pull a new
+            one's number above or below the points for ΔX, beside them for ΔY.
+          </p>
         </InfoDot>
       </div>
 
@@ -586,13 +640,13 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
         {chainsStatus === 'ready' && ` · ${chainCount} slice chain${chainCount === 1 ? '' : 's'}`}
       </p>
       {planeTakesOffset(draft.plane) && (
-        <label className="field" data-test="sketch-offset" title={draft.plane.kind === 'world' ? 'Where the coordinate plane lies along its axis — a number, or an expression over the parameters the sketch then follows' : 'How far the sketch stands off its plane, along the plane’s normal — out of a face is positive. A number, or an expression over the parameters'}>
+        <label className="field" data-test="sketch-offset" title={draft.plane.kind === 'world' ? 'Plane position along its axis; a number or expression' : 'Distance off the plane; out of a face is positive'}>
           <span>{draft.plane.kind === 'world' ? `Plane at ${draft.plane.axis.toUpperCase()} =` : 'Offset'}</span>
           <ExprInput value={planeOffset(draft.plane)} expr={draft.exprs?.offset} kind="length" unit={len.word()} testId="sketch-offset-input" onCommit={(v, expr) => re.getState().setSketchOffset(v, expr)} />
         </label>
       )}
 
-      <label className="field" data-test="sketch-level" title="Cut the scan this far off the sketch’s plane, along its normal, and fit that level’s outline into this sketch — another height of a stacked part. Fit all chains then lands on the pieces already drawn: a wall they have is not fitted again, and the new walls end on theirs. 0 cuts at the plane (a face’s a hair inside it).">
+      <label className="field" data-test="sketch-level" title="Slice the scan this far off the plane to trace another level">
         <span>Level</span>
         <ExprInput value={draft.level ?? 0} kind="length" unit={len.word()} testId="sketch-level-input" onCommit={(v) => re.getState().setSketchLevel(v)} />
       </label>
@@ -605,7 +659,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
           <button
             className="chip nominal"
             data-test="sketch-align-go"
-            title="The part is still in the scanner's frame, and the body will be built in it — a STEP file that lies askew in CAD. Aligning the part onto its fitted planes first makes the model square. This opens the 3-2-1 alignment in the 3D Measure workspace; the sketch stays open and moves with the part."
+            title="Square the part up first so the STEP isn't askew in CAD"
             onClick={() => {
               useShell.getState().setWorkspace('elements')
               useStore.getState().startAlignment()
@@ -621,7 +675,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
           className="withicon"
           data-test="sketch-fit-all"
           disabled={chainsStatus !== 'ready' || unfitted <= 0}
-          title="Cut every slice chain into lines and arcs, each with its slice points behind it"
+          title="Turn every slice outline into lines and arcs"
           onClick={() => {
             const chains = chainsOf()
             if (chains) re.getState().autoFit(chains.chains, 'all', useRePrefs.getState().fitOptions, SHARE_MM)
@@ -634,7 +688,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
           className="withicon"
           data-test="sketch-infer"
           disabled={fittedCount === 0}
-          title={`Join neighbouring ends within ${len.fmt(CORNER_GAP_MM, 0)}, with a tangency where a line meets an arc`}
+          title={`Join ends within ${len.fmt(CORNER_GAP_MM, 0)}, tangent where a line meets an arc`}
           onClick={() => re.getState().inferAllCorners()}
         >
           <Icon name="inferCorners" size={18} />
@@ -656,7 +710,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
         data-test="sketch-fit-options"
         aria-haspopup="dialog"
         aria-expanded={fitOptionsOpen}
-        title="How fine the slice is cut, the fit tolerance, corners joined, lines laid along the axes — in a window of its own; a change there refits the chains"
+        title="Fineness, tolerance and corner settings for fitting"
         onClick={() => setFitOptionsOpen((on) => !on)}
       >
         Fit options…
@@ -692,7 +746,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
           className={gridSnap ? 'on' : undefined}
           aria-pressed={gridSnap}
           aria-label="Snap to grid"
-          title="Snap to grid — drawn and dragged points snap to the grid as well as to ends, the slice and pieces — off, the grid is only there to read against"
+          title="Snap to grid"
           onClick={() => useRePrefs.getState().setGridSnap(!gridSnap)}
         >
           <Icon name="gridSnap" size={22} />
@@ -702,7 +756,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
           className={showRelations ? 'on' : undefined}
           aria-pressed={showRelations}
           aria-label="Show relations"
-          title="Show relations — draw every relation beside its piece as a glyph. Off, only the one selected in the list below is drawn; the dimensions are always shown"
+          title="Show relations on the sheet"
           onClick={() => useRePrefs.getState().setSketchRelations(!showRelations)}
         >
           <Icon name={showRelations ? 'eye' : 'eyeOff'} size={22} />
@@ -728,7 +782,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
           className="chip nominal"
           data-test="sketch-spline-fit"
           disabled={chainsStatus !== 'ready'}
-          title="Fit the selected spline to the slice it was drawn over: the slice points along it — within a twentieth of its length — become its soft data, and the solver pulls the curve onto them, its fit points moving as far as its relations let them. Add fit points where the outline bends more than the curve can follow"
+          title="Pull the selected spline onto the slice under it"
           onClick={() => {
             const chains = chainsOf()
             if (chains) re.getState().fitSplinesToSlice(chains.chains)
@@ -779,19 +833,19 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
         <button data-test="sketch-delete" disabled={!hasSelection} aria-label="Delete" title="Delete the selected pieces" onClick={() => re.getState().deleteSelected()}>
           <Icon name="del" size={22} />
         </button>
-        <button data-test="sketch-sharpen" disabled={!hasSelection} aria-label="Sharp corner" title="Sharp corner — Remove the selected fillet arc or chamfer line and carry its two lines to the corner" onClick={() => re.getState().sharpenSelected()}>
+        <button data-test="sketch-sharpen" disabled={!hasSelection} aria-label="Sharp corner" title="Sharp corner — remove the selected round or chamfer" onClick={() => re.getState().sharpenSelected()}>
           <Icon name="sharpCorner" size={22} />
         </button>
         <button data-test="sketch-fix" disabled={!hasSelection} aria-label="Fix" title="Fix — Lock the selected pieces where they are" onClick={() => re.getState().toggleFixedSelected()}>
           <Icon name="fix" size={22} />
         </button>
-        <button data-test="sketch-construction" disabled={!hasSelection} aria-label="Construction" title="Construction — Construction geometry takes no part in the regions — an axis to revolve about, a mirror line" onClick={() => re.getState().toggleConstructionSelected()}>
+        <button data-test="sketch-construction" disabled={!hasSelection} aria-label="Construction" title="Construction — make it a guide line, not part of the shape" onClick={() => re.getState().toggleConstructionSelected()}>
           <Icon name="construction" size={22} />
         </button>
-        <button data-test="sketch-pattern" disabled={!hasSelection} className={draft.pattern ? 'on' : undefined} aria-pressed={Boolean(draft.pattern)} aria-label="Pattern" title="Pattern — Repeat the selected pieces in a row, a grid or round a centre. Each copy is a piece of its own and keeps the relations and dimensions the pieces have among themselves" onClick={() => (draft.pattern ? re.getState().cancelSketchPattern() : re.getState().openSketchPattern())}>
+        <button data-test="sketch-pattern" disabled={!hasSelection} className={draft.pattern ? 'on' : undefined} aria-pressed={Boolean(draft.pattern)} aria-label="Pattern" title="Pattern — repeat the selected pieces in a row or circle" onClick={() => (draft.pattern ? re.getState().cancelSketchPattern() : re.getState().openSketchPattern())}>
           <KeyIcon name="sketchPattern" size={22} />
         </button>
-        <button data-test="sketch-align" disabled={!oneLine} aria-label="Align" title="Align — Turn the sheet so the selected line lies along its X axis — a crooked edge of the scan becomes the horizontal the rest is drawn against. Nothing moves on the part." onClick={() => re.getState().alignToSelected()}>
+        <button data-test="sketch-align" disabled={!oneLine} aria-label="Align" title="Align — turn the sheet so the selected line is horizontal" onClick={() => re.getState().alignToSelected()}>
           <Icon name="alignSheet" size={22} />
         </button>
       </div>
@@ -801,7 +855,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
       {inferred.length > 0 && (
         <div className="chiprow" data-test="sketch-inferred">
           {inferred.map((c) => (
-            <span key={c.id} className={'relchip' + (draft.selectedConstraint === c.id ? ' sel' : '') + (unmet.some((u) => u.id === c.id) ? ' warn' : '')} data-test="sketch-inferred-chip" title="Inferred while drawing — the piece was drawn nearly so. Click to select it, × to take it off." onClick={() => re.getState().selectConstraint(c.id)}>
+            <span key={c.id} className={'relchip' + (draft.selectedConstraint === c.id ? ' sel' : '') + (unmet.some((u) => u.id === c.id) ? ' warn' : '')} data-test="sketch-inferred-chip" title="Added while drawing. Click to select, × to remove" onClick={() => re.getState().selectConstraint(c.id)}>
               {constraintLabel(c, sketch)}
               <button className="x" tabIndex={-1} title="Take the inferred relation off" onClick={(e) => { e.stopPropagation(); re.getState().selectConstraint(c.id); re.getState().removeSelectedConstraint() }}>
                 ×
@@ -834,7 +888,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
                   className="chip"
                   data-test="sketch-distance-axis"
                   tabIndex={-1}
-                  title={`Measured ${c.axis === 'x' ? 'along X (ΔX)' : c.axis === 'y' ? 'along Y (ΔY)' : 'straight across'} — click to measure it ${c.axis === 'x' ? 'along Y' : c.axis === 'y' ? 'straight across' : 'along X'} instead. Placing a new one does the same: pull its number above or below the two points for ΔX, beside them for ΔY`}
+                  title={`Measured ${c.axis === 'x' ? 'along X' : c.axis === 'y' ? 'along Y' : 'straight across'}; click to switch`}
                   onClick={() => re.getState().setDistanceAxis(c.id, c.axis === 'x' ? 'y' : c.axis === 'y' ? null : 'x')}
                 >
                   {c.axis === 'x' ? '↔ ΔX' : c.axis === 'y' ? '↕ ΔY' : '⤢ d'}
@@ -892,7 +946,7 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
           <span data-test="sketch-counts">
             {sketch.entities.length} piece{sketch.entities.length === 1 ? '' : 's'} · {found} region{found === 1 ? '' : 's'}
             {report && report.underConstrained.length > 0 && (
-              <span data-test="sketch-loose" title="Pieces a relation or dimension does not pin down yet — drawn in the loose colour on the sheet; the rest in the constrained colour">
+              <span data-test="sketch-loose" title="Pieces not yet pinned down by relations or dimensions">
                 {' '}· {report.underConstrained.length} loose
               </span>
             )}
@@ -910,11 +964,11 @@ export function SketchEditor({ chainsOf }: { chainsOf: () => SketchChains | null
       </div>
       {found > 0 && (
         <div className="toolrow" data-test="sketch-feature-keys">
-          <button className="primary withicon" data-test="sketch-extrude" title="Finish the sketch and extrude every region of it — the body shows as a ghost with arrows to drag; a click on a region lets it go" onClick={() => re.getState().finishAndExtrude()}>
+          <button className="primary withicon" data-test="sketch-extrude" title="Finish and extrude every region" onClick={() => re.getState().finishAndExtrude()}>
             <Icon name="extrude" size={18} />
             Extrude
           </button>
-          <button className="primary withicon" data-test="sketch-revolve" title="Finish the sketch and revolve every region of it about an axis picked next" onClick={() => re.getState().finishAndRevolve()}>
+          <button className="primary withicon" data-test="sketch-revolve" title="Finish and revolve every region about an axis" onClick={() => re.getState().finishAndRevolve()}>
             <Icon name="revolve" size={18} />
             Revolve
           </button>

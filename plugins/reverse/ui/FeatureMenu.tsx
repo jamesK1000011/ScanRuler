@@ -48,7 +48,7 @@ function itemsFor(f: Feature, all: readonly Feature[]): MenuItem[] {
   const items: MenuItem[] = [
     f.suppressed
       ? { label: 'Build again', title: `Put ${f.name} back into the build, as it was`, ids: [f.id], on: false }
-      : { label: 'Suppress', title: `Leave ${f.name} out of the build — kept in the list, its picks and numbers as they are`, ids: [f.id], on: true },
+      : { label: 'Suppress', title: `Leave ${f.name} out of the build, settings kept`, ids: [f.id], on: true },
   ]
   const group = (kinds: Feature['kind'][], name: string) => {
     const of = all.filter((g) => kinds.includes(g.kind))
@@ -120,7 +120,7 @@ export function useFeatureMenu(list: RefObject<HTMLElement | null>, locked: bool
  *  click suppresses the feature. */
 export function SuppressKey({ feature, locked }: { feature: Feature; locked: boolean }) {
   return (
-    <button className="x eye" data-test="feature-suppress" disabled={locked} title={locked ? 'Finish what is open first' : `Suppress ${feature.name} — leave it out of the build, its picks and numbers kept`} onClick={() => useReverse.getState().setSuppressed([feature.id], true)}>
+    <button className="x eye" data-test="feature-suppress" disabled={locked} title={locked ? 'Finish what is open first' : `Suppress ${feature.name}, settings kept`} onClick={() => useReverse.getState().setSuppressed([feature.id], true)}>
       <KeyIcon name="built" size={14} />
     </button>
   )
@@ -138,7 +138,7 @@ export function SuppressedRow({ feature, icon, locked }: { feature: Feature; ico
     else re.removeFeature(feature.id)
   }
   return (
-    <div className="kv ghost suppressed" data-test="feature-row" data-suppressed="true" title={`${feature.name} is suppressed — left out of the build, its picks and numbers kept. Right-click the row for its menu.`}>
+    <div className="kv ghost suppressed" data-test="feature-row" data-suppressed="true" title={`${feature.name} is suppressed. Right-click for its menu`}>
       <span className="kind">
         <KeyIcon name={icon} size={15} />
       </span>

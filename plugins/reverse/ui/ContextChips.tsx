@@ -43,7 +43,7 @@ function moveChip(bodies: number[]): { key: string; label: string; title: string
   return {
     key: 'move-body',
     label: one ? 'Move body' : 'Move bodies',
-    title: `Move or turn ${one ? 'this body' : 'these bodies'} — drag the arrows and rings on the part, or type the distances and angles; tick Copy to move a copy instead`,
+    title: `Move or turn ${one ? 'this body' : 'these bodies'}`,
     run: () => useReverse.getState().startFeature('moveBody', { bodies }),
   }
 }
@@ -62,7 +62,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
   switch (sel.kind) {
     case 'region':
       return [
-        { key: 'extrude', label: 'Extrude', title: 'Extrude this profile — the ghost and its arrows appear on the part', run: () => re().startExtrude(sel.sketchId, [sel.key]) },
+        { key: 'extrude', label: 'Extrude', title: 'Extrude this profile', run: () => re().startExtrude(sel.sketchId, [sel.key]) },
         { key: 'revolve', label: 'Revolve', title: 'Revolve this profile about an axis picked next', run: () => re().startRevolve(sel.sketchId, [sel.key]) },
       ]
     case 'element': {
@@ -88,7 +88,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
         })
       }
       if (fit && (fit.kind === 'plane' || fit.kind === 'cylinder' || fit.kind === 'cone' || fit.kind === 'sphere' || fit.kind === 'torus')) {
-        chips.push({ key: 'extract', label: 'Extract as body', title: `${sel.name} as a solid at its extents, extended as in 3D Measure`, run: () => re().startFeature('extract', { element: sel.id }) })
+        chips.push({ key: 'extract', label: 'Extract as body', title: `Make ${sel.name} a solid body`, run: () => re().startFeature('extract', { element: sel.id }) })
       }
       return chips
     }
@@ -104,7 +104,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
             else useStore.getState().setStatus(SKETCH_STARTED)
           },
         },
-        { key: 'hide-plane', label: 'Hide', title: `Put the ${name} away — its eye in the body list brings it back`, run: () => re().setPlaneShown(sel.axis, false) },
+        { key: 'hide-plane', label: 'Hide', title: `Hide the ${name}`, run: () => re().setPlaneShown(sel.axis, false) },
       ]
     }
     case 'sketchLine':
@@ -126,7 +126,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
         chips.push({
           key: 'extrude-face',
           label: 'Extrude',
-          title: 'Pull this face: drag the arrow out to add to the body, in to cut into it',
+          title: 'Drag to add to the body or cut into it',
           run: () => {
             const why = re().extrudeFace(sel.bodyId, sel.face)
             if (why) useStore.getState().setError(why)
@@ -135,7 +135,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
         chips.push({
           key: 'sketch-here',
           label: 'Sketch here',
-          title: 'Start a sketch on this face of the body, its outline projected into the sketch',
+          title: 'Sketch on this face, its outline brought in',
           run: () => {
             const { entities, skipped } = projectFaceOutline(sel.edges, frame, sel.bodyId)
             re().startSketch({ kind: 'bodyFace', body: sel.bodyId, face: sel.face.fingerprint, frame }, frame, entities)
@@ -149,7 +149,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
         chips.push({
           key: 'move-face',
           label: 'Move face',
-          title: sel.face.fingerprint.kind === 'cylinder' ? 'Offset this round face: type how much its radius grows or shrinks — Ctrl+click its ends too to make the whole cylinder longer and wider' : 'Offset this face along its normal by a typed distance — Ctrl+click more faces to move them together',
+          title: sel.face.fingerprint.kind === 'cylinder' ? 'Grow or shrink this round face’s radius' : 'Move this face by a distance (Ctrl+click for more)',
           run: () => re().startFeature('moveFace', { body: sel.bodyId, faces: [sel.face] }),
         })
       }
@@ -157,7 +157,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
         chips.push({
           key: 'snap',
           label: 'Snap to scan',
-          title: 'Move this face onto the scan: click the scan where the face should lie — a plane or a cylinder is fitted there and the face moved to it',
+          title: 'Click the scan where this face should lie',
           run: () => {
             re().startFeature('moveFace', { body: sel.bodyId, faces: [sel.face], snap: true })
             useStore.getState().setStatus('Now click the scan where this face should lie.')
@@ -168,15 +168,15 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
       chips.push({
         key: 'delete-face',
         label: 'Delete face',
-        title: 'Take this face off the body and heal the gap — with the rest of the round, the hole or the boss it is part of',
+        title: 'Remove this face’s feature and heal the gap',
         run: () => re().startFeature('deleteFace', { body: sel.bodyId, faces: deleteGroup(sel.bodyId, sel.face) }),
       })
       if (sel.face.fingerprint.kind === 'cylinder' && sel.face.fingerprint.center) {
         chips.push({ key: 'hole', label: 'Hole', title: 'A hole along this face’s axis', run: () => re().startFeature('hole', { body: sel.bodyId, axis: { kind: 'face', face: sel.face.fingerprint }, radius: sel.face.fingerprint.radius ?? 3 }) })
-        if (!partial) chips.push({ key: 'thread', label: 'Thread', title: 'A modeled screw thread on this round face — a bolt’s on a boss, a nut’s in a bore, the standard size for it to start', run: () => re().startFeature('thread', { body: sel.bodyId, face: sel.face, length: roundFaceLength(sel.face.fingerprint) }) })
+        if (!partial) chips.push({ key: 'thread', label: 'Thread', title: 'Model a screw thread on this round face', run: () => re().startFeature('thread', { body: sel.bodyId, face: sel.face, length: roundFaceLength(sel.face.fingerprint) }) })
       }
       if (frame) chips.push({ key: 'mirror', label: 'Mirror', title: 'Mirror the body about this face', run: () => re().startFeature('mirror', { body: sel.bodyId, plane: { kind: 'face', face: sel.face.fingerprint } }) })
-      if (frame) chips.push({ key: 'draft', label: 'Draft', title: 'Lean faces of the body about this face as the neutral plane — click the faces to lean next', run: () => re().startFeature('draft', { body: sel.bodyId, neutral: { kind: 'face', face: sel.face.fingerprint } }) })
+      if (frame) chips.push({ key: 'draft', label: 'Draft', title: 'Draft faces about this one; click faces to tilt', run: () => re().startFeature('draft', { body: sel.bodyId, neutral: { kind: 'face', face: sel.face.fingerprint } }) })
       chips.push(moveChip([sel.bodyId]))
       return chips
     }
@@ -213,7 +213,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
           {
             key: 'clearance',
             label: 'Clearance',
-            title: 'How far apart the two bodies stand at the closest — or how much of them runs into each other',
+            title: 'Closest gap, or overlap, between the two bodies',
             run: () => {
               const s = reverseSession()
               if (!s) return
@@ -232,7 +232,7 @@ function chipsFor(sel: ReSelection): { key: string; label: string; title: string
           { key: 'delete-face', label: 'Delete faces', title: `Take these ${picked.length} faces off the body and heal the gap`, run: () => re().startFeature('deleteFace', { body, faces: picked }) },
         ]
         if (picked.every((f) => movableFace(f.fingerprint) && !partialRound(f))) {
-          chips.unshift({ key: 'move-face', label: 'Move faces', title: `Offset these ${picked.length} faces together by one distance — the flat ones along their normals, the round ones in radius`, run: () => re().startFeature('moveFace', { body, faces: picked }) })
+          chips.unshift({ key: 'move-face', label: 'Move faces', title: `Move these ${picked.length} faces together by one distance`, run: () => re().startFeature('moveFace', { body, faces: picked }) })
         }
         return chips
       }
@@ -336,7 +336,7 @@ export function ContextChips() {
     chips.push({
       key: 'note',
       label: 'Note',
-      title: `Pin a note for the agent on ${items.length === 1 ? `this ${items[0].type === 'vertex' ? 'corner' : items[0].type}` : 'these'} — say what to do with ${items.length === 1 ? 'it' : 'them'}`,
+      title: `Pin a note on ${items.length === 1 ? `this ${items[0].type === 'vertex' ? 'corner' : items[0].type}` : 'these'}`,
       run: () => pinNoteOnItems(items, selection.at),
     })
   }

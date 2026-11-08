@@ -97,13 +97,13 @@ function ParameterRow({ p, focus }: { p: Parameter; focus: boolean }) {
         tabIndex={-1}
         data-test="parameter-pin"
         aria-pressed={Boolean(p.pinned)}
-        title={p.pinned ? 'Important — listed first. Click to take the mark off' : 'Mark as important: listed first, with a star — a dimension to iterate on'}
+        title={p.pinned ? 'Important — listed first. Click to take the mark off' : 'Star it to list it first'}
         onClick={() => tell(re.getState().setParameter(p.id, { pinned: !p.pinned }))}
       >
         {p.pinned ? '★' : '☆'}
       </button>
       <TextCommit shown={p.name} testId="parameter-name" label="The parameter's name, as expressions use it" mono onCommit={(name) => tell(re.getState().setParameter(p.id, { name }))} />
-      <select data-test="parameter-kind" aria-label="Kind" title={`What the parameter is: a length in ${units === 'in' ? 'inches' : 'millimetres'}, an angle in degrees, a whole number, or a plain number`} value={p.kind} onChange={(e) => tell(re.getState().setParameter(p.id, { kind: e.target.value as Parameter['kind'] }))}>
+      <select data-test="parameter-kind" aria-label="Kind" title={`Kind: length, angle, whole number or plain number`} value={p.kind} onChange={(e) => tell(re.getState().setParameter(p.id, { kind: e.target.value as Parameter['kind'] }))}>
         {PARAMETER_KINDS.map((k) => (
           <option key={k.kind} value={k.kind}>
             {k.label}

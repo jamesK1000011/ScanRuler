@@ -29,7 +29,7 @@ export function PlaybackKey() {
       className="x eye all playkey"
       data-test="playback-start"
       disabled={editorOpen || total === 0}
-      title={editorOpen ? 'Finish what is open first' : 'Play the feature list back step by step: the part built up from nothing, one feature at a time, each held a moment — for recording how it was made. Space holds it, the arrows step it, Escape ends it'}
+      title={editorOpen ? 'Finish what is open first' : 'Replay the build step by step (Space pauses, Esc ends)'}
       onClick={() => startPlayback()}
     >
       <KeyIcon name="play" size={13} />
@@ -77,7 +77,7 @@ export function PlaybackBar() {
         <button data-test="playback-forward" disabled={atEnd} title="One step on — the playback held there (→)" aria-label="Step forward" onClick={() => stepPlayback(1)}>
           <KeyIcon name="stepForward" size={16} />
         </button>
-        <button data-test="playback-stop" title="End the playback — the rollback bar back where it stood (Escape)" aria-label="Stop" onClick={() => stopPlayback()}>
+        <button data-test="playback-stop" title="End the playback (Escape)" aria-label="Stop" onClick={() => stopPlayback()}>
           <KeyIcon name="stop" size={16} />
         </button>
       </div>
@@ -91,11 +91,11 @@ export function PlaybackBar() {
           ))}
         </select>
       </label>
-      <label className="playcaption" title="Name each step in the top left of the viewport, for the recording">
+      <label className="playcaption" title="Show each step's name in the view">
         <input type="checkbox" data-test="playback-caption" checked={caption} onChange={(e) => useRePrefs.getState().setPlaybackCaption(e.target.checked)} />
         Caption
       </label>
-      <label className="playcaption" title="Pass over the sketches: only the steps that change the geometry are shown, each profile going straight to the body made of it">
+      <label className="playcaption" title="Skip sketches; show only steps that change the shape">
         <input type="checkbox" data-test="playback-skip-sketches" checked={skipSketches} onChange={(e) => useRePrefs.getState().setPlaybackSkipSketches(e.target.checked)} />
         Skip sketches
       </label>

@@ -84,7 +84,7 @@ export function NetworkFields({ d }: { d: NetworkDraftOpen }) {
       <div className="field" key={testId}>
         <span>{label}</span>
         <span className="unitfield">
-          <label className="checkrow" title="The strip's span count chosen by the fit: 4, and more only where a patch on it misses the scan by more than the tolerance beyond its noise, while that helps — up to 20">
+          <label className="checkrow" title="Let the fit choose the span count (4 to 20)">
             <input type="checkbox" data-test={`${testId}-auto`} checked={strip.auto} onChange={(e) => edit((x) => setStripSpans(x, strip.curves, e.target.checked ? null : strip.spans))} />
             <span>Auto</span>
           </label>
@@ -154,7 +154,7 @@ export function NetworkFields({ d }: { d: NetworkDraftOpen }) {
         <button data-test="network-fill-all" disabled={!report || report.unfilled.length === 0} title="Fill every region the curves close with a patch" onClick={() => report && edit((x) => addSeeds(x, report.unfilled.map((u) => u.seed)))}>
           Fill all{report && report.unfilled.length > 0 ? ` (${report.unfilled.length})` : ''}
         </button>
-        <button data-test="network-suggest" disabled={finding} title="Find the scan's sharp edges and folds, to take as crease curves" onClick={suggest}>
+        <button data-test="network-suggest" disabled={finding} title="Find sharp edges and folds to use as creases" onClick={suggest}>
           {finding ? 'Finding creases…' : 'Suggest creases'}
         </button>
         <button data-test="network-undo" disabled={d.history.length === 0} title="Undo the last edit of the network (Ctrl+Z)" onClick={() => edit(undoNetwork)}>
@@ -212,7 +212,7 @@ export function NetworkFields({ d }: { d: NetworkDraftOpen }) {
           {stripField('Spans along', picked.sides[0]?.[0], 'network-spans-u')}
           {stripField('Spans across', picked.sides[1]?.[0], 'network-spans-v')}
           <div className="toolrow">
-            <button data-test="network-delete-patch" title="Take the patch out, with the edges no other patch has (Delete)" onClick={() => edit((x) => removeReportedPatch(x, report, d.picked!))}>
+            <button data-test="network-delete-patch" title="Remove the patch and its unshared edges (Delete)" onClick={() => edit((x) => removeReportedPatch(x, report, d.picked!))}>
               Delete patch {d.picked + 1}
             </button>
           </div>
@@ -233,7 +233,7 @@ export function NetworkFields({ d }: { d: NetworkDraftOpen }) {
       <BodySides d={d} />
       <Num label="Smoothness" unit="" testId="network-smooth" value={d.fit.smoothness} onCommit={(v) => edit((x) => setNetworkFit(x, { smoothness: Math.max(0, Math.abs(v)) }))} hint="How hard the patches and their edges are held fair against the scan: 0 follows it exactly, 0.001 fairs its noise, 0.1 smooths well over it, from 1 detail goes" />
       <Num label="Tolerance" testId="network-tolerance" value={d.fit.tolerance ?? DEFAULT_TOLERANCE} onCommit={(v) => edit((x) => setNetworkFit(x, { tolerance: Math.max(0, Math.abs(v)) }))} hint="How far a patch may stray from the scan beyond its noise before Auto gives its strips more spans: they start at 4 and get more only where a patch misses by more than this, and only while that helps. Fewer spans are smoother" />
-      <label className="checkrow" title="Fit again without the points past three sigmas of the first fit — a rib or a stray edge caught in a cell">
+      <label className="checkrow" title="Refit, ignoring stray points such as a rib or edge">
         <input type="checkbox" data-test="network-robust" checked={d.fit.robust === true} onChange={(e) => edit((x) => setNetworkFit(x, { robust: e.target.checked }))} />
         <span>Leave out stray points</span>
       </label>
@@ -270,7 +270,7 @@ function BodySides({ d }: { d: NetworkDraftOpen }) {
         const reading = report?.bodies.find((b) => b.curve === c.id)
         const value = c.side ? `${c.side.mode}|${faces.findIndex((f) => f.fingerprint.centroid.join() === c.side!.face.centroid.join())}` : 'none'
         return (
-          <label key={c.id} className="field" title="How the patch beside this curve meets the body: on the body's edge (Contact), or tangent to one of the edge's two faces as well">
+          <label key={c.id} className="field" title="How the patch meets the body at this curve">
             <span>
               Along {bodies.find((b) => b.id === body)?.name ?? `body ${body}`}
               {reading ? ` · ${reading.angle.toFixed(2)}°` : ''}

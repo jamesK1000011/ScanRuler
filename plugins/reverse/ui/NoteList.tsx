@@ -239,7 +239,7 @@ export function NoteList() {
           data-test="note-add"
           aria-pressed={placing}
           disabled={!somewhere || editorOpen}
-          title={!somewhere ? 'Load a scan or build a body first — a note is pinned on the part' : editorOpen ? 'Finish what is open first' : placing ? 'Click the part where the note goes — or here, or Escape, to stop' : 'Pin a note for the agent on the part: click where it goes next'}
+          title={!somewhere ? 'Load a scan or build a body first' : editorOpen ? 'Finish what is open first' : placing ? 'Click the part to place the note (Escape stops)' : 'Pin a note on the part'}
           onClick={() => {
             if (placing) n().setPlacing(false)
             else {
@@ -256,7 +256,7 @@ export function NoteList() {
           <button
             className="withicon"
             data-test="note-remove-all"
-            title="Take every note off the part — yours and the agent’s questions, open and handled. Not a step of the undo history"
+            title="Remove every note (can't be undone)"
             onClick={() => {
               const count = listed.length
               if (!window.confirm(`Delete all ${count} note${count === 1 ? '' : 's'} for the agent? This cannot be undone.`)) return
@@ -275,7 +275,7 @@ export function NoteList() {
           <button
             className="notebody"
             data-test="note-open"
-            title={note.fromFile ? 'Read the note from the project file. Keep it or answer it to make it yours' : note.by === 'agent' ? 'Answer the agent’s question' : 'Edit the note'}
+            title={note.fromFile ? 'Note from the project file; edit to make it yours' : note.by === 'agent' ? 'Answer the question' : 'Edit the note'}
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect()
               n().edit({ id: note.id, at: { x: r.left, y: r.bottom - 6 } })

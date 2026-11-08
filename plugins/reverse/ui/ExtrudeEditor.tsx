@@ -133,9 +133,9 @@ export function ExtrudeEditor() {
           disabled={extent.kind !== 'distance' && extent.kind !== 'toNext' && extent.kind !== 'toLast' && extent.kind !== 'toBody'}
           title={
             extent.kind === 'distance'
-              ? 'Extrude the other way along the sketch plane’s normal — From and To change sign, and the ghost turns over'
+              ? 'Extrude the other way'
               : extent.kind === 'toNext' || extent.kind === 'toLast' || extent.kind === 'toBody'
-                ? 'Look for the body the other way along the sketch plane’s normal'
+                ? 'Look for the body the other way'
               : extent.kind === 'symmetric'
                 ? 'A symmetric extrude has no direction to reverse'
                 : 'An extrude limited by a plane reaches the way the plane lies'

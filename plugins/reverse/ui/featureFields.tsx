@@ -284,13 +284,13 @@ export function OpFields({ op, canCut, testPrefix, onOp }: { op: 'new' | 'join' 
     <label className="field">
       <span>Result</span>
       <select data-test={`${testPrefix}-op`} value={op} onChange={(e) => onOp(e.target.value as 'new' | 'join' | 'cut')}>
-        <option value="join" title="Made one with every body it touches; a body of its own where it touches none, one body of all where it bridges several">
+        <option value="join" title="Merge with every body it touches">
           Join
         </option>
-        <option value="cut" disabled={!canCut} title="Taken out of every body it goes into; a body it parts is a body a piece">
+        <option value="cut" disabled={!canCut} title="Cut from every body it goes into">
           Cut
         </option>
-        <option value="new" title="A body of its own, whatever it overlaps — a tool to cut the scan with in Mesh Tools">
+        <option value="new" title="Keep it as a separate body">
           New body
         </option>
       </select>
@@ -323,7 +323,7 @@ export function Num({ label, value, unit, testId, nominal, slot, kind, passKeys,
         )}
       </span>
       {round !== null && nominal && (
-        <button className="chip nominal" data-test={`${testId}-nominal`} tabIndex={-1} title="The round number this was probably meant as — click to take it" onClick={() => onCommit(round)}>
+        <button className="chip nominal" data-test={`${testId}-nominal`} tabIndex={-1} title="Use the likely design value" onClick={() => onCommit(round)}>
           → {nominalText(round, nominal, units)}
         </button>
       )}

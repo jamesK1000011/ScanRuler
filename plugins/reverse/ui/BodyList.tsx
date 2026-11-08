@@ -296,7 +296,7 @@ export function BodyList({ bodies, children }: { bodies: BodyInfo[]; children?: 
           <button
             className="x newfolder"
             data-test="body-folder-new"
-            title={pickCount > 0 && !move ? `A new component holding ${pickWords(listPick, bodies, folders).toLowerCase()} — a folder to sort bodies into` : "A new component — a folder to sort bodies into, an assembly's parts by what they make up: drag bodies onto it, or pick rows first to put them in"}
+            title={pickCount > 0 && !move ? `New component holding ${pickWords(listPick, bodies, folders).toLowerCase()}` : "New component: a folder to drag bodies into"}
             onClick={newFolder}
           >
             <KeyIcon name="component" size={13} />
@@ -321,7 +321,7 @@ export function BodyList({ bodies, children }: { bodies: BodyInfo[]; children?: 
       {!move && pickCount > 0 && (
         <div className="bodysel" data-test="body-selection">
           <span data-test="body-selection-words">{pickWords(listPick, bodies, folders)}</span>
-          <button data-test="body-selection-move" disabled={pickedBodies.length === 0 || editorOpen} title={editorOpen ? 'Finish what is open first' : 'Move and turn these bodies together — or copies of them — by the gizmo or by numbers'} onClick={() => re.getState().startFeature('moveBody', { bodies: pickedBodies })}>
+          <button data-test="body-selection-move" disabled={pickedBodies.length === 0 || editorOpen} title={editorOpen ? 'Finish what is open first' : 'Move or turn these bodies, or copies of them'} onClick={() => re.getState().startFeature('moveBody', { bodies: pickedBodies })}>
             <KeyIcon name="moveBody" size={14} />
             Move
           </button>
@@ -411,7 +411,7 @@ function FolderRow({
       data-test="body-folder"
       data-folder={f.id}
       aria-selected={m.selected}
-      title={`${f.name} — ${inside.length} bod${inside.length === 1 ? 'y' : 'ies'}. Drag bodies onto it to put them in; right-click for more`}
+      title={`${f.name} — ${inside.length} bod${inside.length === 1 ? 'y' : 'ies'}. Drop bodies here`}
       onPointerEnter={() => hoverRows(ids.length > 0 ? ids : null)}
       onPointerLeave={() => hoverRows(null)}
       // Shift+click spans rows; the text under it is not to be selected.
@@ -510,7 +510,7 @@ function BodyRow({ body: b, depth, onPick, onMenu, rowEvents, ...m }: RowMarks &
             onBlur={(e) => name(e.currentTarget.value)}
           />
         ) : (
-          <span className="name" data-test="body-name" title="Double-click to name the body — the name it has in a STEP file; cleared, it is Solid n again" onDoubleClick={() => setNaming(true)}>
+          <span className="name" data-test="body-name" title="Double-click to rename (the name used in STEP)" onDoubleClick={() => setNaming(true)}>
             {b.name}
           </span>
         )}
@@ -551,7 +551,7 @@ function menuItems(pick: ListPick, bodies: readonly BodyInfo[], folders: readonl
         : { key: 'hide-others', label: 'Hide others', title: `Hide every body but ${oneFolder ? `those in ${oneFolder.name}` : ids.length === 1 ? 'this one' : 'these'}`, run: () => isolateBodies(ids) },
     )
   }
-  if (ids.length > 0 && !editorOpen) items.push({ key: 'move-bodies', label: ids.length === 1 ? 'Move body' : `Move ${ids.length} bodies`, title: 'Move and turn them together — or copies of them — by the gizmo or by numbers', run: () => re().startFeature('moveBody', { bodies: ids }) })
+  if (ids.length > 0 && !editorOpen) items.push({ key: 'move-bodies', label: ids.length === 1 ? 'Move body' : `Move ${ids.length} bodies`, title: 'Move or turn them together, or copies of them', run: () => re().startFeature('moveBody', { bodies: ids }) })
   const what = outermost(folders, pick)
   if (oneFolder) {
     items.push({
@@ -577,7 +577,7 @@ function menuItems(pick: ListPick, bodies: readonly BodyInfo[], folders: readonl
     items.push({ key: `move-${f.id}`, label: `Move to ${folderPathText(folders, f.id)}`, title: `Put ${words.toLowerCase()} into ${f.name}`, run: () => re().moveToBodyFolder(what, f.id) })
   }
   if (spread.some((p) => p !== null)) items.push({ key: 'move-top', label: 'Move to the top of the list', title: 'Take it out of its component', run: () => re().moveToBodyFolder(what, null) })
-  if (oneFolder) items.push({ key: 'remove', label: 'Remove component', title: `Take ${oneFolder.name} away — what it holds moves up a level; no body is deleted`, run: () => re().removeBodyFolder(oneFolder.id) })
+  if (oneFolder) items.push({ key: 'remove', label: 'Remove component', title: `Remove ${oneFolder.name}; its bodies move up a level`, run: () => re().removeBodyFolder(oneFolder.id) })
   return items
 }
 

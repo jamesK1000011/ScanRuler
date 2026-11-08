@@ -232,7 +232,7 @@ export function FeatureEditor() {
               {d.mode === 'twoDistances' && <Num label="Distance 2" testId="chamfer-distance2" slot="distance2" value={d.distance2} nominal="length" onCommit={(v) => set({ distance2: Math.abs(v) })} hint="How far back from the edge the face across from the reference is cut." />}
               {d.mode === 'distanceAngle' && <Num label="Angle" unit="°" testId="chamfer-angle" slot="angleDeg" value={d.angleDeg} nominal="angle" onCommit={(v) => set({ angleDeg: Math.min(89.9, Math.max(0.1, Math.abs(v))) })} hint="Degrees between the chamfer and the reference face, under 90 — 45° on a square edge is the equal chamfer." />}
               {d.mode !== 'equal' && (
-                <label className="checkrow" title="Measure from the other face of each edge: the distances swap sides, the angle is read off the other face">
+                <label className="checkrow" title="Measure from the other face of each edge">
                   <input type="checkbox" data-test="chamfer-flip" checked={d.flip} onChange={(e) => set({ flip: e.target.checked })} />
                   <span>Flip — the other face is the reference</span>
                 </label>
@@ -301,7 +301,7 @@ export function FeatureEditor() {
           </label>
           {d.neutral !== null && (
             <div className="toolrow">
-              <button data-test="draft-neutral-clear" title="Pick the neutral plane again — the next flat face clicked is it" onClick={() => set({ neutral: null })}>
+              <button data-test="draft-neutral-clear" title="Pick the neutral plane again" onClick={() => set({ neutral: null })}>
                 Pick another neutral face
               </button>
             </div>
@@ -315,7 +315,7 @@ export function FeatureEditor() {
           </div>
           <Num label="Angle" unit="°" testId="draft-angle" slot="angleDeg" value={d.angleDeg} nominal="angle" onCommit={(v) => set({ angleDeg: v })} hint="Degrees the faces lean in as they go away from the neutral plane; negative leans them out" />
           {(d.groups?.length ?? 0) > 0 && (
-            <p className="hint" data-test="draft-groups" title="More faces at angles of their own, set through the commands (groups); kept as they are when this box is applied">
+            <p className="hint" data-test="draft-groups" title="Other faces with their own angles; kept as they are">
               Then {d.groups!.map((g) => `${g.faces.length} face${g.faces.length === 1 ? '' : 's'} at ${Math.round(g.angleDeg * 100) / 100}°`).join(', ')}.
             </p>
           )}
@@ -349,7 +349,7 @@ export function FeatureEditor() {
                 data-test="move-face-snap"
                 className={snapping ? 'on' : ''}
                 aria-pressed={snapping}
-                title={snapping ? 'Click faces of the body again — to add to the move, or to let one go' : 'Read the move off the scan: click the scan where this face should lie, and a plane or a cylinder fitted there says how far'}
+                title={snapping ? 'Click faces to add or drop them' : 'Click the scan where this face should lie'}
                 onClick={() => set({ snap: !snapping, error: null })}
               >
                 {snapping ? 'Pick faces instead' : 'Snap to scan'}
@@ -397,15 +397,30 @@ export function FeatureEditor() {
             )}
           </p>
           {lean && d.featureId === undefined && (
-            <label className="checkrow" title={`A Draft feature after the move: the moved face turns ${lean.angleDeg.toFixed(2)}° about the line across its middle where the scan's plane crosses it, and lies on the scan. A moulded wall modelled square gets its draft this way. Everything built after builds on the leaned face; one Ctrl+Z takes the move and the draft back together.`}>
+            <label className="checkrow" title="Also tilt the face to match the scan">
               <input type="checkbox" data-test="move-face-lean" checked={d.lean} onChange={(e) => set({ lean: e.target.checked })} />
               <span>Draft it as well, by {lean.angleDeg.toFixed(2)}°</span>
+              <InfoDot title="Draft it as well">
+                <p>
+                  A Draft feature after the move: the moved face turns {lean.angleDeg.toFixed(2)}° about the
+                  line across its middle where the scan's plane crosses it, and lies on the scan. A
+                  moulded wall modelled square gets its draft this way. Everything after builds on the
+                  leaned face; one Ctrl+Z takes the move and the draft back together.
+                </p>
+              </InfoDot>
             </label>
           )}
           {plan && plan.route !== 'direct' && (
-            <label className="checkrow" title="Change what made the face — the extrude's distance, the sketch's line or circle — as you would by hand, instead of adding a Move face: the rounds, shells and cuts after it build again on the moved wall">
+            <label className="checkrow" title="Edit the feature that made the face instead">
               <input type="checkbox" data-test="move-face-history" checked={d.kind === 'moveFace' && d.history} onChange={(e) => set({ history: e.target.checked })} />
               <span>Change what made {several ? 'them' : 'it'} instead</span>
+              <InfoDot title="Change what made it">
+                <p>
+                  Changes what made the face — the extrude's distance, the sketch's line or circle — as
+                  you would by hand, instead of adding a Move face. The rounds, shells and cuts after it
+                  build again on the moved wall.
+                </p>
+              </InfoDot>
             </label>
           )}
           {plan && (
@@ -444,7 +459,7 @@ export function FeatureEditor() {
               onHover={(key) => hintAxis(key, options, chosen)}
             />
           </label>
-          <label className="field" title="Size the hole for a heat-set insert: its hole diameter, and a millimetre deeper than the insert is long">
+          <label className="field" title="Size the hole for a heat-set insert, a millimetre deeper">
             <span>Insert</span>
             <select
               data-test="hole-insert"
@@ -588,9 +603,17 @@ export function FeatureEditor() {
               </label>
             </>
           )}
-          <label className="checkrow" title="A 45° chamfer across the thread where it comes out of the body free — a bolt's tip, a bore's mouth at either side of a nut — from just past the root out through the crests, so the thread starts clean instead of on a knife-edge first turn. Not where the thread ends against a shoulder or a bore's floor, or short of the face's end.">
+          <label className="checkrow" title="Chamfer the open ends so the thread starts clean">
             <input type="checkbox" data-test="thread-chamfer" checked={d.chamfer} onChange={(e) => set({ chamfer: e.target.checked })} />
             <span>Chamfer the free ends (45°)</span>
+            <InfoDot title="Chamfered free ends">
+              <p>
+                A 45° chamfer across the thread where it comes out of the body free — a bolt's tip, a
+                bore's mouth at either side of a nut — from just past the root out through the crests,
+                so the thread starts clean instead of on a knife-edge first turn. Not where the thread
+                ends against a shoulder or a bore's floor, or short of the face's end.
+              </p>
+            </InfoDot>
           </label>
           <Num
             label="Offset"
@@ -701,7 +724,7 @@ export function FeatureEditor() {
                   Use it
                 </button>
               )}{' '}
-              <button className="chip nominal" data-test="mirror-symmetry-keep" title="Make it a plane element in 3D Measure — Symmetry plane — for sketches, sections and dimensions to stand on; the mirror then refers to the element" onClick={() => keepSymmetryPlane()}>
+              <button className="chip nominal" data-test="mirror-symmetry-keep" title="Keep it as a Symmetry plane element in 3D Measure" onClick={() => keepSymmetryPlane()}>
                 Keep as a plane element
               </button>
             </p>
@@ -918,7 +941,7 @@ export function FeatureEditor() {
             </span>
           </div>
           <div className="toolrow">
-            <StepFileKey testId="import-choose" title="Read another STEP file in this one's place — the features after it keep their picks where they still find them" onFile={(file) => set({ file })}>
+            <StepFileKey testId="import-choose" title="Swap in another STEP file, keeping later picks" onFile={(file) => set({ file })}>
               {d.file ? 'Another file…' : 'Choose a STEP file…'}
             </StepFileKey>
           </div>
@@ -958,14 +981,14 @@ export function FeatureEditor() {
               </select>
             </label>
           )}
-          <label className="checkrow" title="Leave the bodies where they are and move copies of them — bodies of their own">
+          <label className="checkrow" title="Move copies, leaving the bodies in place">
             <input type="checkbox" data-test="move-body-copy" checked={d.copy} onChange={(e) => set({ copy: e.target.checked })} />
             <span>Copy — move a copy, the body stays where it is</span>
           </label>
           <XyzField label="Move" kind="length" slot="translate" value={d.translate} testId="move-body-translate" hint="How far along the part's X, Y and Z, after the turn — the arrows on the part drag them" onCommit={(i, v) => axis('translate', i, v)} />
           <XyzField label="Turn" unit="°" kind="angle" slot="rotate" value={d.rotate} testId="move-body-rotate" hint="Degrees about X, then about Y, then about Z, each through the middle of the bodies as they were picked — the rings on the part drag them; each ring stands about the axis its angle turns about" onCommit={(i, v) => axis('rotate', i, v)} />
           <div className="toolrow">
-            <button data-test="move-body-reset" disabled={d.translate.every((v) => v === 0) && d.rotate.every((v) => v === 0)} title="Put the bodies back where they stood: every distance and angle zero" onClick={() => set({ translate: [0, 0, 0], rotate: [0, 0, 0], exprs: undefined })}>
+            <button data-test="move-body-reset" disabled={d.translate.every((v) => v === 0) && d.rotate.every((v) => v === 0)} title="Reset every distance and angle to zero" onClick={() => set({ translate: [0, 0, 0], rotate: [0, 0, 0], exprs: undefined })}>
               Reset
             </button>
           </div>
@@ -981,7 +1004,7 @@ export function FeatureEditor() {
         <>
           {bodySelect(d.body, (body) => set({ body }))}
           <Num label="Distance" testId="offset-body-distance" slot="distance" value={d.distance} nominal="length" onCommit={(v) => set({ distance: v })} hint="How far all round — out, or in with a negative one. The convex edges come out rounded, as an offset rounds them" />
-          <label className="checkrow" title="Leave the body as it is and make the offset a body of its own — a keep-out round a part, or what is cut from a case to hold it with clearance (Combine, Cut by, the offset as the tool)">
+          <label className="checkrow" title="Keep the body; make the offset a new body">
             <input type="checkbox" data-test="offset-body-keep" checked={d.keep} onChange={(e) => set({ keep: e.target.checked })} />
             <span>Keep the body — the offset a new one</span>
           </label>
@@ -1026,7 +1049,7 @@ export function FeatureEditor() {
               </span>
             </div>
           )}
-          <label className="checkrow" title="Keep the tool as a body of its own after the combine, as it was — the body is joined, cut or intersected with a copy of it">
+          <label className="checkrow" title="Keep the tool body after combining">
             <input type="checkbox" data-test="boolean-keep" checked={d.keep} onChange={(e) => set({ keep: e.target.checked })} />
             <span>Keep the tool body</span>
           </label>

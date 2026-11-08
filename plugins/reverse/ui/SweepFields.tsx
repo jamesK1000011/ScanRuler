@@ -51,7 +51,7 @@ export function SweepFields({ profile, path, route, sketches, onChange }: { prof
       {select('Profile', profile, 'sweep-profile', (id) => onChange({ profile: id }))}
       {select('Path', path, 'sweep-path', (id) => onChange({ path: id }))}
       <div className="toolrow">
-        <button data-test="sweep-swap" disabled={profile === null && path === null} title="The profile's sketch for the path's, and the path's for the profile's" onClick={() => onChange({ profile: path, path: profile })}>
+        <button data-test="sweep-swap" disabled={profile === null && path === null} title="Swap the profile and path sketches" onClick={() => onChange({ profile: path, path: profile })}>
           Swap profile and path
         </button>
       </div>
