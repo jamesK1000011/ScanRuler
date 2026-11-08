@@ -32,7 +32,7 @@ interface ReverseBody {
   surface?: boolean
 }
 
-function bodiesNow(): BodyInfo[] {
+export function bodiesNow(): BodyInfo[] {
   const rev = readStateSections().reverse as { bodies?: ReverseBody[] } | undefined
   return (rev?.bodies ?? []).filter((b) => b.visible && !b.surface).map((b) => ({ id: b.id, name: b.name }))
 }
@@ -104,7 +104,7 @@ const settings: Command<Partial<PatentSettings>> = {
     figLabelMm: num('mm.', { minimum: 3, maximum: 15 }),
     lineMm: num('mm.', { minimum: 0.1, maximum: 1 }),
     figuresPerSheet: enumOf([1, 2, 4]),
-    numeralStart: int(undefined, { minimum: 1 }),
+    numeralStart: int(undefined, { minimum: 1, maximum: 9000 }),
     numeralStep: int(undefined, { minimum: 1, maximum: 10 }),
     title: str('"the device", "the clamp".', { minLength: 1 }),
   }),
@@ -199,7 +199,7 @@ const numerals: Command<{ assign?: 'bodies'; set?: { n?: number; label: string; 
     'The reference numerals: each part, or each point on one, and its number. The same numeral stands for the same part in every figure and paragraph. assign "bodies" gives each visible solid body without one the next free numeral (10, 12, 14… by default), labelled with its name; a body renamed in Reverse Engineer takes its numeral and auto label with it. set adds or changes numerals: { label, body } for a whole body, or { label, at: [x, y, z], body? } for a feature — a point on the part\'s surface, mm (reverse.body.describe gives faces and edges to pick from); n picks the number, the next free one when left out. remove drops numerals; renumber numbers them again in order from the start and moves the draft\'s [[n]] tokens with them. Changes no drawing until patent.render.',
   input: obj({
     assign: enumOf(['bodies']),
-    set: arr(obj({ n: int(undefined, { minimum: 1 }), label: str(undefined, { minLength: 1 }), body: str(), at: vec3('A point on the part, mm.') }, ['label'])),
+    set: arr(obj({ n: int(undefined, { minimum: 1, maximum: 9999 }), label: str('200 characters at most.', { minLength: 1 }), body: str(), at: vec3('A point on the part, mm.') }, ['label'])),
     remove: arr(int()),
     renumber: bool(),
   }),
@@ -214,7 +214,10 @@ const numerals: Command<{ assign?: 'bodies'; set?: { n?: number; label: string; 
       added.push(...r.added.map((x) => x.n))
     }
     for (const x of input.set ?? []) {
-      if (!x.body && !x.at) throw new CommandError('invalid_input', `${x.label}: give it a body, a point (at), or both.`)
+      if (x.label.length > 200) throw new CommandError('invalid_input', `${x.label.slice(0, 39)}…: a label is 200 characters at most.`)
+      const named = x.label.length > 40 ? `${x.label.slice(0, 39)}…` : x.label
+      if (!x.body && !x.at) throw new CommandError('invalid_input', `${named}: give it a body, a point (at), or both.`)
+      if (x.at && !x.at.every((v) => Number.isFinite(v) && Math.abs(v) <= 100_000)) throw new CommandError('invalid_input', `${named}: at is a point on the part, mm — within 100 m of the origin.`)
       const n = x.n ?? list.find((m) => m.label === x.label)?.n ?? nextNumeral(list, s.settings)
       const nm: Numeral = { n, label: x.label, auto: false, target: x.at ? { at: x.at, ...(x.body ? { body: x.body } : {}) } : { body: x.body!, ...(bodiesNow().find((b) => b.name === x.body) ? { id: bodiesNow().find((b) => b.name === x.body)!.id } : {}) } }
       list = [...list.filter((m) => m.n !== n), nm].sort((a, b) => a.n - b.n)
@@ -288,13 +291,14 @@ const draft: Command<{ section?: Section; text?: string; generate?: 'drawings'; 
   name: 'draft',
   title: 'The draft description',
   description: `The draft text, by section: ${SECTIONS.join(', ')}. Write numerals as tokens: [[10]] reads "housing 10", [[10#]] the bare 10 — so a renamed part renames every paragraph. text writes a section (empty clears it); generate "drawings" writes the brief description from the figures. With section alone, reads it (raw and as it reads); with nothing, every section. scaffold: true answers what the detailed description should cover — each numeral, the figures it is in, the parts' sizes — and what geometry can't tell (what each part does, materials, alternatives, what is new), which only the inventor can say. Every section is marked "${DRAFT_MARK}". Claims are suggested language only. Nothing here is sent anywhere.`,
-  input: obj({ section: enumOf([...SECTIONS]), text: str(), generate: enumOf(['drawings']), scaffold: bool() }),
+  input: obj({ section: enumOf([...SECTIONS]), text: str('60 000 characters at most.'), generate: enumOf(['drawings']), scaffold: bool() }),
   run: async ({ section, text, generate, scaffold }) => {
     sync()
     const s = usePatent.getState()
     if (generate) usePatent.getState().set({ draft: { ...s.draft, drawings: briefDescription(s.figures, s.settings.title) } })
     if (text !== undefined) {
       if (!section) throw new CommandError('invalid_input', 'Name the section to write.')
+      if (text.length > 60_000) throw new CommandError('invalid_input', `A section is 60 000 characters at most (this is ${text.length}); split it.`)
       const bad = unknownTokens(text, s.numerals)
       if (bad.length) throw new CommandError('invalid_input', `No numeral ${bad.join(', ')}: patent.numerals { set } adds one.`)
       const next = { ...usePatent.getState().draft }

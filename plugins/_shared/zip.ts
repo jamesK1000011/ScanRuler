@@ -17,8 +17,15 @@ export function crc32(b: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0
 }
 
-export function zip(files: { name: string; bytes: Uint8Array }[]): Uint8Array {
+/** A time as a zip entry holds it: MS-DOS time and date, local time. */
+export function dosTime(d: Date): { time: number; date: number } {
+  const y = Math.min(Math.max(d.getFullYear(), 1980), 2107)
+  return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((y - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() }
+}
+
+export function zip(files: { name: string; bytes: Uint8Array }[], at = new Date()): Uint8Array {
   const enc = new TextEncoder()
+  const when = dosTime(at)
   const parts: Uint8Array[] = []
   const central: Uint8Array[] = []
   let offset = 0
@@ -29,6 +36,8 @@ export function zip(files: { name: string; bytes: Uint8Array }[]): Uint8Array {
     local.setUint32(0, 0x04034b50, true)
     local.setUint16(4, 20, true)
     local.setUint16(6, 0x0800, true)
+    local.setUint16(10, when.time, true)
+    local.setUint16(12, when.date, true)
     local.setUint32(14, crc, true)
     local.setUint32(18, file.bytes.length, true)
     local.setUint32(22, file.bytes.length, true)
@@ -39,6 +48,8 @@ export function zip(files: { name: string; bytes: Uint8Array }[]): Uint8Array {
     c.setUint16(4, 20, true)
     c.setUint16(6, 20, true)
     c.setUint16(8, 0x0800, true)
+    c.setUint16(12, when.time, true)
+    c.setUint16(14, when.date, true)
     c.setUint32(16, crc, true)
     c.setUint32(20, file.bytes.length, true)
     c.setUint32(24, file.bytes.length, true)

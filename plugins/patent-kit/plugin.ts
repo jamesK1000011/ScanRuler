@@ -5,6 +5,7 @@
 // computer: no filing, no upload, no network. Its commands (patent.*) work
 // on the bodies in Reverse Engineer.
 
+import { pick, registerHistory } from '../../src/state/historyStore'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { patentCommands } from './app/patentCommands'
@@ -25,6 +26,12 @@ const plugin: ScanRulerPlugin = {
   usePlugin: usePatentPlugin,
   install() {
     registerProjectSection(patentSection)
+    // The panel's edits and the agent's are steps of the app's undo, like
+    // any other: Ctrl+Z takes back the last of them, not a body elsewhere.
+    registerHistory({
+      sections: [{ key: 'patent-kit', capture: () => pick(usePatent.getState(), ['settings', 'figures', 'numerals', 'draft']), apply: (v) => usePatent.setState(v as Partial<ReturnType<typeof usePatent.getState>>) }],
+      actions: [{ store: usePatent, label: 'Patent', names: ['set'] }],
+    })
     registerCommands('patent', patentCommands)
     registerStateSection('patent', () => {
       const s = usePatent.getState()
