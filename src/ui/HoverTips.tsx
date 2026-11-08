@@ -30,6 +30,9 @@ export function HoverTips() {
     let held = ''
     let timer: ReturnType<typeof setTimeout> | undefined
     let warmUntil = 0
+    // After a press, what moves under a still pointer (a tab strip scrolling
+    // its open tab into view) is not a hover: wait for the pointer to move.
+    let pressed = false
 
     const put = () => {
       if (el && held && !el.hasAttribute('title')) el.setAttribute('title', held)
@@ -48,7 +51,7 @@ export function HoverTips() {
       setTip({ text, x: r.left + r.width / 2, y: above ? r.top - GAP : r.bottom + GAP, above })
     }
     const over = (e: PointerEvent) => {
-      if (e.pointerType === 'touch') return
+      if (e.pointerType === 'touch' || pressed) return
       const target = (e.target as Element | null)?.closest?.('[title]') as HTMLElement | null
       if (target === el) return
       leave()
@@ -72,9 +75,17 @@ export function HoverTips() {
       warmUntil = 0
       leave()
     }
+    const press = () => {
+      pressed = true
+      away()
+    }
+    const moved = () => {
+      pressed = false
+    }
     document.addEventListener('pointerover', over, true)
     document.addEventListener('pointerout', out, true)
-    document.addEventListener('pointerdown', away, true)
+    document.addEventListener('pointerdown', press, true)
+    document.addEventListener('pointermove', moved, true)
     document.addEventListener('keydown', away, true)
     window.addEventListener('scroll', away, true)
     window.addEventListener('blur', away)
@@ -82,7 +93,8 @@ export function HoverTips() {
       leave()
       document.removeEventListener('pointerover', over, true)
       document.removeEventListener('pointerout', out, true)
-      document.removeEventListener('pointerdown', away, true)
+      document.removeEventListener('pointerdown', press, true)
+      document.removeEventListener('pointermove', moved, true)
       document.removeEventListener('keydown', away, true)
       window.removeEventListener('scroll', away, true)
       window.removeEventListener('blur', away)
