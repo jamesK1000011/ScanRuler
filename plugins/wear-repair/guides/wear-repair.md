@@ -52,3 +52,8 @@ corner, a sagging span).
   `wear.diff` on a region that isn't worn first: it should read near zero.
 - Pre-warp moves the target along its own normals. It can't fix a twist
   larger than the part's walls.
+
+## Before comparing
+
+- A scan with no true size answers `wear_diff` with `sizeWarning`: scale it first (`scan_scale`) from a length measured on the part, or every worn region is the size difference.
+- A cracked or open scan reads holes as wear. `mesh_wrap` closes it (gaps under its Close gaps value), `mesh_apply_wrap` keeps it; then compare again.
