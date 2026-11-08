@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace's own CAD kernel, in a worker: the board's solids
+// Electronics › tscircuit's own CAD kernel, in a worker: the board's solids
 // built off the page's thread and handed back as a STEP file with each
 // part's figures. It loads OCCT from the same wasm file as Reverse Engineer
 // and makes no other request.

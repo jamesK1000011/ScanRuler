@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Printed circuits workspace's commands (printed.*): the conductors and
+// Electronics › Printed wiring's commands (printed.*): the conductors and
 // the settings; a circuit planned on a Reverse Engineer body — traces in a
 // conductive filament, or channels for copper — with what each net
 // measures, changing nothing; two-point nets routed on a sheet; the plan

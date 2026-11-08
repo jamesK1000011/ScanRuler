@@ -19,7 +19,7 @@ export interface GenSetup {
   generator: string
   /** Values set, per generator — only those that differ from its defaults. */
   values: Record<string, Record<string, Value>>
-  /** The board a board enclosure goes round (the Boards workspace sets it). */
+  /** The board a board enclosure goes round (Electronics › KiCad sets it). */
   board: BoardSpec | null
 }
 

@@ -7,6 +7,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { runCommand } from '../../../src/commands/registry'
+import { readStateSection } from '../../../src/commands/stateSections'
 import { useLength, type BoundLength } from '../../../src/app/useUnits'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
@@ -91,7 +92,7 @@ function Printer({ len }: { len: BoundLength }) {
   return (
     <details className="fits-printer" data-test="fits-printer">
       <summary>
-        Printer: ±{len.fmt(s.settings.tolerance, 2)}, holes −{len.fmt(cal.hole, 2)}, shafts +{len.fmt(cal.shaft, 2)} ({cal.source})
+        Printer: ±{len.fmt(s.settings.tolerance, 2)}, holes −{len.fmt(cal.hole, 2)}, shafts +{len.fmt(cal.shaft, 2)} ({cal.source === 'print-fit' ? 'from a scan' : cal.source})
       </summary>
       <NumberField label="Tolerance ±" testId="fits-tolerance" value={s.settings.tolerance} step={0.01} min={0.005} kind="length" hint={<p>What a printed size lands within. The stack’s default and the pair’s range.</p>} onCommit={(v) => void run('set', { tolerance: v })} />
       <Row label="Material">
@@ -103,13 +104,16 @@ function Printer({ len }: { len: BoundLength }) {
           ))}
         </select>
       </Row>
-      <NumberField label="Holes print small by" testId="fits-cal-hole" value={cal.hole} step={0.01} min={-1} kind="length" hint={<p>Diametral. Measure a test coupon, or take Print fit’s.</p>} onCommit={(v) => void run('calibrate', { hole: v, shaft: cal.shaft })} />
+      <NumberField label="Holes print small by" testId="fits-cal-hole" value={cal.hole} step={0.01} min={-1} kind="length" hint={<p>Diametral. Measure a test coupon, or a print on the Calibrate from a scan page: the last measured is the printer’s calibration.</p>} onCommit={(v) => void run('calibrate', { hole: v, shaft: cal.shaft })} />
       <NumberField label="Shafts print big by" testId="fits-cal-shaft" value={cal.shaft} step={0.01} min={-1} kind="length" hint={<p>Diametral.</p>} onCommit={(v) => void run('calibrate', { hole: cal.hole, shaft: v })} />
       {cal.spread !== undefined && <p className="hint">From {cal.n} readings, spread ±{len.fmt(cal.spread, 3)}.</p>}
       <div className="toolrow">
-        <button title="Take the offsets from Print fit’s last measured print" data-test="fits-from-printfit" onClick={() => void run('calibrate', { from: 'print-fit' })}>
-          From Print fit
-        </button>
+        {/* Only with Calibrate from a scan (fit-comp) in the build. */}
+        {readStateSection('fit') !== undefined && (
+          <button title="The offsets of the last print measured from a scan" data-test="fits-from-printfit" onClick={() => void run('calibrate', { from: 'print-fit' })}>
+            From the last scan
+          </button>
+        )}
         <button title="Default offsets and untested classes" onClick={() => void run('calibrate', { reset: true })}>
           Defaults
         </button>
@@ -430,7 +434,7 @@ export function FitsPanel() {
       <div className="sec-head">
         Fits
         <InfoDot title="Fits">
-          <p>Clearances and interferences for printed parts, sized to your printer. Calibrate with the test coupon; the parts are made in Reverse Engineer.</p>
+          <p>Clearances and interferences for printed parts, sized to your printer. Calibrate with the test coupon, or from a scanned print on the next page; the parts are made in Reverse Engineer.</p>
         </InfoDot>
       </div>
       <Printer len={len} />

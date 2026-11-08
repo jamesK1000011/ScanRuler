@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace's part of a project file: the settings, the project
+// Electronics › tscircuit's part of a project file: the settings, the project
 // folder and its last build, what was made, and the open board's
 // circuit.json — kept in the archive as circuit/circuit.json, so the board
 // opens again without the computer it was built on. The bodies made are

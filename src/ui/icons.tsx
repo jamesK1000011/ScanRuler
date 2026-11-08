@@ -860,6 +860,33 @@ const ICONS = {
       <path className="i-a" d="m9.5 10 5-1.2m-5 4.2 5-1.2m-5 4.2 5-1.2m-5 4.2 5-1.2" />
     </>
   ),
+  // a circuit board: the board, a chip on it, and a trace from pad to pad
+  board: (
+    <>
+      <path className="i-g" d="M2.5 5.5h19v13h-19Z" />
+      <path className="i-f" d="M9 9h6v6H9Z" />
+      <path className="i-th" d="M10.5 7v2M13.5 7v2M10.5 15v2M13.5 15v2" />
+      <path className="i-a" d="M5.5 15.5V12H9M15 12h2.5l2-2.5" />
+      <circle className="i-adt" cx="5.5" cy="15.5" r="1.1" />
+    </>
+  ),
+  // will it hold: a beam on its support, the load pressing on its end
+  strength: (
+    <>
+      <path className="i-g" d="M2.5 13h16v4h-16Z" />
+      <path d="M2.5 9.5v11" />
+      <path className="i-th i-ds" d="M2.5 13c6 0.6 11 2.2 16 5" />
+      <path className="i-a" d="M18.5 3.5V11M16 8.5l2.5 2.5 2.5-2.5" />
+    </>
+  ),
+  // what it weighs: a weight hung from the balance point
+  weight: (
+    <>
+      <path className="i-f" d="M7.5 10h9l2.5 10.5H5Z" />
+      <circle className="i-g" cx="12" cy="6.5" r="2.5" />
+      <path className="i-a" d="M12 2.5v1.5" />
+    </>
+  ),
   save: (
     <>
       <path className="i-g" d="M4 4h12.5L20 7.5V20H4Z" />

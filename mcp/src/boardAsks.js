@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// What the Boards workspace asks of this server: KiCad's kicad-cli run on
+// What Electronics › KiCad asks of this server: KiCad's kicad-cli run on
 // this computer (extras/kicad.js), which the page cannot start. The page
 // asks with a notice (pcb.kicad: tools, read, import, fab, drc, cancel); how
 // far a run has got goes back as pcb.progress, the answer as pcb.answer —

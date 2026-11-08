@@ -39,7 +39,12 @@ export function useFeaPlugin(host: PluginHost): PluginRuntime {
   }, [host, drawn, result, field, colormap, target])
 
   return {
-    panel: <FeaPanel />,
+    // The panel's frame: the column the app's own panels stand in.
+    panel: (
+      <aside className="panel">
+        <FeaPanel />
+      </aside>
+    ),
     hideScan: drawn,
     startPane: { title: 'Strength of a printed part', blurb: 'Build or import the part in Reverse Engineer, then come here: choose how it is printed and in what, hold it by some faces, load others, and solve. Gmsh and CalculiX — FreeCAD’s own — run on your computer.' },
   }

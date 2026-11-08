@@ -1,6 +1,12 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Slicing
 
+On screen: step 2, **Slice**, of the **Print** tab (Check → Slice → Send),
+workspace id `slice`. Slicing itself is the agent's server's; the page shows
+what the project adds to a slice — Hardware's pauses (`hw.pauses`) and the
+slicer changes from a scanned print (`fit.suggest`) — each where its plugin
+is in the build.
+
 Slices from ScanRuler with the slicers on this computer: OrcaSlicer, Bambu
 Studio and PrusaSlicer, each driven from its own command line. The work is
 the MCP server's, because a page can't start a program:

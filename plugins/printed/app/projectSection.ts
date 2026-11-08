@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Printed circuits workspace's part of a project file: the settings,
+// Electronics › Printed wiring's part of a project file: the settings,
 // and the circuits made — which body is the traces, the features, each
 // net's resistance, a channel's pause. Not the plan, planned again in a
 // moment; the solids themselves are Reverse Engineer's features, saved

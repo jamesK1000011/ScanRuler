@@ -11,17 +11,17 @@ not in this repository.
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
 | [texture/](texture/) | The Texture workspace — a printable surface texture with BumpMesh's engine, masked by paint or by a Reverse body's CAD faces |
 | [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
-| [fit-comp/](fit-comp/) | Print fit — scanned print against its CAD, to slicer settings or a compensated model |
-| [fits/](fits/) | Fits — hole and shaft sizes for slip and press fits, snap-fit hooks, print-in-place hinges, pins, tolerance stacks; calibrated with a test coupon |
+| [fit-comp/](fit-comp/) | Print fit — the Fits tab's Calibrate from a scan page: a scanned print against its CAD, to slicer settings, a compensated model and the printer's one calibration |
+| [fits/](fits/) | Fits (the Fits tab's Design page) — hole and shaft sizes for slip and press fits, snap-fit hooks, print-in-place hinges, pins, tolerance stacks; calibrated with a test coupon |
 | [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML, and .blend through Blender |
-| [dfm-fdm/](dfm-fdm/) | Printability check — FDM rules from editable profiles, with findings you can waive |
-| [printer-handoff/](printer-handoff/) | Printer hand-off — the guide for the MCP server's printer tools; a print starts only on your Start |
+| [dfm-fdm/](dfm-fdm/) | Printability check (Print › 1 Check) — FDM rules from editable profiles, with findings you can waive |
+| [printer-handoff/](printer-handoff/) | Printer hand-off (Print › 3 Send) — the guide for the MCP server's printer tools, and the start requests; a print starts only on your Start |
 | [catalog/](catalog/) | Parts catalog — standard parts by size, catalogue links, Sketchfab/Thingiverse/Cults3D search, downloads brought in with their licence |
-| [slicer-loop/](slicer-loop/) | Slicing — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras |
+| [slicer-loop/](slicer-loop/) | Slicing (Print › 2 Slice) — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras; the step shows the pauses and corrections that go in |
 | [wear-repair/](wear-repair/) | Wear repair — worn regions back onto the mirrored half or the CAD; prints pre-warped |
 | [assembly-manual/](assembly-manual/) | Assembly manual — steps checked for a clear way in, drawn and written; HTML and PDF |
 | [patent-kit/](patent-kit/) | Patent kit — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
-| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG) and a zip writer; no plugin.ts |
+| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the materials, and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
@@ -29,10 +29,10 @@ not in this repository.
 | [mass/](mass/) | Mass and balance — weight, balance point and inertia as printed; ballast pockets to hit a target |
 | [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, a board enclosure, made to size as solids |
 | [hw/](hw/) | Hardware — holes for screws, nut traps, heat-set inserts, magnets and bearings, sized for printing and cut into Reverse Engineer bodies |
-| [pcb/](pcb/) | Boards — KiCad boards brought in as solids, an enclosure round them, Gerbers, drills and DRC through kicad-cli |
-| [printed/](printed/) | Printed circuits — traces of conductive filament as a body of their own, or channels for copper wire, tape or paint, in a Reverse Engineer body; each net's resistance along and through the layers |
+| [pcb/](pcb/) | Boards (Electronics › KiCad) — KiCad boards brought in as solids, an enclosure round them, Gerbers, drills and DRC through kicad-cli |
+| [printed/](printed/) | Printed circuits (Electronics › Printed wiring) — traces of conductive filament as a body of their own, or channels for copper wire, tape or paint, in a Reverse Engineer body; each net's resistance along and through the layers |
 | [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, made to size as solids |
-| [circuit/](circuit/) | Circuit — boards as code with tscircuit, built on this computer; Circuit JSON read, measured, and brought into Reverse Engineer as board, copper and keep-out solids |
+| [circuit/](circuit/) | Circuit (Electronics › tscircuit) — boards as code with tscircuit, built on this computer; Circuit JSON read, measured, and brought into Reverse Engineer as board, copper and keep-out solids |
 
 ## The rules
 
@@ -64,7 +64,7 @@ it allows. `?plugins=none` in the address runs the app without any.
 
 | Extension point | Where | What for |
 |---|---|---|
-| `workspace` | `plugin.ts` | the tab, and the guided hint's step |
+| `workspace` | `plugin.ts` | the tab, and the guided hint's step; with `host`, a page of a tab several plugins share (below) |
 | `usePlugin(host)` | `plugin.ts` | a React hook App runs every render: panel, stage, overlays, a view beside the viewport (`split`), clicks, hover (`hover`, `hovers`), grips, the scan's colouring, start pane, and the view bar — its parts beside the Scan key (`partKeys`, made with `src/ui/PartKey.tsx`), its keys at the side (`viewKeys`), the Scan key's click and Transparent when it holds them, and its own rows in the Scan key's menu (`scanKey`) |
 | `keyboard` | `plugin.ts` | keys in the workspace, Enter and the middle click |
 | `notices` | `plugin.ts` | what the imprint owes the third-party software the plugin ships, under "Third-party software" |
@@ -92,6 +92,30 @@ Tests live in `plugins/<id>/tests/` and run with the app's (`npm test`);
 browser checks in `plugins/<id>/scripts/`. A test that needs the plugin's
 registrations calls `plugin.install()` first — see
 `reverse/tests/reHistory.test.ts`.
+
+## Tabs shared by several plugins
+
+Some workspaces are pages of one top-bar tab rather than tabs of their own.
+A page names its tab in `workspace.host`; the hosts live in
+[_shared/workspaces.ts](_shared/workspaces.ts), so every page of a tab names
+the same one:
+
+| Tab | Pages (workspace id) |
+|---|---|
+| Electronics | KiCad (`pcb`) · tscircuit (`circuit`) · Printed wiring (`printed`) |
+| Fits | Design (`fits`) · Calibrate from a scan (`fit-scan`, fit-comp) |
+| Print | 1 Check (`dfm`) · 2 Slice (`slice`) · 3 Send (`print`) |
+
+A page is still a workspace of its own: its id is what the shell, the undo
+history, a project file and `workspace.set` name, so projects saved before
+the tabs were merged open on their page, and an agent's switch to `pcb`
+lands on Electronics › KiCad. The tab's own id (`electronics`, `fits`,
+`print`) opens the page last shown, else the first — except where a page has
+the same id, which wins (`print` is Send). `session.state` gives `tab` while
+a page is up. The top bar shows the tab once; a strip over the panel
+(`src/ui/PageStrip.tsx`) switches pages, numbered when the host has
+`steps`. With one page left in a build, the tab stands for it and there is
+no strip.
 
 ## Licence
 

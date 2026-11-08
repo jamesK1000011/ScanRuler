@@ -11,6 +11,7 @@ import { commandHost, sceneOf } from '../host'
 import { reportJson, reportText, REPORT_WORKSPACES, type ReportWorkspace } from '../report'
 import { RECENT_KEPT, RECENT_RESULT_CHARS, recentOutcomes } from '../registry'
 import { enumOf, int, obj, str } from '../schema'
+import { hostOf } from '../../app/workspacePages'
 import { internalWorkspace, publicWorkspace, sessionAfterStep, sessionState, workspaceNames } from '../state'
 import { CommandError, type Command } from '../types'
 import { discardSchema, lastError, mapSettledOrMeasuring, requireDiscardable, waitFor } from './common'
@@ -58,14 +59,15 @@ const workspace: Command<{ workspace: string }> = {
   name: 'set',
   title: 'Show a workspace',
   description:
-    'Put a workspace on screen: measure (fitting elements and dimensions), deviation (scan against a reference part or an element), thickness (wall thickness), flat (2D measuring of an image or a section), or a plugin’s by its id — session.state lists them under app.plugins. Commands put their own workspace on screen; this is for showing the person something.',
-  input: obj({ workspace: str('The workspace — measure, deviation, thickness, flat, or a plugin’s id.', { minLength: 1 }) }, ['workspace']),
+    'Put a workspace on screen: measure (fitting elements and dimensions), deviation (scan against a reference part or an element), thickness (wall thickness), flat (2D measuring of an image or a section), or a plugin’s by its id — session.state lists them under app.plugins. Some plugins’ workspaces are pages of one tab (session.state tab names it while one is up): the tab’s id opens its page last shown, a page’s id that page. Commands put their own workspace on screen; this is for showing the person something.',
+  input: obj({ workspace: str('The workspace — measure, deviation, thickness, flat, a plugin’s id, or a tab’s.', { minLength: 1 }) }, ['workspace']),
   run: async ({ workspace: name }) => {
     if (!workspaceNames().includes(name)) {
       throw new CommandError('invalid_input', `There is no workspace "${name}" — there are ${workspaceNames().join(', ')}.`)
     }
     useShell.getState().setWorkspace(internalWorkspace(name))
-    return { workspace: publicWorkspace(useShell.getState().workspace) }
+    const tab = hostOf(useShell.getState().workspace)
+    return { workspace: publicWorkspace(useShell.getState().workspace), ...(tab ? { tab: tab.id } : {}) }
   },
 }
 

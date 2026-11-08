@@ -1,8 +1,12 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Printability check
 
+On screen: step 1, **Check**, of the **Print** tab (Check → Slice → Send),
+laid out as a pre-print check sheet: the verdict and findings first. Its
+workspace id is still `dfm`.
+
 Checks the part (open as the scan, or the reference part) for FDM printing,
-from the **Printability** workspace or an agent.
+from the Print tab's Check step or an agent.
 The rules come from a pack you can read and change. Every finding gives its
 place, its value against the limit, the rule, and where that rule's number
 comes from. Profiles stack in this order: the default pack, then a nozzle, a

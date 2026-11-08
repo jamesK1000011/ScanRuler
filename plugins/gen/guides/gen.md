@@ -14,4 +14,4 @@ Project box: `clearance` is the gap each side between the lid's lip and the wall
 
 `gen.set` sets the values the panel shows; `gen.make` and the others take the values set unless they are given.
 
-Board enclosure (`board_box`): made round a board, which the Boards workspace gives (`pcb.enclosure`, `pcb.plan`). `gen.make { generator: "board_box", board }` takes one directly: `{ outline: [[x, y]…], thickness, above, below, holes: [{ x, y, d }], openings: [{ side, centre, width, z0, z1 }] }`, mm, the board's bottom at z = 0. `standoff` must clear the parts underneath (`below`). The screw size comes from each hole.
+Board enclosure (`board_box`): made round a board, which Electronics › KiCad gives (`pcb.enclosure`, `pcb.plan`). `gen.make { generator: "board_box", board }` takes one directly: `{ outline: [[x, y]…], thickness, above, below, holes: [{ x, y, d }], openings: [{ side, centre, width, z0, z1 }] }`, mm, the board's bottom at z = 0. `standoff` must clear the parts underneath (`below`). The screw size comes from each hole.

@@ -61,9 +61,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'reverse',
     label: 'Reverse engineer',
-    title: 'Sketch on sections, extrude and revolve, and export a solid STEP body built over the scan',
+    title: 'Build a solid STEP body over the scan',
     icon: 'extract',
-    order: 12,
+    order: 11,
     group: 'model',
   },
   keyboard: reverseKeyboard,

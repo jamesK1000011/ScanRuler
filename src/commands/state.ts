@@ -30,6 +30,7 @@ import { draftHolds, useStore, type Element, type Section } from '../state/store
 import { dimensionRefsOf, shadowParams } from '../state/sectionModel'
 import { useThickness } from '../state/thicknessStore'
 import { plugins } from '../plugins/registry'
+import { hostNames, hostOf, resolvePluginWorkspace } from '../app/workspacePages'
 import { surfaceSource } from '../app/surfaces'
 import { projectUnsaved, sessionHolds } from '../app/project'
 import { hintNow } from '../app/useHints'
@@ -63,15 +64,20 @@ function scanSizeOut(s: ReturnType<typeof useStore.getState>): Record<string, un
 }
 
 export const publicWorkspace = (w: Workspace): string => (w === 'elements' ? 'measure' : w)
-export const internalWorkspace = (name: string): Workspace => (name === 'measure' ? 'elements' : name)
+/** The workspace a public name opens. A tab that holds several workspaces
+ *  as pages (Electronics, Print…) is named by its own id too, and opens the
+ *  page last on screen, else its first. */
+export const internalWorkspace = (name: string): Workspace => (name === 'measure' ? 'elements' : resolvePluginWorkspace(name) ?? name)
 
-/** Every workspace on offer, by its public name. */
+/** Every workspace on offer, by its public name — the pages of a shared tab
+ *  by their own ids, and the tab by its id. */
 export const workspaceNames = (): string[] => [
   'measure',
   'deviation',
   'thickness',
   'flat',
   ...plugins().flatMap((p) => (p.workspace ? [p.workspace.id] : [])),
+  ...hostNames(),
 ]
 
 // ---- Pieces ---------------------------------------------------------------------
@@ -468,6 +474,8 @@ export async function sessionState() {
     // top bar says it; holds: the work a replace would lose, counted.
     project: { name: s.projectName, unsaved: projectUnsaved(), holds: sessionHolds() },
     workspace: publicWorkspace(useShell.getState().workspace),
+    // A page of a shared tab: the tab it is on screen under.
+    ...(hostOf(useShell.getState().workspace) ? { tab: hostOf(useShell.getState().workspace)!.id } : {}),
     busy: sessionBusy(),
     running: running?.name ?? null,
     // While one runs: since when, and for how long so far — what tells a

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Printed circuits workspace's state: the settings (the conductive
+// Electronics › Printed wiring's state: the settings (the conductive
 // filament, the nozzle and layers, clearance, a trace's size, the current
 // checked at, copper's figures), the last plan — what it was asked as, and
 // what it comes to — and the circuits made: which body is the traces, and

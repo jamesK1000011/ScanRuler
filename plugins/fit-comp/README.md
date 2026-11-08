@@ -1,5 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-# Print fit
+# Print fit — Calibrate from a scan
+
+The Fits tab's second page, beside Design (`fits`). Its workspace id is
+`fit-scan`; `workspace.set { workspace: "fits" }` opens the tab.
 
 Reads a scanned print against the CAD it was printed from and fits what the
 printer did:
@@ -15,6 +18,12 @@ workspace opens and aligns the two parts. fit-comp reads the reference's
 flat walls, floors and tops and its upright holes and bosses on the scan,
 then solves one weighted least-squares fit over all of them. Each answer
 comes with its standard error and says whether this part can separate it.
+
+The printer has one calibration, the one Fits sizes holes and shafts with:
+a run of `fit.measure` that fits well (χ²/dof up to 4, hole and contour
+offsets separated) becomes it, through `fit.calibrate { from: "print-fit" }`
+in the same step — calibrate once, from a scan or from Fits' test coupon,
+and both read the same offsets.
 
 ## Commands (`fit.*`)
 

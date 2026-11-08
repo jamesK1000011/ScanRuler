@@ -25,7 +25,7 @@ const plugin: ScanRulerPlugin = {
     // The id the workspace has always had: project files saved in it say so.
     id: 'mesh',
     label: 'Mesh Tools',
-    title: 'Clean the scan up — islands, holes, scatter — expand, shrink or hollow it, and reduce it to a light mesh for CAD held within a tolerance you set',
+    title: 'Clean up, edit and reduce a scan',
     icon: 'wsMesh',
     order: 10,
     group: 'model',

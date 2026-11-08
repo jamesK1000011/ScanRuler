@@ -87,6 +87,32 @@ export interface WorkspaceTab {
    * no hints at all.
    */
   useHintStep?(): { step: HintResult; busy: boolean }
+  /**
+   * The top-bar tab this workspace is a page of, when several plugins'
+   * workspaces share one: Electronics with KiCad, tscircuit and printed
+   * wiring, say. The workspace stays a workspace of its own — its id is
+   * still what the shell, the undo history, a project file and an agent's
+   * workspace.set name — but the top bar shows the host once, and over the
+   * panel a strip of its pages. Then `label` and `title` are the page's,
+   * `order` its place among the pages and `group` is the host's. Every page
+   * of a host declares the same host (plugins keep theirs in one file).
+   */
+  host?: WorkspaceHost
+}
+
+/** A top-bar tab that holds several workspaces as pages — see
+ *  WorkspaceTab.host. Its id names it to workspace.set and in the address
+ *  (?workspace=), opening the page last used, else the first; a page's own
+ *  id comes first where the two are the same. */
+export interface WorkspaceHost {
+  id: string
+  label: string
+  title: string
+  icon: IconName
+  order: number
+  group?: WorkspaceTab['group']
+  /** The pages are steps of one job, in order: the strip numbers them. */
+  steps?: boolean
 }
 
 /** The large buffers the app keeps per scan vertex, outside every store: the

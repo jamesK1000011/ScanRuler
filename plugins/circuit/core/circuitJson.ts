@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Circuit JSON — tscircuit's low-level description of a board, the file
 // `tsci build` writes — read here with no tscircuit code: the elements the
-// Circuit workspace builds solids and figures from, each checked field by
+// Electronics › tscircuit builds solids and figures from, each checked field by
 // field, those that do not check set aside with why.
 //
 // The element shapes follow the zod schemas of tscircuit's circuit-json

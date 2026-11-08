@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Boards workspace: a KiCad circuit board brought into Reverse
+// Electronics' KiCad page: a KiCad circuit board brought into Reverse
 // Engineer, an enclosure made round it, and its fabrication package and
 // design rule check — KiCad's own kicad-cli doing the KiCad work, on this
 // computer, through the agent's server. See README.md.
@@ -11,17 +11,19 @@ import { describePcb, pcbCommands } from './app/pcbCommands'
 import { pcbSection } from './app/projectSection'
 import { usePcbPlugin } from './app/usePcbPlugin'
 import { setupOf, usePcb } from './state/pcbStore'
+import { ELECTRONICS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'pcb',
   name: 'Boards',
   workspace: {
+    // A page of Electronics; the id it has always had, which projects keep.
     id: 'pcb',
-    label: 'Boards',
-    title: 'Circuit boards from KiCad — brought in as solids, boxed, and sent to the board house',
-    icon: 'hole',
-    order: 35,
-    group: 'model',
+    label: 'KiCad',
+    title: 'KiCad boards as solids, boxed, and sent to the fab',
+    icon: 'board',
+    order: 1,
+    host: ELECTRONICS,
   },
   usePlugin: usePcbPlugin,
   install() {

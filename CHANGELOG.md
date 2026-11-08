@@ -7,6 +7,33 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Fewer, fuller tabs** (2026-11-08). Three merges, each plugin keeping its
+  id, commands, state section, project section, guide and undo steps:
+  - **Electronics** takes the place of Boards, Circuit and Circuits, as
+    pages: KiCad (`pcb`) · tscircuit (`circuit`) · Printed wiring
+    (`printed`).
+  - **Fits** gains **Calibrate from a scan**, Print fit's first panel of its
+    own (`fit-scan`): the print and its CAD, what it was printed on, Measure,
+    the run, slicer changes, the .ini, the compensated STL, comparing runs
+    and profiles. The printer has one calibration: a run of `fit.measure`
+    that fits well becomes Fits' calibration in the same step (`calibration`
+    in its answer, or `calibrationKept` and why), so a scanned print and the
+    test coupon calibrate the same offsets.
+  - **Print** reads in order — 1 Check (Printability, now a pre-print check
+    sheet with its verdict first) · 2 Slice (new: Hardware's pauses and a
+    scanned print's slicer changes, the two things the project adds to a
+    slice) · 3 Send (the start requests).
+  A page is still a workspace: projects saved in `pcb`, `circuit`,
+  `printed`, `dfm` or `print` open on their page, `workspace.set` takes a
+  page's id or the tab's (`electronics`, `fits`, `print`: the page last
+  shown), and `session.state` says `tab` while a page is up. The tabs are
+  renumbered by the work — measure; Mesh Tools, Reverse engineer, Generate,
+  Catalog, Texture, Fits, Hardware (now with the model tabs), Electronics;
+  Strength, Mass, Print; Manual, Patent, Share — with shorter tooltips, new
+  icons for Electronics, Strength and Mass, and the panels of Boards,
+  Circuit, Circuits, Fits, Hardware, Generate, Mass and Strength set in the
+  panel column like the app's own (they stood bare beside the viewport).
+
 - **Strength** (2026-11-08, new plugin `fea`). Finite elements on a Reverse
   Engineer body, through the agent's server: Gmsh meshes it in quadratic
   tetrahedra and CalculiX solves it, both found on this computer (FreeCAD's

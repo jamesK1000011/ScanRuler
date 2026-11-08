@@ -17,9 +17,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'catalog',
     label: 'Catalog',
-    title: 'Name a standard part, find its CAD or a model, and keep where each file came from',
+    title: 'Standard parts and models, with their sources',
     icon: 'catalog',
-    order: 14,
+    order: 13,
     group: 'model',
   },
   usePlugin: useCatalogPlugin,

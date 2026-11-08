@@ -18,9 +18,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'fea',
     label: 'Strength',
-    title: 'Will it hold? FEA of a printed part, weaker across its layers',
-    icon: 'wsThickness',
-    order: 31,
+    title: 'Will it hold? FEA of a printed part',
+    icon: 'strength',
+    order: 20,
     group: 'make',
   },
   usePlugin: useFeaPlugin,

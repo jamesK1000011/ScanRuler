@@ -117,7 +117,7 @@ export const GENERATORS: Generator[] = [
 ]
 
 const boxed = (b?: BoardSpec | null) => {
-  if (!b) throw new Error('No board: bring one in with the Boards workspace (pcb.import), or give board.')
+  if (!b) throw new Error('No board: bring one in with Electronics › KiCad (pcb.import), or give board.')
   return b
 }
 

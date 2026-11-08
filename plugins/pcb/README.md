@@ -1,6 +1,10 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Boards
 
+On screen: the **Electronics** tab's **KiCad** page. Its workspace id is
+still `pcb`, which projects and `workspace.set` use; `electronics` opens the
+tab at the page last shown.
+
 KiCad circuit boards in ScanRuler: a board brought into Reverse Engineer as
 solids, an enclosure made round it, and its fabrication package and design
 rule check.

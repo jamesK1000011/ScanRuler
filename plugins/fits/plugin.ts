@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Fits workspace: fits between printed parts — a hole and shaft sized
+// The Fits tab's Design page: fits between printed parts — a hole and shaft sized
 // for a slip or press fit with the printer's allowance, a cantilever
 // snap-fit hook worked out from the beam formulas, a print-in-place hinge,
 // a pin and socket, a tolerance stack — calibrated to the printer with a
@@ -13,17 +13,19 @@ import { describeFits, fitsCommands, refreshAnswers } from './app/fitsCommands'
 import { fitsSection } from './app/projectSection'
 import { useFitsPlugin } from './app/useFitsPlugin'
 import { historyOf, useFits } from './state/fitsStore'
+import { FITS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'fits',
   name: 'Fits',
   workspace: {
+    // A page of the Fits tab, beside Calibrate from a scan (fit-comp).
     id: 'fits',
-    label: 'Fits',
-    title: 'Press, slip and snap fits, print-in-place hinges and tolerance stacks, calibrated to your printer',
+    label: 'Design',
+    title: 'Hole and shaft, snap fit, hinge, pin, coupon, stack',
     icon: 'concentric',
-    order: 17,
-    group: 'model',
+    order: 1,
+    host: FITS,
   },
   usePlugin: useFitsPlugin,
   install() {

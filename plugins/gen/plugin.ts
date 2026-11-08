@@ -17,9 +17,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'gen',
     label: 'Generate',
-    title: 'Parametric parts — Gridfinity bins and baseplates, a project box — made as solids to finish in Reverse Engineer',
+    title: 'Parametric parts: Gridfinity, project boxes',
     icon: 'pattern',
-    order: 15,
+    order: 12,
     group: 'model',
   },
   usePlugin: useGenPlugin,

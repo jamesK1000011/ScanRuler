@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Workspaces as pages of one top-bar tab (WorkspaceTab.host): the bar shows
+// the host once, in its place; a host's id opens the page last on screen,
+// else its first; a page's own id wins where the two are the same; a host
+// with one page left in the build still stands for it.
+import { describe, expect, it } from 'vitest'
+import { barTabsIn, pagesIn, resolveIn } from '../src/app/workspaceHosts'
+import type { WorkspaceHost, WorkspaceTab } from '../src/plugins/api'
+
+const HOST: WorkspaceHost = { id: 'bench', label: 'Bench', title: 'The bench', icon: 'board', order: 17, group: 'model' }
+const SAME: WorkspaceHost = { id: 'send', label: 'Out', title: 'Out', icon: 'printer', order: 22, group: 'make', steps: true }
+const tab = (id: string, order: number, host?: WorkspaceHost): WorkspaceTab => ({ id, label: id, title: id, icon: 'board', order, group: 'model', ...(host ? { host } : {}) })
+
+const TABS = [tab('solo', 10), tab('c', 3, HOST), tab('a', 1, HOST), tab('b', 2, HOST), tab('check', 1, SAME), tab('send', 2, SAME)]
+
+describe('workspace pages', () => {
+  it('the bar shows each host once, with its pages in order', () => {
+    const bar = barTabsIn(TABS)
+    expect(bar.map((t) => t.id)).toEqual(['solo', 'bench', 'send'])
+    expect(bar[1]).toMatchObject({ label: 'Bench', order: 17, group: 'model', pages: ['a', 'b', 'c'] })
+    expect(bar[2]).toMatchObject({ label: 'Out', group: 'make', pages: ['check', 'send'] })
+    expect(pagesIn(TABS, 'bench').map((p) => p.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('a host id opens the page last on screen, else the first; a page id itself', () => {
+    expect(resolveIn(TABS, 'bench')).toBe('a')
+    expect(resolveIn(TABS, 'bench', 'c')).toBe('c')
+    expect(resolveIn(TABS, 'bench', 'check')).toBe('a')
+    expect(resolveIn(TABS, 'b')).toBe('b')
+    // The Print case: the host shares its id with its last page.
+    expect(resolveIn(TABS, 'send', 'check')).toBe('send')
+    expect(resolveIn(TABS, 'nowhere')).toBeNull()
+  })
+
+  it('a plugin missing: the host stands for the pages left', () => {
+    const left = TABS.filter((t) => t.id !== 'send')
+    expect(barTabsIn(left).find((t) => t.id === 'send')?.pages).toEqual(['check'])
+    expect(resolveIn(left, 'send')).toBe('check')
+    expect(barTabsIn(left.filter((t) => t.host?.id !== 'bench')).map((t) => t.id)).toEqual(['solo', 'send'])
+  })
+})

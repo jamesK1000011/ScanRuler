@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Printed circuits
 
-The Printed circuits workspace (`printed.*`) makes circuits inside a printed
+Electronics › Printed wiring (`printed.*`) makes circuits inside a printed
 part, in a Reverse Engineer body. There are two methods:
 
 - **trace** (the default). Each net is a run of conductive filament. The runs

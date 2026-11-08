@@ -97,7 +97,7 @@ export function PrintPanel() {
     <aside className="panel" data-test="print-panel">
       <div className="group">
         <div className="sec-head">
-          Printing
+          Send to the printer
           <InfoDot title="Who starts a print">
             <p>Ask the agent to set up your printers, upload a sliced job and check on them. A print starts only when you press Start — here, in a dialog on your Mac, or on the page it opens.</p>
             <p>Access codes and keys stay in your Keychain; they never reach this page or the agent.</p>

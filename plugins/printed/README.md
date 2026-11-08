@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Printed circuits
 
+On screen: the **Electronics** tab's **Printed wiring** page (workspace id
+`printed`).
+
 Circuits made inside a 3D-printed part, in a Reverse Engineer body, as
 named features that stay editable there. There are two methods.
 

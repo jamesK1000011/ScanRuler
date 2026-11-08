@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace's state: the settings, the project folder and its
+// Electronics › tscircuit's state: the settings, the project folder and its
 // last build, the board read from a circuit.json, and what was last made of
 // it in Reverse Engineer.
 

@@ -6,7 +6,12 @@ import { FitsPanel } from '../ui/FitsPanel'
 
 export function useFitsPlugin(): PluginRuntime {
   return {
-    panel: <FitsPanel />,
+    // The panel's frame: the column the app's own panels stand in.
+    panel: (
+      <aside className="panel">
+        <FitsPanel />
+      </aside>
+    ),
     startPane: { title: 'Fits', blurb: 'Size a hole and shaft for a slip or press fit, design a snap-fit hook or a print-in-place hinge, add up a tolerance stack — and print a test coupon to calibrate it all to your printer.' },
   }
 }

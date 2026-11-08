@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace's panel: tscircuit on this computer, the project and
+// Electronics › tscircuit's panel: tscircuit on this computer, the project and
 // its build, the board read in and its figures, the resistance estimate,
 // and the solids. Every control runs a circuit.* command.
 
@@ -28,7 +28,7 @@ const OUTPUTS: [string, string, string][] = [
   ['gerbers', 'Gerbers', 'The fabrication zip'],
   ['bom', 'BOM', 'bom.csv'],
   ['pnp', 'Pick and place', 'pick_and_place.csv'],
-  ['kicad_pcb', 'KiCad', '.kicad_pcb, for KiCad or the Boards workspace'],
+  ['kicad_pcb', 'KiCad', '.kicad_pcb, for KiCad or Electronics › KiCad'],
   ['step', 'STEP', 'The board with its parts, as tscircuit models them'],
   ['glb', 'GLB', '3D view'],
 ]

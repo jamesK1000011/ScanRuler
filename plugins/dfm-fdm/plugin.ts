@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // dfm-fdm: a part checked for FDM printing against a rule pack you can read
 // and change, stacked from nozzle, material and printer profiles and the
-// project's own changes, or a published guide's. The Printability
-// workspace is its panel; its commands (dfm.*) work on the scan or the
+// project's own changes, or a published guide's. Printability —
+// the Print tab's Check page — is its panel; its commands (dfm.*) work on the scan or the
 // reference part from any workspace.
 
 import { pick, registerHistory } from '../../src/state/historyStore'
@@ -12,17 +12,20 @@ import { dfmCommands } from './app/dfmCommands'
 import { dfmSection } from './app/projectSection'
 import { useDfmPlugin } from './app/useDfmPlugin'
 import { useDfm } from './state/dfmStore'
+import { PRINT } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'dfm-fdm',
   name: 'Printability check',
   workspace: {
+    // The Print tab's first step: the pre-print check sheet. The id it has
+    // always had, which projects keep.
     id: 'dfm',
-    label: 'Printability',
-    title: 'Check a part for FDM printing against nozzle, material and printer rules, or a guide',
-    icon: 'slice',
-    order: 30,
-    group: 'make',
+    label: 'Check',
+    title: 'Printability: walls, overhangs, holes, bed contact',
+    icon: 'note',
+    order: 1,
+    host: PRINT,
   },
   usePlugin: useDfmPlugin,
   install() {

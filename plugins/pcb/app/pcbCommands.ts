@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Boards workspace's commands (pcb.*): a KiCad board read, brought into
+// Electronics › KiCad's commands (pcb.*): a KiCad board read, brought into
 // Reverse Engineer as bodies (the board named after its file, its edge
 // connectors after their references), an enclosure made round it with
 // Generate's board_box, and its fabrication package and DRC — KiCad's
@@ -415,7 +415,7 @@ const stopCmd: Command<Record<string, never>> = {
 const answer: Command<{ req: string; ok: boolean; result?: unknown; error?: string; bytes?: Uint8Array }> = {
   name: 'answer',
   title: 'KiCad’s answer',
-  description: 'Used by the agent’s server: the answer to what the Boards workspace asked of kicad-cli. Not for an agent.',
+  description: 'Used by the agent’s server: the answer to what Electronics › KiCad asked of kicad-cli. Not for an agent.',
   input: obj({ req: str(), ok: bool(), result: anyObject('The answer.'), error: str(), bytes: bytes('A file that came with it.') }, ['req', 'ok']),
   readOnly: true,
   history: false,

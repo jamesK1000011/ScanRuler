@@ -28,7 +28,7 @@ export const CONSIDERATIONS: Consideration[] = [
   { id: 'post', topic: 'After printing', ask: 'Stock left for machining, heat-set inserts and their wall, sanding, painting or annealing.', checkedBy: [] },
   { id: 'material', topic: 'Material', ask: 'Strength, heat, UV, creep under load, and whether it is safe for its use (food, skin).', checkedBy: [] },
   { id: 'cost', topic: 'Time and cost', ask: 'Height drives time; support and solid volume drive material. Is there a lighter infill or a lower stance?', checkedBy: [] },
-  { id: 'inspection', topic: 'How it will be checked', ask: 'Which dimensions are measured on the printed part, and how — a scan against the CAD (Print fit) or calipers.', checkedBy: [] },
+  { id: 'inspection', topic: 'How it will be checked', ask: 'Which dimensions are measured on the printed part, and how — a scan against the CAD (Fits › Calibrate from a scan) or calipers.', checkedBy: [] },
 ]
 
 export const CONSIDERATIONS_CITE = 'ISO/ASTM 52910, Additive manufacturing — Design — Requirements, guidelines and recommendations. Named, not reproduced: this list is written in the plugin’s own words.'

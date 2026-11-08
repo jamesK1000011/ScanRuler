@@ -35,7 +35,7 @@ function boardFor(g: Generator, given?: unknown): BoardSpec | null {
   }
   if (given === undefined) {
     const b = st().board
-    if (!b) throw new CommandError('invalid_input', 'No board: bring one in with the Boards workspace (pcb.import, then pcb.enclosure), or give board.')
+    if (!b) throw new CommandError('invalid_input', 'No board: bring one in with Electronics › KiCad (pcb.import, then pcb.enclosure), or give board.')
     return b
   }
   try {
@@ -73,7 +73,7 @@ export function describeGen() {
 
 const genIn = enumOf(IDS, `The generator: ${IDS.join(', ')}; the one picked in the panel by default.`)
 const paramsIn = anyObject('Parameter values by key (gen.list gives each generator’s keys, ranges and defaults); the rest as set in the panel.')
-const boardIn_ = anyObject('board_box only: the board — { name, outline: [[x, y]…], thickness, above, below, holes: [{ x, y, d }], openings: [{ side: "+x"|"-x"|"+y"|"-y", centre, width, z0, z1, shape? }] } in mm, the board’s bottom at z = 0 (the Boards workspace’s pcb.enclosure gives it); the one set by default.')
+const boardIn_ = anyObject('board_box only: the board — { name, outline: [[x, y]…], thickness, above, below, holes: [{ x, y, d }], openings: [{ side: "+x"|"-x"|"+y"|"-y", centre, width, z0, z1, shape? }] } in mm, the board’s bottom at z = 0 (Electronics › KiCad’s pcb.enclosure gives it); the one set by default.')
 
 const list: Command<{ generator?: string }> = {
   name: 'list',

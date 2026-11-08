@@ -54,6 +54,8 @@ import { sceneTheme } from './viewer/viewThemes'
 import { Viewer } from './ui/Viewer'
 import { Panel } from './ui/Panel'
 import { TopBar } from './ui/TopBar'
+import { PageStrip } from './ui/PageStrip'
+import { hostOf } from './app/workspacePages'
 import { RecoveryBar } from './ui/RecoveryBar'
 import { AgentDataWarning } from './ui/AgentDataWarning'
 import { ConnectorBar } from './ui/ConnectorBar'
@@ -1612,7 +1614,15 @@ function Workbench() {
             onCopy={handleCopyThicknessReport}
           />
         ) : active?.panel ? (
-          active.panel
+          // A page of a shared tab carries the strip of its pages over it.
+          hostOf(shellWorkspace) ? (
+            <div className="pagecol">
+              <PageStrip />
+              {active.panel}
+            </div>
+          ) : (
+            active.panel
+          )
         ) : onFlat ? (
           <FlatPanel
             onOpenImage={(f) => void openImage(f)}

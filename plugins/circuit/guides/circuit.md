@@ -21,7 +21,7 @@ Boards written as code with tscircuit (React components in a `.tsx` file), built
 
 ## Notes
 
-- KiCad: `outputs: ["kicad_pcb"]` writes `board.kicad_pcb` in the job folder; open it in KiCad, or in the Boards workspace: `pcb.open { path }` with the answer's `files["board.kicad_pcb"]`, then `pcb.enclosure` for a box round it and `pcb.fab` for the fab package.
+- KiCad: `outputs: ["kicad_pcb"]` writes `board.kicad_pcb` in the job folder; open it in KiCad, or in Electronics › KiCad: `pcb.open { path }` with the answer's `files["board.kicad_pcb"]`, then `pcb.enclosure` for a box round it and `pcb.fab` for the fab package.
 - `circuit.files` lists projects and builds; `circuit.open { path }` opens any circuit.json in one, `{ json }` one given as text.
 - Inner layers are counted but not built as solids. Silkscreen and BREP pours are read and counted, not built.
 - Saved with the project: the settings, the project folder, the last build, the open board's circuit.json.

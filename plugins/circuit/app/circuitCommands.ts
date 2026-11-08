@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace's commands (circuit.*): tscircuit on this computer
+// Electronics › tscircuit's commands (circuit.*): tscircuit on this computer
 // (tools), a project from a template (new), a build with tsci into a job
 // folder (build, files), a circuit.json read in (open), its figures (stats),
 // a resistance estimate per net (resistance), and the board brought into
@@ -196,7 +196,7 @@ const buildCmd: Command<{ project?: string; entry?: string; outputs?: string[]; 
   name: 'build',
   title: 'Build the project with tscircuit',
   description:
-    'Build the project with tsci on this computer, into a job folder of its own: circuit.json, and the outputs asked for — gerbers (a zip), bom and pnp (bom.csv and pick_and_place.csv, from the Gerbers zip), kicad_pcb (for KiCad, or the Boards workspace: pcb.open with files["board.kicad_pcb"]), step, glb, pcb_svg, schematic_svg, netlist. Every flag and format is checked against the installed tsci first and refused by name if it lacks one. project: the workspace’s project unless given (a name in the circuits folder, or a folder). routing: false skips the autorouter; partsEngine: false skips the parts lookup. open (true by default) opens the board built (circuit.open). Returns the job: its files and the build’s DRC, routing and placement errors.',
+    'Build the project with tsci on this computer, into a job folder of its own: circuit.json, and the outputs asked for — gerbers (a zip), bom and pnp (bom.csv and pick_and_place.csv, from the Gerbers zip), kicad_pcb (for KiCad, or Electronics › KiCad: pcb.open with files["board.kicad_pcb"]), step, glb, pcb_svg, schematic_svg, netlist. Every flag and format is checked against the installed tsci first and refused by name if it lacks one. project: the workspace’s project unless given (a name in the circuits folder, or a folder). routing: false skips the autorouter; partsEngine: false skips the parts lookup. open (true by default) opens the board built (circuit.open). Returns the job: its files and the build’s DRC, routing and placement errors.',
   input: obj({
     project: str('A project name or folder; the workspace’s project by default.'),
     entry: str('The board file, relative to the project.'),
@@ -455,7 +455,7 @@ const stopCmd: Command<Record<string, never>> = {
 const answer: Command<{ req: string; ok: boolean; result?: unknown; error?: string }> = {
   name: 'answer',
   title: 'tscircuit’s answer',
-  description: 'Used by the agent’s server: the answer to an ask of the Circuit workspace. Not for an agent.',
+  description: 'Used by the agent’s server: the answer to an ask of Electronics › tscircuit. Not for an agent.',
   input: obj({ req: str(), ok: bool(), result: anyObject('The answer.'), error: str() }, ['req', 'ok']),
   readOnly: true,
   history: false,

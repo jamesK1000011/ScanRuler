@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Boards workspace's line to the agent's server, which runs KiCad's
+// Electronics › KiCad's line to the agent's server, which runs KiCad's
 // kicad-cli on this computer (the page cannot start a program): an ask goes
 // as a notice (pcb.kicad), how far it has got comes back as pcb.progress,
 // the answer as pcb.answer — with a file's bytes where there is one (the

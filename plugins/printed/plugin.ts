@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Printed circuits workspace: circuits made inside a printed part —
+// Electronics' Printed wiring page: circuits made inside a printed part —
 // traces of conductive filament as a body of their own, cut out of the
 // part, for a two-filament print; or channels for copper wire, tape or
 // paint, open or closed with a pause to lay the wire — each net's
@@ -12,17 +12,19 @@ import { describePrinted, printedCommands } from './app/printedCommands'
 import { printedSection } from './app/projectSection'
 import { usePrintedPlugin } from './app/usePrintedPlugin'
 import { settingsOf, usePrinted } from './state/printedStore'
+import { ELECTRONICS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'printed',
   name: 'Printed circuits',
   workspace: {
+    // A page of Electronics; the id it has always had, which projects keep.
     id: 'printed',
-    label: 'Circuits',
-    title: 'Traces of conductive filament, or channels for copper, made inside a printed part',
+    label: 'Printed wiring',
+    title: 'Conductive traces or copper channels inside a print',
     icon: 'spline',
-    order: 38,
-    group: 'make',
+    order: 3,
+    host: ELECTRONICS,
   },
   usePlugin: usePrintedPlugin,
   install() {

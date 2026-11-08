@@ -39,7 +39,7 @@ export function GenPanel() {
   const len = useLength()
   const g = generatorOf(s.generator) ?? GENERATORS[0]
   const values: Record<string, Value> = { ...g.defaults, ...(s.values[g.id] ?? {}) }
-  const why = g.board && !s.board ? 'No board yet: bring one in from the Boards workspace.' : g.check(values, s.board)
+  const why = g.board && !s.board ? 'No board yet: bring one in from Electronics › KiCad.' : g.check(values, s.board)
   const setOne = (key: string, v: Value) => void run('set', { generator: g.id, params: { [key]: v } })
   return (
     <div className="group" data-test="gen-panel">

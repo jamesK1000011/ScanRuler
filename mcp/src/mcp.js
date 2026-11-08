@@ -892,7 +892,7 @@ export function createMcpServer({
   attachPageAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
   // And the FEA panel's: the part solved by Gmsh and CalculiX here.
   attachFeaAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
-  // And the Boards panel's: KiCad's kicad-cli run here (boardAsks.js).
+  // And Electronics › KiCad's: KiCad's kicad-cli run here (boardAsks.js).
   attachBoardAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
   // And the Circuit workspace's: tscircuit's command line run here.
   attachCircuitAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })

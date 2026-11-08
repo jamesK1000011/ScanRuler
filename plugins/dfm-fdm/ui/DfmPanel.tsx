@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Printability workspace's panel: what the part is printed on (nozzle,
-// material, printer, a published guide), the check and its findings — each
-// with its value against the limit, where it is, why, and a waiver with a
-// reason — the rules in force and who set them, the guides compared on the
-// stage, a guide imported or exported as JSON, the design review, and the
-// report. Every button runs the dfm.* command an agent does.
+// Printability, the Print tab's Check step — a pre-print check sheet: the
+// check and its findings first — each with its value against the limit,
+// where it is, why, and a waiver with a reason — then what the part is
+// printed on (nozzle, material, printer, a published guide), the rules in
+// force and who set them, the guides compared on the stage, a guide
+// imported or exported as JSON, the design review, and the report. Every button runs the dfm.* command an agent does.
 
 import { useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
@@ -253,62 +253,7 @@ export function DfmPanel() {
     <aside className="panel" data-test="dfm-panel">
       <div className="group">
         <div className="sec-head">
-          Printed on
-          <InfoDot title="How the limits are set">
-            <p>A generic pack, then the nozzle, material and printer profiles, a published guide if chosen, and your project changes. Each rule says which set its numbers.</p>
-          </InfoDot>
-        </div>
-        <label className="field">
-          <span>Stands up</span>
-          <select value={s.up} disabled={busy} onChange={(e) => void run('settings', { up: e.target.value })}>
-            {UPS.map((u) => (
-              <option key={u} value={u}>
-                {UP_WORDS[u]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <ProfileSelect label="Nozzle" value={s.nozzle} list={(p?.nozzles as Json[]) ?? []} field="nozzle" />
-        <ProfileSelect label="Material" value={s.material} list={(p?.materials as Json[]) ?? []} field="material" />
-        <ProfileSelect label="Printer" value={s.printer} list={(p?.printers as Json[]) ?? []} field="printer" />
-        <label className="field">
-          <span>
-            Guide
-            <InfoDot title="Published guides">
-              <p>Design numbers from service bureaus, a printer maker and a university, each with its source and the date it was read. They disagree: compare them on the stage.</p>
-            </InfoDot>
-          </span>
-          <select
-            data-test="dfm-guide"
-            value={s.guide ?? ''}
-            disabled={busy}
-            onChange={async (e) => {
-              await run('settings', { guide: e.target.value || null })
-              await loadProfiles()
-            }}
-          >
-            <option value="">None</option>
-            {guides.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.label}
-                {g.custom ? ' (imported)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="sourcerow">
-          <button className={s.target === 'scan' ? 'on' : ''} disabled={busy} onClick={() => void run('settings', { target: 'scan' })}>
-            The scan
-          </button>
-          <button className={s.target === 'reference' ? 'on' : ''} disabled={busy} onClick={() => void run('settings', { target: 'reference' })}>
-            The reference part
-          </button>
-        </div>
-      </div>
-
-      <div className="group">
-        <div className="sec-head">
-          Check <b>{st.checkedAt ? st.findings.length : ''}</b>
+          Pre-print check <b>{st.checkedAt ? st.findings.length : ''}</b>
         </div>
         <div className="toolrow">
           <button className="primary" data-test="dfm-check" disabled={busy || (!scan && s.target === 'scan')} onClick={() => void check()}>
@@ -391,6 +336,61 @@ export function DfmPanel() {
           )
         })}
         {st.skipped.length > 0 && <Notes items={st.skipped.map((x) => ({ level: 'note', rule: RULE_WORDS[x.rule] ?? x.rule, text: `not checked: ${x.why}` }))} />}
+      </div>
+
+      <div className="group">
+        <div className="sec-head">
+          Printed on
+          <InfoDot title="How the limits are set">
+            <p>A generic pack, then the nozzle, material and printer profiles, a published guide if chosen, and your project changes. Each rule says which set its numbers.</p>
+          </InfoDot>
+        </div>
+        <label className="field">
+          <span>Stands up</span>
+          <select value={s.up} disabled={busy} onChange={(e) => void run('settings', { up: e.target.value })}>
+            {UPS.map((u) => (
+              <option key={u} value={u}>
+                {UP_WORDS[u]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ProfileSelect label="Nozzle" value={s.nozzle} list={(p?.nozzles as Json[]) ?? []} field="nozzle" />
+        <ProfileSelect label="Material" value={s.material} list={(p?.materials as Json[]) ?? []} field="material" />
+        <ProfileSelect label="Printer" value={s.printer} list={(p?.printers as Json[]) ?? []} field="printer" />
+        <label className="field">
+          <span>
+            Guide
+            <InfoDot title="Published guides">
+              <p>Design numbers from service bureaus, a printer maker and a university, each with its source and the date it was read. They disagree: compare them on the stage.</p>
+            </InfoDot>
+          </span>
+          <select
+            data-test="dfm-guide"
+            value={s.guide ?? ''}
+            disabled={busy}
+            onChange={async (e) => {
+              await run('settings', { guide: e.target.value || null })
+              await loadProfiles()
+            }}
+          >
+            <option value="">None</option>
+            {guides.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.label}
+                {g.custom ? ' (imported)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="sourcerow">
+          <button className={s.target === 'scan' ? 'on' : ''} disabled={busy} onClick={() => void run('settings', { target: 'scan' })}>
+            The scan
+          </button>
+          <button className={s.target === 'reference' ? 'on' : ''} disabled={busy} onClick={() => void run('settings', { target: 'reference' })}>
+            The reference part
+          </button>
+        </div>
       </div>
 
       <div className="group">

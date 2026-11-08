@@ -21,7 +21,7 @@ and brought into Reverse Engineer as bodies to finish, check and export.
   copied from the hardware plugin's table). There is room above and below
   the parts, an opening in the wall for each connector at the edge, and a
   lid on a lip. It takes a board besides its values (`board`: outline,
-  thickness, the parts' reach, holes, openings). The Boards workspace makes
+  thickness, the parts' reach, holes, openings). Electronics › KiCad makes
   one from a KiCad board.
 
 The dimensions are Gridfinity's published ones (Zack Freedman's open

@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Fits
 
+The Fits tab's first page, **Design** (workspace id `fits`); the second,
+**Calibrate from a scan**, is fit-comp's. The two share one calibration.
+
 Fit design for 3D-printed parts. Fits sizes the model so the printed parts
 fit, using the printer's own offsets.
 
@@ -13,8 +16,10 @@ fit, using the printer's own offsets.
   such as a steel dowel or a bearing, which keeps its size.
 - **Calibration.** Fits learns how much smaller holes print and how much
   bigger shafts print in three ways: from features you measure on a print,
-  from offsets you enter, or from Print fit's last run (fit-comp's hole and
-  contour offsets, doubled). It also records the clearance at which each
+  from offsets you enter, or from a print measured on the Calibrate from a
+  scan page (fit-comp's hole and contour offsets, doubled — a good run
+  becomes the calibration by itself, so the printer has one calibration).
+  It also records the clearance at which each
   class felt right on the test coupon.
 - **Test coupon.** A plate of holes and a bar of pegs, each with its
   clearance engraved in seven-segment figures (`+.10`, `-.05`). It comes
@@ -87,14 +92,14 @@ No FreeCAD or other CAD package code is used.
 
 ## Commands (`fit.*`)
 
-These share the `fit` namespace with Print fit (`fit-comp`) under different
-verbs.
+These share the `fit` namespace with Calibrate from a scan (`fit-comp`)
+under different verbs.
 
 | Command | Changes | What |
 |---|---|---|
 | `fit.list` | nothing | Classes with their clearance at a size, materials, parts, settings, calibration |
 | `fit.set` | settings | Tolerance, material, the panel's page; `reset` |
-| `fit.calibrate` | calibration | From readings, offsets entered, Print fit, or the classes felt on a coupon; `reset` |
+| `fit.calibrate` | calibration | From readings, offsets entered, a scanned print, or the classes felt on a coupon; `reset` |
 | `fit.pair` | nothing | Hole and shaft sizes, printed and modelled, range, ISO reference, press strain |
 | `fit.stack` | nothing | Worst case, RSS, contributions, chance under a minimum |
 | `fit.snap` | nothing | Hook strain, forces and limits; kept for `fit.apply` |

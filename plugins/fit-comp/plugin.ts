@@ -1,18 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // fit-comp: a scanned print read against the CAD it was printed from, and
 // what to change — slicer settings, or a pre-compensated model — so the next
-// print fits. No workspace of its own: the Deviation workspace opens and
-// aligns the two, and fit.* reads them.
+// print fits. Its page is the Fits tab's Calibrate from a scan; the
+// Deviation workspace opens and aligns the two, and fit.* reads them. A run
+// that fits well becomes the printer's one calibration, the one Fits'
+// Design page sizes holes and shafts with.
 
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { fitCommands } from './app/fitCommands'
 import { fitSection } from './app/projectSection'
 import { useFit } from './state/fitStore'
+import { useFitCompPlugin } from './app/useFitCompPlugin'
+import { FITS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'fit-comp',
   name: 'Print fit',
+  workspace: {
+    // A page of the Fits tab, beside Design (fits).
+    id: 'fit-scan',
+    label: 'Calibrate from a scan',
+    title: 'Measure a scanned print against its CAD',
+    icon: 'compare',
+    order: 2,
+    host: FITS,
+  },
+  usePlugin: useFitCompPlugin,
   install() {
     registerProjectSection(fitSection)
     registerCommands('fit', fitCommands)

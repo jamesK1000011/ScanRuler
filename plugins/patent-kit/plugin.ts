@@ -19,9 +19,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'patent',
     label: 'Patent',
-    title: '37 CFR 1.84 patent drawings with numerals, and a draft for your attorney — local only',
+    title: 'Patent drawings with numerals, and a draft',
     icon: 'patent',
-    order: 42,
+    order: 31,
     group: 'share',
   },
   usePlugin: usePatentPlugin,

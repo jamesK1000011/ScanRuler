@@ -28,6 +28,16 @@ export function readStateSections(): Record<string, unknown> {
   return readAll(sections)
 }
 
+/** One part, read now — another plugin's, say, read without importing it;
+ *  undefined when no plugin in use registered it, or it throws. */
+export function readStateSection(id: string): unknown {
+  try {
+    return sections.get(id)?.()
+  } catch {
+    return undefined
+  }
+}
+
 /** Every part's brief, read now. */
 export function readStateBriefs(): Record<string, unknown> {
   return readAll(briefs)

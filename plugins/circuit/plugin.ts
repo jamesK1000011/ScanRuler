@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace: circuit boards written as code with tscircuit,
+// Electronics' tscircuit page: circuit boards written as code with tscircuit,
 // built on this computer by its command line through the agent's server,
 // read back from their Circuit JSON, measured, and brought into Reverse
 // Engineer as solids — the board, its copper, the parts' keep-outs. See
@@ -12,17 +12,19 @@ import { circuitCommands, describeCircuit } from './app/circuitCommands'
 import { circuitSection } from './app/projectSection'
 import { useCircuitPlugin } from './app/useCircuitPlugin'
 import { setupOf, useCircuit } from './state/circuitStore'
+import { ELECTRONICS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'circuit',
   name: 'Circuit',
   workspace: {
+    // A page of Electronics; the id it has always had, which projects keep.
     id: 'circuit',
-    label: 'Circuit',
-    title: 'Circuit boards as code with tscircuit — built on this computer, measured, and brought into Reverse Engineer as solids',
+    label: 'tscircuit',
+    title: 'Boards written as code with tscircuit, brought in as solids',
     icon: 'sheet',
-    order: 37,
-    group: 'model',
+    order: 2,
+    host: ELECTRONICS,
   },
   usePlugin: useCircuitPlugin,
   install() {

@@ -338,12 +338,12 @@ const calibrate: Command<CalibrateIn> = {
   name: 'calibrate',
   title: 'Calibrate to the printer',
   description:
-    'What the printer does to holes and shafts, from one of: readings (features measured on a print: kind hole or shaft, its model size and the size measured — fit.test’s coupon gives every model size); hole and shaft (how much smaller a round hole prints and how much bigger a shaft, diametral, mm, entered); from: "print-fit" (Print fit’s last fit.measure run: its hole and contour offsets, doubled to diametral). classes: the clearance at which each class felt right on fit.test’s coupon ({ slip: 0.1, press: -0.05 }; null forgets one), at the coupon’s nominal (or at). reset: back to the default offsets and untested classes. Saved with the project; one undo step.',
+    'What the printer does to holes and shafts, from one of: readings (features measured on a print: kind hole or shaft, its model size and the size measured — fit.test’s coupon gives every model size); hole and shaft (how much smaller a round hole prints and how much bigger a shaft, diametral, mm, entered); from: "print-fit" (the last print measured from a scan, fit.measure: its hole and contour offsets, doubled to diametral — fit.measure makes a good run the calibration itself). classes: the clearance at which each class felt right on fit.test’s coupon ({ slip: 0.1, press: -0.05 }; null forgets one), at the coupon’s nominal (or at). reset: back to the default offsets and untested classes. Saved with the project; one undo step.',
   input: obj({
     readings: arr(obj({ kind: enumOf(['hole', 'shaft']), model: len('As modelled', { exclusiveMinimum: 0 }), measured: len('As measured', { exclusiveMinimum: 0 }) }, ['kind', 'model', 'measured']), 'Features measured on a print.', { minItems: 1, maxItems: 100 }),
     hole: len('How much smaller holes print, diametral', { minimum: -1, maximum: 2 }),
     shaft: len('How much bigger shafts print, diametral', { minimum: -1, maximum: 2 }),
-    from: enumOf(['print-fit'], 'Print fit’s last run.'),
+    from: enumOf(['print-fit'], 'The last print measured from a scan (fit.measure).'),
     classes: anyObject('Class → clearance as printed that felt right (mm), or null to forget it: { "slip": 0.1 }.'),
     at: len('The nominal the classes were felt at (the last coupon’s)', { minimum: 0.5, maximum: 500 }),
     reset: bool('Default offsets, untested classes.'),
@@ -367,10 +367,10 @@ const calibrate: Command<CalibrateIn> = {
     if (hole !== undefined || shaft !== undefined) cal = { hole: hole ?? st().calibration.hole, shaft: shaft ?? st().calibration.shaft, source: 'entered' }
     if (from) {
       const last = (readStateSections().fit as { last?: { run: number; holeOffset: number; contourOffset: number; scaleXY: number } } | undefined)?.last
-      if (!last) throw new CommandError('invalid_state', 'Print fit has no run to read: measure a print with it first (fit.measure), or give readings.')
+      if (!last) throw new CommandError('invalid_state', 'There is no run to read from a scan: measure a print first (fit.measure, Calibrate from a scan), or give readings.')
       cal = fromPrintFit(last.holeOffset, last.contourOffset)
       out.printFit = { run: last.run, holeOffset: last.holeOffset, contourOffset: last.contourOffset }
-      if (Math.abs(last.scaleXY - 1) > 0.002) out.note = `That print was scaled ${r4((last.scaleXY - 1) * 100)} % in XY too: put that right in the slicer (Print fit’s fit.suggest) — these offsets leave it out.`
+      if (Math.abs(last.scaleXY - 1) > 0.002) out.note = `That print was scaled ${r4((last.scaleXY - 1) * 100)} % in XY too: put that right in the slicer (fit.suggest) — these offsets leave it out.`
     }
     let settings = st().settings
     if (reset) settings = { ...settings, classes: {} }

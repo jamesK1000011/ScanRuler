@@ -13,6 +13,7 @@ import { usePrefs } from '../state/prefsStore'
 import { useDeviation } from '../state/deviationStore'
 import { useShell, type Workspace } from '../state/shellStore'
 import { plugins } from '../plugins/registry'
+import { pageToOpen, pluginBarTabs, type BarTab } from '../app/workspacePages'
 import { UndoRedo } from './UndoRedo'
 import { AGENT_STATUS, useAgentLink } from '../commands/agentLink'
 import { Icon, type IconName } from './icons'
@@ -40,7 +41,10 @@ const CORE_TABS: { id: Workspace; icon: IconName; label: string; title: string; 
 /** The app's tabs and those of the plugins in use, in the order of the work
  *  — measure, model, make, share — each marked where a new stage starts. */
 const workspaceTabs = () => {
-  const all = [...CORE_TABS, ...plugins().flatMap((p) => (p.workspace ? [p.workspace] : []))].sort((a, b) => a.order - b.order)
+  // Workspaces that are pages of one tab (Electronics, Print…) show once,
+  // as their host: the strip over the panel goes between the pages.
+  const core: BarTab[] = CORE_TABS.map((t) => ({ ...t, pages: [t.id] }))
+  const all = [...core, ...pluginBarTabs()].sort((a, b) => a.order - b.order)
   return all.map((w, i) => ({ ...w, opens: i > 0 && (w.group ?? 'model') !== (all[i - 1].group ?? 'model') }))
 }
 
@@ -300,12 +304,12 @@ export function TopBar({
             key={w.id}
             role="tab"
             data-test={`workspace-${w.id}`}
-            aria-selected={workspace === w.id}
-            className={[workspace === w.id ? 'on' : '', w.opens ? 'tabgap' : ''].filter(Boolean).join(' ') || undefined}
+            aria-selected={w.pages.includes(workspace)}
+            className={[w.pages.includes(workspace) ? 'on' : '', w.opens ? 'tabgap' : ''].filter(Boolean).join(' ') || undefined}
             title={`${w.label}\n${w.title}`}
             aria-label={w.label}
             disabled={picking}
-            onClick={() => setWorkspace(w.id)}
+            onClick={() => setWorkspace(pageToOpen(w))}
           >
             <Icon name={w.icon} size={16} />
             <span className="wtxt">{w.label}</span>

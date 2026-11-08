@@ -913,6 +913,78 @@ select:disabled {
   gap: 13px;
 }
 
+/* A page of a shared tab (Electronics, Fits, Print): the strip of its pages
+   over its panel, the two one column as wide as the panel. */
+.pagecol {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-height: 0;
+}
+
+.pagecol > .panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.pagestrip {
+  display: flex;
+  flex: none;
+  gap: 0;
+  padding: 8px 15px 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.pagestrip button {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-bottom: -1px;
+  padding: 5px 6px 6px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--r) var(--r) 0 0;
+  background: none;
+  box-shadow: none;
+  font-family: var(--cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pagestrip button:hover:not(:disabled):not(.on) {
+  color: var(--ink);
+}
+
+.pagestrip button.on {
+  color: var(--accent-d);
+  background: var(--panel);
+  border-color: var(--line);
+  border-bottom: 1px solid var(--panel);
+}
+
+/* Steps of one job: each numbered, and the order read left to right. */
+.pagestrip .pagenum {
+  display: inline-block;
+  min-width: 15px;
+  margin-right: 4px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  line-height: 15px;
+  text-align: center;
+  color: var(--panel);
+  background: var(--faint);
+}
+
+.pagestrip button.on .pagenum {
+  background: var(--accent);
+}
+
 /* Every section is one tool, and the rule down its left edge says where that
    tool starts and stops — the panel is a stack of instruments, not one long
    form. */
@@ -3163,6 +3235,11 @@ button.x:disabled {
     padding: 12px 12px 18px;
   }
 
+  .pagestrip {
+    width: 282px;
+    padding: 6px 12px 0;
+  }
+
   .brand span,
   .partchip span {
     display: none;
@@ -3194,6 +3271,21 @@ button.x:disabled {
     min-width: 0;
     height: 42%;
     flex: none;
+    border-right: none;
+    border-top: 1px solid var(--line);
+  }
+
+  /* A page's panel and its strip share the panel's share of the screen. */
+  .pagecol {
+    height: 42%;
+  }
+
+  .pagecol > .panel {
+    height: auto;
+  }
+
+  .pagestrip {
+    width: auto;
     border-right: none;
     border-top: 1px solid var(--line);
   }

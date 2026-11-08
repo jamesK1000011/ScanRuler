@@ -20,10 +20,10 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'hw',
     label: 'Hardware',
-    title: 'Holes for screws, nuts, inserts, magnets and bearings, sized for printing; parts encased mid-print',
+    title: 'Holes for screws, nuts, inserts, magnets, bearings',
     icon: 'hole',
-    order: 34,
-    group: 'make',
+    order: 16,
+    group: 'model',
   },
   usePlugin: useHwPlugin,
   install() {

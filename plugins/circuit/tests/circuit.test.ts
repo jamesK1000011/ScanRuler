@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace's core against a hand-written Circuit JSON
+// Electronics › tscircuit's core against a hand-written Circuit JSON
 // (fixtures/two-layer.circuit.json, written from circuit-json's schemas): a
 // 40 × 30 × 1.6 mm two-layer board with an 0603 resistor and LED, a 2-pin
 // header in plated holes, two mounting holes, a via, and three traces — one

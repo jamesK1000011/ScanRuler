@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Printed circuits workspace's panel: the method and its conductor, the
+// Electronics › Printed wiring's panel: the method and its conductor, the
 // body and face, the nets (as printed.plan takes them), plan, route and
 // make; each net's resistance; the settings; export for two filaments.
 // Every control runs a printed.* command.

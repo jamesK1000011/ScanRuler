@@ -9,17 +9,19 @@
 import { registerCommands, registerGuide, type ScanRulerPlugin } from '../../src/plugins/api'
 import { askCommand } from './app/askCommand'
 import { usePrinterPlugin } from './app/usePrinterPlugin'
+import { PRINT } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'printer-handoff',
   name: 'Printer hand-off',
   workspace: {
+    // The Print tab's last step, after Check and Slice.
     id: 'print',
-    label: 'Print',
-    title: 'Start requests from the agent, and their answers: a print starts only on your Start',
+    label: 'Send',
+    title: 'Start requests: a print starts only on your Start',
     icon: 'printer',
-    order: 32,
-    group: 'make',
+    order: 3,
+    host: PRINT,
   },
   usePlugin: usePrinterPlugin,
   install() {

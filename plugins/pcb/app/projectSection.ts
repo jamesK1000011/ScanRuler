@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Boards workspace's part of a project file: the board file's path,
+// Electronics › KiCad's part of a project file: the board file's path,
 // what was read of it, what its import measured, and the settings — so an
 // enclosure can be made again without KiCad. The bodies themselves are
 // Reverse Engineer's, saved with it.

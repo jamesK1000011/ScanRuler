@@ -8,7 +8,7 @@ Lengths are mm. Clearances are diametral and as printed: positive is a gap, nega
 1. `fit.list` gives the classes, materials, settings and calibration in use. The default offsets are holes −0.2 and shafts +0.1, typical but not measured.
 2. Use `fit.set { tolerance, material }`. `tolerance` is ± what a printed size lands within (0.15 by default).
 3. Use one of these to calibrate:
-   - **Print fit already measured a print** (`fit.measure`, fit-comp): run `fit.calibrate { from: "print-fit" }`.
+   - **A scanned print** (Calibrate from a scan, fit-comp): `fit.measure` makes a good run the calibration itself (`calibration` in its answer; `calibrationKept` says why not). `fit.calibrate { from: "print-fit" }` takes the last run again after another calibration.
    - **Calipers**: run `fit.test { compensate: false }` and print the coupon. Measure its holes and pegs, then pass the model sizes from the answer's `rows` with what you measured: `fit.calibrate { readings: [{ kind: "hole", model, measured }, { kind: "shaft", … }] }`.
    - **By feel**: run `fit.test` (compensated). Try the gauge pin in each labelled hole and the gauge ring over each peg, then pass the label each class felt right at: `fit.calibrate { classes: { slip: 0.1, press: -0.05 } }`. The classes keep their growth with size.
 
@@ -29,4 +29,4 @@ Lengths are mm. Clearances are diametral and as printed: positive is a gap, nega
 
 Print a snap hook lying on its side (fit.apply lays it so), so the beam bends along its layers. A hinge prints as it lies, both leaves on the bed.
 
-Print fit (fit-comp) shares the `fit.*` names (`fit.measure`, `fit.suggest` …). It corrects the slicer from a scanned print, while Fits sizes the model.
+Calibrate from a scan (fit-comp, the Fits tab's second page) shares the `fit.*` names (`fit.measure`, `fit.suggest` …). It corrects the slicer from a scanned print, while Fits sizes the model; the two share one calibration.

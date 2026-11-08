@@ -18,9 +18,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'pack',
     label: 'Share',
-    title: 'Pack a part to share: licences checked, remixes credited, personal details removed',
+    title: 'Pack a part to share: licences, credits, privacy',
     icon: 'share',
-    order: 44,
+    order: 32,
     group: 'share',
   },
   usePlugin: usePackPlugin,

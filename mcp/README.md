@@ -333,14 +333,14 @@ the command. `pcb` adds `kicad_tools`, `kicad_board`, `kicad_drc` and
 `kicad_fab`. These read a KiCad board and run KiCad's `kicad-cli` (found
 where KiCad installs, on the PATH, or at `SCANRULER_KICAD_CLI`) for its
 design rule check and fabrication package. Each run is kept in a job folder
-under `SCANRULER_HOME`'s `boards/`. The Boards workspace asks for the same
+under `SCANRULER_HOME`'s `boards/`. Electronics › KiCad asks for the same
 work through the page without them.
 `circuit` adds `circuit_tools`, `circuit_new`, `circuit_build`,
 `circuit_files` and `circuit_read`. These run tscircuit's command line
 (`tsci`, from `npm install -g tscircuit`; `SCANRULER_TSCI` names another)
 on board projects made from templates under `SCANRULER_HOME`'s `circuits/`,
 each build in a job folder of its own, every flag and export format checked
-against the installed `tsci`'s `--help` first. The Circuit workspace asks the
+against the installed `tsci`'s `--help` first. Electronics › tscircuit asks the
 same of the server through the page whether or not this is set. Unset, the
 server lists no extras.
 

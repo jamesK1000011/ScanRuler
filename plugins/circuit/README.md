@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Circuit
 
+On screen: the **Electronics** tab's **tscircuit** page (workspace id
+`circuit`).
+
 Circuit boards written as code with [tscircuit](https://github.com/tscircuit/tscircuit)
 (MIT), built on this computer by its command line, and brought into the
 model: the board, its copper and its parts' keep-outs as solids in Reverse
@@ -61,7 +64,7 @@ the agent's server also offers `circuit_tools`, `circuit_new`,
 ## Hand-off to KiCad
 
 `circuit.build { outputs: ["kicad_pcb"] }` writes `board.kicad_pcb` in the
-job folder — a file KiCad opens, and so does the Boards workspace:
+job folder — a file KiCad opens, and so does Electronics › KiCad:
 `pcb.open { path }` with the build's `files["board.kicad_pcb"]`, then
 `pcb.enclosure` and `pcb.fab` as for any KiCad board.
 

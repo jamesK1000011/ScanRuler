@@ -4,12 +4,12 @@
 // screws), room above and below for its parts, openings in the walls where
 // its connectors sit at the edge, and a lid that drops in on a lip. The box
 // is built in the board's own frame — the board's bottom face at z = 0, as
-// the Boards workspace brings a KiCad board in — so it stands round the
+// Electronics › KiCad brings a KiCad board in — so it stands round the
 // board where it is; the lid is laid out beside it, top down, to print
 // flat.
 //
 // The board comes as plain numbers (BoardSpec): its outline, thickness,
-// holes, how far its parts reach, and the openings. The Boards workspace
+// holes, how far its parts reach, and the openings. Electronics › KiCad
 // makes one from a KiCad board; any other source can too.
 
 import { prism, type GenKernel, type H, type XYZ } from './kernel'

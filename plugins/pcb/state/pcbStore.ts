@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Boards workspace's state: the board file and what was read of it,
+// Electronics › KiCad's state: the board file and what was read of it,
 // the last import and what it measured, the enclosure's settings, and what
 // the last fab package and DRC said.
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Circuit workspace's line to the agent's server, which runs tscircuit's
+// Electronics › tscircuit's line to the agent's server, which runs tscircuit's
 // command line (tsci) on this computer: an ask goes as a notice
 // (circuit.tsci), how far a build has got comes back as circuit.progress,
 // the answer as circuit.answer (the internal commands of the same names).

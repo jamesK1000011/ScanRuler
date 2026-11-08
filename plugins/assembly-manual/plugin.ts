@@ -18,9 +18,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'assembly',
     label: 'Manual',
-    title: 'Step-by-step build instructions: fit checked, steps drawn and worded, HTML and PDF',
+    title: 'Step-by-step build instructions, HTML and PDF',
     icon: 'manual',
-    order: 40,
+    order: 30,
     group: 'share',
   },
   usePlugin: useAsmPlugin,

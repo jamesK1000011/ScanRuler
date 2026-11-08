@@ -67,7 +67,7 @@ function BetaWorkspaces() {
             }}
           />
           <span>
-            <b>{p.workspace?.label ?? p.name}</b> — {p.workspace ? `${p.workspace.title}. ` : ''}A
+            <b>{p.workspace?.host ? `${p.workspace.host.label} · ` : ''}{p.workspace?.label ?? p.name}</b> — {p.workspace ? `${p.workspace.title}. ` : ''}A
             workspace still in beta: it may change, and work done in it may not open the same in a
             later version. Off, a project made with it keeps that work, untouched.
           </span>

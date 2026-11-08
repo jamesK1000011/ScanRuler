@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Boards workspace's panel: the board file, its import, the enclosure,
+// Electronics › KiCad's panel: the board file, its import, the enclosure,
 // the fab package and the DRC. Every control runs a pcb.* command.
 
 import { useEffect, useState } from 'react'

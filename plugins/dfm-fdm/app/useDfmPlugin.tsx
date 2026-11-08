@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Printability workspace's part in the app for one render: its panel
+// Print › Check (Printability)'s part in the app for one render: its panel
 // over the part, and the guides compared on the stage when asked for.
 
 import type { PluginRuntime } from '../../../src/plugins/api'

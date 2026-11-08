@@ -10,7 +10,7 @@ import { useDeviation } from '../state/deviationStore'
 import { useThickness } from '../state/thicknessStore'
 import { sheetKeyOf, sheetOf, useFlat, type FlatSubject, type SheetState } from '../state/flatStore'
 import { CORE_WORKSPACES, useShell, type Workspace } from '../state/shellStore'
-import { plugins } from '../plugins/registry'
+import { resolvePluginWorkspace } from './workspacePages'
 import { keptParts, projectSections } from './projectSections'
 import {
   alignFromJson,
@@ -546,6 +546,7 @@ export function prepareProjectState(m: ProjectManifest, members: ReadonlyMap<str
  *  plugin in use adds. A workspace this build does not have opens 3D
  *  Measure instead. */
 function applyWorkspace(w: string): void {
-  const known: Workspace[] = [...CORE_WORKSPACES, ...plugins().flatMap((p) => (p.workspace ? [p.workspace.id] : []))]
-  useShell.getState().setWorkspace(known.includes(w) ? w : 'elements')
+  // A plugin's workspace, or a tab of several by its own id: its first page.
+  const known: Workspace[] = [...CORE_WORKSPACES]
+  useShell.getState().setWorkspace(known.includes(w) ? w : (resolvePluginWorkspace(w) ?? 'elements'))
 }

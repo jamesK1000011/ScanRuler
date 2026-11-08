@@ -137,10 +137,11 @@ try {
   check(of(after.json, 'small-hole')[0]?.waived && after.json.waived === 1, 'the waiver comes back with the project')
   const back = await ok('dfm_guides', {})
   check(back.json?.guides?.some((g) => g.id === 'my-shop' && g.custom), 'the imported guide comes back with the project')
-  // ---- the Printability workspace ------------------------------------------------------------
+  // ---- Print › Check (Printability) ------------------------------------------------------------
   await ok('workspace_set', { workspace: 'dfm' })
   await page.bringToFront()
   await page.waitForSelector('[data-test=dfm-panel]', { timeout: 30_000 })
+  check((await page.$eval('[data-test=workspace-print]', (b) => b.getAttribute('aria-selected'))) === 'true' && (await page.$eval('[data-test=page-dfm]', (b) => b.getAttribute('aria-selected'))) === 'true', 'dfm opens the Print tab at its Check step')
   const agentCount = (await ok('dfm_check', {})).json?.findings?.length
   await page.click('[data-test=dfm-check]')
   await page.waitForFunction((n) => document.querySelectorAll('[data-test=dfm-finding]').length === n, { timeout: 120_000 }, agentCount)

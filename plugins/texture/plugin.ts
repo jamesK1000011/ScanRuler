@@ -23,9 +23,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'texture',
     label: 'Texture',
-    title: 'A printable surface texture on the surfaces you choose, with BumpMesh’s engine',
+    title: 'A printable surface texture, with BumpMesh’s engine',
     icon: 'surface',
-    order: 16,
+    order: 14,
     group: 'model',
   },
   notices: TextureNotices,

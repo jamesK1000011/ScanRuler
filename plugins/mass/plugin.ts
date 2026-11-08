@@ -17,9 +17,9 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'mass',
     label: 'Mass',
-    title: 'Weight, balance point and inertia as printed; ballast to match a target',
-    icon: 'count',
-    order: 33,
+    title: 'Weight, balance and ballast as printed',
+    icon: 'weight',
+    order: 21,
     group: 'make',
   },
   usePlugin: useMassPlugin,
