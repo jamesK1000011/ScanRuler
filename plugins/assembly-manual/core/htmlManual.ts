@@ -12,6 +12,7 @@ import { hardwareOutline, icon, SIGNAL_STYLE } from './extras'
 import { pack } from './layout'
 import { pageSize, stepLabels, takes } from './manual'
 import type { AsmSettings, IconId, Part, Step } from './model'
+import { safeCss } from './themeFile'
 import { themeOf, type Theme } from './themes'
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -213,7 +214,7 @@ ${said.length ? `<ol class="do${said.length === 1 ? ' one' : ''}">${said.map((x)
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(s.title)}</title>
 <meta name="generator" content="ScanRuler assembly-manual (${t.id})">
-<style>${css(t)}
+<style>${css(t)}${t.css ? `\n/* the theme file's own */\n${safeCss(t.css).css}` : ''}
 @media print{@page{size:${s.paper === 'a4' ? 'A4' : 'letter'} ${s.orientation}}}</style>
 </head><body class="badge-${t.badge} balloons-${t.balloon} layout-${s.layout ?? 'one'} words-${s.words ?? 'show'}" style="${vars}">
 <main>
