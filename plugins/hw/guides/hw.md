@@ -128,6 +128,13 @@ pauses, the part is dropped in, and the layers above close over it.
      from a bottom face the pocket is made deeper, so its top lands on a
      layer boundary. The notes say so. This needs the body built, so its
      place on the bed is known.
+   - Drilled level from a side face, the pocket gets straight sides from
+     its middle up to a flat top on a layer boundary, so the part drops in
+     from above at the pause; the flat top is bridged. A level box stands
+     with its sides upright. A slanted pocket is refused: it would close
+     over itself before the print reached its top.
+   - A pocket that would break out of the body's box is refused; one close
+     to a side is warned.
    - The answer gives each pocket's top (Z, part frame), the roof, the span
      the roof bridges, and the pause layer.
    - It warns about a roof under `roofLayers`, a span wider than `bridgeMax`

@@ -41,6 +41,15 @@ export function teardropLines(c: V2, r: number, up: V2): V2[] {
   return [at(c, r, phi - Math.PI / 4), at(c, r * Math.SQRT2, phi), at(c, r, phi + Math.PI / 4)]
 }
 
+/** A level encased pocket's straight sides: an open line from the outline's
+ *  widest point (half `w` either side of the centre) up to `h` above the
+ *  centre, across, and down again — the flat top the part drops in under. */
+export function riserLines(c: V2, w: number, h: number, up: V2): V2[] {
+  const side: V2 = [up[1], -up[0]]
+  const p = (s: number, t: number): V2 => [r6(c[0] + s * side[0] + t * up[0]), r6(c[1] + s * side[1] + t * up[1])]
+  return [p(w / 2, 0), p(w / 2, h), p(-w / 2, h), p(-w / 2, 0)]
+}
+
 /** A hex sized across flats `s`, run out along `angleDeg` to `length` from
  *  its centre as a slot as wide as the flats: one closed outline. */
 export function hexSlotOutline(c: V2, s: number, angleDeg: number, length: number): V2[] {
@@ -67,10 +76,12 @@ export function shapesOf(step: Step, p: Placement): Json[] {
     if (step.profile === 'circle') {
       out.push({ kind: 'circle', center: c, radius: r6(r), fixed: true })
       if (step.teardrop && p.up) out.push({ kind: 'polyline', points: teardropLines(c, r, p.up), fixed: true })
+      if (step.riser && p.up) out.push({ kind: 'polyline', points: riserLines(c, step.diameter, step.riser, p.up), fixed: true })
     } else if (step.profile === 'hex') {
-      // Stood on a corner where the hole is level: its roof two 60° slopes.
+      // Stood on a corner where the hole is level: its sides upright.
       const angleDeg = p.up ? r6(deg(Math.atan2(p.up[1], p.up[0])) + 30) : 0
       out.push({ kind: 'polygon', center: c, sides: 6, radius: r6(r), fit: 'circumscribed', angleDeg, fixed: true })
+      if (step.riser && p.up) out.push({ kind: 'polyline', points: riserLines(c, step.diameter, step.riser, p.up), fixed: true })
     } else if (step.profile === 'rect') {
       out.push({ kind: 'polyline', points: rectOutline(c, step.diameter, step.length ?? step.diameter, step.angleDeg ?? 0), closed: true, fixed: true })
     } else {

@@ -55,10 +55,16 @@ export interface PauseAt {
 export function pauseLayer(z: number, l: Layers): PauseAt {
   checkLayers(l)
   if (!Number.isFinite(z) || z <= EPS) fail(`The pocket's top is ${r3(z)} above the bed: it has to be above the first layer's bottom.`)
-  const layer = z <= l.first + EPS ? 2 : 2 + Math.ceil((z - l.first - EPS) / l.height)
+  const layer = z <= l.first + PAUSE_EPS ? 2 : 2 + Math.ceil((z - l.first - PAUSE_EPS) / l.height)
   const bottom = layerBottom(layer, l)
-  return { layer, z: r3(bottom), printZ: r3(layerTop(layer, l)), onBoundary: Math.abs(bottom - z) <= EPS }
+  return { layer, z: r3(bottom), printZ: r3(layerTop(layer, l)), onBoundary: Math.abs(bottom - z) <= PAUSE_EPS }
 }
+
+/** A pocket's top this close under a layer's bottom pauses before that
+ *  layer, mm: as the pauses put into G-code read it (heights there are
+ *  written to the micron, 3 places), so the layer named here is the one
+ *  the print stops at. */
+export const PAUSE_EPS = 0.0015
 
 /** The layer boundary at or above z (a pocket's top raised onto it). */
 export const boundaryUp = (z: number, l: Layers) => layerBottom(pauseLayer(z, l).layer, l)
@@ -118,7 +124,9 @@ export interface Encased extends Cut {
  * surface it is cut from: one step for the pocket (and a nut's shaft).
  * Its width takes the larger of the kind's allowance and the drop
  * clearance; its depth the part's height with headroom above it. `level`:
- * the hole lies near level — its round pocket is teardropped point up.
+ * the hole lies level — its round or hex pocket gets straight sides up to
+ * a flat top (a riser), so the part can be dropped in from above when the
+ * print pauses: a teardrop's or a corner's point would close over it first.
  */
 export function encasedCut(spec: EncaseSpec, settings: Settings, level: boolean): Encased {
   if (!EMBED_KINDS.includes(spec.kind)) fail(`A ${spec.kind} is not dropped in: encase takes ${EMBED_KINDS.join(', ')}.`)
@@ -223,12 +231,14 @@ export function encasedCut(spec: EncaseSpec, settings: Settings, level: boolean)
     to: r3(spec.roof + height!),
     ...(len !== undefined ? { length: r3(len) } : {}),
     ...(angle ? { angleDeg: angle } : {}),
-    ...(level && profile === 'circle' && settings.teardrop ? { teardrop: true } : {}),
   }
+  // Level: straight sides from the middle up — to the circle's top, or the
+  // hex's corner (it stands on one) — and a flat top bridged over the part.
+  if (level && (profile === 'circle' || profile === 'hex')) pocket.riser = r3(profile === 'circle' ? width! / 2 : width! / 2 / Math.cos(Math.PI / 6))
   steps.unshift(pocket)
   notes.push(`Encased ${r3(spec.roof)} under the surface: the print pauses at the pocket's top for ${what} to go in, then closes over it.`)
   if (spec.kind === 'nut' && spec.shaft !== false) notes.push('The screw’s clearance runs through the roof and the floor: the nut is held, not sealed.')
-  if (pocket.teardrop) notes.push('Level pocket: teardropped, point up, so its roof prints without support.')
+  if (pocket.riser) notes.push('Level pocket: straight sides up to a flat top, so the part drops in from above at the pause; its top is bridged.')
   const span = profile === 'rect' ? Math.min(width!, len!) : width!
   return { kind: spec.kind, size: spec.size ?? 'object', label: label!, steps, notes, what: what!, height: r3(height!), span: r3(span) }
 }
@@ -239,7 +249,8 @@ export function profileReach(step: Step, upZ: [number, number]): number {
   const k = Math.hypot(upZ[0], upZ[1])
   if (k < 1e-12) return 0
   const r = step.diameter / 2
-  if (step.profile === 'circle') return r * k * (step.teardrop ? Math.SQRT2 : 1)
+  const riser = step.riser ? step.riser * k : 0
+  if (step.profile === 'circle') return Math.max(riser, r * k * (step.teardrop ? Math.SQRT2 : 1))
   const pts: [number, number][] = []
   if (step.profile === 'rect') {
     const t = ((step.angleDeg ?? 0) * Math.PI) / 180
@@ -251,7 +262,7 @@ export function profileReach(step: Step, upZ: [number, number]): number {
     const up = Math.atan2(upZ[1], upZ[0])
     for (let i = 0; i < 6; i++) pts.push([R * Math.cos(up + (i * Math.PI) / 3), R * Math.sin(up + (i * Math.PI) / 3)])
   }
-  return Math.max(...pts.map(([u, v]) => u * upZ[0] + v * upZ[1]))
+  return Math.max(riser, ...pts.map(([u, v]) => u * upZ[0] + v * upZ[1]))
 }
 
 // ---- pauses -------------------------------------------------------------------------------

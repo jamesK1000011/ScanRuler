@@ -16,7 +16,7 @@ import { fitsOf } from '../core/check'
 import { featuresOf, overlapping, patternOffsets, type Pattern, type Placement, type V2, type V3 } from '../core/features'
 import { FITS, type Fit, type Head, HEADS, type Kind, KINDS, sizesOf, table } from '../core/hardware'
 import { boundaryDown, boundaryUp, EMBED_KINDS, type EmbedKind, encasedCut, EPS, type Layers, type ObjectSpec, pauseLayer, profileReach, schedule } from '../core/embed'
-import { type Cut, cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings, type Spec } from '../core/plan'
+import { type Cut, cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings, type Spec, type Step } from '../core/plan'
 import { type Embed, type EmbedPlan, settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
 
 type Json = Record<string, unknown>
@@ -370,10 +370,39 @@ function baseOf(body: string): number | null {
 
 /** A body's lowest and highest Z, from Reverse Engineer's bounds. */
 function zRange(body: string): [number, number] | null {
+  const b = boxOf(body)
+  return b ? [b.min[2], b.max[2]] : null
+}
+
+/** A body's bounding box, from Reverse Engineer's bounds. */
+function boxOf(body: string): { min: V3; max: V3 } | null {
   const bs = ((readStateSections().reverse as { bodies?: { name: string; bounds?: { min: number[]; max: number[] } | null }[] } | undefined)?.bodies) ?? []
   const b = bs.find((x) => x.name === body)?.bounds
-  const lo = b?.min?.[2], hi = b?.max?.[2]
-  return typeof lo === 'number' && Number.isFinite(lo) && typeof hi === 'number' && Number.isFinite(hi) ? [lo, hi] : null
+  const ok = (v: unknown): v is V3 => Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === 'number' && Number.isFinite(x))
+  return b && ok(b.min) && ok(b.max) ? { min: b.min, max: b.max } : null
+}
+
+/** A step's outline on the sheet about its centre, as features.ts draws it
+ *  (a circle sampled finely), with its teardrop point and riser. */
+function outlineOf(step: Step, up: V2 | null): V2[] {
+  const r = step.diameter / 2
+  const pts: V2[] = []
+  if (step.profile === 'circle') for (let i = 0; i < 144; i++) pts.push([r * Math.cos((i * Math.PI) / 72), r * Math.sin((i * Math.PI) / 72)])
+  else if (step.profile === 'hex') {
+    const R = r / Math.cos(Math.PI / 6)
+    const a0 = up ? Math.atan2(up[1], up[0]) : Math.PI / 6
+    for (let i = 0; i < 6; i++) pts.push([R * Math.cos(a0 + (i * Math.PI) / 3), R * Math.sin(a0 + (i * Math.PI) / 3)])
+  } else if (step.profile === 'rect') {
+    const t = ((step.angleDeg ?? 0) * Math.PI) / 180
+    const w = step.diameter / 2, h = (step.length ?? step.diameter) / 2
+    for (const [a, b] of [[w, h], [-w, h], [-w, -h], [w, -h]]) pts.push([a * Math.cos(t) - b * Math.sin(t), a * Math.sin(t) + b * Math.cos(t)])
+  } else {
+    const R = r / Math.cos(Math.PI / 6)
+    for (let i = 0; i < 6; i++) pts.push([R * Math.cos((i * Math.PI) / 3), R * Math.sin((i * Math.PI) / 3)])
+  }
+  if (up && step.teardrop) pts.push([r * Math.SQRT2 * up[0], r * Math.SQRT2 * up[1]])
+  if (up && step.riser) for (const s of [1, -1]) pts.push([s * r * up[1] + step.riser * up[0], -s * r * up[0] + step.riser * up[1]])
+  return pts
 }
 
 /**
@@ -385,12 +414,22 @@ function zRange(body: string): [number, number] | null {
  */
 function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
   if (!(EMBED_KINDS as readonly string[]).includes(a.kind)) invalid(`A ${a.kind} is not dropped in: encase takes ${EMBED_KINDS.join(', ')}.`)
-  for (const k of ['sunk', 'slot', 'relief', 'head', 'teardrop'] as const) if (a[k] !== undefined) invalid(`${k}: not with encase — the pocket is closed all round${k === 'teardrop' ? ' (a level one is teardropped by the setting)' : ''}.`)
+  for (const k of ['sunk', 'slot', 'relief', 'head', 'teardrop'] as const) if (a[k] !== undefined) invalid(`${k}: not with encase — the pocket is closed all round${k === 'teardrop' ? ' (a level one gets straight sides to a flat top)' : ''}.`)
   if (a.depth === null) invalid('depth: an encased pocket has a floor — give a number, or leave it out.')
   if (a.kind === 'object' ? a.size !== undefined : a.size === undefined) invalid(a.kind === 'object' ? 'size: hardware’s only — an object gives object.' : 'size: needed.')
   if (a.kind !== 'object' && a.object !== undefined) invalid('object: kind object’s only.')
   const S = settings()
   const layers = layersOf(S)
+  const dz0 = placed.direction[2]
+  // A slanted pocket closes over itself before the print reaches its top:
+  // nothing could be dropped into it at the pause.
+  if (Math.abs(Math.abs(dz0) - 1) > 1e-6 && Math.abs(dz0) > 1e-6) invalid(`An encased pocket goes straight down, straight up or level: one along (${placed.direction.map(r3).join(', ')}) would be closed over before the print reaches its top, and the part could not be dropped in. Give a face or direction square to the bed or upright.`)
+  if (a.kind === 'object' && a.object?.shape === 'box' && placed.placement.up) {
+    // Level: the box drops in only with its sides upright under a flat top.
+    const up = (Math.atan2(placed.placement.up[1], placed.placement.up[0]) * 180) / Math.PI
+    const off = ((((a.object.angleDeg ?? 0) - up) % 90) + 90) % 90
+    if (Math.min(off, 90 - off) > 0.5) invalid(`A level box pocket stands with its sides upright so the box drops in: turn it (object.angleDeg ${r3(up)} or ${r3(up + 90)}, from the sheet’s +u).`)
+  }
   const e = a.encase === true || a.encase === undefined ? {} : (a.encase as { roof?: number; roofLayers?: number })
   if (e.roof !== undefined && e.roofLayers !== undefined) invalid('encase: roof or roofLayers, not both.')
   const minRoof = r3((e.roofLayers ?? S.roofLayers) * S.layerHeight)
@@ -430,6 +469,15 @@ function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
       notes.push(`Pocket made ${cut.height} deep so its top lands on a layer boundary, ${r3(top + more)} above the bed.`)
     }
   }
+  if (base !== null && placed.level && cut.steps[0].riser) {
+    // Level: the flat top raised onto a layer boundary.
+    const top = placed.entry[2] + cut.steps[0].riser - base
+    const more = boundaryUp(top, layers) - top
+    if (more > EPS) {
+      cut.steps[0].riser = r3(cut.steps[0].riser + more)
+      notes.push(`Its flat top raised ${r3(more)} onto a layer boundary, ${r3(top + more)} above the bed.`)
+    }
+  }
   const pocket = cut.steps[0]
   const reach = profileReach(pocket, [placed.basisU[2], placed.basisV[2]])
   const along = Math.max((pocket.from as number) * dz, (pocket.to as number) * dz)
@@ -450,9 +498,28 @@ function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
     if (over <= EPS) invalid(`The pocket’s top (Z ${Math.max(...tops)}) reaches ${placed.body}’s top (Z ${r3(range[1])}): it can’t be closed over. Make it shallower, or cut it from the top.`)
     if (over < minRoof - EPS) warn.push(`Warning: ${placed.body}’s top is only ${over} over the pocket, under ${minRoof}: it may print open.`)
   }
+  // Out through a side: the pocket's outline, every copy, against the
+  // body's box — past it, surely out; inside it, the body may still be
+  // thinner there (a section shows it).
+  const box = boxOf(placed.body)
+  if (box) {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]
+    for (const [du, dv] of offsets)
+      for (const [u, v] of outlineOf(pocket, placed.placement.up))
+        for (const t of [pocket.from as number, pocket.to as number])
+          for (let i = 0; i < 3; i++) {
+            const x = placed.entry[i] + (du + u) * placed.basisU[i] + (dv + v) * placed.basisV[i] + t * placed.direction[i]
+            lo[i] = Math.min(lo[i], x)
+            hi[i] = Math.max(hi[i], x)
+          }
+    const sides = [0, 1, 2].filter((i) => i < 2 || placed.level)
+    const out = sides.flatMap((i) => [r3(box.min[i] - lo[i]), r3(hi[i] - box.max[i])].filter((x) => x > EPS).map((x) => `${r3(x)} past ${placed.body}’s ${'XYZ'[i]} side`))
+    if (out.length) invalid(`The pocket would break out of ${placed.body}: ${out.join(', ')}. Move it in, or make it smaller.`)
+    const thin = Math.min(...sides.flatMap((i) => [lo[i] - box.min[i], box.max[i] - hi[i]]))
+    if (thin < minRoof - EPS) warn.push(`Warning: the pocket comes within ${r3(thin)} of ${placed.body}’s side, under ${minRoof}: it may print open there.`)
+  }
   if (!down) notes.push(up ? `The part over the pocket is the body's own: check it is ${minRoof} thick at least (section.cut through it).` : `The material round the pocket is the body's own: check it is ${minRoof} thick at least, above it most of all (section.cut through it).`)
-  if (placed.level) notes.push('Level pocket: its roof is built up in steps to the teardrop’s point, not bridged.')
-  else if (cut.span > S.bridgeMax + EPS) {
+  if (cut.span > S.bridgeMax + EPS) {
     const at = base !== null ? pauseLayer(Math.min(...tops) - base, layers) : null
     warn.push(`Warning: the roof spans ${cut.span}, more than a safe bridge (${S.bridgeMax}). ${at ? `Layer ${at.layer} (Z ${at.printZ})` : 'The first layer over it'} bridges it: print it as a bridge (the slicer's bridge settings), narrow the pocket, or turn it so the short side spans.`)
   }

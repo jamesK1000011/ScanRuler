@@ -23,7 +23,7 @@ const add = (a: V3, b: V3, s = 1): V3 => [a[0] + s * b[0], a[1] + s * b[1], a[2]
 
 const face = (index: number, centroid: V3, normal: V3) => ({ index, kind: 'plane', centroid, normal, area: 1600, fingerprint: { kind: 'plane', centroid, dir: normal } })
 const BODIES: Record<string, { id: number; faces: Json[]; bounds: { min: V3; max: V3 } }> = {
-  Block: { id: 1, faces: [face(0, [0, 0, 10], [0, 0, 1]), face(1, [0, 0, 0], [0, 0, -1]), face(2, [20, 0, 5], [1, 0, 0])], bounds: { min: [-20, -20, 0], max: [20, 20, 10] } },
+  Block: { id: 1, faces: [face(0, [0, 0, 10], [0, 0, 1]), face(1, [0, 0, 0], [0, 0, -1]), face(2, [20, 0, 5], [1, 0, 0]), face(3, [0, -18, 9], [0, -0.6, 0.8])], bounds: { min: [-20, -20, 0], max: [20, 20, 10] } },
   Raised: { id: 2, faces: [face(0, [60, 0, 15.3], [0, 0, 1])], bounds: { min: [40, -20, 5], max: [80, 20, 15.3] } },
 }
 let mass: Json | undefined
@@ -41,6 +41,12 @@ function frameOf(p: Json): { origin: V3; normal: V3; basisU: V3; basisV: V3 } {
     const u: V3 = [Math.cos(a), Math.sin(a), 0]
     const v: V3 = [0, 0, 1]
     return { origin: add([0, 0, 0], cross(u, v), off), normal: cross(u, v), basisU: u, basisV: v }
+  }
+  if (p.kind === 'bodyFace') {
+    const fp = p.face as { centroid: V3; dir: V3 }
+    const n = fp.dir
+    const u: V3 = [1, 0, 0]
+    return { origin: add(fp.centroid, n, off), normal: n, basisU: u, basisV: cross(n, u) }
   }
   throw new CommandError('invalid_input', `plane ${p.kind}`)
 }
@@ -152,12 +158,29 @@ describe('hw.embed', () => {
     expect(p.notes.some((n: string) => /body's own/.test(n))).toBe(true)
   })
 
-  test('from the side: teardropped, its top the point, off a boundary — said so', async () => {
+  test('from the side: straight sides up to a flat top on a boundary, so the part drops in', async () => {
     const p = await run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 2 } })
-    expect(p.steps[0]).toMatchObject({ teardrop: true, from: 0.6 })
-    expect(p.embed.tops[0]).toBeCloseTo(5 + 3.15 * Math.SQRT2, 3)
-    expect(p.notes.some((n: string) => /Level pocket/.test(n))).toBe(true)
-    expect(warnings(p).some((w: string) => /not on a layer boundary/.test(w))).toBe(true)
+    // Ø6.3: its top 3.15 over the centre (Z 5), raised to 8.2 on the grid.
+    expect(p.steps[0]).toMatchObject({ riser: 3.2, from: 0.6 })
+    expect(p.steps[0].teardrop).toBe(undefined)
+    expect(p.embed.tops[0]).toBeCloseTo(8.2, 6)
+    expect(p.embed.pauses[0]).toMatchObject({ layer: 42, onBoundary: true })
+    expect(p.notes.some((n: string) => /Level pocket: straight sides/.test(n))).toBe(true)
+    expect(warnings(p)).toEqual([])
+    // A nut stands on a corner, its sides run up from its middle.
+    const n = await run('embed', { kind: 'nut', size: 'M3', shaft: false, at: { body: 'Block', face: 2 } })
+    const R = 5.8 / 2 / Math.cos(Math.PI / 6)
+    expect(n.steps[0].riser >= R - 1e-9).toBe(true)
+    expect(n.embed.tops[0]).toBeCloseTo(5 + n.steps[0].riser, 6)
+  })
+
+  test('refused: slanted, out through a side, a level box turned off upright', async () => {
+    await refused(run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 3 } }), /straight down, straight up or level/)
+    await refused(run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 0, point: [19, 0, 10] } }), /break out of Block: 2\.15 past Block’s X side/)
+    const near = await run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 0, point: [16.7, 0, 10] } })
+    expect(warnings(near).some((w: string) => /within 0\.15 of Block’s side/.test(w))).toBe(true)
+    await refused(run('embed', { kind: 'object', object: { shape: 'box', size: [5, 5, 2], angleDeg: 30 }, at: { body: 'Block', face: 2 } }), /sides upright/)
+    expect((await run('embed', { kind: 'object', object: { shape: 'box', size: [5, 5, 2] }, at: { body: 'Block', face: 2 } })).embed.tops[0]).toBeCloseTo(5 + 2.65, 6)
   })
 
   test('warned: a roof under the layers asked for, a span past a safe bridge (and the layer that bridges)', async () => {
@@ -291,5 +314,94 @@ describe('cut, recorded, and the pauses', () => {
     expect(r.settings.roofLayers).toBe(3)
     const { describeHw } = await import('../app/hwCommands')
     expect(describeHw().encased).toEqual([{ id: 'E1', body: 'Block', what: 'a tag', top: 4, roof: null }])
+  })
+})
+
+// ---- the pocket built in OCCT -------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type K = any
+let occt: Promise<K> | null = null
+const kernel = () => (occt ??= import('occt-wasm').then((m) => m.OcctKernel.init()))
+const P3 = (p: V3) => ({ x: p[0], y: p[1], z: p[2] })
+
+/** The plan's features built on the block as Reverse Engineer reads them:
+ *  each sketch's shapes on its plane's sheet, extruded between the extent's
+ *  offsets along the normal and cut. Open lines close on their ends. */
+function buildBlock(k: K, feats: Json[]) {
+  let block = k.makeBoxFromCorners(P3([-20, -20, 0]), P3([20, 20, 10]))
+  const sketches = new Map(feats.filter((f) => f.kind === 'sketch').map((f) => [f.name, f]))
+  for (const f of feats.filter((x) => x.kind === 'extrude')) {
+    const sk = sketches.get(f.sketchId)!
+    const fr = frameOf(sk.plane)
+    const e = f.extent as { from: number; to: number }
+    const lo = Math.min(e.from, e.to), hi = Math.max(e.from, e.to)
+    const w = (q: number[], t: number) => add(add(add(fr.origin, fr.basisU, q[0]), fr.basisV, q[1]), fr.normal, t)
+    const solids = (sk.sketch.shapes as Json[]).map((sh) => {
+      let pts: number[][]
+      if (sh.kind === 'circle') pts = Array.from({ length: 180 }, (_, i) => [sh.center[0] + sh.radius * Math.cos((i * Math.PI) / 90), sh.center[1] + sh.radius * Math.sin((i * Math.PI) / 90)])
+      else if (sh.kind === 'polygon') {
+        const R = sh.radius / Math.cos(Math.PI / 6)
+        const a0 = (sh.angleDeg * Math.PI) / 180 - Math.PI / 6
+        pts = Array.from({ length: 6 }, (_, i) => [sh.center[0] + R * Math.cos(a0 + (i * Math.PI) / 3), sh.center[1] + R * Math.sin(a0 + (i * Math.PI) / 3)])
+      } else pts = sh.points
+      const ws = pts.map((q) => w(q, lo))
+      const face = k.makeFace(k.makeWire(ws.map((p, i) => k.makeLineEdge(P3(p), P3(ws[(i + 1) % ws.length])))))
+      const d = hi - lo
+      return k.extrude(face, fr.normal[0] * d, fr.normal[1] * d, fr.normal[2] * d)
+    })
+    block = k.cut(block, solids.length === 1 ? solids[0] : k.fuseAll(solids))
+  }
+  return block
+}
+
+describe('the encased pocket in OCCT', () => {
+  test('from the top: closed under three whole layers, open below its top', async () => {
+    const k = await kernel()
+    const p = await run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 0 } })
+    const b = buildBlock(k, p.features)
+    // The roof: each of its three layers solid over the centre and to the rim.
+    for (const z of [9.5, 9.7, 9.9]) for (const x of [0, 3.1]) expect(k.containsPoint(b, P3([x, 0, z]))).toBe(true)
+    // Under the top: open to its rim, then the wall.
+    for (const z of [9.35, 7, 6.25]) {
+      expect(k.containsPoint(b, P3([3.1, 0, z]))).toBe(false)
+      expect(k.containsPoint(b, P3([3.2, 0, z]))).toBe(true)
+    }
+    expect(k.containsPoint(b, P3([0, 0, 6.15]))).toBe(true)
+    expect(k.getVolume(b)).toBeCloseTo(16000 - Math.PI * 3.15 * 3.15 * 3.2, 0)
+    k.releaseAll()
+  })
+
+  test('from the side: the part drops in — open as wide as it from its middle to the flat top, closed over it', async () => {
+    const k = await kernel()
+    const p = await run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 2 } })
+    const b = buildBlock(k, p.features)
+    const x = 20 - 0.6 - 1.6 // mid-depth
+    // Every height from the centre (Z 5) to the top (8.2): open across the magnet's 6.
+    for (let z = 5; z < 8.2 - 1e-9; z += 0.4) for (const y of [-3.05, 0, 3.05]) expect(k.containsPoint(b, P3([x, y, z]))).toBe(false)
+    expect(k.containsPoint(b, P3([x, 0, 8.15]))).toBe(false)
+    // The roof over it: solid at once above the top, to the block's top.
+    for (const z of [8.25, 9, 9.9]) expect(k.containsPoint(b, P3([x, 0, z]))).toBe(true)
+    // Round below the centre: the magnet's seat.
+    expect(k.containsPoint(b, P3([x, 0, 5 - 3.1]))).toBe(false)
+    expect(k.containsPoint(b, P3([x, 3, 5 - 1.5]))).toBe(true)
+    // Closed at the side face (the roof along the hole) and behind.
+    expect(k.containsPoint(b, P3([19.7, 0, 5]))).toBe(true)
+    expect(k.containsPoint(b, P3([20 - 3.8 - 0.1, 0, 5]))).toBe(true)
+    k.releaseAll()
+  })
+
+  test('a nut from the side: on a corner below, straight sides above, its flats’ width open to the top', async () => {
+    const k = await kernel()
+    const p = await run('embed', { kind: 'nut', size: 'M3', shaft: false, at: { body: 'Block', face: 2 } })
+    const b = buildBlock(k, p.features)
+    const x = 20 - 0.6 - 1
+    const top = p.embed.tops[0]
+    for (let z = 5; z < top - 1e-9; z += 0.3) for (const y of [-2.85, 0, 2.85]) expect(k.containsPoint(b, P3([x, y, z]))).toBe(false)
+    expect(k.containsPoint(b, P3([x, 0, top + 0.05]))).toBe(true)
+    // The corner down.
+    expect(k.containsPoint(b, P3([x, 0, 5 - 3.3]))).toBe(false)
+    expect(k.containsPoint(b, P3([x, 2.85, 5 - 2.5]))).toBe(true)
+    k.releaseAll()
   })
 })

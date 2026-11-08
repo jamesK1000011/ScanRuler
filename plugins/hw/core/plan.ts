@@ -113,6 +113,10 @@ export interface Step {
   draftDeg?: number
   /** Drawn as a teardrop, its point up — set where placed level. */
   teardrop?: boolean
+  /** An encased pocket placed level: straight sides from its middle up to
+   *  a flat top this far above its centre, so the part drops in from above
+   *  at the pause. */
+  riser?: number
   slot?: Slot
 }
 

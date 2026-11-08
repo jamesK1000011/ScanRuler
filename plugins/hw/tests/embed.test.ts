@@ -60,11 +60,14 @@ describe('the pause layer', () => {
     const l = L(0.2, 0.2)
     expect(pauseLayer(2.01, l)).toEqual({ layer: 12, z: 2.2, printZ: 2.4, onBoundary: false })
     expect(pauseLayer(2.19, l).layer).toBe(12)
-    // Within 0.1 µm of a boundary is on it; a micron off is not.
+    // Within 1.5 µm of a boundary is on it, as the pauses put into the
+    // G-code read it (Z to 3 places there); two microns off is not.
     expect(pauseLayer(2.00005, l).layer).toBe(11)
     expect(pauseLayer(1.99995, l).layer).toBe(11)
-    expect(pauseLayer(2.001, l).layer).toBe(12)
-    expect(pauseLayer(1.999, l)).toEqual({ layer: 11, z: 2, printZ: 2.2, onBoundary: false })
+    expect(pauseLayer(2.001, l)).toEqual({ layer: 11, z: 2, printZ: 2.2, onBoundary: true })
+    expect(pauseLayer(2.002, l).layer).toBe(12)
+    expect(pauseLayer(1.999, l)).toEqual({ layer: 11, z: 2, printZ: 2.2, onBoundary: true })
+    expect(pauseLayer(1.998, l)).toEqual({ layer: 11, z: 2, printZ: 2.2, onBoundary: false })
   })
 
   test('inside the first layer: the second, off its boundary', () => {
@@ -164,7 +167,8 @@ describe('the pocket', () => {
     expect(b.span).toBe(8.3)
     expect(b.what).toBe('an RFID tag ×2')
     const c = encasedCut({ kind: 'object', object: { shape: 'cylinder', diameter: 12, height: 10 }, roof: 1, clearance: 0.5 }, S, true)
-    expect(c.steps[0]).toMatchObject({ profile: 'circle', diameter: 12.5, from: 1, to: 11.2, teardrop: true })
+    expect(c.steps[0]).toMatchObject({ profile: 'circle', diameter: 12.5, from: 1, to: 11.2, riser: 6.25 })
+    expect(c.steps[0].teardrop).toBe(undefined)
   })
   test('a depth given, if the part fits under it', () => {
     expect(at('magnet', '6x3', { depth: 4 }).steps[0].to).toBe(4.6)
@@ -193,6 +197,9 @@ describe('how far an outline reaches up', () => {
     expect(profileReach({ ...circle, profile: 'rect', diameter: 10, length: 4 }, [0, 1])).toBeCloseTo(2, 9)
     expect(profileReach({ ...circle, profile: 'rect', diameter: 10, length: 4, angleDeg: 90 }, [0, 1])).toBeCloseTo(5, 9)
     expect(profileReach({ ...circle, profile: 'hex', diameter: 10 }, [0, 1])).toBeCloseTo(5 / Math.cos(Math.PI / 6), 9)
+    // A riser's flat top, over the circle's or the hex's own.
+    expect(profileReach({ ...circle, riser: 5.4 }, [0, 1])).toBeCloseTo(5.4, 9)
+    expect(profileReach({ ...circle, profile: 'hex', diameter: 10, riser: 6 }, [0, 1])).toBeCloseTo(6, 9)
     // Tilted 60° from level: the reach scales with the sheet's slope.
     expect(profileReach(circle, [0, 0.5])).toBeCloseTo(2.5, 9)
   })
