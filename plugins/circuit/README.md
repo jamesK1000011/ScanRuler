@@ -61,7 +61,9 @@ the agent's server also offers `circuit_tools`, `circuit_new`,
 ## Hand-off to KiCad
 
 `circuit.build { outputs: ["kicad_pcb"] }` writes `board.kicad_pcb` in the
-job folder — a file KiCad, or a workspace that imports KiCad boards, opens.
+job folder — a file KiCad opens, and so does the Boards workspace:
+`pcb.open { path }` with the build's `files["board.kicad_pcb"]`, then
+`pcb.enclosure` and `pcb.fab` as for any KiCad board.
 
 ## Saved with the project
 

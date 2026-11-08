@@ -291,3 +291,27 @@ test('red team: reserved names, relative dirs, params not an object, the home fo
   await symlink(secret, join(circuitsDir(env), 'quick', 'notes.txt'))
   await assert.rejects(readCircuitFile({ project: 'quick', path: 'notes.txt' }, env), /links to .*outside/)
 })
+
+test('files and reads stay in the circuits folder and the projects made or built here (red team)', async () => {
+  const { dir, env } = await setUp()
+  // A folder of the person's own, never made or built here: not listed.
+  const elsewhere = join(dir, 'elsewhere')
+  await mkdir(elsewhere, { recursive: true })
+  await writeFile(join(elsewhere, 'secret.txt'), 'x')
+  await assert.rejects(files({ project: elsewhere }, env), /not a circuit project this server made or built/)
+  // A job id of ".." with a job.json planted above the builds: refused;
+  // a job's folder is where it lies, not what its job.json says.
+  await mkdir(circuitsDir(env), { recursive: true })
+  await writeFile(join(circuitsDir(env), 'job.json'), JSON.stringify({ job: 'x', folder: elsewhere, ok: true }))
+  await assert.rejects(files({ job: '..' }, env), /a job id/)
+  await mkdir(join(circuitsDir(env), 'builds', 'j1'), { recursive: true })
+  await writeFile(join(circuitsDir(env), 'builds', 'j1', 'job.json'), JSON.stringify({ job: 'j1', folder: elsewhere, ok: true }))
+  const j = await files({ job: 'j1' }, env)
+  assert.equal(j.folder, join(circuitsDir(env), 'builds', 'j1'))
+  assert.deepEqual(j.files.map((f) => f.path), ['job.json'])
+  await assert.rejects(readCircuitFile({ job: 'j1', path: '../../../elsewhere/secret.txt' }, env), /outside the job/)
+  // A link in the circuits folder to a folder outside: not listed, not read.
+  await symlink(elsewhere, join(circuitsDir(env), 'linked'))
+  await assert.rejects(files({ project: 'linked' }, env), /not a circuit project/)
+  await assert.rejects(readCircuitFile({ project: 'linked', path: 'secret.txt' }, env), /links to/)
+})

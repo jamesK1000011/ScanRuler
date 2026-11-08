@@ -816,10 +816,27 @@ export async function jobs(env = process.env) {
 }
 
 export async function job(id, env = process.env) {
-  if (typeof id !== 'string' || !/^[A-Za-z0-9._-]+$/.test(id)) throw new Error('job: a job id from circuit_files.')
-  const f = join(buildsDir(env), id, 'job.json')
+  if (typeof id !== 'string' || !/^[A-Za-z0-9._-]+$/.test(id) || /^\.+$/.test(id)) throw new Error('job: a job id from circuit_files.')
+  const dir = join(buildsDir(env), id)
+  const f = join(dir, 'job.json')
   if (!existsSync(f)) throw new Error(`No job "${id}" — circuit_files lists them.`)
-  return JSON.parse(await readFile(f, 'utf8'))
+  const j = JSON.parse(await readFile(f, 'utf8'))
+  // Its folder is where it lies, whatever its job.json says: a job's files
+  // are read from the builds folder only.
+  if (!isInside(realpathSync(dir), realpathSync(buildsDir(env)))) throw new Error(`job: "${id}" is not in the builds folder.`)
+  return { ...j, folder: dir }
+}
+
+/** A folder this server lists or reads: inside the circuits folder or a
+ *  project made or built here, by its path and where it really is (past
+ *  any link). Throws, saying so, for any other. */
+async function confined(dir, env) {
+  const roots = [circuitsDir(env), ...(await knownProjects(env))]
+  const real = existsSync(dir) ? realpathSync(dir) : dir
+  const realRoots = roots.filter((r) => existsSync(r)).map((r) => realpathSync(r))
+  if (!roots.some((r) => isInside(dir, r)) || !realRoots.some((r) => isInside(real, r)))
+    throw new Error(`${dir} is not a circuit project this server made or built — circuit_new makes one; circuit_build with it as project takes in a folder of your own.`)
+  return dir
 }
 
 async function listDir(root, { maxDepth = 5, cap = 500 } = {}) {
@@ -828,7 +845,7 @@ async function listDir(root, { maxDepth = 5, cap = 500 } = {}) {
     if (depth > maxDepth || out.length >= cap) return
     for (const e of (await readdir(d, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
       if (out.length >= cap) return
-      if (e.name === 'node_modules' || e.name === '.git') continue
+      if (e.name === 'node_modules' || e.name === '.git' || e.isSymbolicLink()) continue
       const p = join(d, e.name)
       if (e.isDirectory()) await walk(p, depth + 1)
       else if (e.isFile()) out.push({ path: relative(root, p).split(sep).join('/'), bytes: (await stat(p)).size })
@@ -848,6 +865,7 @@ export async function files({ project, job: jobId } = {}, env = process.env) {
   if (project !== undefined) {
     const dir = projectDir(project, env)
     if (!existsSync(dir)) throw new Error(`There is no project ${dir}.`)
+    await confined(dir, env)
     return { project: dir, entry: (() => { try { return entryOf(dir) } catch { return null } })(), files: await listDir(dir) }
   }
   const root = circuitsDir(env)

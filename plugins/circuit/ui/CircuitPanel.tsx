@@ -28,7 +28,7 @@ const OUTPUTS: [string, string, string][] = [
   ['gerbers', 'Gerbers', 'The fabrication zip'],
   ['bom', 'BOM', 'bom.csv'],
   ['pnp', 'Pick and place', 'pick_and_place.csv'],
-  ['kicad_pcb', 'KiCad', '.kicad_pcb, for KiCad or the PCB workspace'],
+  ['kicad_pcb', 'KiCad', '.kicad_pcb, for KiCad or the Boards workspace'],
   ['step', 'STEP', 'The board with its parts, as tscircuit models them'],
   ['glb', 'GLB', '3D view'],
 ]
