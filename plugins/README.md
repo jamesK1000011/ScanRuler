@@ -30,6 +30,7 @@ not in this repository.
 | [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, a board enclosure, made to size as solids |
 | [hw/](hw/) | Hardware — holes for screws, nut traps, heat-set inserts, magnets and bearings, sized for printing and cut into Reverse Engineer bodies |
 | [pcb/](pcb/) | Boards — KiCad boards brought in as solids, an enclosure round them, Gerbers, drills and DRC through kicad-cli |
+| [printed/](printed/) | Printed circuits — traces of conductive filament as a body of their own, or channels for copper wire, tape or paint, in a Reverse Engineer body; each net's resistance along and through the layers |
 
 ## The rules
 
