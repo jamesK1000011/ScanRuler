@@ -26,3 +26,6 @@ export class CommandError extends Error {
     this.code = code
   }
 }
+
+/** A change run within another, as the registry does it. */
+export const runWithin = runCommand

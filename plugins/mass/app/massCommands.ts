@@ -5,7 +5,7 @@
 // print on the scales; a target mass and balance point; and the ballast
 // pocket that reaches it, cut into the part as Reverse Engineer features.
 
-import { runCommand } from '../../../src/commands/registry'
+import { runCommand, runWithin } from '../../../src/commands/registry'
 import { arr, enumOf, int, num, obj, str, vec3 } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
@@ -293,7 +293,7 @@ const apply: Command<{ name?: string }> = {
     const sketch = `${extrude} pocket`
     const [x, y, z] = p.at
     const [w, d, h] = p.size
-    const r = await runCommand('reverse.feature.add', {
+    const r = await runWithin('reverse.feature.add', {
       features: [
         { kind: 'sketch', name: sketch, plane: { kind: 'world', axis: 'z', offset: r3(z - h / 2) }, sketch: { shapes: [{ kind: 'rectangle', id: 1, from: [r3(x - w / 2), r3(y - d / 2)], to: [r3(x + w / 2), r3(y + d / 2)] }] } },
         { kind: 'extrude', name: extrude, sketchId: sketch, regions: 'all', extent: { kind: 'distance', from: 0, to: r3(h) }, op: 'cut', target: into.id },
