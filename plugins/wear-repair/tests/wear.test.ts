@@ -6,7 +6,7 @@ import Module from 'manifold-3d'
 import { describe, expect, test } from 'vitest'
 import { mirror, surface, type Mesh } from '../core/geometry'
 import { prewarp, stopRule } from '../core/prewarp'
-import { diff, rebuild } from '../core/repair'
+import { diff, rebuild, scatter, scatterNote } from '../core/repair'
 
 async function block(): Promise<Mesh> {
   const w = await Module()
@@ -46,6 +46,24 @@ describe('repair from the mirrored other half', () => {
     const ref = surface(mirror(scan, [0, 0, 0], [1, 0, 0]))
     const fixed = rebuild(scan, ref, { worn: [WORN], keep: [{ kind: 'sphere', center: [15, 0, 10], radius: 30 }], blendMm: 1, maxMm: 3, mode: 'add' })
     expect(fixed.moved).toBe(0)
+  })
+})
+
+describe('scan scatter against the tolerance', () => {
+  test('the spread off the worn region reads back, and a tolerance under twice it is flagged', async () => {
+    const clean = await block()
+    let seed = 7
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    const gauss = () => Math.sqrt(-2 * Math.log(rand() || 1e-9)) * Math.cos(2 * Math.PI * rand())
+    const p = Float64Array.from(clean.positions)
+    for (let i = 0; i < p.length; i++) p[i] += 0.03 * gauss()
+    const s = scatter({ positions: p, indices: clean.indices }, surface(clean), [WORN], 3)
+    expect(s).not.toBeNull()
+    expect(s!.mm).toBeGreaterThan(0.02)
+    expect(s!.mm).toBeLessThan(0.04)
+    expect(scatterNote(s, 0.05)).toMatch(/twice the scan's scatter/)
+    expect(scatterNote(s, 0.1)).toBeNull()
+    expect(scatter(clean, surface(clean), [WORN], 3)!.mm).toBeLessThan(0.001)
   })
 })
 

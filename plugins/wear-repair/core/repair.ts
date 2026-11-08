@@ -52,6 +52,40 @@ export function diff(scan: Mesh, ref: Surface, regions: readonly { name: string;
   })
 }
 
+/** The scan's own scatter against the reference where it is not worn: the
+ *  robust spread (1.4826 × the median absolute deviation) of the signed
+ *  distance over points outside every worn region and near the reference.
+ *  A tolerance under about twice this counts scatter as wear. Null when
+ *  fewer than 50 such points are near. Reads at most about 20 000 points. */
+export function scatter(scan: Mesh, ref: Surface, worn: readonly Region[], maxMm: number): { mm: number; points: number } | null {
+  const n = scan.positions.length / 3
+  const stride = Math.max(1, Math.floor(n / 20000))
+  const ds: number[] = []
+  for (let v = 0; v < n; v += stride) {
+    const i = 3 * v
+    const x = scan.positions[i], y = scan.positions[i + 1], z = scan.positions[i + 2]
+    if (worn.length && weight(worn, [], 0, x, y, z) > 0) continue
+    const h = ref.nearest(x, y, z)
+    if (h.distance > maxMm) continue
+    ds.push(h.signed)
+  }
+  if (ds.length < 50) return null
+  const mid = (a: number[]) => {
+    const b = [...a].sort((p, q) => p - q)
+    return b[b.length >> 1]
+  }
+  const m = mid(ds)
+  return { mm: Math.round(1.4826 * mid(ds.map((d) => Math.abs(d - m))) * 10000) / 10000, points: ds.length }
+}
+
+/** What the scatter means for the tolerance, in a line, or null when the
+ *  tolerance clears it. */
+export function scatterNote(s: { mm: number } | null, tolerance: number): string | null {
+  if (!s || tolerance >= 2 * s.mm) return null
+  // units-ok: the reply to the agent, in the millimetres the settings take
+  return `the tolerance (${tolerance} mm) is under twice the scan's scatter off the worn regions (${s.mm} mm): points past it may be scatter, not wear — raise it to about ${Math.ceil(2 * s.mm * 100) / 100} mm, or rescan finer`
+}
+
 export interface RebuildOptions {
   worn: Region[]
   keep: Region[]
