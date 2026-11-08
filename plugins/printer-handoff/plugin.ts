@@ -17,8 +17,9 @@ const plugin: ScanRulerPlugin = {
     id: 'print',
     label: 'Print',
     title: 'Start requests from the agent, and their answers: a print starts only on your Start',
-    icon: 'model',
-    order: 43,
+    icon: 'printer',
+    order: 32,
+    group: 'make',
   },
   usePlugin: usePrinterPlugin,
   install() {
