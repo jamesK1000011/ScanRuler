@@ -84,4 +84,10 @@ export async function takeShot(hide: HTMLElement | null): Promise<Shot | null> {
   }
 }
 
-export const fileName = (s: Shot) => `scanruler-${s.at.replace(/[:.]/g, '-').replace('T', '_').slice(0, 19)}.png`
+/** A shot's file name: the local time it was taken, to the millisecond, so
+ *  shots taken in the same second keep a file each. */
+export const fileName = (s: Shot) => {
+  const d = new Date(s.at)
+  const p = (n: number, w = 2) => String(n).padStart(w, '0')
+  return `scanruler-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}-${p(d.getMilliseconds(), 3)}.png`
+}
