@@ -10,7 +10,6 @@ import type { PluginHost, PluginRuntime } from '../../../src/plugins/api'
 import { runCommand } from '../../../src/commands/registry'
 import { useShell } from '../../../src/state/shellStore'
 import { useStore } from '../../../src/state/store'
-import { useMark } from '../../../src/state/markStore'
 import { saveFile } from '../../../src/app/exports'
 import type { FileOut } from '../../../src/commands/types'
 import { useTexture } from '../state/textureStore'
@@ -57,10 +56,9 @@ export function useTexturePlugin(host: PluginHost): PluginRuntime {
         onUseMarking={(op) => void run('mask', { op, region: 'marked' })}
         onShowMask={() => void run('show_mask')}
         onClearMask={() => void run('mask', { op: 'clear' })}
-        onClearMarking={() => {
-          host.sceneRef.current?.clearPaint()
-          useMark.getState().setCount(0)
-        }}
+        onClearMarking={() => void run('clear_marking')}
+        onEstimate={() => run('estimate')}
+        onCheck={() => run('check')}
         onPreview={() => void run('preview')}
         onExport={(format) =>
           void runCommand('texture.export', { format })

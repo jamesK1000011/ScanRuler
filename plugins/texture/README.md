@@ -32,7 +32,7 @@ as STL — and pick the **Texture** tab.
 ## For agents
 
 Commands under `texture` (`texture_*` tools through scanruler-mcp):
-`textures`, `set`, `image`, `mask`, `show_mask`, `layer`, `output`,
+`textures`, `set`, `image`, `mask`, `show_mask`, `clear_marking`, `layer`, `output`,
 `settings`, `estimate`, `preview`, `show`, `export`, `check`, `stop`; the
 guide is `guide.read { topic: "texture" }`. `texture.check` proves after an
 export that every protected vertex is where it was.

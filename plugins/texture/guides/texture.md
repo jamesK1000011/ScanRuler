@@ -99,7 +99,8 @@ as several `add`s, cut a hole out of it with `remove`.
 Always look before building: `texture.show_mask` lays the layer's paint on
 the part in orange; `view.render` from two or three sides confirms it covers
 what was meant and nothing it must not. A face counts as painted only when
-all three of its corners are.
+all three of its corners are. `texture.clear_marking` takes the marking off
+the part again, leaving every layer's paint as it is.
 
 ## 4. Textures
 

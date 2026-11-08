@@ -4,8 +4,9 @@
 // app's marking tools), how the part is built, and the buttons that build
 // it. Every control is the same verb an agent's command runs.
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { runCommand } from '../../../src/commands/registry'
+import { useLength } from '../../../src/app/useUnits'
 import { useStore } from '../../../src/state/store'
 import { useMark } from '../../../src/state/markStore'
 import { InfoDot } from '../../../src/ui/InfoDot'
@@ -29,6 +30,9 @@ const MODES: { id: number; label: string }[] = [
   { id: 2, label: 'Planar YZ' },
 ]
 
+type Estimate = { subdividedTriangles: number; maxTriangles: number; squeezed: boolean; texturedAreaMm2: number; partAreaMm2: number }
+type CheckAnswer = { moved: number; kept: number; protectedVertices: number; worstMm: number }
+
 export interface TexturePanelProps {
   onPickTexture(name: string): void
   onImage(file: File): void
@@ -39,6 +43,8 @@ export interface TexturePanelProps {
   onClearMask(): void
   onClearMarking(): void
   onPreview(): void
+  onEstimate(): Promise<unknown>
+  onCheck(): Promise<unknown>
   onExport(format: 'stl' | '3mf'): void
   onStop(): void
   onShow(what: 'result' | 'scan'): void
@@ -50,6 +56,13 @@ export function TexturePanel(p: TexturePanelProps) {
   const fileName = useStore((s) => s.fileName)
   const marked = useMark((s) => s.count)
   const [category, setCategory] = useState('grip')
+  const len = useLength()
+  // The last estimate and check, as their commands answered: a change of
+  // setting makes the estimate stale, a new build the check.
+  const [estimate, setEstimate] = useState<Estimate | null>(null)
+  const [check, setCheck] = useState<CheckAnswer | null>(null)
+  useEffect(() => setEstimate(null), [st.layers, st.output])
+  useEffect(() => setCheck(null), [st.result])
   const L = st.layers[st.active]
   const busy = st.status === 'running'
   const s = L.settings
@@ -193,9 +206,35 @@ export function TexturePanel(p: TexturePanelProps) {
           <>
             <button className="primary block" disabled={!st.layers.some((x) => x.texture)} onClick={p.onPreview}>Preview</button>
             <div className="toolrow">
+              <button disabled={!st.layers.some((x) => x.texture)} data-test="texture-estimate" title="Triangles before a full build" onClick={() => void p.onEstimate().then((r) => r && setEstimate(r as Estimate))}>Estimate</button>
               <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('stl')}>Export STL</button>
               <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('3mf')}>Export 3MF</button>
             </div>
+            {estimate && (
+              <p className="hint" data-test="texture-estimated">
+                About {estimate.subdividedTriangles.toLocaleString()} triangles
+                {estimate.squeezed ? `, over the budget of ${estimate.maxTriangles.toLocaleString()}: it will be decimated coarser than the resolution.` : ', within the budget.'}
+                <InfoDot title="The estimate">
+                  <p>The triangles the textured surface comes to at the resolution, before it is decimated to the triangle budget. Over the budget, raise the budget for the finest result, or coarsen the resolution to build faster.</p>
+                  <p>{Math.round((100 * estimate.texturedAreaMm2) / Math.max(estimate.partAreaMm2, 1))}% of the part's surface is textured.</p>
+                </InfoDot>
+              </p>
+            )}
+            {st.result?.kind === 'full' && (
+              <div className="toolrow">
+                <button data-test="texture-check" title="Plain surfaces unchanged after export?" onClick={() => void p.onCheck().then((r) => r && setCheck(r as CheckAnswer))}>Check plain surfaces</button>
+              </div>
+            )}
+            {check && (
+              <p className="hint" data-test="texture-checked" data-ok={check.moved === 0}>
+                {check.moved === 0 ? `All ${check.kept.toLocaleString()} plain vertices are where they were.` : `${check.moved.toLocaleString()} of ${check.protectedVertices.toLocaleString()} plain vertices moved.`}
+                <InfoDot title="The check">
+                  <p>Every vertex of the surfaces no layer textures is looked for in the exported part at the same place.{check.moved > 0 ? ` The worst moved ${len.fmt(check.worstMm, 3)}.` : ''}</p>
+                  {check.moved > 0 && !st.output.preserveUntextured && <p>Leave plain faces exactly as they are is off, so the plain faces were refined and decimated: turn it on.</p>}
+                  <p>Vertices where plain meets textured may move with the texture beside them; Edge falloff softens that.</p>
+                </InfoDot>
+              </p>
+            )}
           </>
         )}
         {st.result && !busy && (

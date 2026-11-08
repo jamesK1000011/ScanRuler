@@ -353,6 +353,23 @@ const showMask: Command<{ layer?: number }> = {
   },
 }
 
+export const clearMarking: Command<Json> = {
+  name: 'clear_marking',
+  title: 'Clear the marking on the part',
+  description:
+    'Take the marking off the part — what the brush, window or lasso marked, or texture.show_mask laid on it — without touching any layer’s paint (texture.mask { op: "clear" } empties a layer’s). As the panel’s Clear marking does. Not a step of the history, as show_mask is not. Returns how many vertices were marked.',
+  input: obj({}),
+  readOnly: true,
+  scene: true,
+  run: async () => {
+    const sc = requireScene('Clearing the marking')
+    const was = useMark.getState().count
+    sc.clearPaint()
+    useMark.getState().setCount(0)
+    return { cleared: was }
+  },
+}
+
 const layerCmd: Command<{ action: 'add' | 'remove' | 'activate' | 'visible' | 'blend'; layer?: number; visible?: boolean; blend?: 'cover' | 'add' }> = {
   name: 'layer',
   title: 'Add, remove or arrange layers',
@@ -562,7 +579,7 @@ const stop: Command<Json> = {
   run: async () => ({ stopped: stopTexture() }),
 }
 
-export const textureCommands: readonly Command<never>[] = [textures, set, image, mask, showMask, layerCmd, output, settingsCmd, estimate, preview, show, exportCmd, check, stop] as unknown as Command<never>[]
+export const textureCommands: readonly Command<never>[] = [textures, set, image, mask, showMask, clearMarking, layerCmd, output, settingsCmd, estimate, preview, show, exportCmd, check, stop] as unknown as Command<never>[]
 
 /** What the plugin is busy with, for the session's guard. */
 export function textureBusy(): string | null {
