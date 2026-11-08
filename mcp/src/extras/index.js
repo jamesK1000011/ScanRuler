@@ -2,7 +2,7 @@
 // Tools beyond the page's and the server's own, for the plugins that need
 // this computer — a slicer to run, a printer on the network, a part
 // catalogue's downloads. Listed only when SCANRULER_MCP_EXTRAS names them
-// ("slicer", "catalog", "all"), so the server's own tools stay as they are for
+// ("slicer", "catalog", "pcb", "all"), so the server's own tools stay as they are for
 // everyone who does not ask.
 
 import { downloads, openUrl, stopWatch, take, watch, watchStatus } from './catalog.js'
@@ -10,6 +10,7 @@ import { librariesStatus, LIBRARIES, modelFiles, searchModels, takeModel } from 
 import { mcmaster, saveSources, loadSources, sourcesStatus, traceparts } from './sources.js'
 import { feaTools, MATERIALS } from './fea.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
+import { fabPackage, kicadTools, readBoardFile, runDrc } from './kicad.js'
 import * as printer from './printer.js'
 import { KINDS as PRINTER_KINDS } from './printers/adapters.js'
 
@@ -62,7 +63,7 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
         try {
           // The catalog's tools take only what their schema says (its red-team
           // round); the others keep taking what they always took.
-          return text(await call(name.startsWith('catalog_') ? checkArgs(inputSchema, args ?? {}) : (args ?? {})))
+          return text(await call(name.startsWith('catalog_') || name.startsWith('kicad_') ? checkArgs(inputSchema, args ?? {}) : (args ?? {})))
         } catch (e) {
           return failure(e)
         }
@@ -203,7 +204,7 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
     tool(
       'catalog_models_search',
       'Search the model libraries',
-      'Search 3D model libraries through their official APIs — Sketchfab (no account needed to search), Thingiverse (an app token), Cults3D (the person’s user name and API key) and Poly Haven (CC0, no account; credit “Powered by Poly Haven”) — at once. Each hit: source, id, name, author, licence, page url, downloadable (Cults3D keeps its files on its site), and with thumbnails: true a small picture. missing names a library whose key is not set and how the person sets it; errors one that failed. Search in the words a listing would use ("608 bearing holder", "M18 battery mount"). catalog_models_files lists a hit’s files; catalog_models_take brings one in. Changes nothing.',
+      'Search 3D model libraries through their official APIs — Sketchfab (no account needed to search), Thingiverse (an app token), Cults3D (the person’s user name and API key), Poly Haven (CC0, no account; credit “Powered by Poly Haven”) and KiCad’s electronic parts library (kicad: STEP models by KiCad package name — “SOT-23”, “USB_C_Receptacle”, “PinHeader_1x04_P2.54mm”; CC-BY-SA 4.0 with the KiCad libraries exception; from the KiCad install first) — at once. Each hit: source, id, name, author, licence, page url, downloadable (Cults3D keeps its files on its site), and with thumbnails: true a small picture. missing names a library whose key is not set and how the person sets it; errors one that failed. Search in the words a listing would use ("608 bearing holder", "M18 battery mount"). catalog_models_files lists a hit’s files; catalog_models_take brings one in. Changes nothing.',
       obj({ query: { type: 'string', description: 'What to look for.' }, sources: { type: 'array', items: { type: 'string', enum: Object.keys(LIBRARIES) }, description: 'Only these libraries.' }, page: { type: 'number', description: 'Page of results, 1 by default.' }, thumbnails: { type: 'boolean', description: 'Include each hit’s picture as data (false by default here).' }, cursors: { type: 'object', description: 'For the next page: the cursors the last answer gave, as given.' } }, ['query']),
       async ({ query, sources, page, thumbnails = false, cursors }) => searchModels({ query, sources, page, thumbnails, ...(cursors ? { cursors } : {}) }, env),
     )
@@ -284,6 +285,26 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
   }
   if (wanted('fea')) {
     tool('fea_tools', 'The FEA programs on this computer', 'Whether Gmsh (the mesher) and CalculiX (the solver) are found — FreeCAD’s own copies first, then Homebrew’s and the PATH — with their versions, and how to get them when not; and the printed materials the FEA workspace starts from. The FEA workspace’s own commands (fea.*) run a solve. Changes nothing.', obj({}), async () => ({ ...(await feaTools(env)), materials: MATERIALS }))
+  }
+  if (wanted('pcb')) {
+    const board = { type: 'string', description: 'The board: the path of its .kicad_pcb file.' }
+    tool('kicad_tools', 'KiCad’s command line on this computer', 'Whether kicad-cli is found (KiCad’s Mac app, Homebrew, the PATH, or SCANRULER_KICAD_CLI), its version, and for each command the Boards workspace uses (STEP, Gerbers, drill, placement, DRC, parts list) the flags its --help lists of those needed — a command whose needed flags are missing is not run. fresh: read them again. Changes nothing.', obj({ fresh: { type: 'boolean' } }), async ({ fresh }) => kicadTools(env, { fresh: fresh === true }))
+    tool('kicad_board', 'Read a KiCad board', 'Read a .kicad_pcb without KiCad: its outline (Edge.Cuts, in mm, centred on its box, y up — the frame the Boards workspace imports it in), thickness, layers, mounting holes, and the connectors at its edge, each with the side it faces and the opening a wall needs for it (typical sizes, labelled so). Changes nothing.', obj({ path: board }, ['path']), async ({ path }) => {
+      const { components, ...b } = await readBoardFile(path, env)
+      return { ...b, components: components.length }
+    })
+    tool('kicad_drc', 'Run KiCad’s design rule check', 'Run kicad-cli pcb drc on a board (KiCad 8 or later): the JSON report in a job folder under the ScanRuler folder’s boards/, and its summary — violations and unconnected items by severity and kind, the first 50 with where they are. parity: check against the schematic too. Exit 5 means violations were found, not that it failed.', obj({ path: board, parity: { type: 'boolean' } }, ['path']), async ({ path, parity }) => runDrc({ path, parity: parity === true }, env), false)
+    tool(
+      'kicad_fab',
+      'Make a board’s fabrication package',
+      'With kicad-cli: Gerbers of the board’s copper, mask, silkscreen, paste and outline; Excellon drill files in mm, plated and unplated apart; the placement list (CSV, mm); the parts list from the schematic beside the board (KiCad 8 or later); and the DRC report (drc: false to leave it out) — in a job folder under the ScanRuler folder’s boards/, zipped twice: the whole package, and the Gerbers and drill files alone to upload. naming: fab (the default — Protel extensions and JLCPCB’s column names, which JLCPCB and PCBWay read) or kicad (KiCad’s own). Returns the paths and what is in it.',
+      obj({ path: board, naming: { type: 'string', enum: ['fab', 'kicad'] }, drc: { type: 'boolean' }, dnp: { type: 'boolean', description: 'Keep parts marked do-not-populate in the lists.' } }, ['path']),
+      async ({ path, naming, drc, dnp }) => {
+        const { bytes, ...r } = await fabPackage({ path, naming: naming ?? 'fab', drc: drc !== false, dnp: dnp === true }, env)
+        return r
+      },
+      false,
+    )
   }
   if (wanted('printer')) {
     const name = { type: 'string', description: 'The printer’s name in printers.json; the only one when there is one.' }

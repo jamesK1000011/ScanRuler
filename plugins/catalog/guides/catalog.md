@@ -51,7 +51,7 @@ Use this for a part someone else designed and shared: a holder, a mount, an
 adapter. These tools need the server's catalog extras.
 
 - `catalog_models_search { query }` searches Sketchfab, Thingiverse,
-  Cults3D and Poly Haven at once. Search in the words a listing would use
+  Cults3D, Poly Haven and KiCad's parts library at once. Search in the words a listing would use
   ("608 bearing holder").
   - `missing` names a library whose key isn't set, and how the person sets
     it in a terminal.
@@ -69,6 +69,12 @@ adapter. These tools need the server's catalog extras.
 - **Poly Haven:** CC0, no account. Credit "Powered by Poly Haven" where its
   models are shown. Its models come as glTF with their textures. Mostly
   scenery and props: check one is solid before printing it.
+- **KiCad parts** (`kicad`): electronic parts' STEP models from KiCad's own
+  library (kicad-packages3D, by the KiCad Libraries Team, CC-BY-SA 4.0 with
+  the KiCad libraries exception). Search by KiCad's package names:
+  `SOT-23`, `SOIC-8`, `USB_C_Receptacle`, `PinHeader_1x04_P2.54mm`. A model
+  installed with KiCad comes from disk; any other from KiCad's GitLab. A
+  STEP taken opens as a body (Reverse Engineer) as well as the reference.
 
 ## McMaster-Carr and TraceParts accounts
 

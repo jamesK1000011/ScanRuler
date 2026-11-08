@@ -4,6 +4,7 @@
 // for them and the panel that sets them.
 
 import { box, BOX_DEFAULTS, checkBox, lid, type BoxParams } from './enclosure'
+import { BOARD_BOX_DEFAULTS, boardBox, boardBoxPlan, boardLid, checkBoardBox, type BoardBoxParams, type BoardSpec } from './boardBox'
 import { BASE_DEFAULTS, baseplate, bin, BIN_DEFAULTS, checkBin, type BaseParams, type BinParams } from './gridfinity'
 import type { GenPart } from './genWorker'
 import type { GenKernel, H } from './kernel'
@@ -32,10 +33,14 @@ export interface Generator {
   blurb: string
   params: Param[]
   defaults: Record<string, Value>
-  /** Why these values won't do, or null. */
-  check(p: Record<string, Value>): string | null
+  /** Takes a board besides its values (BoardSpec): a box made round it. */
+  board?: boolean
+  /** Why these values won't do, or null; with the board, if it takes one. */
+  check(p: Record<string, Value>, board?: BoardSpec | null): string | null
   /** The solids, each under its name. */
-  build(k: GenKernel, p: Record<string, Value>): { name: string; shape: H }[]
+  build(k: GenKernel, p: Record<string, Value>, board?: BoardSpec | null): { name: string; shape: H }[]
+  /** Where its pieces go, worked out without building: for a check. */
+  plan?(p: Record<string, Value>, board: BoardSpec): unknown
 }
 
 const int = (key: string, label: string, min: number, max: number, tip: string, unit?: string): Param => ({ key, label, kind: 'int', min, max, step: 1, tip, ...(unit ? { unit } : {}) })
@@ -111,11 +116,48 @@ export const GENERATORS: Generator[] = [
   },
 ]
 
+const boxed = (b?: BoardSpec | null) => {
+  if (!b) throw new Error('No board: bring one in with the Boards workspace (pcb.import), or give board.')
+  return b
+}
+
+GENERATORS.push({
+  id: 'board_box',
+  label: 'Board enclosure',
+  blurb: 'A box round a circuit board: standoffs under its mounting holes (heat-set inserts or self-tapping screws), room above and below its parts, openings for the connectors at its edge, and a lid on a lip. Made in the board’s frame, so it stands round the board; the lid beside it, top down.',
+  board: true,
+  params: [
+    num('wall', 'Wall', 0.8, 10, 0.1, 'Side walls.'),
+    num('floor', 'Floor', 0.6, 20, 0.1, 'The bottom.'),
+    num('lid', 'Lid', 0.6, 10, 0.1, 'The lid plate.'),
+    num('lip', 'Lip depth', 0, 50, 0.5, 'How far the lid’s lip drops inside; 0 for a flat lid.'),
+    num('clearance', 'Lid clearance', 0, 1, 0.05, 'Gap each side between lip and wall.'),
+    num('corner', 'Corner radius', 0, 50, 0.5, 'Outside corners.'),
+    num('gap', 'Gap to the board', 0, 20, 0.1, 'Between the board’s edge and the wall, each side.'),
+    num('standoff', 'Standoff', 1, 50, 0.5, 'The board’s bottom above the floor; more than its parts underneath reach.'),
+    num('headroom', 'Headroom', 0, 100, 0.5, 'Above the tallest part, to the lid.'),
+    flag('inserts', 'Heat-set inserts', 'Holes for brass inserts in the standoffs; off for self-tapping screw pilots.'),
+    flag('cutouts', 'Connector openings', 'Openings in the walls for the connectors at the edge.'),
+    num('margin', 'Opening margin', 0, 5, 0.1, 'Added round each opening, each side.'),
+  ],
+  defaults: { ...BOARD_BOX_DEFAULTS },
+  check: (p, b) => checkBoardBox(p as unknown as BoardBoxParams, b),
+  build: (k, p, b) => {
+    const board = boxed(b)
+    const name = board.name ? `${board.name} ` : 'Board '
+    return [
+      { name: `${name}box`, shape: boardBox(k, p as unknown as BoardBoxParams, board) },
+      { name: `${name}lid`, shape: boardLid(k, p as unknown as BoardBoxParams, board) },
+    ]
+  },
+  plan: (p, b) => boardBoxPlan(p as unknown as BoardBoxParams, b),
+})
+
 export const generatorOf = (id: string): Generator | undefined => GENERATORS.find((g) => g.id === id)
 
 /** The values for a generator: its defaults, then those given, each
  *  checked against its parameter. Throws on a name or value that won't do. */
-export function valuesOf(g: Generator, given: Record<string, unknown> = {}, base: Record<string, Value> = g.defaults): Record<string, Value> {
+export function valuesOf(g: Generator, given: Record<string, unknown> = {}, base: Record<string, Value> = g.defaults, board?: BoardSpec | null): Record<string, Value> {
   const out: Record<string, Value> = { ...g.defaults, ...base }
   for (const [key, v] of Object.entries(given)) {
     const p = g.params.find((q) => q.key === key)
@@ -129,7 +171,7 @@ export function valuesOf(g: Generator, given: Record<string, unknown> = {}, base
     }
     out[key] = v
   }
-  const why = g.check(out)
+  const why = g.check(out, board)
   if (why) throw new Error(why)
   return out
 }

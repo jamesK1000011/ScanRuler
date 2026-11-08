@@ -7,6 +7,7 @@
 import wasmUrl from 'occt-wasm/dist/occt-wasm.wasm?url'
 import { generatorOf, type Value } from './generators'
 import type { GenKernel, H } from './kernel'
+import type { BoardSpec } from './boardBox'
 
 export interface GenAsk {
   id: number
@@ -14,6 +15,8 @@ export interface GenAsk {
   params: Record<string, Value>
   out: 'step' | 'stl' | 'info'
   chord?: number
+  /** For a generator that takes one: the board. */
+  board?: BoardSpec
 }
 
 export interface GenPart {
@@ -37,7 +40,7 @@ type Kernel = GenKernel & {
 let kernel: Promise<Kernel> | null = null
 
 self.onmessage = async (e: MessageEvent<GenAsk>) => {
-  const { id, generator, params, out, chord } = e.data
+  const { id, generator, params, out, chord, board } = e.data
   const post = (m: unknown, t: Transferable[] = []) => (self as unknown as Worker).postMessage(m, t)
   try {
     const g = generatorOf(generator)
@@ -49,7 +52,7 @@ self.onmessage = async (e: MessageEvent<GenAsk>) => {
       throw err
     })
     try {
-      const made = g.build(k, params)
+      const made = g.build(k, params, board)
       const parts: GenPart[] = made.map(({ name, shape }) => {
         const b = k.getBoundingBox(shape)
         return { name, volume: k.getVolume(shape), box: { min: [b.xmin, b.ymin, b.zmin], max: [b.xmax, b.ymax, b.zmax] } }

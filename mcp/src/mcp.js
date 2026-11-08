@@ -30,6 +30,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { attachNotices } from './notices.js'
 import { attachFeaAsks, attachPageAsks } from './pageAsks.js'
+import { attachBoardAsks } from './boardAsks.js'
 import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
 import { convertBlend, findBlender } from './blender.js'
@@ -799,6 +800,8 @@ export function createMcpServer({
   attachPageAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
   // And the FEA panel's: the part solved by Gmsh and CalculiX here.
   attachFeaAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
+  // And the Boards panel's: KiCad's kicad-cli run here (boardAsks.js).
+  attachBoardAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
   const withNews = (reply, tool) => {
     if (/^snapshot_/.test(tool ?? '')) {
       notices.seen()
@@ -1117,7 +1120,7 @@ export function createMcpServer({
   })
   // The plugins' tools that need this computer, when SCANRULER_MCP_EXTRAS
   // asks for them (extras/index.js).
-  own.push(...extraTools({ text, failure, page: (name, input) => link.run(name, input) }))
+  own.push(...extraTools({ text, failure, page: (name, input, binaryKey) => link.run(name, input, binaryKey) }))
 
   // A report beside the scan, written by this server: no grant of the
   // browser's to save a file, and nowhere but the scan's folder.

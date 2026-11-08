@@ -14,12 +14,14 @@ import { take } from './catalog.js'
 import { zipStore } from './zip.js'
 import { getSecret } from './secrets.js'
 import { home } from './slicer.js'
+import { kicadProvider } from './kicadModels.js'
 
 export const LIBRARIES = {
   sketchfab: { label: 'Sketchfab', account: 'catalog:sketchfab', secret: 'your API token (sketchfab.com → Settings → Password & API) — only to download; search needs none', needsKeyToSearch: false, files: true },
   thingiverse: { label: 'Thingiverse', account: 'catalog:thingiverse', secret: 'an app token (thingiverse.com/developers → create an app → App Token)', needsKeyToSearch: true, files: true },
   cults3d: { label: 'Cults3D', account: 'catalog:cults3d', secret: 'your user name and API key as user:key (cults3d.com → your account → API)', needsKeyToSearch: true, files: false },
   polyhaven: { label: 'Poly Haven', account: null, secret: null, needsKeyToSearch: false, files: true },
+  kicad: { label: 'KiCad 3D models', account: null, secret: null, needsKeyToSearch: false, files: true },
 }
 
 const setUp = (id) => `node mcp/src/extras/secrets.js set ${LIBRARIES[id].account}`
@@ -275,7 +277,7 @@ const polyhaven = {
   },
 }
 
-const PROVIDERS = { sketchfab, thingiverse, cults3d, polyhaven }
+const PROVIDERS = { sketchfab, thingiverse, cults3d, polyhaven, kicad: kicadProvider({ http, home, Cancelled }) }
 
 /** Which libraries are set up, never the key itself. */
 export async function librariesStatus(env = process.env) {
@@ -400,7 +402,7 @@ export async function takeModel({ source, id, file, to, signal } = {}, env = pro
     const path = join(stage, safe)
     await writeFile(path, bytes)
     if (signal?.aborted) throw new Cancelled()
-    const got = await take({ file: path, to, source, url: r.url ?? undefined, licence: r.licence ?? undefined, redistribute: mayShare(r.licence) }, env)
+    const got = await take({ file: path, to, source, url: r.url ?? undefined, licence: r.licence ?? undefined, redistribute: mayShare(r.licence), ...(r.author ? { note: `by ${r.author}` } : {}) }, env)
     return { ...got, source, id: String(id), file: pick.name, licence: r.licence, url: r.url, redistribute: mayShare(r.licence) }
   } finally {
     await rm(stage, { recursive: true, force: true }).catch(() => {})

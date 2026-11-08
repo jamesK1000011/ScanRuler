@@ -100,4 +100,30 @@ describe('the Generate commands', () => {
     expect(message).toMatch(/name/)
     expect(builds.length).toBe(0)
   })
+  it('a board enclosure takes its board: given, kept for the next, refused when none or for another part', async () => {
+    fresh()
+    const board = { name: 'tiny', outline: [[-25, -20], [25, -20], [25, 20], [-25, 20]], thickness: 1.6, above: 10, below: 2, holes: [{ x: -20, y: -15, d: 3.2 }], openings: [] }
+    let message = ''
+    await run('measure', { generator: 'board_box' }).catch((e: Error) => (message = e.message))
+    expect(message).toMatch(/No board/)
+    await run('make', { generator: 'project_box', board }).catch((e: Error) => (message = e.message))
+    expect(message).toMatch(/takes no board/)
+    await run('make', { generator: 'board_box', board: { ...board, thickness: -1 } }).catch((e: Error) => (message = e.message))
+    expect(message).toMatch(/board\.thickness/)
+    await run('make', { generator: 'board_box', board, params: { standoff: 2 } }).catch((e: Error) => (message = e.message))
+    expect(message).toMatch(/too short for the parts under the board/)
+    const m = run('make', { generator: 'board_box', board })
+    await tick()
+    expect(builds[0].ask.board).toEqual(board)
+    finish([part('tiny box', 0), part('tiny lid', 90)])
+    const r = await m
+    expect(r.plan.standoffs[0]).toMatchObject({ screw: 'M3', hole: 4 })
+    expect(useGen.getState().board).toEqual(board)
+    // The board kept: the next needs none.
+    const again = run('measure', { generator: 'board_box' })
+    await tick()
+    expect(builds[0].ask.board).toEqual(board)
+    builds.shift()!.done({ parts: [part('tiny box', 0)] })
+    expect((await again).plan.openings).toEqual([])
+  })
 })

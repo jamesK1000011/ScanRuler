@@ -7,7 +7,7 @@ import { create } from 'zustand'
 import { notifyAgent } from '../../../src/plugins/api'
 import { useAgentLink } from '../../../src/commands/agentLink'
 
-export type Library = 'sketchfab' | 'thingiverse' | 'cults3d' | 'polyhaven'
+export type Library = 'sketchfab' | 'thingiverse' | 'cults3d' | 'polyhaven' | 'kicad'
 
 export interface ModelHit {
   source: Library
@@ -113,4 +113,4 @@ export interface ModelsState {
   taken: { hit: ModelHit; paths: string[] } | null
 }
 
-export const useModels = create<ModelsState>(() => ({ query: '', libraries: ['sketchfab', 'thingiverse', 'cults3d', 'polyhaven'], page: 1, hits: null, missing: {}, errors: {}, busy: null, since: null, open: null, taken: null }))
+export const useModels = create<ModelsState>(() => ({ query: '', libraries: ['sketchfab', 'thingiverse', 'cults3d', 'polyhaven', 'kicad'], page: 1, hits: null, missing: {}, errors: {}, busy: null, since: null, open: null, taken: null }))

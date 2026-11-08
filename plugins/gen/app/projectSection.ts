@@ -5,6 +5,7 @@
 
 import type { ProjectSection } from '../../../src/app/projectSections'
 import { generatorOf, valuesOf, type Value } from '../core/generators'
+import { boardIn, type BoardSpec } from '../core/boardBox'
 import { DEFAULT_GEN, setupOf, useGen, type GenSetup } from '../state/genStore'
 
 interface SavedGen {
@@ -47,7 +48,13 @@ export function setupIn(u: unknown): GenSetup {
     }
     if (Object.keys(kept).length) values[id] = kept
   }
-  return { generator, values }
+  let board: BoardSpec | null = null
+  try {
+    board = o.board ? boardIn(o.board) : null
+  } catch {
+    // A board this version does not read: dropped, the values kept.
+  }
+  return { generator, values, board }
 }
 
 export const genSection: ProjectSection<SavedGen> = {
@@ -66,10 +73,10 @@ export const genSection: ProjectSection<SavedGen> = {
       useGen.getState().set(setup)
     }
   },
-  hasContent: (v) => Object.keys(v.setup.values ?? {}).length > 0,
+  hasContent: (v) => Object.keys(v.setup.values ?? {}).length > 0 || !!v.setup.board,
   watch(changed) {
     return useGen.subscribe((s, prev) => {
-      if (s.generator !== prev.generator || s.values !== prev.values) changed()
+      if (s.generator !== prev.generator || s.values !== prev.values || s.board !== prev.board) changed()
     })
   },
 }

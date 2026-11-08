@@ -1,0 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.pcb-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.pcb-row > span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcb-row > select { flex: 1; min-width: 0; }
+.pcb-checks { display: flex; gap: 14px; margin: 6px 0; font-size: 12px; }

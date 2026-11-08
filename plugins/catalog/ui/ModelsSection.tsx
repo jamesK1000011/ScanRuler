@@ -19,6 +19,8 @@ const LIBS: { id: Library; label: string; note: string; get: string; how: string
   { id: 'thingiverse', label: 'Thingiverse', note: 'Takes a Thingiverse app token', get: 'https://www.thingiverse.com/developers', how: 'Create an app (Desktop app) and copy its App Token. New apps may not be approved at the moment.', form: 'the app token' },
   { id: 'cults3d', label: 'Cults3D', note: 'Takes your Cults3D user name and API key; its files stay on its site', get: 'https://cults3d.com/en/pages/graphql', how: 'Sign in and create an API key from the API page.', form: 'your user name, a colon, then the key — user:key' },
   { id: 'polyhaven', label: 'Poly Haven', note: 'CC0 models, no account needed — powered by Poly Haven', get: 'https://polyhaven.com/models', how: 'No key: Poly Haven’s API is free and open.', form: 'nothing' },
+  // units-ok: PinHeader_1x04_P2.54mm is a KiCad package name, not a length.
+  { id: 'kicad', label: 'KiCad parts', note: 'Electronic parts’ STEP models by package name (SOT-23, USB_C_Receptacle, PinHeader_1x04_P2.54mm) — KiCad’s library, CC-BY-SA 4.0 with the KiCad libraries exception; from your KiCad install when there is one', get: 'https://www.kicad.org/libraries/', how: 'No key: KiCad’s library is open.', form: 'nothing' },
 ]
 
 type LibStatus = Record<Library, { key: 'set' | 'not set' | 'none needed'; search: boolean; download: boolean }>
@@ -33,7 +35,7 @@ function Keys() {
     <details className="pl-fold" data-test="catalog-keys" onToggle={(e) => (e.target as HTMLDetailsElement).open && link === 'connected' && read()}>
       <summary>Library keys</summary>
       <p className="hint">Keys are kept in your Mac's Keychain and used only from your computer; this page never sees them. Set one in Terminal, in the ScanRuler folder — it asks for the key without showing it. Run one command at a time.</p>
-      {LIBS.filter((l) => l.id !== 'polyhaven').map((l) => {
+      {LIBS.filter((l) => l.id !== 'polyhaven' && l.id !== 'kicad').map((l) => {
         const st = status?.[l.id]
         const cmd = `node mcp/src/extras/secrets.js set catalog:${l.id}`
         return (
@@ -157,7 +159,7 @@ async function bringIn(hit: ModelHit, file: ModelFile, licence: string | null) {
   }
 }
 
-async function openAs(path: string, as: 'reference' | 'scan') {
+async function openAs(path: string, as: 'reference' | 'scan' | 'body') {
   const discard = as === 'scan' && Boolean(useStore.getState().fileName) && window.confirm('Open it as the scan in place of the one open now? Unsaved work on that scan is lost.')
   if (as === 'scan' && useStore.getState().fileName && !discard) return
   const signal = begin('Opening…')
@@ -244,6 +246,11 @@ function Opened() {
                 <button disabled={busy} title="Open it as the part to work on" onClick={() => void openAs(p, 'scan')}>
                   Open as scan
                 </button>
+                {/\.(step|stp)$/i.test(p) && (
+                  <button disabled={busy} title="Bring it into Reverse Engineer as a body" onClick={() => void openAs(p, 'body')}>
+                    Open as body
+                  </button>
+                )}
               </div>
             </div>
           ))}
