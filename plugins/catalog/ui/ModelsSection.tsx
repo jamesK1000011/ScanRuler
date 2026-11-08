@@ -5,6 +5,7 @@
 // a model's files are listed and one brought into the imports folder with
 // its licence recorded, then opened as the reference or the scan.
 
+import { useState } from 'react'
 import { useAgentLink } from '../../../src/commands/agentLink'
 import { runCommand } from '../../../src/commands/registry'
 import { useStore } from '../../../src/state/store'
@@ -13,11 +14,55 @@ import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
 import { ask, useModels, type Library, type ModelFile, type ModelHit } from '../state/modelsStore'
 
-const LIBS: { id: Library; label: string; note: string }[] = [
-  { id: 'sketchfab', label: 'Sketchfab', note: 'Searches with no account; downloads take your Sketchfab API token' },
-  { id: 'thingiverse', label: 'Thingiverse', note: 'Takes a Thingiverse app token' },
-  { id: 'cults3d', label: 'Cults3D', note: 'Takes your Cults3D user name and API key; its files stay on its site' },
+const LIBS: { id: Library; label: string; note: string; get: string; how: string; form: string }[] = [
+  { id: 'sketchfab', label: 'Sketchfab', note: 'Searches with no account; downloads take your Sketchfab API token', get: 'https://sketchfab.com/settings/password', how: 'Sign in, open Settings → Password & API, copy the API token.', form: 'the token' },
+  { id: 'thingiverse', label: 'Thingiverse', note: 'Takes a Thingiverse app token', get: 'https://www.thingiverse.com/developers', how: 'Create an app (Desktop app) and copy its App Token. New apps may not be approved at the moment.', form: 'the app token' },
+  { id: 'cults3d', label: 'Cults3D', note: 'Takes your Cults3D user name and API key; its files stay on its site', get: 'https://cults3d.com/en/pages/graphql', how: 'Sign in and create an API key from the API page.', form: 'your user name, a colon, then the key — user:key' },
 ]
+
+type LibStatus = Record<Library, { key: 'set' | 'not set'; search: boolean; download: boolean }>
+
+/** Each library's key — set or not, never the key — what it can do, and
+ *  how to get and set one, the command to copy for Terminal. */
+function Keys() {
+  const link = useAgentLink((s) => s.status)
+  const [status, setStatus] = useState<LibStatus | null>(null)
+  const read = () => void ask<LibStatus>('status').then(setStatus, report)
+  return (
+    <details className="pl-fold" data-test="catalog-keys" onToggle={(e) => (e.target as HTMLDetailsElement).open && link === 'connected' && read()}>
+      <summary>Library keys</summary>
+      <p className="hint">Keys are kept in your Mac's Keychain and used only from your computer; this page never sees them. Set one in Terminal, in the ScanRuler folder — it asks for the key without showing it. Run one command at a time.</p>
+      {LIBS.map((l) => {
+        const st = status?.[l.id]
+        const cmd = `node mcp/src/extras/secrets.js set catalog:${l.id}`
+        return (
+          <div key={l.id} className="cat-key" data-test="catalog-key" data-lib={l.id}>
+            <div className="kv">
+              <span className="name">{l.label}</span>
+              {st && <Status tone={st.key === 'set' ? 'ok' : l.id === 'sketchfab' ? 'idle' : 'warn'}>{st.key === 'set' ? 'Key set' : l.id === 'sketchfab' ? 'Searches without one' : 'No key yet'}</Status>}
+              <a className="pl-aside" href={l.get} target="_blank" rel="noopener noreferrer" title={l.how}>
+                Get a key ↗
+              </a>
+            </div>
+            <p className="hint">
+              {l.how} When asked, give {l.form}.
+            </p>
+            <div className="cat-cmd">
+              <code>{cmd}</code>
+              <CopyButton label="Copy" onCopy={() => void navigator.clipboard.writeText(cmd)} />
+            </div>
+          </div>
+        )
+      })}
+      <p className="hint">To take one out again: the same command with delete in place of set.</p>
+      {link === 'connected' && (
+        <button className="block" onClick={read}>
+          Check again
+        </button>
+      )}
+    </details>
+  )
+}
 
 const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
 const mayShare = (l: string | null) => /creative commons|^cc[\s-]|cc0|public domain/i.test(l ?? '')
@@ -213,6 +258,7 @@ export function ModelsSection() {
           <span className="spinner" /> {st.busy}
         </p>
       )}
+      <Keys />
       <Opened />
       {st.hits && st.hits.length === 0 && <p className="hint">Nothing found. Try the words a listing would use — what it is, what it fits.</p>}
       {st.hits && st.hits.length > 0 && (
