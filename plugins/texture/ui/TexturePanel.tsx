@@ -115,7 +115,7 @@ export function TexturePanel(p: TexturePanelProps) {
           <div className="sec-head">Settings</div>
           <div className="field">
             <span>Mapping</span>
-            <select value={s.mappingMode} disabled={busy} onChange={(e) => p.onSettings({ mappingMode: Number(e.target.value) })}>
+            <select title="How the texture is wrapped onto the part" value={s.mappingMode} disabled={busy} onChange={(e) => p.onSettings({ mappingMode: Number(e.target.value) })}>
               {MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
           </div>
