@@ -132,6 +132,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `snapshot_latest` and cannot take one itself. Shots stay in the tab's
   memory until you close it; Save PNG and Copy are there too.
 
+
 ## 0.9.6 — 2026-11-07
 
 - **The window and the lasso take only surface you can see** (2026-11-07,

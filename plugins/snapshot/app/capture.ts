@@ -6,6 +6,7 @@
 // soon as the one frame is in hand.
 
 import { useShots, type Shot } from '../state/shotStore'
+import { announce } from './marks'
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
@@ -67,8 +68,10 @@ export async function takeShot(hide: HTMLElement | null): Promise<Shot | null> {
       height,
       note: '',
       workspace: workspaceNow(),
+      marks: [],
     }
     useShots.getState().add(shot)
+    announce(shot)
     return shot
   } catch (e) {
     const name = e instanceof DOMException ? e.name : ''
