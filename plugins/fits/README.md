@@ -37,23 +37,37 @@ it into a part, check it and export it.
 
 | What | Formula | Source |
 |---|---|---|
-| Tolerance unit | i = 0.45·∛D + 0.001·D µm | ISO 286-1; IT5 = 7i … IT18 = 2500i |
+| Tolerance unit | i = 0.45·∛D + 0.001·D µm, D the geometric mean of the size's step (3–6, 6–10 …) | ISO 286-1; IT5 = 7i … IT18 = 2500i (IT7 at 6–10 is 15 µm, IT14 at 80–120 870 µm) |
 | Snap strain | ε = 1.5·t·y / L² | Cantilever, constant rectangular section, load at the tip (Bayer/Covestro snap-fit design guide) |
 | Deflection force | P = b·t²·Es·ε / (6·L) | Same, from σ = 6PL/(bt²) = Es·ε |
 | Mating, separation | W = P·(µ + tan α)/(1 − µ·tan α) | Same guide; it locks where µ·tan α ≥ 1 |
-| Press strain | ε ≈ δ / D at the bore | A thick hub on a stiff shaft (Lamé) |
+| Press strain | ε = δ/D on a bought (stiff) shaft; (δ/D)·((1 + k²) + ν(1 − k²))/2 on a printed one of the same material, k = D/Do, ν 0.35; δ/D with no wall given | Hoop strain at the hub's bore, Lamé thick-walled cylinders |
 | Stack | worst Σ hᵢ; RSS √Σ hᵢ² | hᵢ the half-width of each zone, its mid moving the mean |
 | Chance under min | Φ((min − mean)/σ), σ = RSS/3 | Each tolerance taken as ±3σ; erf from Abramowitz & Stegun 7.1.26 |
 
-Repeated assembly allows 60 % of the one-time strain, the snap-fit guides'
-usual figure. A beam printed standing up allows half, because it bends
-across its layers.
+Repeated assembly allows 60 % of the one-time strain (Bayer's snap-fit
+guide, Table 2). A beam printed standing up bends across its layers and
+allows the material's share of it: printed bars across their layers reach
+about half of PLA's strain flat, 40 % of PETG's and ASA's, 30 % of ABS's.
 
-The class clearances and the material figures (secant modulus, permissible
-strain, friction) are typical starting points. They are not standards or
-datasheet values, so calibrate with a print. The strains follow the moulded
-figures in the snap-fit guides (ABS 2.5 %, nylon 4 %), held at or below them
-for printing. PLA is held lower for its brittleness.
+The class clearances are starting points, not a standard: calibrate with a
+print. The material figures:
+
+| Material | Modulus, MPa | Strain, flat | Upright share | Friction | From |
+|---|---|---|---|---|---|
+| PLA | 2680 | 1.4 % | 0.5 | 0.35 | printed: yield 2.9 % (Prusament PLA data sheet), peak 2.1 % flat / 1.1 % upright (BASF Innofil3D comparison sheet) |
+| PETG | 2000 | 2.0 % | 0.4 | 0.35 | printed: yield 3.5 % (Prusament PETG data sheet); PET 3.0 / 1.3 % (Innofil3D) |
+| ABS | 2000 | 1.6 % | 0.3 | 0.6 | printed: 2.4 / 0.7 % (Innofil3D); friction Bayer 0.50–0.65 × 1.2 |
+| ASA | 1950 | 1.7 % | 0.4 | 0.6 | printed: 2.6 / 1.0 % (Innofil3D) |
+| Nylon (unfilled) | 1200 | 4 % | 0.5 | 0.45 | typical — no printed figure; friction Bayer PA 0.30–0.40 × 1.5 |
+| TPU 95A | 26 | 15 % | 0.5 | 0.6 | typical |
+
+The strain is two-thirds of the printed yield or peak (the lower where the two sources differ), the margin Bayer
+keeps for polycarbonate (4 % allowed against about 6 % at yield). The
+moduli are the Strength workspace's (in the plane of the layers), so the
+workspaces agree; the ids are the shared ones (`tpu` is still taken for
+`tpu-95a`). Moulded figures (ABS 2.5 % in the old guides) are higher than
+printed parts bear. Your filament's data sheet comes first.
 
 No FreeCAD or other CAD package code is used.
 

@@ -8,7 +8,10 @@ import { describe, expect, it } from 'vitest'
 import { classClearance, fromPrintFit, fromReadings, itGrade, pair, phi, stack, DEFAULT_CALIBRATION } from '../core/fits'
 import { clearanceLabel, labelWidth } from '../core/kernel'
 import { planHinge, planPin, planSnap, planTest, type Ctx } from '../core/plans'
-import { snap, wedgeForce } from '../core/snap'
+import { materialOf, MATERIALS, snap, wedgeForce } from '../core/snap'
+import { MATERIALS as SHARED } from '../../_shared/materials'
+import { readFileSync } from 'node:fs'
+import { stepMean, toleranceUnit } from '../core/fits'
 import { savedIn } from '../app/projectSection'
 
 const near = (a: number, b: number, tol = 1e-4) => expect(Math.abs(a - b)).toBeLessThan(tol)
@@ -65,8 +68,8 @@ describe('a hole and a shaft', () => {
 })
 
 describe('ISO 286 grade', () => {
-  it('at 10, i = 0.45·∛10 + 0.01 = 0.9795 µm: ±0.15 spans 306 i, IT14; ±0.005 spans 10.2 i, IT7', () => {
-    expect(itGrade(10, 0.15)).toEqual({ grade: 14, units: 306 })
+  it('at 10 (the 6–10 step, D = √60): i = 0.8981 µm: ±0.15 spans 334 i, IT14; ±0.005 spans 11.1 i, IT7', () => {
+    expect(itGrade(10, 0.15)).toEqual({ grade: 14, units: 334 })
     expect(itGrade(10, 0.005).grade).toBe(7)
     expect(itGrade(1, 2).grade).toBe(null)
   })
@@ -123,33 +126,33 @@ describe('tolerance stack', () => {
 })
 
 describe('the snap hook', () => {
-  // L 15, t 1.5, y 1, b 6, PLA (E 2700, µ 0.35):
-  // ε = 1.5·1.5·1/225 = 0.01; P = 6·2.25·2700·0.01/(6·15) = 4.05 N;
-  // W = 4.05·(0.35 + tan 30°)/(1 − 0.35·tan 30°) = 4.7069 N.
+  // L 15, t 1.5, y 1, b 6, PLA (E 2680, µ 0.35):
+  // ε = 1.5·1.5·1/225 = 0.01; P = 6·2.25·2680·0.01/(6·15) = 4.02 N;
+  // W = 4.02·(0.35 + tan 30°)/(1 − 0.35·tan 30°) = 4.672 N.
   const base = { length: 15, thickness: 1.5, width: 6, undercut: 1, material: 'pla' }
   it('strain, deflection and mating force as worked by hand', () => {
     const s = snap(base)
     expect(s.strain).toBe(0.01)
-    expect(s.deflectionForce).toBe(4.05)
-    expect(s.matingForce).toBe(4.7069)
-    expect(s.allowed).toBe(0.015)
-    expect(s.ratio).toBe(0.6667)
+    expect(s.deflectionForce).toBe(4.02)
+    expect(s.matingForce).toBe(4.672)
+    expect(s.allowed).toBe(0.014)
+    expect(s.ratio).toBe(0.7143)
     expect(s.ok).toBe(true)
   })
-  it('a square retaining face locks; at 45° it takes 4.05·1.35/0.65 = 8.4115 N', () => {
+  it('a square retaining face locks; at 45° it takes 4.02·1.35/0.65 = 8.3492 N', () => {
     const s = snap(base)
     expect(s.locks).toBe(true)
     expect(s.separationForce).toBe(null)
-    expect(snap({ ...base, retainAngle: 45 }).separationForce).toBe(8.4115)
+    expect(snap({ ...base, retainAngle: 45 }).separationForce).toBe(8.3492)
   })
-  it('the limits: undercut ≤ ε·L²/(1.5t) = 1.5, beam ≥ √(1.5·t·y/ε) = √150', () => {
+  it('the limits: undercut ≤ ε·L²/(1.5t) = 1.4, beam ≥ √(1.5·t·y/ε) = √(2.25/0.014)', () => {
     const s = snap(base)
-    expect(s.maxUndercut).toBe(1.5)
-    expect(s.minLength).toBe(12.2474)
+    expect(s.maxUndercut).toBe(1.4)
+    expect(s.minLength).toBe(12.6773)
   })
   it('repeated and upright each take their share of the strain', () => {
-    expect(snap({ ...base, uses: 'repeated' }).allowed).toBe(0.009)
-    expect(snap({ ...base, uses: 'repeated', printed: 'upright' }).allowed).toBe(0.0045)
+    expect(snap({ ...base, uses: 'repeated' }).allowed).toBe(0.0084)
+    expect(snap({ ...base, uses: 'repeated', printed: 'upright' }).allowed).toBe(0.0042)
     expect(snap({ ...base, uses: 'repeated', printed: 'upright' }).ok).toBe(false)
   })
   it('a lead-in too steep for its friction can’t be pushed past', () => {
@@ -229,5 +232,51 @@ describe('the project part', () => {
     expect(s.tool).toBe('snap')
     expect(s.inputs).toEqual({ snap: { length: 20 } })
     expect(savedIn(null).calibration.source).toBe('default')
+  })
+})
+
+describe('red team: figures against their sources', () => {
+  it('ISO 286-1 table values: IT7 at 6–10 is 15 µm, IT11 at 18–30 130, IT14 at 80–120 870, IT8 at 30–50 39 (rounded as the table)', () => {
+    expect(Math.round(16 * toleranceUnit(10))).toBe(14) // 14.37, the table rounds to 15
+    expect(Math.abs(16 * toleranceUnit(8) - 15)).toBeLessThan(1)
+    expect(Math.round(100 * toleranceUnit(25))).toBe(131)
+    expect(Math.round(400 * toleranceUnit(100))).toBe(869)
+    expect(Math.round(25 * toleranceUnit(40))).toBe(39)
+    expect(stepMean(10)).toBeCloseTo(Math.sqrt(60), 9)
+    expect(stepMean(10.0001)).toBeCloseTo(Math.sqrt(180), 9)
+    expect(stepMean(2)).toBeCloseTo(Math.sqrt(3), 9)
+  })
+  it('a press on a printed shaft (Lamé): a thick hub takes (1 + ν)/2 of δ/D, a thin one all of it; a stiff bought shaft all of it', () => {
+    const thick = pair({ nominal: 10, clearance: -0.1, wall: 1000 }, DEFAULT_CALIBRATION, 0.05, {}, 0.02)
+    near(thick.strain!.value, (0.01 * 1.35) / 2)
+    // k = 10/20: ((1 + 0.25) + 0.35·0.75)/2 = 0.75625 of δ/D.
+    const mid = pair({ nominal: 10, clearance: -0.1, wall: 5 }, DEFAULT_CALIBRATION, 0.05, {}, 0.02)
+    near(mid.strain!.value, 0.01 * 0.75625)
+    const steel = pair({ nominal: 10, clearance: -0.1, wall: 5, bought: 'shaft' }, DEFAULT_CALIBRATION, 0.05, {}, 0.02)
+    near(steel.strain!.value, 0.01)
+    const none = pair({ nominal: 10, clearance: -0.1 }, DEFAULT_CALIBRATION, 0.05, {}, 0.02)
+    near(none.strain!.value, 0.01)
+    expect(none.notes.some((n) => /No hub wall/.test(n))).toBe(true)
+  })
+  it('the materials: shared ids and labels, the Strength workspace’s moduli, strain under printed yield', () => {
+    const js = readFileSync(new URL('../../../mcp/src/extras/fea.js', import.meta.url), 'utf8')
+    for (const m of MATERIALS) {
+      if (m.id === 'nylon') continue
+      expect(Object.keys(SHARED)).toContain(m.id)
+      expect(m.label).toBe(SHARED[m.id as keyof typeof SHARED].label)
+      const row = new RegExp(`'?${m.id}'?: \\{[^}]*Exy: (\\d+)`).exec(js)
+      expect(Number(row?.[1])).toBe(m.modulus)
+    }
+    // Printed yield / peak strain flat (Prusament, Innofil3D): two-thirds or less.
+    const peak: Record<string, number> = { pla: 0.021, petg: 0.03, abs: 0.024, asa: 0.026 }
+    for (const [id, e] of Object.entries(peak)) expect(materialOf(id)!.strain).toBeLessThanOrEqual((2 / 3) * e + 1e-9)
+    // Across the layers: ABS 0.7 / 2.4 (Innofil3D).
+    expect(materialOf('abs')!.upright).toBeCloseTo(0.7 / 2.4, 1)
+    expect(materialOf('tpu')!.id).toBe('tpu-95a')
+  })
+  it('an old project with tpu reads as tpu-95a; a hook in ABS printed upright gets 30 %', () => {
+    expect(savedIn({ settings: { material: 'tpu' } }).settings.material).toBe('tpu-95a')
+    const s = snap({ length: 20, thickness: 1.5, width: 6, undercut: 0.5, material: 'abs', printed: 'upright' })
+    expect(s.allowed).toBe(0.0048)
   })
 })

@@ -62,6 +62,8 @@ export const DEFAULT_TOLERANCE = 0.15
 export const BOUGHT_TOLERANCE = 0.01
 
 const r4 = (x: number) => Math.round(x * 1e4) / 1e4 + 0
+/** Poisson's ratio of the printed plastics here, about (0.33–0.38). */
+export const POISSON = 0.35
 
 export function classClearance(cls: FitClass, nominal: number, overrides: Partial<Record<FitClass, ClassOverride>> = {}): number {
   const d = CLASS_DEFS[cls]
@@ -75,13 +77,29 @@ export function classClearance(cls: FitClass, nominal: number, overrides: Partia
  *  to IT18). */
 const IT: [number, number][] = [[5, 7], [6, 10], [7, 16], [8, 25], [9, 40], [10, 64], [11, 100], [12, 160], [13, 250], [14, 400], [15, 640], [16, 1000], [17, 1600], [18, 2500]]
 
-/** The standard tolerance unit, µm, for a size in mm: i = 0.45·∛D + 0.001·D.
- *  The standard takes D as the geometric mean of its size step; the size
- *  itself is used here, which moves the answer by a few percent. */
-export const toleranceUnit = (d: number) => 0.45 * Math.cbrt(d) + 0.001 * d
+/** ISO 286-1's size steps to 500 mm (the main steps the IT grades use). */
+const STEPS = [0, 3, 6, 10, 18, 30, 50, 80, 120, 180, 250, 315, 400, 500]
 
-/** The coarsest IT grade a ± tolerance at this size still meets — the
- *  grade whose zone is at least the printer's whole spread (2 × tol). */
+/** The geometric mean of the size step a size falls in (above the step's
+ *  lower bound, up to and with its upper; 0–3 counts from 1). */
+export function stepMean(d: number): number {
+  const i = STEPS.findIndex((x, j) => j > 0 && d <= x)
+  const hi = STEPS[i < 0 ? STEPS.length - 1 : i]
+  const lo = STEPS[i < 0 ? STEPS.length - 2 : i - 1]
+  return Math.sqrt(Math.max(lo, 1) * hi)
+}
+
+/** The standard tolerance unit, µm: i = 0.45·∛D + 0.001·D, D the
+ *  geometric mean of the size's step, as ISO 286-1 has it (its tables
+ *  round the result; this does not). */
+export const toleranceUnit = (d: number) => {
+  const D = stepMean(d)
+  return 0.45 * Math.cbrt(D) + 0.001 * D
+}
+
+/** The finest IT grade a ± tolerance at this size still meets — the
+ *  finest whose zone is at least the printer's whole spread (2 × tol);
+ *  every coarser grade it meets too. null: coarser than IT18. */
 export function itGrade(d: number, tol: number): { grade: number | null; units: number } {
   const units = (2 * tol * 1000) / toleranceUnit(d)
   const g = IT.find(([, k]) => k >= units - 1e-9)
@@ -146,13 +164,20 @@ export function pair(p: PairIn, cal: Calibration, tol: number, overrides: Partia
   if (c < 0 && c + wc > 0) notes.push(`A press that can come out loose: with every size at its worst it opens to ${worst[1]}. Calibrate, or take a tighter class.`)
   let strain: PairOut['strain']
   if (c < 0 && strainLimit !== undefined) {
-    // The hub is stretched by the interference over its bore: δ/D at the
-    // bore of a thick hub (Lamé, a shaft much stiffer or alike: the bore
-    // takes about all of it). A thin wall stretches as much and is weaker.
-    const value = -c / D
+    // The hoop strain at the hub's bore (Lamé, thick-walled cylinders). On a
+    // shaft that does not give (a bought steel one) the bore stretches by
+    // the whole interference: δ/D. On a printed shaft of the same material,
+    // shaft and hub share it: (δ/D)·((1 + k²) + ν(1 − k²))/2, k = D/Do the
+    // bore over the hub's outside — half of it and a little more for a
+    // thick hub, all of it as the wall thins. With no wall given, δ/D: the
+    // most it can be.
+    const delta = -c
+    const k = p.wall !== undefined ? D / (D + 2 * p.wall) : 1
+    const value = p.bought === 'shaft' ? delta / D : ((delta / D) * (1 + k * k + POISSON * (1 - k * k))) / 2
     strain = { value: r4(value), limit: strainLimit }
     if (value > strainLimit) notes.push(`The press stretches the hole’s rim ${r4(value * 100)} %, past the material’s ${r4(strainLimit * 100)} %: it may split. Take a looser class, a ductile material, or relieve the hub.`)
     if (p.wall !== undefined && p.wall < 0.4 * D) notes.push(`A hub wall of ${p.wall} round a ${D} hole is thin for a press (under 0.4 × the bore): it will spread the rim more than the hole.`)
+    if (p.wall === undefined && p.bought !== 'shaft') notes.push('No hub wall given: the strain is the most it can be (a thin hub); give wall for the share a printed shaft takes.')
   }
   if (c > 0 && c < 0.1) notes.push('Under 0.1 as printed is tighter than most printers hold: expect to sand or ream.')
   const def = p.cls ? CLASS_DEFS[p.cls] : null

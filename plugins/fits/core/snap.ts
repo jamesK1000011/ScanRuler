@@ -15,40 +15,62 @@
 // to the way the parts move. Where µ · tan α′ ≥ 1 the hook locks: no pull
 // takes it apart without the beam being lifted by hand.
 
+import { MATERIAL_ALIASES } from '../../_shared/materials'
+
 export interface Material {
   id: string
   label: string
-  /** Secant modulus, MPa — typical for the material printed. */
+  /** Secant modulus, MPa, in the plane of the layers. */
   modulus: number
-  /** Permissible strain for one assembly, the beam printed flat (layers in
-   *  the plane it bends in) — typical, a starting point. */
+  /** Permissible strain for one assembly, the beam printed flat (bending
+   *  in the plane of its layers). */
   strain: number
-  /** Friction against a printed part of the same, typical. */
+  /** The share of it a beam printed standing up (bending across its
+   *  layers) takes: the printed strain at break or peak force across the
+   *  layers over that along them. */
+  upright: number
+  /** Friction against a part of the same. */
   friction: number
+  /** Where the strain comes from, in a word: 'printed' (a maker's figures
+   *  for printed bars) or 'typical' (no published printed figure found). */
+  basis: 'printed' | 'typical'
 }
 
-// Typical figures, not a datasheet's: the strains are the moulded
-// figures the snap-fit guides give (ABS 2.5 %, PA 4 % and the like),
-// held at or under them for a printed part, PLA lower for its brittleness;
-// moduli and friction as printed parts commonly measure. Print a hook
-// and try it; the material's own datasheet comes first.
+// Ids, labels and moduli as the other workspaces have them: the ids those
+// of plugins/_shared/materials.ts (nylon, unfilled, is Fits' own), the
+// moduli the in-plane ones of the Strength workspace's table (mcp/src/
+// extras/fea.js Exy), which plugins/fits/tests/fits.test.ts holds them to.
+//
+// The strains: two-thirds of what printed bars reach before they yield or
+// peak, flat, the lower where two sources differ — the margin Bayer's snap-fit guide keeps for polycarbonate
+// (Makrolon: 4 % allowed, against about 6 % at yield; Snap-Fit Joints for
+// Plastics, Table 2). Printed figures: Prusament PLA, yield 2.9 % flat,
+// 1.9–2.2 % upright, and Prusament PETG, yield 3.5 % (Prusa Research's
+// data sheets, ISO 527); BASF Innofil3D's comparison sheet (printed,
+// ISO 527), strain at peak force flat / upright: PLA 2.1 / 1.1 %, PET
+// 3.0 / 1.3 %, ABS 2.4 / 0.7 %, ASA 2.6 / 1.0 % — whence the upright
+// shares (ABS bends across its layers at under a third). Friction: Bayer's
+// guide (Table 3), plastic on steel times its factor for the same plastic
+// on itself — ABS 0.50–0.65 × 1.2, PA 0.30–0.40 × 1.5; PLA's and PETG's
+// are not in it. Nylon's and TPU's strains have no printed figure behind
+// them: typical, said so. Print a hook and try it; the material's own data
+// sheet comes first.
 export const MATERIALS: Material[] = [
-  { id: 'pla', label: 'PLA', modulus: 2700, strain: 0.015, friction: 0.35 },
-  { id: 'petg', label: 'PETG', modulus: 1900, strain: 0.025, friction: 0.35 },
-  { id: 'abs', label: 'ABS', modulus: 1900, strain: 0.025, friction: 0.5 },
-  { id: 'asa', label: 'ASA', modulus: 1900, strain: 0.025, friction: 0.5 },
-  { id: 'nylon', label: 'Nylon (PA)', modulus: 1200, strain: 0.04, friction: 0.3 },
-  { id: 'tpu', label: 'TPU 95A', modulus: 30, strain: 0.15, friction: 0.6 },
+  { id: 'pla', label: 'PLA', modulus: 2680, strain: 0.014, upright: 0.5, friction: 0.35, basis: 'printed' },
+  { id: 'petg', label: 'PETG', modulus: 2000, strain: 0.02, upright: 0.4, friction: 0.35, basis: 'printed' },
+  { id: 'abs', label: 'ABS', modulus: 2000, strain: 0.016, upright: 0.3, friction: 0.6, basis: 'printed' },
+  { id: 'asa', label: 'ASA', modulus: 1950, strain: 0.017, upright: 0.4, friction: 0.6, basis: 'printed' },
+  { id: 'nylon', label: 'Nylon (PA, unfilled)', modulus: 1200, strain: 0.04, upright: 0.5, friction: 0.45, basis: 'typical' },
+  { id: 'tpu-95a', label: 'TPU 95A', modulus: 26, strain: 0.15, upright: 0.5, friction: 0.6, basis: 'typical' },
 ]
 export const MATERIAL_IDS = MATERIALS.map((m) => m.id)
-export const materialOf = (id: string): Material | undefined => MATERIALS.find((m) => m.id === id)
+/** Every name a material is taken by: its id, and the older names (tpu). */
+export const MATERIAL_NAMES = [...MATERIAL_IDS, ...Object.keys(MATERIAL_ALIASES).filter((a) => MATERIAL_IDS.includes(MATERIAL_ALIASES[a]))]
+export const materialOf = (id: string): Material | undefined => MATERIALS.find((m) => m.id === (Object.hasOwn(MATERIAL_ALIASES, id) ? MATERIAL_ALIASES[id] : id))
 
 /** Snap-fit guides allow about 60 % of the one-time strain for a hook
- *  that is snapped together and apart again and again. */
+ *  that is snapped together and apart again and again (Bayer, Table 2). */
 export const REPEATED = 0.6
-/** A beam printed standing up bends across its layers, which part at
- *  about half the strain. */
-export const UPRIGHT = 0.5
 
 export interface SnapIn {
   /** Beam length, root to the hook's retaining face. */
@@ -86,7 +108,7 @@ export interface SnapOut {
    *  undercut, at the allowed strain. */
   maxUndercut: number
   minLength: number
-  material: { id: string; modulus: number; strain: number; friction: number }
+  material: { id: string; modulus: number; strain: number; friction: number; upright: number }
   notes: string[]
 }
 
@@ -115,7 +137,7 @@ export function snap(s: SnapIn): SnapOut {
   if (!(lead > 0 && lead < 90)) throw new RangeError('leadAngle: between 0 and 90 degrees.')
   if (!(ret > 0 && ret <= 90)) throw new RangeError('retainAngle: above 0, up to 90 degrees.')
   if (L < 3 * t) throw new RangeError(`A beam ${L} long and ${t} thick is no cantilever (under 3 × its thickness): the formulas don’t hold.`)
-  const allowed = base * (s.uses === 'repeated' ? REPEATED : 1) * (s.printed === 'upright' ? UPRIGHT : 1)
+  const allowed = base * (s.uses === 'repeated' ? REPEATED : 1) * (s.printed === 'upright' ? m.upright : 1)
   const eps = (1.5 * t * y) / (L * L)
   const P = (b * t * t * E * eps) / (6 * L)
   const W = wedgeForce(P, mu, lead)
@@ -126,7 +148,8 @@ export function snap(s: SnapIn): SnapOut {
   if (ratio > 1) notes.push(`The root strains ${r4(eps * 100)} %, past the ${r4(allowed * 100)} % allowed: lengthen the beam (≥ ${r4(Math.sqrt((1.5 * t * y) / allowed))}), thin it, or take less undercut (≤ ${r4((allowed * L * L) / (1.5 * t))}).`)
   if (W === null) notes.push(`The lead-in at ${lead}° is too steep to push past with this friction (µ·tan α ≥ 1): take a shallower lead-in, 25–35° being usual.`)
   if (locks) notes.push(ret >= 90 ? 'A square retaining face: it holds until the beam is lifted by hand.' : `The retaining face at ${ret}° locks with this friction (µ·tan α′ ≥ 1): it holds until the beam is lifted.`)
-  if (s.printed === 'upright') notes.push('Printed standing up the beam bends across its layers: print it lying flat if you can.')
+  if (s.printed === 'upright') notes.push(`Printed standing up the beam bends across its layers, which part at about ${Math.round(m.upright * 100)} % of the strain: print it lying flat if you can.`)
+  if (m.basis === 'typical' && s.strain === undefined) notes.push(`${m.label}’s permissible strain (${r4(m.strain * 100)} %) is typical, not from printed test bars: try a hook, or give strain from the filament’s data sheet.`)
   if (y > t * 1.5) notes.push('An undercut deeper than 1.5 × the beam’s thickness: the hook’s head is long and weak at its neck.')
   if (b < 3 * t) notes.push('A beam narrower than 3 × its thickness twists: the formulas take a plate-like beam.')
   return {
@@ -140,7 +163,7 @@ export function snap(s: SnapIn): SnapOut {
     locks,
     maxUndercut: r4((allowed * L * L) / (1.5 * t)),
     minLength: r4(Math.sqrt((1.5 * t * y) / allowed)),
-    material: { id: m.id, modulus: E, strain: base, friction: mu },
+    material: { id: m.id, modulus: E, strain: base, friction: mu, upright: m.upright },
     notes,
   }
 }

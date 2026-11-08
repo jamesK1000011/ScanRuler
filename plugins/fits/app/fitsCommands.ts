@@ -16,7 +16,7 @@ import type { FitsPart } from '../core/build'
 import { CLASS_DEFS, CLASSES, DEFAULT_CALIBRATION, fromPrintFit, fromReadings, itGrade, stack, type Calibration, type ClassOverride, type FitClass, type Reading, type StackItem } from '../core/fits'
 import { PART_IDS, type Geo, type PartId } from '../core/parts'
 import { clearanceOf, HINGE_DEFAULTS, PIN_DEFAULTS, planHinge, planPair, planPin, planSnap, planTest, SNAP_DEFAULTS, TEST_DEFAULTS, type Ctx, type HingeArgs, type PairArgs, type PinArgs, type SnapArgs, type TestIn } from '../core/plans'
-import { MATERIAL_IDS, MATERIALS } from '../core/snap'
+import { MATERIAL_NAMES, MATERIALS, materialOf } from '../core/snap'
 import { DEFAULT_SETTINGS, TOOLS, useFits, type Planned, type Tool } from '../state/fitsStore'
 import { build, stopBuild } from './fitsClient'
 
@@ -66,7 +66,7 @@ const pairFields: Record<string, JsonSchema> = {
   basis: enumOf(['hole', 'shaft'], 'Which keeps the nominal: hole (the default; the shaft is made to fit) or shaft.'),
   bought: enumOf(['hole', 'shaft'], 'One side is bought, not printed (a steel dowel, a bearing): it keeps the nominal and gets no printer offset.'),
   wall: len('The hub’s wall round the hole, for a press', { exclusiveMinimum: 0 }),
-  material: enumOf(MATERIAL_IDS, 'For a press’s strain limit; the setting’s by default.'),
+  material: enumOf(MATERIAL_NAMES, 'For a press’s strain limit; the setting’s by default.'),
 }
 
 const snapFields: Record<string, JsonSchema> = {
@@ -76,12 +76,12 @@ const snapFields: Record<string, JsonSchema> = {
   undercut: len(`The hook’s overhang: how far the beam deflects (${SNAP_DEFAULTS.undercut})`, { exclusiveMinimum: 0, maximum: 20 }),
   leadAngle: num('Lead-in face to the way it goes in, degrees (30).', { exclusiveMinimum: 0, maximum: 89 }),
   retainAngle: num('Retaining face to the way it comes out, degrees; 90 square, locks (90).', { exclusiveMinimum: 0, maximum: 90 }),
-  material: enumOf(MATERIAL_IDS, 'The setting’s by default.'),
+  material: enumOf(MATERIAL_NAMES, 'The setting’s by default.'),
   modulus: num('Secant modulus, MPa, in place of the material’s.', { exclusiveMinimum: 0, maximum: 20000 }),
   strain: num('Permissible strain (0.02 for 2 %), in place of the material’s.', { exclusiveMinimum: 0, maximum: 0.5 }),
   friction: num('Friction coefficient, in place of the material’s.', { minimum: 0, maximum: 2 }),
   uses: enumOf(['once', 'repeated'], 'repeated allows 60 % of the strain (default once).'),
-  printed: enumOf(['flat', 'upright'], 'upright (bending across layers) allows half the strain (default flat).'),
+  printed: enumOf(['flat', 'upright'], 'upright (bending across layers) allows the material’s share of the strain, 30–50 % (default flat).'),
   clearance: len('The catch window’s clearance each side, as printed (0.2)', { minimum: 0, maximum: 2 }),
   play: len('Play under the ledge, assembled (0.2)', { minimum: 0, maximum: 2 }),
   plate: len('The catch’s thickness (2)', { minimum: 0.8, maximum: 10 }),
@@ -279,14 +279,14 @@ export function refreshAnswers(): void {
 const list: Command<{ nominal?: number }> = {
   name: 'list',
   title: 'Fit classes, materials and parts',
-  description: 'The fit classes (what each is for, the ISO 286 fit it stands in for — a reference only — and its diametral clearance as printed at nominal, 10 by default), the materials with their typical secant modulus, permissible strain and friction, the parts Fits makes, and the settings and calibration in use. Changes nothing.',
+  description: 'The fit classes (what each is for, the ISO 286 fit it stands in for — a reference only — and its diametral clearance as printed at nominal, 10 by default), the materials with their secant modulus, permissible strain (and the share of it printed upright), friction and where the strain comes from, the parts Fits makes, and the settings and calibration in use. Changes nothing.',
   input: obj({ nominal: len('The size the clearances are given at (10)', { minimum: 0.5, maximum: 500 }) }),
   readOnly: true,
   run: async ({ nominal = 10 }) => ({
     nominal,
     classes: CLASSES.map((c) => ({ id: c, label: CLASS_DEFS[c].label, use: CLASS_DEFS[c].use, like: CLASS_DEFS[c].iso, clearance: clearanceOf(c, nominal, st().settings), ...(st().settings.classes[c] ? { tested: st().settings.classes[c] } : {}) })),
     printer: { tolerance: st().settings.tolerance, holdsAbout: itGrade(nominal, st().settings.tolerance).grade ? `IT${itGrade(nominal, st().settings.tolerance).grade}` : 'coarser than IT18' },
-    materials: MATERIALS.map((m) => ({ id: m.id, label: m.label, modulusMPa: m.modulus, strain: m.strain, friction: m.friction })),
+    materials: MATERIALS.map((m) => ({ id: m.id, label: m.label, modulusMPa: m.modulus, strain: m.strain, upright: m.upright, friction: m.friction, basis: m.basis })),
     parts: { coupon: 'fit.test', snap: 'fit.snap, then fit.apply', hinge: 'fit.hinge, then fit.apply', pin: 'fit.pin, then fit.apply' },
     settings: st().settings,
     calibration: st().calibration,
@@ -303,10 +303,10 @@ interface SetIn {
 const set: Command<SetIn> = {
   name: 'set',
   title: 'Fits settings',
-  description: 'tolerance: ± a printed size lands within, mm (0.15) — the stack’s default and the pair’s range. material: what parts are printed in (pla, petg, abs, asa, nylon, tpu) — the snap hook’s and a press’s strain limit. tool: the panel’s page. reset: true for the defaults (the calibration stays; fit.calibrate { reset } for that). Saved with the project.',
+  description: 'tolerance: ± a printed size lands within, mm (0.15) — the stack’s default and the pair’s range. material: what parts are printed in (pla, petg, abs, asa, nylon, tpu-95a) — the snap hook’s and a press’s strain limit. tool: the panel’s page. reset: true for the defaults (the calibration stays; fit.calibrate { reset } for that). Saved with the project.',
   input: obj({
     tolerance: len('± a printed size lands within', { minimum: 0.005, maximum: 2 }),
-    material: enumOf(MATERIAL_IDS),
+    material: enumOf(MATERIAL_NAMES),
     tool: enumOf(TOOLS, 'The panel’s page.'),
     reset: bool('Back to the defaults.'),
   }),
@@ -315,7 +315,7 @@ const set: Command<SetIn> = {
     if (reset && (tolerance !== undefined || material !== undefined)) invalid('reset: on its own, or give the settings.')
     if (tool) useFits.setState({ tool })
     if (reset) st().set({ settings: { ...DEFAULT_SETTINGS } })
-    else if (tolerance !== undefined || material !== undefined) st().set({ settings: { ...st().settings, ...(tolerance !== undefined ? { tolerance } : {}), ...(material ? { material } : {}) } })
+    else if (tolerance !== undefined || material !== undefined) st().set({ settings: { ...st().settings, ...(tolerance !== undefined ? { tolerance } : {}), ...(material ? { material: materialOf(material)!.id } : {}) } })
     else if (!tool) invalid('Give a setting to change, or reset: true.')
     return describeFits()
   },
@@ -441,7 +441,7 @@ const stackCmd: Command<{ items: StackItem[]; min?: number; tolerance?: number }
 const snapCmd: Command<Partial<SnapArgs>> = {
   name: 'snap',
   title: 'Design a snap-fit hook',
-  description: 'One cantilever snap-fit hook of constant section (forces are per hook), from the standard beam formulas: strain at the root ε = 1.5·t·y/L² against the material’s permissible strain (60 % of it for repeated use, half printed upright), deflection force P = b·t²·E·ε/(6L), mating and separation force W = P·(µ + tan α)/(1 − µ·tan α) with the lead-in and retaining angles (null where it locks), the most undercut and the shortest beam that stay within the strain; and the hook with its catch window as fit.apply would build them (window clearance, engagement). Values default as listed. Changes nothing; kept for fit.apply.',
+  description: 'One cantilever snap-fit hook of constant section (forces are per hook), from the standard beam formulas: strain at the root ε = 1.5·t·y/L² against the material’s permissible strain (60 % of it for repeated use, the material’s share printed upright), deflection force P = b·t²·E·ε/(6L), mating and separation force W = P·(µ + tan α)/(1 − µ·tan α) with the lead-in and retaining angles (null where it locks), the most undercut and the shortest beam that stay within the strain; and the hook with its catch window as fit.apply would build them (window clearance, engagement). Values default as listed. Changes nothing; kept for fit.apply.',
   input: obj(snapFields),
   readOnly: true,
   run: async (a) => {

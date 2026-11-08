@@ -36,7 +36,7 @@ export function savedIn(u: unknown): FitsSaved {
   return {
     settings: {
       tolerance: isNum(s.tolerance, 0.005, 2) ? s.tolerance : DEFAULT_SETTINGS.tolerance,
-      material: typeof s.material === 'string' && materialOf(s.material) ? s.material : DEFAULT_SETTINGS.material,
+      material: (typeof s.material === 'string' && materialOf(s.material)?.id) || DEFAULT_SETTINGS.material,
       classes,
     },
     calibration,
