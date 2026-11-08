@@ -784,15 +784,15 @@ describe('sketch shapes and several features at once', () => {
   })
 
   it('offers the scan, the map, the bodies and the sketches as view toggles while its workspace is on screen, and the notes while the agent link is on', () => {
-    expect(pluginToggleKeys().map((t) => t.key)).toEqual(['scan', 'map', 'bodies', 'sketches', 'notes'])
+    expect(pluginToggleKeys().map((t) => t.key)).toEqual(['scan', 'map', 'bodies', 'sketches', 'notes', 'curvature', 'scanSeeThrough', 'bodiesSeeThrough', 'overlaps', 'elements', 'planes'])
     useShell.getState().setWorkspace('reverse')
     try {
       const now = viewToggles([])
-      expect([...now.keys()]).toEqual(['scan', 'map', 'bodies', 'sketches'])
+      expect([...now.keys()]).toEqual(['scan', 'map', 'bodies', 'sketches', 'curvature', 'scanSeeThrough', 'bodiesSeeThrough', 'overlaps', 'elements', 'planes'])
       // With no viewport, nothing to put away: they read as shown.
       expect(now.get('sketches')!.shown()).toBe(true)
       usePrefs.setState({ agentLink: true })
-      expect([...viewToggles([]).keys()]).toEqual(['scan', 'map', 'bodies', 'sketches', 'notes'])
+      expect([...viewToggles([]).keys()]).toEqual(['scan', 'map', 'bodies', 'sketches', 'notes', 'curvature', 'scanSeeThrough', 'bodiesSeeThrough', 'overlaps', 'elements', 'planes'])
       usePrefs.setState({ agentLink: false })
       expect(now.get('scan')!.shown()).toBe(true)
       now.get('scan')!.show(false)
