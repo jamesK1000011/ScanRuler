@@ -8,12 +8,14 @@ thing, a handle that has to sit right in the hand, or a counterweight.
 
 - **Weighing:** Eberly's polyhedral mass properties over each body's mesh give
   volume, centre of mass and inertia. The walls are a layer of
-  walls × line width on the surface, at full density, and the inside is at
-  the infill's share.
+  walls × line width inside the surface, at full density (each face's slab,
+  less the overlap at convex edges and plus the gap at concave ones), and
+  the inside is at the infill's share.
 - **Calibrating:** weigh a print and the density scales to match.
 - **Ballast:** a pocket filled with a denser filler (steel BBs, lead shot,
-  tungsten), solved so that mass and balance point both reach the target.
-  It's checked to fit inside the body, then cut into it as Reverse Engineer
+  tungsten), solved so that mass and balance point both reach the target,
+  the walls printed round the pocket counted. It's checked to lie clear of
+  the body's surface, then cut into it as Reverse Engineer
   features (sketch and extrude cut), so it stays editable there.
 
 ## Commands
@@ -34,10 +36,22 @@ of the undo history.
 ## Tests
 
 `tests/mass.test.ts` checks:
-- a box's mass, centre and inertia against the closed form;
+- a box's and a cylinder's mass, centre and inertia against the closed form,
+  and a turned box's principal moments and axes;
 - a sphere within its tessellation;
-- walls and infill between hollow and solid;
+- hollow boxes and a hollow sphere against their exact shells, and walls
+  and infill between hollow and solid;
+- holes, faces wound both ways, padded and broken STL files;
+- walls in an L-shaped part; the pocket clear of the surface of an E-shaped
+  one, and its size;
 - inside-out meshes;
 - parts combined by the parallel-axis rule;
-- the ballast landing exactly on the target;
-- binary STL reading.
+- the ballast landing exactly on the target, its walls counted;
+- binary STL reading;
+- the setup through a project save and load.
+
+`tests/massCommands.test.ts` runs the commands against a faked Reverse
+Engineer: a body named twice weighed once, calibration in one step and in
+range, a target with a part dropped, a plan made again when the body has
+changed, a pocket too narrow for BBs, feature names that don't collide, a
+stale plan refused, and weighings that overlap.

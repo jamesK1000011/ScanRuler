@@ -18,11 +18,13 @@ that brings the part to a target.
    - The inertia about the centre of mass (g·mm²), with principal moments
      and axes.
    - The bodies together.
-   `closed: false` means the mesh has holes and its volume isn't to be
-   trusted.
+   `closed: false` means the mesh has holes, or faces wound both ways, and
+   its volume isn't to be trusted.
 3. **Calibrate:** `mass.calibrate { grams }` with a print of the same
    settings weighed on the scales. Every reading after that matches their
-   printer and spool. `reset: true` undoes it.
+   printer and spool. `reset: true` undoes it. With more than one body
+   shown, say which was printed (`body`). A print more than 5 times off (or
+   under a fifth) is refused: the settings don't match it.
 
 The walls are modelled as a layer on every surface, so top and bottom skins
 count like walls. Slicers print gyroid or grid infill a little heavier than
@@ -36,14 +38,20 @@ its percent suggests. Calibrating takes care of both.
 - `mass.ballast { filler, width?, depth? }` solves for the pocket's volume
   and centre so that both the mass and the balance point land on the target.
   The pocket is a cube by default; give `width` and `depth` and the height
-  suits.
-  - It says whether the pocket fits inside the body with a 1 mm skin. If it
-    doesn't, move the target inward, allow more mass, or change the shape.
+  suits (one of them alone, and the other two sides match). The walls the
+  slicer prints round the pocket are counted in the mass.
+  - It says whether the pocket lies clear of the body's surface by a skin
+    (the walls' thickness, 1 mm at least) and, for BBs, whether it is wide
+    enough for them. If not, move the target inward, allow more mass, or
+    change the shape.
+  - A balance point alone can't be reached: ballast adds mass, so give the
+    mass too.
   - Fillers are as packed: steel BBs at about 62 % packing (about 0.37 g
     each), lead shot, tungsten putty, tungsten cubes, a steel slug.
 - `mass.apply` cuts the pocket into the body as Reverse Engineer features: a
-  sketch at the pocket's floor and an extrude cut up its height. It stays
-  editable there.
+  sketch at the pocket's floor and an extrude cut up its height, named
+  "Ballast", "Ballast 2" and so on. It stays editable there. If the bodies
+  changed since the plan, plan again first.
 - It makes no lid. Add one (a slide-in plug, glue, or tape over BBs) and keep
   a loose filler from rattling.
 

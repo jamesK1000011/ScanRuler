@@ -4,9 +4,11 @@
 // point wanted, and the ballast pocket that gets there. Every control runs
 // a mass.* command.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { runCommand } from '../../../src/commands/registry'
+import { useLength, type BoundLength } from '../../../src/app/useUnits'
 import { useStore } from '../../../src/state/store'
+import { NumberField as LengthField } from '../../../src/ui/NumberField'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
 import { FILLERS, MATERIALS, type V3 } from '../core/mass'
@@ -16,7 +18,10 @@ import './mass.css'
 const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
 const run = (name: string, input: Record<string, unknown> = {}) => runCommand(`mass.${name}`, input).catch(report)
 const g = (x: number) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2))
-const at = (v: number[]) => v.map((x) => x.toFixed(1)).join(', ')
+const at = (len: BoundLength, v: number[]) => v.map((x) => len.fmt(x, 1)).join(', ')
+/** A length typed in the display units, as millimetres; blank stays blank. */
+const mmOf = (len: BoundLength, text: string) => (text.trim() === '' ? NaN : len.fromDisplay(Number(text)))
+const shown = (len: BoundLength, mm: number) => String(Math.round(len.toDisplay(mm) * 10000) / 10000)
 
 /** A number field that runs its command when left or on Enter, not on
  *  every key. */
@@ -39,10 +44,18 @@ function NumberField({ label, value, unit, step, min, max, onCommit, testId }: {
 
 export function MassPanel() {
   const s = useMass()
+  const len = useLength()
   const busy = s.busy !== null
   const [grams, setGrams] = useState('')
   const [tMass, setTMass] = useState(s.target?.mass?.toString() ?? '')
-  const [tCom, setTCom] = useState<[string, string, string]>((s.target?.com?.map(String) as [string, string, string]) ?? ['', '', ''])
+  const comText = (): [string, string, string] => (s.target?.com?.map((x) => shown(len, x)) as [string, string, string]) ?? ['', '', '']
+  const [tCom, setTCom] = useState<[string, string, string]>(comText)
+  // The target set elsewhere (a command, a project opened, undo) shows here.
+  useEffect(() => {
+    setTMass(s.target?.mass?.toString() ?? '')
+    setTCom(comText())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.target, len.units])
   const r = s.reading
   return (
     <div className="group" data-test="mass-panel">
@@ -63,8 +76,8 @@ export function MassPanel() {
         </select>
       </label>
       <NumberField label="Infill" unit="%" value={s.infill} min={0} max={100} step={5} onCommit={(v) => v !== null && void run('setup', { infill: v })} testId="mass-infill" />
-      <NumberField label="Walls" unit="lines" value={s.walls} min={0} step={1} onCommit={(v) => v !== null && void run('setup', { walls: Math.round(v) })} />
-      <NumberField label="Line width" unit="mm" value={s.lineMm} min={0.1} step={0.02} onCommit={(v) => v !== null && void run('setup', { lineMm: v })} />
+      <NumberField label="Walls" unit="lines" value={s.walls} min={0} max={50} step={1} onCommit={(v) => v !== null && void run('setup', { walls: Math.round(v) })} />
+      <LengthField label="Line width" kind="length" value={s.lineMm} min={0.05} step={0.02} disabled={busy} onCommit={(v) => void run('setup', { lineMm: v })} />
       <button className="primary block" disabled={busy} data-test="mass-weigh" onClick={() => void run('properties')}>
         {busy ? s.busy : 'Weigh'}
       </button>
@@ -79,14 +92,14 @@ export function MassPanel() {
           </div>
           <div className="kv">
             <span className="name">Balance point</span>
-            <span>({at(r.total.com)}) mm</span>
+            <span>({at(len, r.total.com)})</span>
           </div>
           {r.bodies.length > 1 &&
             r.bodies.map((b) => (
               <div key={b.body} className="kv">
                 <span className="pl-aside">{b.body}</span>
                 <span className="pl-aside">
-                  {g(b.mass)} g at ({at(b.com)})
+                  {g(b.mass)} g at ({at(len, b.com)})
                 </span>
               </div>
             ))}
@@ -95,6 +108,7 @@ export function MassPanel() {
             <summary>Inertia</summary>
             {r.bodies.map((b) => (
               <p key={b.body} className="hint">
+                {/* units-ok: inertia is kept and shown in g·mm², as the commands give it. */}
                 {b.body}: principal {b.principal.moments.map((m) => m.toExponential(2)).join(', ')} g·mm²
               </p>
             ))}
@@ -121,15 +135,16 @@ export function MassPanel() {
       </div>
       <div className="toolrow">
         {['X', 'Y', 'Z'].map((a, i) => (
-          <input key={a} className="pl-input" type="number" placeholder={`Balance ${a}`} aria-label={`Balance point ${a}, mm`} value={tCom[i]} onChange={(e) => setTCom(Object.assign([...tCom], { [i]: e.target.value }) as [string, string, string])} />
+          <input key={a} className="pl-input" type="number" placeholder={`Balance ${a}`} aria-label={`Balance point ${a}, ${len.word()}`} value={tCom[i]} onChange={(e) => setTCom(Object.assign([...tCom], { [i]: e.target.value }) as [string, string, string])} />
         ))}
       </div>
       <div className="toolrow">
         <button
           disabled={busy || (!(Number(tMass) > 0) && tCom.some((x) => x.trim() === ''))}
           onClick={() => {
-            const com = tCom.every((x) => x.trim() !== '' && Number.isFinite(Number(x))) ? (tCom.map(Number) as V3) : undefined
-            void run('target', { ...(Number(tMass) > 0 ? { mass: Number(tMass) } : {}), ...(com ? { com } : {}) })
+            const com = tCom.every((x) => Number.isFinite(mmOf(len, x))) ? (tCom.map((x) => mmOf(len, x)) as V3) : undefined
+            // What the fields show is the target: a field left empty drops its part.
+            void run('target', { mass: Number(tMass) > 0 ? Number(tMass) : null, com: com ?? null })
           }}
         >
           Set target
@@ -151,10 +166,10 @@ export function MassPanel() {
       </button>
       {s.pocket && (
         <div className="pl-card live" data-test="mass-pocket">
-          <Status tone={s.pocket.fits ? 'ok' : 'bad'}>{s.pocket.fits ? `Pocket ${at(s.pocket.size)} mm at (${at(s.pocket.at)})` : s.pocket.why}</Status>
+          <Status tone={s.pocket.fits ? 'ok' : 'bad'}>{s.pocket.fits ? `Pocket ${s.pocket.size.map((x) => len.fmt(x, 1)).join(' × ')} at (${at(len, s.pocket.at)})` : s.pocket.why}</Status>
           <p className="hint">
             {g(s.pocket.fillerMass)} g of {FILLERS[s.filler]?.label.toLowerCase()}
-            {s.pocket.count ? ` — about ${s.pocket.count} BBs` : ''}, {g(s.pocket.removedMass)} g of part cut away.
+            {s.pocket.count ? ` — about ${s.pocket.count} BBs` : ''}, {g(s.pocket.removedMass)} g of part cut away{s.pocket.wallMass ? `, ${g(s.pocket.wallMass)} g of walls round it` : ''}.
           </p>
           <button className="primary block" disabled={busy || !s.pocket.fits} title="Cut it into the body as Reverse Engineer features" onClick={() => void run('apply')}>
             Cut the pocket

@@ -34,6 +34,8 @@ export interface BodyMass {
 
 export interface Reading {
   at: string
+  /** The Reverse Engineer bodies as they were weighed: a reading of others is stale. */
+  bodiesKey: string
   bodies: BodyMass[]
   total: { mass: number; com: V3; inertia: M3 }
 }
@@ -47,8 +49,12 @@ export interface Pocket {
   removedMass: number
   /** How many BBs, for steel BBs. */
   count?: number
+  /** The walls the slicer lays round it, g. */
+  wallMass?: number
   fits: boolean
   why?: string
+  /** The bodies as they were when it was planned. */
+  bodiesKey: string
 }
 
 export interface MassState extends MassSetup {
@@ -60,6 +66,10 @@ export interface MassState extends MassSetup {
 }
 
 export const DEFAULT_MASS: MassSetup = { material: 'pla', infill: 15, walls: 2, lineMm: 0.42, scale: 1, target: null, filler: 'steel-bb' }
+
+/** The setup as the history keeps it: no density override is null, so
+ *  that a step back to none clears one. */
+export const historyOf = (s: MassSetup) => ({ ...setupOf(s), density: s.density ?? null })
 
 export const setupOf = (s: MassSetup): MassSetup => ({
   material: s.material,

@@ -9,7 +9,7 @@ import { registerHistory } from '../../src/state/historyStore'
 import { describeMass, massCommands } from './app/massCommands'
 import { massSection } from './app/projectSection'
 import { useMassPlugin } from './app/useMassPlugin'
-import { setupOf, useMass } from './state/massStore'
+import { historyOf, useMass } from './state/massStore'
 
 const plugin: ScanRulerPlugin = {
   id: 'mass',
@@ -28,7 +28,17 @@ const plugin: ScanRulerPlugin = {
     registerCommands('mass', massCommands)
     registerStateSection('mass', describeMass)
     registerHistory({
-      sections: [{ key: 'mass', capture: () => setupOf(useMass.getState()), apply: (v) => useMass.setState(v as Partial<ReturnType<typeof useMass.getState>>) }],
+      sections: [
+        {
+          key: 'mass',
+          capture: () => historyOf(useMass.getState()),
+          // A reading or a plan made with other values no longer holds.
+          apply: (v) => {
+            const { density, ...rest } = v as ReturnType<typeof historyOf>
+            useMass.setState({ ...rest, density: density ?? undefined, reading: null, pocket: null })
+          },
+        },
+      ],
       actions: [{ store: useMass, label: 'Mass', names: ['set'] }],
     })
     registerGuide({
