@@ -93,6 +93,9 @@ describe('the board for the enclosure', () => {
     expect(spec.openings[0]).toMatchObject({ z0: -3.26, z1: 0 })
     expect(spec.below).toBe(3.26)
   })
+  it('a board without mounting holes: no standoffs, said so', () => {
+    expect(boardSpecOf({ ...BOARD, holes: [] }).notes.some((n) => /no mounting holes/.test(n))).toBe(true)
+  })
   it('a board the server sent that is not one is refused', () => {
     expect(() => boardIn({ name: 'x' })).toThrow(/not a board this page reads/)
   })

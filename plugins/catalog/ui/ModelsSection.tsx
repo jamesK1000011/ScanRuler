@@ -19,6 +19,7 @@ const LIBS: { id: Library; label: string; note: string; get: string; how: string
   { id: 'thingiverse', label: 'Thingiverse', note: 'Takes a Thingiverse app token', get: 'https://www.thingiverse.com/developers', how: 'Create an app (Desktop app) and copy its App Token. New apps may not be approved at the moment.', form: 'the app token' },
   { id: 'cults3d', label: 'Cults3D', note: 'Takes your Cults3D user name and API key; its files stay on its site', get: 'https://cults3d.com/en/pages/graphql', how: 'Sign in and create an API key from the API page.', form: 'your user name, a colon, then the key — user:key' },
   { id: 'polyhaven', label: 'Poly Haven', note: 'CC0 models, no account needed — powered by Poly Haven', get: 'https://polyhaven.com/models', how: 'No key: Poly Haven’s API is free and open.', form: 'nothing' },
+  // units-ok: PinHeader_1x04_P2.54mm is a KiCad package name, not a length.
   { id: 'kicad', label: 'KiCad parts', note: 'Electronic parts’ STEP models by package name (SOT-23, USB_C_Receptacle, PinHeader_1x04_P2.54mm) — KiCad’s library, CC-BY-SA 4.0 with the KiCad libraries exception; from your KiCad install when there is one', get: 'https://www.kicad.org/libraries/', how: 'No key: KiCad’s library is open.', form: 'nothing' },
 ]
 

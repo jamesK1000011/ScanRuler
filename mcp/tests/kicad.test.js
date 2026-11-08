@@ -112,6 +112,11 @@ test('a turned footprint, an Edge.Cuts circle hole, a KiCad 5 arc, an outline th
   assert.deepEqual(old.size, [40, 30])
   assert.ok(old.outline.some(([x, y]) => Math.abs(x - (3 - 3 * Math.SQRT1_2 - 20)) < 0.05 && Math.abs(15 - (3 - 3 * Math.SQRT1_2) - y) < 0.05), 'the arc bows out to the corner')
   assert.throws(() => readBoard(`(kicad_pcb ${box})`), /does not close: 1 open run/)
+  // Ends 0.03 mm apart still meet; a second board beside it is said, not read.
+  const loose = readBoard(`(kicad_pcb ${box} (gr_line (start 0.03 30) (end 0 0.02) (layer Edge.Cuts)) (gr_rect (start 50 0) (end 60 10) (layer Edge.Cuts)))`)
+  assert.deepEqual(loose.size, [40, 30])
+  assert.equal(loose.others, 1)
+  assert.match(loose.note, /only the biggest board/)
   assert.throws(() => readBoard('(kicad_pcb (version 1))'), /no outline on Edge\.Cuts/)
 })
 
@@ -174,6 +179,8 @@ test('import refuses what is not a board, and says why kicad-cli failed', async 
   await writeFile(join(dir, 'x.step'), 'ISO')
   await assert.rejects(importBoard({ path: join(dir, 'x.step') }, env), /not a KiCad board/)
   await assert.rejects(importBoard({ path: '' }, env), /Give the board/)
+  // A path pasted in quotes.
+  assert.equal((await importBoard({ path: `'${board}'` }, env)).board.name, 'tiny')
   await assert.rejects(importBoard({ path: board }, { ...env, FAKE_KICAD_FAIL: 'step' }), /could not export the STEP \(exit 3\): .*Failed to export STEP/s)
   await assert.rejects(importBoard({ path: board }, { ...env, SCANRULER_KICAD_CLI: join(dir, 'missing') }), /SCANRULER_KICAD_CLI names/)
 })

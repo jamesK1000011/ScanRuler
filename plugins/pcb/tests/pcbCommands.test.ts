@@ -159,6 +159,29 @@ describe('pcb commands', () => {
     await expect(going).rejects.toThrow(/Stopped/)
     expect(usePcb.getState().busy).toBe(null)
   })
+  it('stop while the enclosure builds stops Generate’s build', async () => {
+    await run('open', { path: PATH })
+    let release: (v: unknown) => void = () => {}
+    const keep = handlers['gen.make']
+    handlers['gen.make'] = () => new Promise((r) => (release = r))
+    handlers['gen.stop'] = async () => (release({ bodies: [] }), { stopped: true })
+    const going = run('enclosure')
+    await new Promise((r) => setTimeout(r, 10))
+    expect((await run('stop')).stopped).toBe(true)
+    expect(calls.some((c) => c.name === 'gen.stop')).toBe(true)
+    await going
+    handlers['gen.make'] = keep
+  })
+  it('a path pasted in quotes, and a board name a file cannot carry', async () => {
+    await run('open', { path: `"${PATH}"` })
+    expect(usePcb.getState().path).toBe(PATH)
+    const keep = server.import
+    server.import = () => ({ result: { board: { ...BOARD, name: 'a:b/c' }, warnings: [] }, bytes: STEP })
+    const r = await run('import')
+    expect(calls.find((c) => c.name === 'reverse.import.step')!.input).toMatchObject({ name: 'a b c.step' })
+    expect(r.board).toBe('a b c')
+    server.import = keep
+  })
   it('close forgets the board, keeps the settings', async () => {
     await run('open', { path: PATH })
     await run('set', { naming: 'kicad' })

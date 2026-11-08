@@ -212,6 +212,7 @@ export function boardSpecOf(board: KicadBoard, opts: { above?: number | null; be
     if (!(z1 > z0) || !(width > 0)) continue
     openings.push({ side: c.side, centre: r3(centreAt), width: r3(width), z0: r3(z0), z1: r3(z1), ...(c.opening.shape === 'round' ? { shape: 'round' as const } : {}), label })
   }
+  if (!board.holes.length) notes.push('The board has no mounting holes: there are no standoffs, and it rests on nothing — add holes in KiCad, or support it in the box yourself.')
   // The tallest opening raises the reach, so the box has room for it.
   const tallest = Math.max(0, ...openings.map((o) => o.z1 - T))
   const deepest = Math.max(0, ...openings.map((o) => -o.z0))

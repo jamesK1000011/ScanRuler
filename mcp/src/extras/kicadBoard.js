@@ -243,7 +243,7 @@ function pieces(item, place = (p) => p) {
 
 /** Open pieces chained end to end into loops; what does not close is left
  *  over. tol: how far two ends may stand apart and still meet, mm. */
-function chain(open, tol = 0.02) {
+function chain(open, tol = 0.05) {
   const left = open.map((p) => ({ ...p }))
   // A KiCad 5 arc runs the way whose end meets another piece.
   const ends = (except) => left.flatMap((p) => (p === except ? [] : [p.open[0], p.open[p.open.length - 1]]))
@@ -487,6 +487,8 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
 
   const outline = outer.pts.map(T)
   const cutouts = loops.slice(1).filter((l) => !l.circle || l.circle.r * 2 > 10).filter((l) => inside(l.pts[0])).map((l) => l.pts.map(T))
+  // Loops outside the biggest: more boards in the file (a panel), left out.
+  const others = loops.slice(1).filter((l) => !inside(l.pts[0])).length
   return {
     name,
     format: version,
@@ -498,6 +500,7 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
     outline: simplify(outline),
     cutouts: cutouts.map(simplify),
     ...(chained.unclosed.length ? { unclosed: chained.unclosed.length } : {}),
+    ...(others ? { others, note: `${others} more outline${others > 1 ? 's' : ''} outside this one (a panel?): only the biggest board is read.` } : {}),
     holes,
     connectors,
     footprints: { count: footprints.length, top: footprints.filter((f) => !f.layer.startsWith('B.')).length, bottom: footprints.filter((f) => f.layer.startsWith('B.')).length },

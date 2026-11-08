@@ -159,19 +159,23 @@ export async function kicadTools(env = process.env, { fresh = false, platform = 
   } catch {}
   const key = `${path}@${mtime}`
   if (!fresh && cache.has(key)) return cache.get(key)
-  const v = await run(path, ['version'], { env, timeoutMs: 30_000 }).catch((e) => ({ code: -1, out: e.message }))
+  // The version first (a KiCad that does not start says so here, once),
+  // then every command's --help at once.
+  const v = await run(path, ['version'], { env, timeoutMs: 20_000 }).catch((e) => ({ code: -1, out: e.message }))
   const version = /(\d+\.\d+(?:\.\d+)?)/.exec(v.out)?.[1] ?? null
   const major = version ? Number(version.split('.')[0]) : null
   const commands = {}
-  for (const [id, c] of Object.entries(COMMANDS)) {
-    const h = await run(path, [...c.args, '--help'], { env, timeoutMs: 30_000 }).catch((e) => ({ code: -1, out: e.message }))
-    const help = h.out ?? ''
-    // A command this KiCad does not have answers with the level above's
-    // help, which lists none of its flags.
-    const has = [...c.need, ...c.want].filter((f) => lists(help, f))
-    const missing = c.need.filter((f) => !has.includes(f))
-    commands[id] = { ok: missing.length === 0, has, missing }
-  }
+  await Promise.all(
+    Object.entries(COMMANDS).map(async ([id, c]) => {
+      const h = version ? await run(path, [...c.args, '--help'], { env, timeoutMs: 15_000 }).catch((e) => ({ code: -1, out: e.message })) : { out: '' }
+      const help = h.out ?? ''
+      // A command this KiCad does not have answers with the level above's
+      // help, which lists none of its flags.
+      const has = [...c.need, ...c.want].filter((f) => lists(help, f))
+      const missing = c.need.filter((f) => !has.includes(f))
+      commands[id] = { ok: missing.length === 0, has, missing }
+    }),
+  )
   const out = {
     found: true,
     path,
@@ -200,7 +204,8 @@ function flagsFor(tools, id) {
 /** A board file named by the person: a .kicad_pcb that is there. */
 export async function boardFile(path, cwd = process.cwd()) {
   if (typeof path !== 'string' || !path.trim()) throw new Error('Give the board: the path of its .kicad_pcb file.')
-  const p = resolve(cwd, tilde(path.trim()))
+  // A path pasted with the quotes a terminal or Finder put round it.
+  const p = resolve(cwd, tilde(path.trim().replace(/^(['"])(.*)\1$/, '$2')))
   if (extname(p).toLowerCase() !== '.kicad_pcb') throw new Error(`${basename(p)} is not a KiCad board — give the .kicad_pcb file.`)
   const s = await stat(p).catch(() => null)
   if (!s?.isFile()) throw new Error(`No board at ${p}.`)

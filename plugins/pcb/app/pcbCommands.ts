@@ -54,10 +54,12 @@ async function ask(action: Parameters<typeof askServer>[0], data: Record<string,
   }
 }
 
+const ENCLOSING = 'Building the enclosure…'
 const pathIn = str('The board: the full path of its .kicad_pcb file on this computer; the one open by default.', { minLength: 1 })
 
 function pathOf(given?: string): string {
-  const p = (given ?? st().path).trim()
+  // The quotes a terminal or Finder puts round a pasted path, taken off.
+  const p = (given ?? st().path).trim().replace(/^(['"])(.*)\1$/, '$2').trim()
   if (!p) invalid('No board: give path, the .kicad_pcb file (pcb.open).')
   if (!/\.kicad_pcb$/i.test(p)) invalid(`${p.split(/[\\/]/).pop()} is not a KiCad board — give the .kicad_pcb file.`)
   return p
@@ -147,7 +149,13 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
     const before = reverseBodies()
     const had = new Set(before.map((b) => b.id))
     ctx.progress('Bringing the board into Reverse Engineer…')
-    await runWithin('reverse.import.step', { bytes: step, name: `${board.name}.step` })
+    const stem = board.name.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'board'
+    try {
+      await runWithin('reverse.import.step', { bytes: step, name: `${stem}.step` })
+    } catch (e) {
+      if (e instanceof CommandError && e.code === 'unknown_command') throw new CommandError('failed', 'The board is brought in as Reverse Engineer bodies, and this build has no Reverse Engineer.')
+      throw e
+    }
     const fresh = reverseBodies().filter((b) => !had.has(b.id))
     const placed = placeBodies(board, fresh)
     // Names: the board after its file, its edge connectors after their references.
@@ -164,9 +172,9 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
       taken.add(want.toLowerCase())
       return want
     }
-    const boardBody = placed.board ? await rename(placed.board, board.name, '#2e7d32') : null
+    const boardBody = placed.board ? await rename(placed.board, stem, '#2e7d32') : null
     const named: Record<string, string> = {}
-    for (const [ref, b] of Object.entries(placed.connectors)) named[ref] = await rename(b, `${board.name} ${ref}`)
+    for (const [ref, b] of Object.entries(placed.connectors)) named[ref] = await rename(b, `${stem} ${ref}`.slice(0, 80))
     const imported: Imported = {
       at: now(),
       body: boardBody,
@@ -273,7 +281,13 @@ const plan: Command<{ params?: Record<string, unknown>; above?: number; below?: 
   timeoutMs: 300_000,
   run: async ({ params, above, below }) => {
     const { spec, notes } = specNow(above, below)
-    const measured = (await runCommand('gen.measure', { generator: 'board_box', params: { ...st().enclosure, ...(params ?? {}) }, board: spec })) as Record<string, unknown>
+    let measured: Record<string, unknown>
+    try {
+      measured = (await runCommand('gen.measure', { generator: 'board_box', params: { ...st().enclosure, ...(params ?? {}) }, board: spec })) as Record<string, unknown>
+    } catch (e) {
+      if (e instanceof CommandError && e.code === 'unknown_command') throw new CommandError('failed', 'The enclosure is made by the Generate workspace, which this build does not have.')
+      throw e
+    }
     return { board: spec, notes, ...measured }
   },
 }
@@ -290,8 +304,8 @@ const enclosure: Command<{ params?: Record<string, unknown>; name?: string; abov
   run: async ({ params, name, above, below }, ctx) => {
     const { spec, notes } = specNow(above, below)
     if (name !== undefined && (!name.trim() || name.length > 60)) invalid('name: 1 to 60 characters.')
-    ctx.progress('Building the enclosure…')
-    usePcb.setState({ busy: 'Building the enclosure…' })
+    ctx.progress(ENCLOSING)
+    usePcb.setState({ busy: ENCLOSING })
     let made: { bodies: string[]; plan?: unknown; parts?: unknown }
     try {
       made = (await runWithin('gen.make', { generator: 'board_box', params: { ...st().enclosure, ...(params ?? {}) }, board: spec, ...(name ? { name: name.trim() } : {}) }, ctx)) as typeof made
@@ -370,10 +384,13 @@ const stopCmd: Command<Record<string, never>> = {
   history: false,
   run: async () => {
     const was = running.size
+    const building = st().busy === ENCLOSING
     for (const c of running) c.abort()
     running.clear()
+    // The enclosure is Generate's build: stopped there.
+    if (building) await runCommand('gen.stop', {}).catch(() => {})
     usePcb.setState({ busy: null, progress: '' })
-    return { stopped: was > 0 }
+    return { stopped: was > 0 || building }
   },
 }
 
