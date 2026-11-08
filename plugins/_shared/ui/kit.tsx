@@ -70,6 +70,18 @@ export function Busy({ text }: { text: string | null }) {
  *  focus — the panel's prose fields. */
 export function TextField({ label, value, onCommit, rows, placeholder, disabled, testId, info }: { label: ReactNode; value: string; onCommit(v: string): void; rows?: number; placeholder?: string; disabled?: boolean; testId?: string; info?: ReactNode }) {
   const commit = (v: string) => v !== value && onCommit(v)
+  // One line: the label beside the box, as the app's own fields have it;
+  // a text area: the label over it, which needs the panel's width.
+  if (!rows)
+    return (
+      <label className="field pl-field">
+        <span>
+          {label}
+          {info}
+        </span>
+        <input key={value} className="pl-input" type="text" defaultValue={value} placeholder={placeholder} disabled={disabled} data-test={testId} onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+      </label>
+    )
   return (
     <label className="pl-stack">
       <span>

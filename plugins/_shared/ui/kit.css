@@ -15,7 +15,8 @@ input.pl-input {
   background: var(--well);
   border: 1px solid var(--line);
   border-radius: var(--r);
-  padding: 6px 8px;
+  /* 30 px tall, as the app's selects and number fields are. */
+  padding: 5px 8px;
   box-shadow: var(--inset);
   width: 100%;
   min-width: 0;
@@ -424,4 +425,12 @@ details.pl-fold[open] {
 
 .pl-actions > button {
   flex: 1;
+}
+
+/* A one-line text field beside its label, the box as wide as the app's
+   selects beside theirs. */
+.pl-field > input.pl-input {
+  width: 172px;
+  flex: 0 1 172px;
+  min-width: 108px;
 }
