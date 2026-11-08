@@ -242,11 +242,30 @@ export function connectorBoxes(placed: Placed): ConnectorBoxes {
   return out
 }
 
-/** A board as the server sent it, checked enough to use: throws on one
- *  that is not. */
+/** A board as the server sent it (or a project file kept it), checked
+ *  enough to use: throws on one that is not a board; a hole or connector
+ *  that does not read is left out, so one bad entry does not stop the rest. */
 export function boardIn(u: unknown): KicadBoard {
   const b = u as KicadBoard
-  const fin = (x: unknown) => typeof x === 'number' && Number.isFinite(x)
-  if (!b || typeof b !== 'object' || typeof b.name !== 'string' || !fin(b.thickness) || !Array.isArray(b.outline) || b.outline.length < 3 || !Array.isArray(b.holes) || !Array.isArray(b.connectors) || !Array.isArray(b.size)) throw new Error('The server’s answer is not a board this page reads — the agent’s server may be older or newer than this page.')
-  return b
+  const fin = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+  const v2 = (p: unknown) => Array.isArray(p) && p.length === 2 && fin(p[0]) && fin(p[1])
+  if (!b || typeof b !== 'object' || typeof b.name !== 'string' || !fin(b.thickness) || !(b.thickness > 0) || !Array.isArray(b.outline) || b.outline.length < 3 || !b.outline.every(v2) || !Array.isArray(b.holes) || !Array.isArray(b.connectors) || !v2(b.size)) throw new Error('The server’s answer is not a board this page reads — the agent’s server may be older or newer than this page.')
+  const SIDES = ['+x', '-x', '+y', '-y']
+  const holeOk = (h: KicadBoard['holes'][number]) => !!h && typeof h === 'object' && fin(h.x) && fin(h.y) && fin(h.d) && h.d > 0
+  const openingOk = (o: Opening) => !!o && typeof o === 'object' && fin(o.width) && o.width > 0 && (o.height === null || fin(o.height)) && (o.zc === null || fin(o.zc)) && (o.shape === 'rect' || o.shape === 'round')
+  const connOk = (c: BoardConnector) =>
+    !!c && typeof c === 'object' && typeof c.ref === 'string' && SIDES.includes(c.side) && fin(c.centre) && (c.face === 'top' || c.face === 'bottom') && !!c.box && v2(c.box.min) && v2(c.box.max) && openingOk(c.opening)
+  return { ...b, origin: v2(b.origin) ? b.origin : [0, 0], holes: b.holes.filter(holeOk), connectors: b.connectors.filter(connOk) }
+}
+
+/** A connector's 3D boxes as a project file kept them: those that read. */
+export function boxesIn(u: unknown): ConnectorBoxes {
+  const out: ConnectorBoxes = {}
+  if (!u || typeof u !== 'object') return out
+  const v3 = (p: unknown): p is [number, number, number] => Array.isArray(p) && p.length === 3 && p.every((x) => typeof x === 'number' && Number.isFinite(x))
+  for (const [ref, b] of Object.entries(u as Record<string, unknown>)) {
+    const x = b as Bounds | null
+    if (x && typeof x === 'object' && v3(x.min) && v3(x.max)) out[ref] = { min: x.min, max: x.max }
+  }
+  return out
 }

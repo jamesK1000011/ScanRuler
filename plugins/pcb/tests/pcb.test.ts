@@ -115,3 +115,19 @@ describe('project section', () => {
     expect(setupIn(null).path).toBe('')
   })
 })
+
+describe('red team: a project file’s board read back', () => {
+  it('a broken hole or connector is left out, the rest kept; broken connector boxes dropped', () => {
+    const bad = JSON.parse(JSON.stringify(BOARD))
+    bad.holes.push({ x: 'a', y: 0, d: 3 })
+    bad.connectors.push({ ref: 'J9', side: '+x', centre: 0, face: 'top', box: { min: [0, 0], max: [1, 1] } })
+    const b = boardIn(bad)
+    expect(b.holes.length).toBe(2)
+    expect(b.connectors.map((c) => c.ref)).toEqual(['J2', 'J1', 'J3'])
+    // The enclosure's board from it works, where the broken connector made it throw.
+    expect(boardSpecOf(b).spec.openings.length).toBe(3)
+    const s = setupIn({ path: '/b/tiny.kicad_pcb', board: BOARD, imported: { at: 't', body: 'tiny', bodies: 5, components: true, above: 10, below: 3, offset: [0, 0, 0], boxes: { J1: { min: [0, 0, 'x'], max: [1, 1, 1] }, J2: { min: [-23.27, -4.12, -3], max: [-20.73, 5.12, 10.1] } }, kicad: null, warnings: [] } })
+    expect(Object.keys(s.imported!.boxes)).toEqual(['J2'])
+    expect(() => boardIn({ ...BOARD, outline: [[0, 0], [1, 'x'], [2, 2]] })).toThrow(/not a board/)
+  })
+})

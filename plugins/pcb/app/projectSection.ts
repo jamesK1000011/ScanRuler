@@ -5,7 +5,7 @@
 // Reverse Engineer's, saved with it.
 
 import type { ProjectSection } from '../../../src/app/projectSections'
-import { boardIn, type KicadBoard } from '../core/boardSpec'
+import { boardIn, boxesIn, type KicadBoard } from '../core/boardSpec'
 import { DEFAULT_PCB, setupOf, usePcb, type Imported, type PcbSetup } from '../state/pcbStore'
 
 type Saved = ReturnType<typeof setupOf>
@@ -32,7 +32,7 @@ export function setupIn(u: unknown): Saved {
   let imported: Imported | null = null
   const i = o.imported as Imported | undefined
   if (i && typeof i === 'object' && fin(i.above) && fin(i.below) && Array.isArray(i.offset) && i.offset.length === 3 && i.offset.every(fin) && i.boxes && typeof i.boxes === 'object') {
-    imported = { at: String(i.at ?? ''), body: typeof i.body === 'string' ? i.body : null, bodies: fin(i.bodies) ? i.bodies : 0, components: i.components !== false, above: i.above, below: i.below, offset: i.offset as [number, number, number], boxes: i.boxes, kicad: typeof i.kicad === 'string' ? i.kicad : null, warnings: Array.isArray(i.warnings) ? i.warnings.filter((w) => typeof w === 'string').slice(0, 30) : [] }
+    imported = { at: String(i.at ?? ''), body: typeof i.body === 'string' ? i.body : null, bodies: fin(i.bodies) ? i.bodies : 0, components: i.components !== false, above: i.above, below: i.below, offset: i.offset as [number, number, number], boxes: boxesIn(i.boxes), kicad: typeof i.kicad === 'string' ? i.kicad : null, warnings: Array.isArray(i.warnings) ? i.warnings.filter((w) => typeof w === 'string').slice(0, 30) : [] }
   }
   const made = o.enclosureMade as { at?: unknown; bodies?: unknown } | undefined
   return {
