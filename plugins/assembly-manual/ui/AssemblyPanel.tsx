@@ -107,9 +107,10 @@ export function AssemblyPanel() {
             <p>Check sweeps every part in along its move against what is already there. Pages are drawn with the parts in place in grey and the step’s own in black.</p>
           </InfoDot>
         </div>
-        <label className="field">
+        <label className="field pl-field">
           <span>Title</span>
           <input
+            className="pl-input"
             key={st.settings.title}
             type="text"
             defaultValue={st.settings.title}
