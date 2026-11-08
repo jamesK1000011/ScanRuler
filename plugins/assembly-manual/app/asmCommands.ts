@@ -5,7 +5,7 @@
 // anywhere: the only file that leaves is the one the caller saves.
 
 import { toPng } from '../../_shared/lineart/raster'
-import { toPdf, toSvg } from '../../_shared/lineart/sheet'
+import { pdfMissingNote, toPdf, toSvg } from '../../_shared/lineart/sheet'
 import { VIEW_NAMES, type V3 } from '../../_shared/lineart/views'
 import { zip } from '../../_shared/zip'
 import { runCommand } from '../../../src/commands/registry'
@@ -366,9 +366,10 @@ const save: Command<{ format?: 'html' | 'pdf' | 'zip' }> = {
     const stem = s.settings.title.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'manual'
     if (format === 'html') return { file: { name: `${stem}.html`, mimeType: 'text/html', bytes: enc.encode(doc) }, pages: all.sheets.length }
     const pdf = toPdf(all.sheets)
-    if (format === 'pdf') return { file: { name: `${stem}.pdf`, mimeType: 'application/pdf', bytes: pdf }, pages: all.sheets.length }
+    const missing = pdfMissingNote(all.sheets)
+    if (format === 'pdf') return { file: { name: `${stem}.pdf`, mimeType: 'application/pdf', bytes: pdf }, pages: all.sheets.length, ...(missing ? { note: missing } : {}) }
     const files = [{ name: `${stem}.html`, bytes: enc.encode(doc) }, { name: `${stem}.pdf`, bytes: pdf }, ...all.sheets.map((p, i) => ({ name: `pages/${pageName(all, i).replace('manual-', '')}.svg`, bytes: enc.encode(toSvg(p)) }))]
-    return { file: { name: `${stem}.zip`, mimeType: 'application/zip', bytes: zip(files) }, files: files.map((f) => f.name), pages: all.sheets.length }
+    return { file: { name: `${stem}.zip`, mimeType: 'application/zip', bytes: zip(files) }, files: files.map((f) => f.name), pages: all.sheets.length, ...(missing ? { note: missing } : {}) }
   },
 }
 

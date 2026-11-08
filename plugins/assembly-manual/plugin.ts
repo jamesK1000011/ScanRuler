@@ -4,6 +4,7 @@
 // instructions in a controlled style — saved as HTML and PDF. Its commands
 // (asm.*) work on the bodies in Reverse Engineer, in their assembled places.
 
+import { pick, registerHistory } from '../../src/state/historyStore'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { asmCommands } from './app/asmCommands'
@@ -24,6 +25,12 @@ const plugin: ScanRulerPlugin = {
   usePlugin: useAsmPlugin,
   install() {
     registerProjectSection(asmSection)
+    // The panel's edits and the agent's are steps of the app's undo, like
+    // any other: Ctrl+Z takes back the last of them, not a body elsewhere.
+    registerHistory({
+      sections: [{ key: 'assembly-manual', capture: () => pick(useAsm.getState(), ['settings', 'parts', 'steps', 'style']), apply: (v) => useAsm.setState(v as Partial<ReturnType<typeof useAsm.getState>>) }],
+      actions: [{ store: useAsm, label: 'Manual', names: ['set'] }],
+    })
     registerCommands('asm', asmCommands)
     registerStateSection('asm', () => {
       const s = useAsm.getState()
