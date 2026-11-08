@@ -24,7 +24,7 @@ Lengths are mm. Clearances are diametral and as printed: positive is a gap, nega
 - `fit.hinge {…}` plans a print-in-place knuckle hinge. Its `clearance` (radial) and `gap` (axial) are as printed.
 - `fit.pin {…}` plans a pin and socket at a class. Use `bought: true` for a socket alone, sized for a dowel.
 - `fit.apply` builds the last one planned, or `{ part, params }`, as named bodies. One undo step.
-- `fit.test {…}` makes the coupon at once. `fit.file { part, params, format }` gives the STEP or STL without the project.
+- `fit.test {…}` makes the coupon at once. `fit.file { part, params, format }` gives the STEP or STL without the project. `fit.stop` stops a build under way, and any waiting their turn.
 - With `layout: "assembled"` (snap, pin) the parts come in where they meet. Check them with `reverse.body.clearance` or `reverse.body.check`, then move them with `moveBody`.
 
 Print a snap hook lying on its side (fit.apply lays it so), so the beam bends along its layers. A hinge prints as it lies, both leaves on the bed.

@@ -9,6 +9,8 @@ import { boardBoxPlan, boardIn, BOARD_BOX_DEFAULTS, screwFor, type BoardSpec } f
 import { generatorOf, valuesOf } from '../core/generators'
 import { prism, type GenKernel } from '../core/kernel'
 import { setupIn } from '../app/projectSection'
+import { INSERTS, METRIC } from '../../hw/core/hardware'
+import { SCREWS } from '../core/boardBox'
 
 type K = GenKernel & { common(a: unknown, b: unknown): unknown; makeBox(dx: number, dy: number, dz: number): unknown; isValid(s: unknown): boolean; mirror(s: unknown, p: { x: number; y: number; z: number }, n: { x: number; y: number; z: number }): unknown }
 let k: K
@@ -192,5 +194,13 @@ describe('board enclosure', () => {
     const b2 = prism(k, 145, 30, 30, 20, 0, 0, T)
     const c = prism(k, 115, 55, 30, 30, 0, 0, T)
     for (const part of [a, b2, c]) expect(vol(k.common(box.shape, part))).toBeLessThan(0.001)
+  })
+  it('red team: the standoffs’ screws, pilots and inserts are the Hardware workspace’s, so hw.plan on a standoff cuts the same hole', () => {
+    for (const sc of SCREWS) {
+      const m = METRIC.find((x) => x.size === sc.size)!
+      const ins = INSERTS.find((x) => x.size === sc.size)!
+      expect([sc.d, sc.pilot]).toEqual([m.d, m.pilot])
+      expect(sc.insert).toEqual({ hole: ins.hole, length: ins.length, wall: ins.wall })
+    }
   })
 })

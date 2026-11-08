@@ -61,3 +61,4 @@ its percent suggests. Calibrating takes care of both.
   against the target in turn.
 - The balance point is read from meshes at a 0.05 mm chord, which is good to
   a hundredth of a millimetre on most parts.
+- `mass.materials` lists the printed materials' densities and the ballast fillers' packed densities.

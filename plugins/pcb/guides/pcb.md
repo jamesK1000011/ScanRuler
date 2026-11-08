@@ -9,6 +9,8 @@ A KiCad board brought into Reverse Engineer, a box made round it, and its files 
 5. `pcb.fab` gives the fabrication package as a zip. It holds the Gerbers, the Excellon drill files (plated and unplated apart, mm), the placement CSV, the parts list from the schematic beside the board, and the DRC report. `naming: "fab"` (the default) uses Protel extensions and JLCPCB's column names, which JLCPCB and PCBWay read. The job folder also keeps a zip of the Gerbers and drill files alone, ready to upload.
 6. `pcb.drc` runs KiCad's design rule check: violations and unconnected items by severity, the first 50 with their places in KiCad's coordinates.
 
+`pcb.stop` stops what kicad-cli is doing (or the enclosure being built). `pcb.close` puts the board away; its bodies stay in Reverse Engineer.
+
 Electronic parts' 3D models: `catalog_models_search { query: "SOT-23", sources: ["kicad"] }` searches KiCad's own library (kicad-packages3D, CC-BY-SA 4.0 with the KiCad libraries exception). Use KiCad's package names: `SOT-23`, `USB_C_Receptacle`, `PinHeader_1x04_P2.54mm`. `catalog_models_take` brings the STEP in with its licence recorded. The Catalog panel opens it as a body.
 
 Coordinates are in mm, centred on the board outline's box, y up, with the board's bottom face at z = 0. KiCad's own coordinates run y down from the sheet's corner; `origin` in the board's read gives that centre in them.

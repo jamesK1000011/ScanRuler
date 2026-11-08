@@ -25,3 +25,4 @@ Boards written as code with tscircuit (React components in a `.tsx` file), built
 - `circuit.files` lists projects and builds; `circuit.open { path }` opens any circuit.json in one, `{ json }` one given as text.
 - Inner layers are counted but not built as solids. Silkscreen and BREP pours are read and counted, not built.
 - Saved with the project: the settings, the project folder, the last build, the open board's circuit.json.
+- `circuit.set` picks the conductor and trace thickness for `circuit.resistance`, and the copper solids' thickness; `circuit.clear` puts the open board away (its bodies stay); `circuit.stop` stops a build or the solids being made.

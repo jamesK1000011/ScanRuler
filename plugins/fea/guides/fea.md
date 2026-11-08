@@ -70,3 +70,9 @@ found. FreeCAD ships both.
   wall, a rib, a fillet at the corner.
 - Linear and static only: no buckling, no fatigue, no creep (PLA creeps
   under steady load), and no impact. Say so whenever these apply.
+
+## Housekeeping
+
+- `fea.results` gives the last solve's answer again, with whether it still holds (`current`) or why not.
+- `fea.cancel` stops a solve under way; nothing else changes.
+- `fea.clear { what }` takes away the holds, the loads, the result, or the whole study.

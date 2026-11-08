@@ -69,6 +69,20 @@ workspaces agree; the ids are the shared ones (`tpu` is still taken for
 `tpu-95a`). Moulded figures (ABS 2.5 % in the old guides) are higher than
 printed parts bear. Your filament's data sheet comes first.
 
+### Beside the Hardware workspace
+
+Hardware (`hw.*`) sizes holes for bought parts with an allowance added to
+the diameter — 0.2 by default for screws, nuts and magnets, 0.1 for a
+bearing — where Fits adds its calibration (holes print 0.2 small by
+default) to a class's clearance as printed. With the defaults they agree:
+an M3 clearance hole, ISO 273 medium 3.4 + 0.2, prints at 3.4 — 0.4 round
+a 3 screw, Fits' free class at 3 (0.412); a 608's 22 pocket, 22.1
+modelled, prints 0.1 under the bearing — a press, as Fits' press class at
+22 (0.138 under) is; a magnet's pocket prints at the magnet's size, between
+close and press — Hardware's hw.check calls that snug, to press in. They are not linked: after
+`fit.calibrate`, set Hardware's allowances (`hw.set { allowance }`) to the
+new hole offset too.
+
 No FreeCAD or other CAD package code is used.
 
 ## Commands (`fit.*`)
