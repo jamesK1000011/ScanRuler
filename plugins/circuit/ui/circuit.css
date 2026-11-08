@@ -1,0 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.circuit-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.circuit-row > span:first-child { flex: 0 0 96px; color: var(--muted, #888); font-size: 12px; }
+.circuit-row > select, .circuit-row > input { flex: 1; min-width: 0; }
+.circuit-outputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; margin: 4px 0; }
+.circuit-error { color: var(--bad, #c33); }

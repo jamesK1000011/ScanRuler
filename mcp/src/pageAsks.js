@@ -12,6 +12,7 @@ import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { librariesStatus, modelFiles, searchModels, takeModel } from './extras/models.js'
 import { feaTools, MATERIALS, solve } from './extras/fea.js'
+import { buildInTurn, buildsWaiting, circuitTools, files as circuitFiles, newProject, readCircuitFile, templatesInfo } from './extras/circuit.js'
 
 const ACTIONS = new Set(['search', 'files', 'take', 'open', 'status', 'cancel'])
 
@@ -138,5 +139,56 @@ export function attachFeaAsks({ link, holds = () => true, env = process.env, log
       await work()
     }
     queue = queue.then(turn, turn)
+  })
+}
+
+/** The Circuit workspace's asks (circuit.tsci: tools, new, build, files,
+ *  read, cancel): tscircuit's command line run on this computer
+ *  (extras/circuit.js), how far a build has got said as it goes
+ *  (circuit.progress), the answer as circuit.answer. Builds run one at a
+ *  time, the agent's circuit_build among them; a few may wait. */
+export function attachCircuitAsks({ link, holds = () => true, env = process.env, log = () => {}, waiting = 3 }) {
+  const running = new Map()
+  const cancelledEarly = new Map()
+  const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o?.[k] !== undefined).map((k) => [k, o[k]]))
+  link.on?.('notice', async ({ kind, data }) => {
+    if (kind !== 'circuit.tsci' || !holds()) return
+    const req = typeof data?.req === 'string' ? data.req.slice(0, 40) : null
+    if (!req || !['tools', 'new', 'build', 'files', 'read', 'cancel'].includes(data.action)) return
+    if (data.action === 'cancel') {
+      const of = String(data.of ?? '').slice(0, 40)
+      const ctl = running.get(of)
+      if (ctl) ctl.abort()
+      else if (of) {
+        const now = Date.now()
+        for (const [k, t] of cancelledEarly) if (now - t > 30_000) cancelledEarly.delete(k)
+        if (cancelledEarly.size < 50) cancelledEarly.set(of, now)
+      }
+      return
+    }
+    if (running.has(req) || cancelledEarly.delete(req)) return
+    const answerNow = (answer) => link.run('circuit.answer', answer).catch((e) => log(`The circuit answer did not reach the page: ${e.message}`))
+    if (running.size >= 8) return answerNow({ req, ok: false, error: 'Too many asks at once: wait for one to finish.' })
+    if (data.action === 'build' && buildsWaiting() >= waiting) return answerNow({ req, ok: false, error: `${buildsWaiting()} builds are waiting already: cancel one, or wait for them.` })
+    const ctl = new AbortController()
+    running.set(req, ctl)
+    const say = (phase, detail) => link.run('circuit.progress', { req, phase: String(phase).slice(0, 40), detail: String(detail ?? '').slice(0, 200) }).catch(() => {})
+    let answer
+    try {
+      const a = data.args && typeof data.args === 'object' && !Array.isArray(data.args) ? data.args : {}
+      let result
+      if (data.action === 'tools') result = { ...(await circuitTools(env)), templates: templatesInfo() }
+      else if (data.action === 'new') result = await newProject(pick(a, ['name', 'template', 'params', 'dir']), env)
+      else if (data.action === 'build') result = await buildInTurn(pick(a, ['project', 'entry', 'outputs', 'routing', 'partsEngine', 'name']), env, { signal: ctl.signal, progress: say })
+      else if (data.action === 'files') result = await circuitFiles(pick(a, ['project', 'job']), env)
+      else result = await readCircuitFile(pick(a, ['path', 'project', 'job', 'entry']), env)
+      answer = { req, ok: true, result }
+    } catch (e) {
+      answer = { req, ok: false, error: String(e?.message ?? e).slice(0, 800), ...(e?.job ? { result: e.job } : {}) }
+    } finally {
+      running.delete(req)
+    }
+    if (ctl.signal.aborted) return
+    await answerNow(answer)
   })
 }

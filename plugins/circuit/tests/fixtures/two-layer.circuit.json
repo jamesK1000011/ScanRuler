@@ -1,0 +1,341 @@
+[
+ {
+  "type": "source_component",
+  "source_component_id": "sc_R1",
+  "ftype": "simple_resistor",
+  "name": "R1",
+  "resistance": 330
+ },
+ {
+  "type": "source_component",
+  "source_component_id": "sc_LED1",
+  "ftype": "simple_led",
+  "name": "LED1"
+ },
+ {
+  "type": "source_component",
+  "source_component_id": "sc_J1",
+  "ftype": "simple_pin_header",
+  "name": "J1"
+ },
+ {
+  "type": "pcb_board",
+  "pcb_board_id": "pcb_board_0",
+  "center": {
+   "x": 0,
+   "y": 0
+  },
+  "width": 40,
+  "height": 30,
+  "thickness": 1.6,
+  "num_layers": 2,
+  "material": "fr4"
+ },
+ {
+  "type": "pcb_component",
+  "pcb_component_id": "pc_R1",
+  "source_component_id": "sc_R1",
+  "center": {
+   "x": 0,
+   "y": 5
+  },
+  "width": 2.6,
+  "height": 1.0,
+  "layer": "top",
+  "rotation": 0
+ },
+ {
+  "type": "pcb_component",
+  "pcb_component_id": "pc_LED1",
+  "source_component_id": "sc_LED1",
+  "center": {
+   "x": 10,
+   "y": 5
+  },
+  "width": 2.6,
+  "height": 1.0,
+  "layer": "top",
+  "rotation": 0
+ },
+ {
+  "type": "pcb_component",
+  "pcb_component_id": "pc_J1",
+  "source_component_id": "sc_J1",
+  "center": {
+   "x": -15,
+   "y": 0
+  },
+  "width": 2.54,
+  "height": 5.08,
+  "layer": "top",
+  "rotation": 90
+ },
+ {
+  "type": "cad_component",
+  "cad_component_id": "cad_LED1",
+  "pcb_component_id": "pc_LED1",
+  "source_component_id": "sc_LED1",
+  "position": {
+   "x": 10,
+   "y": 5,
+   "z": 1.6
+  },
+  "size": {
+   "x": 1.6,
+   "y": 0.8,
+   "z": 1.2
+  }
+ },
+ {
+  "type": "pcb_smtpad",
+  "pcb_smtpad_id": "pad_R1_1",
+  "shape": "rect",
+  "x": -0.8,
+  "y": 5,
+  "width": 0.9,
+  "height": 0.95,
+  "layer": "top",
+  "pcb_component_id": "pc_R1",
+  "pcb_port_id": "port_R1_1"
+ },
+ {
+  "type": "pcb_smtpad",
+  "pcb_smtpad_id": "pad_R1_2",
+  "shape": "rect",
+  "x": 0.8,
+  "y": 5,
+  "width": 0.9,
+  "height": 0.95,
+  "layer": "top",
+  "pcb_component_id": "pc_R1",
+  "pcb_port_id": "port_R1_2"
+ },
+ {
+  "type": "pcb_smtpad",
+  "pcb_smtpad_id": "pad_LED1_1",
+  "shape": "rect",
+  "x": 9.2,
+  "y": 5,
+  "width": 0.9,
+  "height": 0.95,
+  "layer": "top",
+  "pcb_component_id": "pc_LED1",
+  "pcb_port_id": "port_LED1_1"
+ },
+ {
+  "type": "pcb_smtpad",
+  "pcb_smtpad_id": "pad_LED1_2",
+  "shape": "rect",
+  "x": 10.8,
+  "y": 5,
+  "width": 0.9,
+  "height": 0.95,
+  "layer": "top",
+  "pcb_component_id": "pc_LED1",
+  "pcb_port_id": "port_LED1_2"
+ },
+ {
+  "type": "pcb_plated_hole",
+  "pcb_plated_hole_id": "ph_J1_1",
+  "shape": "circle",
+  "x": -15,
+  "y": 1.27,
+  "outer_diameter": 1.7,
+  "hole_diameter": 1.0,
+  "layers": [
+   "top",
+   "bottom"
+  ],
+  "pcb_component_id": "pc_J1",
+  "pcb_port_id": "port_J1_1"
+ },
+ {
+  "type": "pcb_plated_hole",
+  "pcb_plated_hole_id": "ph_J1_2",
+  "shape": "circle",
+  "x": -15,
+  "y": -1.27,
+  "outer_diameter": 1.7,
+  "hole_diameter": 1.0,
+  "layers": [
+   "top",
+   "bottom"
+  ],
+  "pcb_component_id": "pc_J1",
+  "pcb_port_id": "port_J1_2"
+ },
+ {
+  "type": "pcb_hole",
+  "pcb_hole_id": "hole_0",
+  "hole_shape": "circle",
+  "hole_diameter": 3.2,
+  "x": 16,
+  "y": 11
+ },
+ {
+  "type": "pcb_hole",
+  "pcb_hole_id": "hole_1",
+  "hole_shape": "circle",
+  "hole_diameter": 3.2,
+  "x": -16,
+  "y": -11
+ },
+ {
+  "type": "pcb_via",
+  "pcb_via_id": "via_0",
+  "x": 5,
+  "y": -5,
+  "outer_diameter": 0.6,
+  "hole_diameter": 0.3,
+  "layers": [
+   "top",
+   "bottom"
+  ],
+  "pcb_trace_id": "trace_3"
+ },
+ {
+  "type": "pcb_trace",
+  "pcb_trace_id": "trace_1",
+  "source_trace_id": "st_1",
+  "route": [
+   {
+    "route_type": "wire",
+    "x": -15,
+    "y": 1.27,
+    "width": 0.25,
+    "layer": "top",
+    "start_pcb_port_id": "port_J1_1"
+   },
+   {
+    "route_type": "wire",
+    "x": -10,
+    "y": 5,
+    "width": 0.25,
+    "layer": "top"
+   },
+   {
+    "route_type": "wire",
+    "x": -0.8,
+    "y": 5,
+    "width": 0.25,
+    "layer": "top",
+    "end_pcb_port_id": "port_R1_1"
+   }
+  ]
+ },
+ {
+  "type": "pcb_trace",
+  "pcb_trace_id": "trace_2",
+  "source_trace_id": "st_2",
+  "route": [
+   {
+    "route_type": "wire",
+    "x": 0.8,
+    "y": 5,
+    "width": 0.3,
+    "layer": "top"
+   },
+   {
+    "route_type": "wire",
+    "x": 9.2,
+    "y": 5,
+    "width": 0.3,
+    "layer": "top"
+   }
+  ]
+ },
+ {
+  "type": "pcb_trace",
+  "pcb_trace_id": "trace_3",
+  "source_trace_id": "st_3",
+  "route": [
+   {
+    "route_type": "wire",
+    "x": 10.8,
+    "y": 5,
+    "width": 0.25,
+    "layer": "top"
+   },
+   {
+    "route_type": "wire",
+    "x": 10.8,
+    "y": -5,
+    "width": 0.25,
+    "layer": "top"
+   },
+   {
+    "route_type": "wire",
+    "x": 5,
+    "y": -5,
+    "width": 0.25,
+    "layer": "top"
+   },
+   {
+    "route_type": "via",
+    "x": 5,
+    "y": -5,
+    "from_layer": "top",
+    "to_layer": "bottom",
+    "hole_diameter": 0.3,
+    "outer_diameter": 0.6
+   },
+   {
+    "route_type": "wire",
+    "x": 5,
+    "y": -5,
+    "width": 0.4,
+    "layer": "bottom"
+   },
+   {
+    "route_type": "wire",
+    "x": -15,
+    "y": -5,
+    "width": 0.4,
+    "layer": "bottom"
+   },
+   {
+    "route_type": "wire",
+    "x": -15,
+    "y": -1.27,
+    "width": 0.4,
+    "layer": "bottom"
+   }
+  ]
+ },
+ {
+  "type": "pcb_silkscreen_text",
+  "pcb_silkscreen_text_id": "silk_0",
+  "text": "R1",
+  "x": 0,
+  "y": 6.5,
+  "font": "tscircuit2024",
+  "font_size": 0.8,
+  "layer": "top",
+  "anchor_position": {
+   "x": 0,
+   "y": 6.5
+  },
+  "anchor_alignment": "center"
+ },
+ {
+  "type": "pcb_silkscreen_line",
+  "pcb_silkscreen_line_id": "silk_1",
+  "pcb_component_id": "pc_J1",
+  "stroke_width": 0.1,
+  "x1": -16.5,
+  "y1": 2.6,
+  "x2": -13.5,
+  "y2": 2.6,
+  "layer": "top"
+ },
+ {
+  "type": "pcb_trace_error",
+  "pcb_trace_error_id": "err_0",
+  "error_type": "pcb_trace_error",
+  "message": "Trace st_3 runs close to J1",
+  "source_trace_id": "st_3",
+  "pcb_trace_id": "trace_3",
+  "pcb_component_ids": [],
+  "pcb_port_ids": []
+ }
+]

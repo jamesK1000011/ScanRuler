@@ -29,7 +29,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { attachNotices } from './notices.js'
-import { attachFeaAsks, attachPageAsks } from './pageAsks.js'
+import { attachCircuitAsks, attachFeaAsks, attachPageAsks } from './pageAsks.js'
 import { attachBoardAsks } from './boardAsks.js'
 import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
@@ -802,6 +802,8 @@ export function createMcpServer({
   attachFeaAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
   // And the Boards panel's: KiCad's kicad-cli run here (boardAsks.js).
   attachBoardAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
+  // And the Circuit workspace's: tscircuit's command line run here.
+  attachCircuitAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
   const withNews = (reply, tool) => {
     if (/^snapshot_/.test(tool ?? '')) {
       notices.seen()
