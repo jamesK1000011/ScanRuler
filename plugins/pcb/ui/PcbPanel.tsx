@@ -101,7 +101,7 @@ export function PcbPanel() {
         </label>
       </div>
       <div className="toolrow">
-        <button className="primary" disabled={busy || !s.path} data-test="pcb-import" title="Export the board as STEP with KiCad and bring it into Reverse Engineer" onClick={() => void run('import')}>
+        <button className="primary" disabled={busy || !s.path} data-test="pcb-import" title="Export the board as STEP and bring it into Reverse Engineer" onClick={() => void run('import')}>
           Import
         </button>
       </div>
@@ -139,14 +139,14 @@ export function PcbPanel() {
         <button className="primary" disabled={busy || !b || !params} data-test="pcb-enclosure" title="Make the box and lid round the board in Reverse Engineer" onClick={() => void run('enclosure')}>
           Make enclosure
         </button>
-        <button disabled={busy || (!Object.keys(s.enclosure).length && s.above === null && s.below === null)} title="The enclosure’s settings back to the defaults; the parts’ reach measured again" onClick={() => void run('set', { reset: true, above: null, below: null })}>
+        <button disabled={busy || (!Object.keys(s.enclosure).length && s.above === null && s.below === null)} title="Reset the enclosure settings and re-measure the parts" onClick={() => void run('set', { reset: true, above: null, below: null })}>
           Defaults
         </button>
       </div>
       {s.enclosureMade && <p className="hint">Made: {s.enclosureMade.bodies.join(', ')}.</p>}
 
       <div className="sec-head">Fabrication</div>
-      <label className="pcb-row" title="fab: Protel extensions and JLCPCB’s column names, read by JLCPCB and PCBWay; KiCad: KiCad’s own names">
+      <label className="pcb-row" title="File naming: fab (JLCPCB, PCBWay) or KiCad’s own">
         <span>File names</span>
         <select value={s.naming} disabled={busy} aria-label="File names" onChange={(e) => void run('set', { naming: e.target.value })}>
           <option value="fab">Board house (JLCPCB, PCBWay)</option>
@@ -154,7 +154,7 @@ export function PcbPanel() {
         </select>
       </label>
       <div className="toolrow">
-        <button disabled={busy || !s.path} data-test="pcb-fab" title="Gerbers, drill files, placement and parts lists and the DRC report, zipped" onClick={() => void fabNow()}>
+        <button disabled={busy || !s.path} data-test="pcb-fab" title="Gerbers, drills, placement, parts list and DRC, zipped" onClick={() => void fabNow()}>
           Fab package
         </button>
         <button disabled={busy || !s.path} data-test="pcb-drc" title="KiCad’s design rule check" onClick={() => void run('drc')}>
