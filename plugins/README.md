@@ -27,6 +27,7 @@ not in this repository.
 | [fea/](fea/) | Strength — FEA of a printed part, weaker across its layers; Gmsh and CalculiX on your computer |
 | [mass/](mass/) | Mass and balance — weight, balance point and inertia as printed; ballast pockets to hit a target |
 | [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, made to size as solids |
+| [hw/](hw/) | Hardware — holes for screws, nut traps, heat-set inserts, magnets and bearings, sized for printing and cut into Reverse Engineer bodies |
 
 ## The rules
 
