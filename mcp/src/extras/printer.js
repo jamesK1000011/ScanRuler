@@ -151,7 +151,7 @@ const lastUpload = new Map()
 /** The pauses put into a file (pauses.js marks each): layer, Z and what. */
 export function pausesIn(text) {
   const out = []
-  for (const m of String(text).matchAll(/^;\s*ScanRuler pause: before layer (\d+), Z ([\d.]+)(?:: (.*))?$/gm)) out.push({ layer: Number(m[1]), z: Number(m[2]), note: (m[3] ?? '').trim() })
+  for (const m of String(text).matchAll(/^;\s*ScanRuler pause: before layer (\d+), Z ([\d.]+)(?:: ([^\r\n]*))?\r?$/gm)) out.push({ layer: Number(m[1]), z: Number(m[2]), note: (m[3] ?? '').trim() })
   return out
 }
 

@@ -171,6 +171,16 @@ describe('hw.embed', () => {
     expect((await run('embed', { kind: 'magnet', size: '6x3', encase: { roofLayers: 5 }, at: { body: 'Block', face: 0 } })).embed.roof).toBe(1)
   })
 
+  test('refused out through the far side; warned close to it', async () => {
+    await refused(run('embed', { kind: 'object', object: { shape: 'cylinder', diameter: 5, height: 9.5 }, at: { body: 'Block', face: 0 } }), /out under Block/)
+    const near = await run('embed', { kind: 'object', object: { shape: 'cylinder', diameter: 5, height: 9 }, at: { body: 'Block', face: 1 } })
+    expect(near.embed.tops).toEqual([9.8])
+    expect(warnings(near).some((w: string) => /top is only 0\.2 over the pocket/.test(w))).toBe(true)
+    await refused(run('embed', { kind: 'object', object: { shape: 'cylinder', diameter: 5, height: 9.5 }, at: { body: 'Block', face: 1 } }), /reaches Block’s top/)
+    const thin = await run('embed', { kind: 'magnet', size: '6x3', encase: { roof: 0.2 }, at: { body: 'Block', face: 1 } })
+    expect(warnings(thin).some((w: string) => /floor under the pocket is 0\.2/.test(w))).toBe(true)
+  })
+
   test('a pattern: one pocket each, one height', async () => {
     const p = await run('embed', { kind: 'nut', size: 'M3', at: { body: 'Block', face: 0 }, pattern: { kind: 'rectangle', width: 20, height: 20 } })
     expect(p.embed.tops).toEqual([9.4, 9.4, 9.4, 9.4])
@@ -235,11 +245,26 @@ describe('cut, recorded, and the pauses', () => {
     await refused(run('pauses', { together: ['Block', 'Gone'] }), /No place on the bed for Gone/)
   })
 
+  test('pockets out of their body left out of the pauses, said so; a thin roof recorded warned', async () => {
+    await run('record', { body: 'Block', top: -1, what: 'under' })
+    await run('record', { body: 'Block', top: 12, what: 'over' })
+    await run('record', { body: 'Block', top: 4, what: 'fine' })
+    const p = await run('pauses')
+    expect(p.pauses.map((x: Json) => x.note)).toEqual(['Insert fine'])
+    expect(p.warnings.filter((w: string) => /left out/.test(w)).length).toBe(2)
+    const r = await run('record', { body: 'Block', top: 5, what: 'thin', roof: 0.2 })
+    expect(r.warnings[0]).toMatch(/roof is 0\.2, under 0\.6/)
+  })
+
   test('the Mass workspace’s ballast pocket recorded: its top, its BBs', async () => {
     await refused(run('record', { from: 'mass' }), /not in this build/)
     mass = { setup: { filler: 'steel-bb' } }
     await refused(run('record', { from: 'mass' }), /mass\.ballast first/)
     mass = { setup: { filler: 'steel-bb' }, pocket: { body: 'Block', at: [0, 0, 4], size: [12, 10, 4], count: 120, fillerMass: 44.4 } }
+    mass = { setup: { filler: 'steel-bb' }, pocket: { body: 'Block', at: [0, 0, 4], size: [12, 10, 4], count: 120, fits: false, why: 'it reaches the surface' } }
+    await refused(run('record', { from: 'mass' }), /doesn’t fit.*reaches the surface/)
+    mass = { setup: { filler: 'steel-bb' }, pocket: { body: 'Block', at: [0, 0, 4], size: [12, 10, 4], count: 120, fillerMass: 44.4, fits: true } }
+    await refused(run('record', { from: 'mass', count: 2 }), /from the Mass plan/)
     const r = await run('record', { from: 'mass' })
     expect(r.recorded).toEqual({ id: 'E1', body: 'Block', what: '120 steel BBs', top: 6, roof: null, source: 'mass' })
     expect((await run('pauses')).pauses[0]).toMatchObject({ layer: 31, z: 6 })

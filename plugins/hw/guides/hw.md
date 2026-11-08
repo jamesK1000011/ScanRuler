@@ -163,6 +163,9 @@ pauses, the part is dropped in, and the layers above close over it.
   `section.cut`.
 - Bodies printed object by object (sequential printing) can't take pauses
   by height.
+- The heights assume the part prints as modelled, Z up, standing on its
+  lowest point. Turned over in the slicer, or printed on a raft, they are
+  wrong. The slicer side refuses a raft.
 
 - A hole is placed square to a flat face, or along a coordinate axis, or
   level. A tilted direction without a face is refused.

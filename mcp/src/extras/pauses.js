@@ -22,13 +22,16 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { zipEntries, zipWrite } from './zip.js'
 
 /** Two heights closer than this are one, mm: slicers write Z to 3 places. */
 export const EPS = 0.002
 
 export const COMMANDS = ['auto', 'M601', 'M600', 'PAUSE', 'M400 U1']
+
+/** The most G-code read into memory to put pauses in. */
+export const MAX_GCODE_BYTES = 400 * 2 ** 20
 
 const LAYER_MARK = /^;\s*(?:LAYER_CHANGE|CHANGE_LAYER)\s*$/
 const Z_MARK = /^;\s*(?:Z|Z_HEIGHT)\s*:\s*(-?[\d.]+)\s*$/
@@ -159,8 +162,12 @@ export function injectPauses(text, pauses, { pauseCommand = 'auto' } = {}) {
   const eol = text.includes('\r\n') ? '\r\n' : '\n'
   const lines = text.split(/\r?\n/)
   if (lines.some((l) => /^;\s*ScanRuler pause\b/.test(l))) throw new Error('This G-code has pauses put in already: slice again to change them.')
+  const config = configOf(lines)
+  // On a raft the part starts above the bed, by the raft: a pocket's
+  // height from the part's bottom would pause too low.
+  if (Number(config.raft_layers) > 0) throw new Error(`The part is printed on a raft (raft_layers = ${config.raft_layers}): its pockets' heights are from its own bottom, not the bed. Slice without the raft to put pauses in.`)
   const layers = layersOf(lines)
-  const cmd = pauseCommandOf(configOf(lines), pauseCommand, lines.slice(0, 5).join('\n'))
+  const cmd = pauseCommandOf(config, pauseCommand, lines.slice(0, 5).join('\n'))
   const by = new Map()
   const warnings = []
   for (const p of asked) {
@@ -206,6 +213,7 @@ export const isBinaryGcode = (buf) => buf.length >= 4 && buf.toString('latin1', 
  * MD5 beside it (Bambu printers check it) written again.
  */
 export async function addPauses({ gcode, tmf, pauses, pauseCommand }) {
+  if ((await stat(gcode)).size > MAX_GCODE_BYTES) throw new Error(`The G-code is over ${MAX_GCODE_BYTES / 2 ** 20} MB: too big to put pauses into here.`)
   const buf = await readFile(gcode)
   if (isBinaryGcode(buf)) throw new Error('The slicer wrote binary G-code (binary_gcode on in the printer profile): pauses go into text G-code only. Turn it off for this job, or add the pauses in the slicer.')
   const r = injectPauses(buf.toString('utf8'), pauses, { pauseCommand })
@@ -223,8 +231,17 @@ export async function addPauses({ gcode, tmf, pauses, pauseCommand }) {
     }
     for (const f of files) {
       if (!/(^|\/)plate_\d+\.gcode$/i.test(f.name)) continue
-      // Each plate on its own heights; the job's G-code was the first's.
-      const done = injectPauses(f.data.toString('utf8'), pauses, { pauseCommand })
+      // Each plate on its own heights; the job's G-code was the first's,
+      // and fails the job. Another plate a pause does not reach is left as
+      // it was, and said so.
+      let done
+      try {
+        done = injectPauses(f.data.toString('utf8'), pauses, { pauseCommand })
+      } catch (e) {
+        if (plates.length === 0) throw e
+        plates.push({ plate: f.name, error: String(e.message ?? e), unchanged: true })
+        continue
+      }
       f.data = Buffer.from(done.text)
       const row = { plate: f.name, pauses: done.pauses.map((p) => p.layer) }
       const sum = files.find((x) => x.name === `${f.name}.md5`)

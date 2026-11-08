@@ -365,9 +365,15 @@ const layersOf = (s: Settings): Layers => ({ height: s.layerHeight, first: s.fir
 /** A body's lowest point in the part's frame — where it meets the bed —
  *  from Reverse Engineer's bounds; null where it has none. */
 function baseOf(body: string): number | null {
-  const bs = ((readStateSections().reverse as { bodies?: { name: string; bounds?: { min: number[] } | null }[] } | undefined)?.bodies) ?? []
-  const z = bs.find((b) => b.name === body)?.bounds?.min?.[2]
-  return typeof z === 'number' && Number.isFinite(z) ? z : null
+  return zRange(body)?.[0] ?? null
+}
+
+/** A body's lowest and highest Z, from Reverse Engineer's bounds. */
+function zRange(body: string): [number, number] | null {
+  const bs = ((readStateSections().reverse as { bodies?: { name: string; bounds?: { min: number[]; max: number[] } | null }[] } | undefined)?.bodies) ?? []
+  const b = bs.find((x) => x.name === body)?.bounds
+  const lo = b?.min?.[2], hi = b?.max?.[2]
+  return typeof lo === 'number' && Number.isFinite(lo) && typeof hi === 'number' && Number.isFinite(hi) ? [lo, hi] : null
 }
 
 /**
@@ -431,6 +437,19 @@ function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
   const measured = down ? roof : null
   const warn: string[] = []
   if (measured !== null && measured < minRoof - EPS) warn.push(`Warning: the roof is ${measured}, under ${e.roofLayers ?? S.roofLayers} layers (${minRoof}): it may print thin or open.`)
+  // Out through the body's far side: under it going down, over it going up.
+  const range = zRange(placed.body)
+  if (range && down) {
+    const floor = r3(placed.entry[2] - (pocket.to as number) - range[0])
+    if (floor <= EPS) invalid(`The pocket would go ${r3(-floor)} out under ${placed.body} (its bottom is at Z ${r3(range[0])}): make it shallower or the roof thinner.`)
+    if (floor < minRoof - EPS) warn.push(`Warning: only ${floor} under the pocket to the part’s bottom, under ${minRoof}: it may print open below.`)
+  }
+  if (up && roof < minRoof - EPS) warn.push(`Warning: the floor under the pocket is ${r3(roof)}, under ${minRoof}: it may print open below.`)
+  if (range && !down) {
+    const over = r3(range[1] - Math.max(...tops))
+    if (over <= EPS) invalid(`The pocket’s top (Z ${Math.max(...tops)}) reaches ${placed.body}’s top (Z ${r3(range[1])}): it can’t be closed over. Make it shallower, or cut it from the top.`)
+    if (over < minRoof - EPS) warn.push(`Warning: ${placed.body}’s top is only ${over} over the pocket, under ${minRoof}: it may print open.`)
+  }
   if (!down) notes.push(up ? `The part over the pocket is the body's own: check it is ${minRoof} thick at least (section.cut through it).` : `The material round the pocket is the body's own: check it is ${minRoof} thick at least, above it most of all (section.cut through it).`)
   if (placed.level) notes.push('Level pocket: its roof is built up in steps to the teardrop’s point, not bridged.')
   else if (cut.span > S.bridgeMax + EPS) {
@@ -684,10 +703,11 @@ const recordCmd: Command<RecordIn> = {
     const S = settings()
     const minRoof = r3(S.roofLayers * S.layerHeight)
     if (a.from === 'mass') {
-      for (const k of ['body', 'top', 'span', 'roof'] as const) if (a[k] !== undefined) invalid(`${k}: from the Mass plan — leave it out.`)
+      for (const k of ['body', 'top', 'span', 'roof', 'count'] as const) if (a[k] !== undefined) invalid(`${k}: from the Mass plan — leave it out.`)
       const m = readStateSections().mass as { pocket?: { body: string; at: number[]; size: number[]; count?: number; fillerMass?: number }; setup?: { filler?: string } } | undefined
       if (m === undefined) invalid('The Mass workspace is not in this build.')
-      const pk = m!.pocket ?? invalid('Mass has no ballast pocket planned: mass.ballast first (record it before mass.apply clears the plan, or give body and top).')
+      const pk = (m!.pocket ?? invalid('Mass has no ballast pocket planned: mass.ballast first (record it before mass.apply clears the plan, or give body and top).')) as { body: string; at: number[]; size: number[]; count?: number; fillerMass?: number; fits?: boolean; why?: string }
+      if (pk.fits === false) invalid(`Mass’s pocket doesn’t fit, so it won’t be cut: ${pk.why ?? 'plan it again'}.`)
       if (!Array.isArray(pk.at) || !Array.isArray(pk.size) || pk.at.length !== 3 || pk.size.length !== 3) invalid('The Mass plan’s pocket is not one this reads.')
       const fid = String(m!.setup?.filler ?? 'filler')
       const filler = fid === 'steel-bb' ? 'steel BB' : fid.replace(/-/g, ' ')
@@ -705,7 +725,10 @@ const recordCmd: Command<RecordIn> = {
     if (all.some((e) => e.body === r.body && Math.abs(e.top - r.top) < EPS && e.what === r.what)) invalid(`${r.what} at ${r.top} in ${r.body} is recorded already.`)
     const one: Embed = { id: nextId(all), ...r }
     st().setEmbeds([...all, one])
-    const warn = r.span > S.bridgeMax + EPS ? [`Warning: the roof spans ${r.span}, more than a safe bridge (${S.bridgeMax}): print the first layer over it as a bridge.`] : []
+    const warn = [
+      ...(r.span > S.bridgeMax + EPS ? [`Warning: the roof spans ${r.span}, more than a safe bridge (${S.bridgeMax}): print the first layer over it as a bridge.`] : []),
+      ...(r.roof !== null && r.roof < minRoof - EPS ? [`Warning: the roof is ${r.roof}, under ${minRoof}: it may print thin or open.`] : []),
+    ]
     return { recorded: brief(one), ...(warn.length ? { warnings: warn } : {}), next: 'hw.pauses gives the layer to pause at.' }
   },
 }
@@ -734,6 +757,7 @@ export function pausesOf(a: PausesIn = {}) {
   const together = a.together && a.together.length ? a.together : null
   const unplaced: string[] = []
   const gone: string[] = []
+  const outside: string[] = []
   const items = []
   let groupBase: number | null = null
   if (together) {
@@ -751,7 +775,14 @@ export function pausesOf(a: PausesIn = {}) {
       unplaced.push(e.id)
       continue
     }
-    items.push({ id: e.id, body: e.body, what: e.what, z: r3(e.top - base) })
+    const z = r3(e.top - base)
+    if (z <= 1e-4) {
+      outside.push(`${e.id}: its top (Z ${e.top}) is not above ${e.body}’s bottom (Z ${r3(base)}) — left out.`)
+      continue
+    }
+    const hi = zRange(e.body)?.[1]
+    if (hi !== undefined && e.top >= hi - 1e-4) outside.push(`${e.id}: its top (Z ${e.top}) is at or over ${e.body}’s top (Z ${r3(hi)}): it can’t be printed over — left out.`)
+    else items.push({ id: e.id, body: e.body, what: e.what, z })
   }
   let sched
   try {
@@ -776,7 +807,7 @@ export function pausesOf(a: PausesIn = {}) {
     slicer: { pauses: sched.map((p) => ({ z: Math.max(...p.items.map((i) => i.z)), note: p.note })) },
     ...(gone.length ? { gone: `${gone.join(', ')}: the features that cut ${gone.length === 1 ? 'it are' : 'them are'} gone — left out (hw.unembed to forget ${gone.length === 1 ? 'it' : 'them'}).` } : {}),
     ...(unplaced.length ? { unplaced: `${unplaced.join(', ')}: ${unplaced.length === 1 ? 'its body has' : 'their bodies have'} no place on the bed (not built?) — left out.` } : {}),
-    ...(warnings.length ? { warnings } : {}),
+    ...(outside.length || warnings.length ? { warnings: [...outside, ...warnings] } : {}),
   }
 }
 

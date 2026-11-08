@@ -370,6 +370,10 @@ test('a job with pauses says so at the start and the resume; the resume is still
   await answer(q.request, 'start')
   assert.equal((await settle(q.request)).status, 'started')
   assert.equal(resumes(), was + 1)
+  // CRLF line ends read the same.
+  const { pausesIn } = await import('../src/extras/printer.js')
+  assert.deepEqual(pausesIn(paused.replace(/\n/g, '\r\n')), pausesIn(paused))
+  assert.equal(pausesIn(paused).length, 2)
   // A plain G-code says nothing of pauses.
   const plain = await ok('printer_upload', { printer: 'Voron', file: join(dir, 'part.gcode') })
   assert.equal(plain.pauses, undefined)

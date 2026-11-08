@@ -208,6 +208,9 @@ export function encasedCut(spec: EncaseSpec, settings: Settings, level: boolean)
       break
     }
   }
+  // Never narrower than the part, whatever the allowance.
+  const part = spec.kind === 'nut' ? metricOf(spec.size!)!.nut.s : spec.kind === 'magnet' ? magnetOf(spec.size!)!.d : spec.kind === 'bearing' ? bearingOf(spec.size!)!.od : spec.kind === 'insert' ? insertOf(spec.size!)!.od : null
+  if (part !== null && width! < part) fail(`The pocket (${r3(width!)}) would be narrower than the part (${part}): give a clearance or allowance of 0 or more.`)
   const given = spec.what?.trim()
   if (given !== undefined && (given.length === 0 || given.length > 60)) fail('what: 1 to 60 characters.')
   if (given) what = given

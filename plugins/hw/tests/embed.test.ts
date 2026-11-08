@@ -179,6 +179,8 @@ describe('the pocket', () => {
     throws(() => encasedCut({ kind: 'object', object: { shape: 'cylinder', diameter: -1, height: 2 }, roof: 1 }, S, false), /diameter and height/)
     throws(() => encasedCut({ kind: 'magnet', size: '6x3', roof: 1, what: ' ' }, S, false), /what/)
     throws(() => encasedCut({ kind: 'magnet', size: '6x3', roof: 1, clearance: 9 }, S, false), /clearance/)
+    // A negative allowance never makes it narrower than the part.
+    expect(encasedCut({ kind: 'magnet', size: '6x3', roof: 1, clearance: 0, allowance: -0.5 }, S, false).steps[0].diameter).toBe(6)
   })
 })
 

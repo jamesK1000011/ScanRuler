@@ -160,6 +160,9 @@ test('refused plainly', () => {
   assert.throws(() => injectPauses(prusaGcode({ flavor: 'reprapfirmware', pause: '', model: 'Duet' }), [{ z: 1 }]), /give pauseCommand/)
   assert.equal(injectPauses(prusaGcode({ flavor: 'reprapfirmware', pause: '', model: 'Duet' }), [{ z: 1 }], { pauseCommand: 'M600' }).command.lines[0], 'M600')
   assert.throws(() => injectPauses(prusaGcode(), [{ z: 1 }], { pauseCommand: 'G28' }), /pauseCommand is one of/)
+  // On a raft the part does not start on the bed.
+  assert.throws(() => injectPauses(prusaGcode().replace('; prusaslicer_config = end', '; raft_layers = 2\n; prusaslicer_config = end'), [{ z: 1 }]), /raft/)
+  assert.equal(injectPauses(prusaGcode().replace('; prusaslicer_config = end', '; raft_layers = 0\n; prusaslicer_config = end'), [{ z: 1 }]).pauses[0].layer, 6)
   // Twice into the same G-code.
   const once = injectPauses(prusaGcode(), [{ z: 1 }]).text
   assert.throws(() => injectPauses(once, [{ z: 2 }]), /already/)
@@ -208,6 +211,15 @@ test('a Bambu .gcode.3mf: the plate’s G-code and its MD5 written again, the re
   assert.deepEqual(get('Metadata/plate_1.png'), Buffer.from([137, 80, 78, 71, 1, 2, 3]))
   assert.equal(get('3D/3dmodel.model').toString(), '<model/>')
   assert.deepEqual(z.entries.map((e) => [e.name, e.method]), files.map((f) => [f.name, f.method]))
+  // A second plate the pause does not reach is left as it was, and said so.
+  const two = [...files, { name: 'Metadata/plate_2.gcode', data: Buffer.from(bambuGcode({ layers: 5 })), method: 8 }]
+  await writeFile(tmf, zipWrite(two))
+  await writeFile(join(d, 'plate_1.gcode'), g)
+  const r2 = await addPauses({ gcode: join(d, 'plate_1.gcode'), tmf, pauses: [{ z: 2 }] })
+  assert.equal(r2.plates[0].pauses[0], 11)
+  assert.match(r2.plates[1].error, /above the print's last layer/)
+  const z2 = await zipEntries(tmf)
+  assert.equal(z2.read(z2.entries.find((e) => e.name === 'Metadata/plate_2.gcode')).toString(), bambuGcode({ layers: 5 }))
   // Binary G-code is refused, and left as it was.
   await writeFile(join(d, 'b.gcode'), prusaGcode({ binary: true }))
   await assert.rejects(addPauses({ gcode: join(d, 'b.gcode'), pauses: [{ z: 1 }] }), /binary G-code/)
@@ -251,6 +263,10 @@ test('sliced with pauses: into the G-code and the exported 3MF, recorded in the 
   const text = await readFile(p.gcode, 'utf8')
   assert.match(text, /M117 Insert an M3 nut\nM601\n/)
   assert.equal(p.pauses.pauses[0].layer, 3)
+  // No pauses asked for: none put in.
+  const none = await slice({ slicerId: 'prusa', model, pauses: [] }, env)
+  assert.equal(none.pauses, undefined)
+  assert.ok(!(await readFile(none.gcode, 'utf8')).includes('ScanRuler pause'))
   // A bad pause list is refused before the slicer runs.
   await assert.rejects(slice({ slicerId: 'prusa', model, pauses: [{ z: -1 }] }, env), /more than 0/)
   await assert.rejects(slice({ slicerId: 'prusa', model, pauses: [{ z: 1 }], pauseCommand: 'M0' }, env), /pauseCommand/)

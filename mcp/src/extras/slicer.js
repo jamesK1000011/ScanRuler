@@ -157,6 +157,8 @@ const PROCESS_KEYS = new Set(['xy_hole_compensation', 'xy_contour_compensation',
 
 export async function slice({ slicerId, model, machine, process: proc, filament, print, printer, overrides = {}, name, timeoutMs, pauses, pauseCommand }, env = process.env) {
   // The pauses checked before the slicer runs, not after.
+  // An empty list is no pauses: a part with nothing encased.
+  if (Array.isArray(pauses) && pauses.length === 0) pauses = undefined
   if (pauses !== undefined) checkPauses(pauses)
   if (pauseCommand !== undefined && !COMMANDS.includes(pauseCommand)) throw new Error(`pauseCommand is one of ${COMMANDS.join(', ')}.`)
   const { slicers } = await loadConfig(env)
