@@ -24,6 +24,7 @@ not in this repository.
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
+| [mass/](mass/) | Mass and balance — weight, balance point and inertia as printed; ballast pockets to hit a target |
 
 ## The rules
 
