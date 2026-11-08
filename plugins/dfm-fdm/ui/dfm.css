@@ -131,3 +131,25 @@
 .dfm-table .on {
   background: var(--accent-soft);
 }
+
+.dfm-rule-head {
+  width: 100%;
+  border: none;
+  background: none;
+  border-radius: var(--r);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dfm-rule-head:hover {
+  background: var(--well);
+}
+
+.dfm-rule.open .dfm-rule-head {
+  background: var(--well);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.dfm-rule .pl-card {
+  margin: 2px 0 6px;
+}
