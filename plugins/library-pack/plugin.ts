@@ -4,6 +4,7 @@
 // checked and personal details scrubbed out. It builds a zip on this
 // computer; the person uploads it. Its commands are pack.*.
 
+import { pick, registerHistory } from '../../src/state/historyStore'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { packCommands } from './app/packCommands'
@@ -24,6 +25,12 @@ const plugin: ScanRulerPlugin = {
   usePlugin: usePackPlugin,
   install() {
     registerProjectSection(packSection)
+    // The panel's edits and the agent's are steps of the app's undo, like
+    // any other: Ctrl+Z takes back the last of them, not a body elsewhere.
+    registerHistory({
+      sections: [{ key: 'library-pack', capture: () => pick(usePack.getState(), ['settings', 'upstream', 'presets']), apply: (v) => usePack.setState(v as Partial<ReturnType<typeof usePack.getState>>) }],
+      actions: [{ store: usePack, label: 'Pack', names: ['set'] }],
+    })
     registerCommands('pack', packCommands)
     registerStateSection('pack', () => {
       const s = usePack.getState()

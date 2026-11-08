@@ -80,6 +80,15 @@ describe('the plan', () => {
 })
 
 describe('the scrub', () => {
+  it('red team: an environment block and key = value lines lose their values, and the key stays readable', () => {
+    const env = 'HOME=/x\0GH_TOKEN=ghp_abcdef123456\0CLOUDSDK_AUTH_ACCESS_TOKEN=ya29.zzz\0PATH=/bin\0'
+    const out = strFromU8(scrubFile('notes.txt', strToU8(env)).bytes)
+    expect(out).not.toMatch(/ghp_abcdef|ya29/)
+    expect(out).toContain('GH_TOKEN=')
+    const ini = strFromU8(scrubFile('notes.txt', strToU8('api_key = sk-live-123\npassword: hunter2\n')).bytes)
+    expect(ini).toBe('api_key = \npassword: \n')
+  })
+
   it('takes the home path, user name, access code, serial and printer address out of a 3MF', () => {
     const project = JSON.stringify({ printer_settings_id: 'Bambu Lab X1 Carbon', print_host: '192.168.1.40', printhost_apikey: 'abc123secret', filament_settings_id: ['PETG'], 'access_code': '87654321', export_path: '/Users/alexuser/Desktop/bracket/bracket.3mf' }, null, 2)
     const model = `<?xml version="1.0"?>\n<config><plate><metadata key="printer_sn" value="01P00A123456789"/><metadata key="dev_ip" value="192.168.1.40"/><metadata key="source_file" value="C:\\Users\\alexuser\\Documents\\bracket.step"/></plate></config>`

@@ -166,6 +166,7 @@ const attrib: Command<{ set?: Upstream[]; remove?: string[] }> = {
   }),
   run: async ({ set, remove }) => {
     let list = [...usePack.getState().upstream]
+    for (const u of set ?? []) if (u.url && !/^https?:\/\/[^\s<>"]+$/i.test(u.url)) throw new CommandError('invalid_input', `${u.part}: url is its page, an http or https address.`)
     for (const u of set ?? []) {
       const old = list.find((x) => x.part === u.part)
       list = old ? list.map((x) => (x === old ? { ...old, ...u } : x)) : [...list, u]
@@ -177,13 +178,30 @@ const attrib: Command<{ set?: Upstream[]; remove?: string[] }> = {
   },
 }
 
+/** What may be added to a pack: models, slicer projects, pictures,
+ *  drawings and notes. */
+const PACK_KINDS = '.stl .3mf .step .stp .obj .png .jpg .jpeg .webp .gif .svg .dxf .pdf .md .txt'
+const PACK_FILES = new RegExp(`\\.(${PACK_KINDS.replace(/\./g, '').split(' ').join('|')})$`, 'i')
+
+/** A key, an environment block or a system file, whatever it was named. */
+function looksPrivate(b: Uint8Array): boolean {
+  const head = new TextDecoder('latin1').decode(b.subarray(0, 4096))
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----|-----BEGIN OPENSSH|ssh-(rsa|ed25519) AAAA/.test(head)) return true
+  if (/^[A-Z_][A-Z0-9_]*=[^\0\n]*\0[A-Z_][A-Z0-9_]*=/.test(head)) return true
+  if (/^root:[^:]*:0:0:/m.test(head)) return true
+  return false
+}
+
 const add: Command<{ bytes: Uint8Array; name: string }> = {
   name: 'add',
   title: 'Add a file from this computer to the pack',
   description: 'A file to go in the pack beside the model — the sliced 3MF with its print profile (slicer_slice\'s job folder), a photo of the print, a drawing. Give path. It is scrubbed with the rest when the pack is built. Kept for this session: the project keeps its name, not its bytes. pack.files lists and removes them.',
   input: obj({ bytes: bytes('The file.'), name: str('Its name in the pack.', { minLength: 1 }) }, ['bytes', 'name']),
   run: async ({ bytes: data, name }) => {
-    const safe = name.split(/[\\/]/).pop()!.replace(/[^\w.() -]+/g, '_')
+    const safe = name.split(/[\\/]/).pop()!.replace(/[^\w.() -]+/g, '_').replace(/^[\s_]+|[\s_]+$/g, '')
+    if (!safe.replace(/[._ -]/g, '') || safe.startsWith('.')) throw new CommandError('invalid_input', 'Name it with letters or digits, not starting with a dot: photo-of-print.jpg.')
+    if (!PACK_FILES.test(safe)) throw new CommandError('invalid_input', `A pack holds models, slicer projects, pictures, drawings and notes — ${PACK_KINDS} — not "${safe.slice(0, 60)}".`)
+    if (looksPrivate(data)) throw new CommandError('invalid_input', 'That file looks like something private — a key, or an environment or system file — not something to share. Pick the file meant for the pack.')
     usePack.getState().set({ added: [...usePack.getState().added.filter((a) => a.name !== safe), { name: safe, bytes: data }] })
     return { added: safe, bytes: data.length, files: usePack.getState().added.map((a) => a.name) }
   },
@@ -227,6 +245,9 @@ const scrub: Command<Record<string, never>> = {
   },
 }
 
+/** A folder inside the pack: no empty, absolute, hidden or ".." part. */
+const FOLDER = /^(?!.*(^|\/)\.)[\w-][\w.-]*(\/[\w-][\w.-]*)*$/
+
 const presetsCmd: Command<{ add?: Preset; remove?: string }> = {
   name: 'presets',
   title: 'Platform presets',
@@ -236,6 +257,13 @@ const presetsCmd: Command<{ add?: Preset; remove?: string }> = {
     remove: str(),
   }),
   run: async ({ add: p, remove }) => {
+    if (p) {
+      if (!/^[\w-]{1,40}$/.test(p.id)) throw new CommandError('invalid_input', 'id: letters, digits, dashes, 40 at most.')
+      for (const [k, v] of Object.entries(p.folders)) if (!FOLDER.test(v)) throw new CommandError('invalid_input', `folders.${k} "${String(v).slice(0, 40)}": a folder in the pack — names of letters, digits, dots and dashes, split by / — never empty, absolute or with "..".`)
+      if (p.images.count < 0 || p.images.count > 12) throw new CommandError('invalid_input', 'images.count: 0 to 12.')
+      if (p.fields.title < 10 || p.fields.title > 500 || p.fields.summary < 10 || p.fields.summary > 5000) throw new CommandError('invalid_input', 'fields: title 10–500 characters, summary 10–5000.')
+    }
+    if (remove && !usePack.getState().presets.some((x) => x.id === remove)) throw new CommandError('invalid_input', BUILT_IN.some((b) => b.id === remove) ? `"${remove}" is built in and stays; add one with its id to change it.` : `No preset "${remove}" of yours.`)
     let own = [...usePack.getState().presets]
     if (p) own = [...own.filter((x) => x.id !== p.id), p]
     if (remove) own = own.filter((x) => x.id !== remove)
@@ -264,10 +292,17 @@ const build: Command<Record<string, never>> = {
     const input = { settings: s, planned: g.planned, files: r.files.map((f) => f.path), fit, dfm: dfmLast, scrubbed: r.changes }
     const root = s.title.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'part'
     const entries: Record<string, Uint8Array> = {}
-    for (const f of r.files) entries[`${root}/${f.path}`] = f.bytes
-    entries[`${root}/README.md`] = strToU8(readme(input))
-    entries[`${root}/LICENSE`] = strToU8(licenceFile(s.licence!, s.author, new Date().getFullYear(), gpl3))
-    entries[`${root}/PLATFORM.md`] = strToU8(platformText(input, preset()))
+    const put = (path: string, b: Uint8Array) => {
+      const parts = path.split('/').filter((x) => x && x !== '.')
+      if (parts.some((x) => x === '..' || x.startsWith('.'))) throw new CommandError('invalid_state', `"${path}" would land outside the pack's folder.`)
+      const at = [root, ...parts].join('/')
+      if (entries[at]) throw new CommandError('invalid_state', `Two files would both be ${at}: rename one (pack.files) or change the preset's folders.`)
+      entries[at] = b
+    }
+    put('README.md', strToU8(readme(input)))
+    put('LICENSE', strToU8(licenceFile(s.licence!, s.author, new Date().getFullYear(), gpl3)))
+    put('PLATFORM.md', strToU8(platformText(input, preset())))
+    for (const f of r.files) put(f.path, f.bytes)
     const zip = zipSync(entries, { level: 6 })
     return {
       file: { name: `${root}.zip`, mimeType: 'application/zip', bytes: zip },

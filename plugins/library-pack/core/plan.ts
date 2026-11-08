@@ -80,7 +80,7 @@ export function attribution(p: Planned): string {
   return [
     '## Attribution',
     '',
-    ...p.credited.map((c) => `- ${c.modified ? 'Remixed from' : 'Includes'} **${c.title ?? c.part}**${c.author ? ` by ${c.author}` : ''}${c.url ? ` (${c.url})` : ''}, ${c.licence}.${c.modified ? ' Changed for this design.' : ''}`),
+    ...p.credited.map((c) => `- ${c.modified ? 'Remixed from' : 'Includes'} **${mdText(c.title ?? c.part)}**${c.author ? ` by ${mdText(c.author)}` : ''}${webUrl(c.url) ? ` (${webUrl(c.url)})` : ''}, ${c.licence}.${c.modified ? ' Changed for this design.' : ''}`),
     '',
   ].join('\n')
 }
@@ -94,8 +94,15 @@ export interface ReadmeInput {
   scrubbed: { what: string; count: number }[]
 }
 
+/** Text the person wrote, made safe in Markdown: markup shows as typed
+ *  rather than running on a site that renders the README. */
+export const mdText = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** A page link fit for a README: http(s) only. */
+export const webUrl = (u: string | undefined) => (u && /^https?:\/\/[^\s<>"]+$/i.test(u) ? u : undefined)
+
 export function readme(r: ReadmeInput): string {
-  const s = r.settings
+  const s = { ...r.settings, title: mdText(r.settings.title), author: mdText(r.settings.author), summary: mdText(r.settings.summary), printSettings: mdText(r.settings.printSettings) }
   const l = s.licence ? LICENCES[s.licence] : null
   const out = [`# ${s.title}`, '']
   if (s.summary) out.push(s.summary, '')
@@ -110,7 +117,7 @@ export function readme(r: ReadmeInput): string {
   const att = attribution(r.planned)
   if (att) out.push(att)
   if (r.planned.leftOut.length) {
-    out.push('## Parts not included', '', 'These come from sources that don’t allow passing their files on. Get them from the source:', '', ...r.planned.leftOut.map((x) => `- ${x.part}${x.source ? ` (${x.source})` : ''}${x.url ? `: ${x.url}` : ''}`), '')
+    out.push('## Parts not included', '', 'These come from sources that don’t allow passing their files on. Get them from the source:', '', ...r.planned.leftOut.map((x) => `- ${mdText(x.part)}${x.source ? ` (${mdText(x.source)})` : ''}${webUrl(x.url) ? `: ${webUrl(x.url)}` : ''}`), '')
   }
   out.push('---', '', 'Packed with ScanRuler’s library-pack. Personal details were removed from the files before packing.', '')
   return out.join('\n')

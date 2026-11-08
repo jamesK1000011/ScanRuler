@@ -34,18 +34,21 @@ const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? ''
 /** A text file scrubbed; users are the user names found in paths so far. */
 export function scrubText(text: string, t: Tally, users: Set<string>): string {
   const lineKey = (key: RegExp, label: string) => {
-    text = text.replace(new RegExp(`(^|[\\n;{,]\\s*["']?)([\\w .-]*${key.source}[\\w.-]*)(["']?\\s*[:=]\\s*)("([^"\\\\]|\\\\.)*"|'[^']*'|[^\\n,}\\]]*)`, 'gim'), (all, pre, k, sep, v) => {
+    // The key's own groups made non-capturing, so the groups here keep their
+    // numbers; a NUL separates like a new line (an environment block).
+    const k0 = key.source.replace(/\((?!\?)/g, '(?:')
+    text = text.replace(new RegExp(`(^|[\\n\\0;{,]\\s*["']?)([\\w .-]*${k0}[\\w.-]*)(["']?\\s*[:=]\\s*)("(?:[^"\\\\]|\\\\.)*"|'[^']*'|[^\\n\\0,}\\]]*)`, 'gim'), (all, pre, k, sep, v) => {
       const bare = String(v).trim().replace(/^["']|["']$/g, '')
       if (!bare) return all
       t.add(label)
       const quoted = /^["']/.test(String(v).trim())
       return `${pre}${k}${sep}${quoted ? '""' : ''}`
     })
-    text = text.replace(new RegExp(`(<[^>]*\\bkey\\s*=\\s*"[^"]*${key.source}[^"]*"[^>]*\\bvalue\\s*=\\s*")([^"]+)(")`, 'gi'), (_all, a, _v, b) => {
+    text = text.replace(new RegExp(`(<[^>]*\\bkey\\s*=\\s*"[^"]*${k0}[^"]*"[^>]*\\bvalue\\s*=\\s*")([^"]+)(")`, 'gi'), (_all, a, _v, b) => {
       t.add(label)
       return `${a}${b}`
     })
-    text = text.replace(new RegExp(`(\\b[\\w-]*${key.source}[\\w-]*\\s*=\\s*")([^"]+)(")`, 'gi'), (_all, a, _v, b) => {
+    text = text.replace(new RegExp(`(\\b[\\w-]*${k0}[\\w-]*\\s*=\\s*")([^"]+)(")`, 'gi'), (_all, a, _v, b) => {
       t.add(label)
       return `${a}${b}`
     })

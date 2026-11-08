@@ -35,6 +35,14 @@ async function run(name: string, input: Json = {}, busy?: string): Promise<Json 
 }
 
 const EMPTY = { part: '', title: '', author: '', url: '', licence: '', source: '', body: '' }
+/** A plan's problem as the person reads it here: what to fill in, not the
+ *  command the agent would call. */
+const forPerson = (t: string) =>
+  t
+    .replace(/^No licence chosen yet: pack\.licence \{ id \}\./, 'No licence chosen yet: pick one under Licence.')
+    .replace(/^No author \(the copyright holder\) yet: pack\.settings \{ author \}\./, 'No author yet: fill in “Credit me as”.')
+    .replace(/ \(pack\.attrib\)\.$/, ' — add them under Upstream parts.')
+
 const UP_FIELDS: { k: keyof typeof EMPTY; label: string; hint?: string }[] = [
   { k: 'part', label: 'Name in this project' },
   { k: 'title', label: 'Its title' },
@@ -179,7 +187,7 @@ export function PackPanel() {
 
       <div className="group">
         <div className="sec-head">Build</div>
-        <Notes items={p.problems.map((x) => ({ level: 'warn', text: x }))} />
+        <Notes items={p.problems.map((x) => ({ level: 'warn', text: forPerson(x) }))} />
         {st.added.length > 0 && <p className="hint">Added: {st.added.map((a) => a.name).join(', ')}</p>}
         <div className="toolrow">
           <button
