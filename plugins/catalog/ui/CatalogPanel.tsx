@@ -96,9 +96,9 @@ function Identify() {
       </button>
       {matches && (
         <div className="cat-list" data-test="catalog-matches">
-          <p className="hint">
+          <div className="cat-fit">
             <Status tone={matches.fit === 'good' ? 'ok' : matches.fit === 'loose' ? 'warn' : 'bad'}>{matches.fit === 'good' ? 'A good fit' : matches.fit === 'loose' ? 'A loose fit — check another dimension' : 'Nothing close'}</Status>
-          </p>
+          </div>
           {(matches.matches as Json[]).map((m) => (
             <button key={m.designation} className="kv cat-row" title={`${m.standard}\n${(m.agree as Json[] | undefined)?.map((a) => `${a.dim}: ${len.fmt(a.nominal, 2)} nominal, ${len.fmt(a.measured, 2)} measured`).join('\n') ?? ''}\n\nClick to look for its CAD`} onClick={() => useCatalogView.setState({ query: `${m.designation} ${m.standard}` })}>
               <span className="name">{m.designation}</span>

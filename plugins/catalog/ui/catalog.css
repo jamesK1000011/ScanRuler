@@ -46,3 +46,7 @@
 .cat-part:last-child {
   border-bottom: 0;
 }
+
+.cat-fit {
+  margin-bottom: 4px;
+}
