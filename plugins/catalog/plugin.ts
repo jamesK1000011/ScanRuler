@@ -18,8 +18,9 @@ const plugin: ScanRulerPlugin = {
     id: 'catalog',
     label: 'Catalog',
     title: 'Name a standard part from what you measured, find its CAD on the catalogues and model libraries, and keep where each file came from',
-    icon: 'hole',
-    order: 37,
+    icon: 'catalog',
+    order: 14,
+    group: 'model',
   },
   usePlugin: useCatalogPlugin,
   install() {
