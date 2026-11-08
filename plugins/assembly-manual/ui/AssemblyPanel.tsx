@@ -162,7 +162,7 @@ export function AssemblyPanel() {
         <div className="toolrow">
           <button
             disabled={busy}
-            title="The theme in use, with your accent and layout, as a JSON file to edit or share"
+            title="Save the theme as JSON to edit or share"
             onClick={async () => {
               const r = await run('theme', { action: 'export' })
               if (r) saveFile((r.file as FileOut).name, new Blob([(r.file as FileOut).bytes as BlobPart], { type: 'application/json' }))
@@ -365,7 +365,7 @@ export function AssemblyPanel() {
             </div>
             <label className="field">
               <span>Builds</span>
-              <input type="text" list="asm-subs" value={sub} placeholder="the main assembly" title="A sub-assembly’s name builds it apart; empty builds into the main assembly" onChange={(e) => setSub(e.target.value)} />
+              <input type="text" list="asm-subs" value={sub} placeholder="the main assembly" title="Sub-assembly to build into; empty means the main one" onChange={(e) => setSub(e.target.value)} />
               <datalist id="asm-subs">
                 {[...subs.keys()].map((n) => (
                   <option key={n} value={n} />
@@ -418,7 +418,7 @@ export function AssemblyPanel() {
         <div className="toolrow">
           <button
             disabled={busy}
-            title="What IEC/IEEE 82079-1 asks a manual to carry — a checklist, not a certificate"
+            title="Check against IEC/IEEE 82079-1 (a checklist only)"
             onClick={() =>
               void run('review', {}).then((r) => {
                 if (r) useAsmView.setState({ review: r.items as Json[] })
