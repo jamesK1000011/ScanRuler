@@ -18,6 +18,7 @@ import { UndoRedo } from './UndoRedo'
 import { AGENT_STATUS, useAgentLink } from '../commands/agentLink'
 import { Icon, type IconName } from './icons'
 import { IMAGE_ACCEPT, SCAN_ACCEPT, isImageFile, isModelFile, isTextureFile } from '../core/formats'
+import { modelFormatOf, withPluginFormats } from '../app/modelFormats'
 import { bundleFiles } from '../app/scanFiles'
 import { PROJECT_ACCEPT, PROJECT_EXTENSION, projectStem } from '../core/project/manifest'
 import { holdsProject, isProjectFile } from '../app/useProject'
@@ -260,7 +261,7 @@ export function TopBar({
       if (isProjectFile(file.name)) onOpenProject(file)
       else if (isImageFile(file.name)) {
         onOpenImage(file)
-      } else if (isModelFile(file.name)) onOpenScan(file)
+      } else if (isModelFile(file.name) || modelFormatOf(file.name)) onOpenScan(file)
       else
         // A project saved under a name the browser made up opens by what it
         // holds.
@@ -352,7 +353,7 @@ export function TopBar({
       <input
         ref={openRef}
         type="file"
-        accept={`${PROJECT_ACCEPT},${SCAN_ACCEPT},${IMAGE_ACCEPT}`}
+        accept={`${PROJECT_ACCEPT},${withPluginFormats(SCAN_ACCEPT)},${IMAGE_ACCEPT}`}
         multiple
         hidden
         data-test="project-input"

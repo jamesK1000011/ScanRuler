@@ -6,6 +6,7 @@
 // too. The panel and the deviation.* commands both work through these.
 import type { RefObject } from 'react'
 import { isStepFile } from '../core/formats'
+import { modelFormatOf } from './modelFormats'
 import { unitsLabel, type MeshUnits } from '../core/meshUnits'
 import { meshUnitsFor } from '../state/unitsPromptStore'
 import type { ImportQueue } from './importQueue'
@@ -96,6 +97,10 @@ export function deviationWorkspace({
    *  given: a file the instrument wrote itself, in millimetres like
    *  everything it holds. A question dismissed leaves the file unopened. */
   const openNominal = async (file: File, units?: MeshUnits, options: ReferenceOptions = {}): Promise<void> => {
+    // A format a plugin reads (app/modelFormats) is opened by it, as the
+    // reference; it says its own units.
+    const plugin = modelFormatOf(file.name)
+    if (plugin) return plugin.open(file, 'reference', false).catch((e: unknown) => useStore.getState().setError(e instanceof Error ? e.message : String(e)))
     const read = units ?? (await meshUnitsFor(file.name))
     if (!read) return
     await runImport(imports,

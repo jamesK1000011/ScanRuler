@@ -16,6 +16,7 @@ import { MeshWorkerClient } from './core/workerClient'
 import { creaseSetting, type CreaseSetting } from './core/geometry/crease'
 import { buildSummary } from './core/summary'
 import { IMAGE_ACCEPT, REFERENCE_ACCEPT } from './core/formats'
+import { modelFormatOf } from './app/modelFormats'
 import { EdgeClient } from './core/flat/edgeClient'
 import { EDGE_MIN_FEATURE_MM } from './core/flat/edges'
 import { chainCount, type EdgeChains } from './core/flat/edges'
@@ -164,12 +165,18 @@ function Workbench() {
    *  measurements on the scan in place, which a new scan clears — opening
    *  one let them go without a word (pull request 23, issue 34). An agent
    *  opens through scan.open, whose discard says it. */
-  const openFile = (file: File) =>
-    openScan(file, undefined, () => {
+  const openFile = (file: File) => {
+    const goAhead = () => {
       const s = useStore.getState()
       const held = s.elements.length + s.dimensions.length + s.sections.length
       return held === 0 || window.confirm(`Opening ${file.name} replaces the scan, and the ${held === 1 ? 'measurement' : `${held} measurements`} on it — elements, dimensions and sections — go with it. Continue?`)
-    })
+    }
+    // A format a plugin reads (app/modelFormats) is opened by it, asked
+    // about the same way first.
+    const plugin = modelFormatOf(file.name)
+    if (plugin) return goAhead() ? plugin.open(file, 'scan', true).catch((e: unknown) => useStore.getState().setError(e instanceof Error ? e.message : String(e))) : Promise.resolve()
+    return openScan(file, undefined, goAhead)
+  }
   // In development the viewport, the worker and the Measure store are
   // reachable from the console and the browser checks — nothing in a
   // production build.
@@ -690,7 +697,8 @@ function Workbench() {
   // app/scanSwap.
   const { swapScan, remapScan, remeasureScan } = session.swap
 
-  hostVerbs.current = { openScan, openReference: openNominal, runFit, runDeviation, runThickness, clearPreview, swapScan, remapScan, remeasureScan }
+  // A plugin's Open takes a plugin's format as the app's own slots do.
+  hostVerbs.current = { openScan: (file, units) => (modelFormatOf(file.name) ? openFile(file) : openScan(file, units)), openReference: openNominal, runFit, runDeviation, runThickness, clearPreview, swapScan, remapScan, remeasureScan }
 
   useProjectHistory({ clientRef, sceneRef, elementScope, deviation, deviationRgb, referenceMap: maps.referenceMap, referenceRgb: maps.referenceRgb,
     thickness, thicknessRgb, imports, sources, runFit, runDeviation, runThickness, swapScan, remeasureScan })

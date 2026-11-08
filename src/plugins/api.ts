@@ -46,6 +46,8 @@ import type { GripSide, PickHit, SceneManager } from '../viewer/SceneManager'
 // builds once, after the last) before a command that is not. registerGuide(
 // guide) adds a guide guide.read serves an agent before a task — the
 // plugin's workflow in Markdown, loaded when first read.
+// registerModelFormat(format) adds model formats the plugin reads to the
+// scan's and the reference's Open pickers, and opens a file picked in one.
 
 export { registerCommands, registerSettle, runningChange } from '../commands/registry'
 export { registerStateSection } from '../commands/stateSections'
@@ -56,6 +58,8 @@ export { registerMapReport } from '../commands/mapReports'
 export type { MapReport } from '../commands/mapReports'
 export { registerSectionLayers, registerSheetPlanes } from '../commands/sectionLayers'
 export { registerGuide } from '../commands/guides'
+export { registerModelFormat } from '../app/modelFormats'
+export type { ModelFormat } from '../app/modelFormats'
 export { notifyAgent } from '../commands/notice'
 export type { Guide } from '../commands/guides'
 export type { SectionLayer, SectionLayerDrawing, SectionOutline, SectionPiece, SectionSheet, SheetPlanes } from '../commands/sectionLayers'

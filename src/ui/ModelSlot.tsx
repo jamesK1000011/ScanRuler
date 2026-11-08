@@ -6,10 +6,12 @@ import { useRef, type RefObject } from 'react'
 import { SCAN_ACCEPT, SCAN_FORMATS } from '../core/formats'
 import { usePulse } from '../app/useHints'
 import { bundleFiles } from '../app/scanFiles'
+import { withPluginFormats } from '../app/modelFormats'
 
 /** A file input out of sight, opened through `inputRef` by the key that
  *  stands for it, and emptied after every pick so the same file can come
- *  again. Several files may be picked where the scan is opened — a
+ *  again; a model's picker offers the plugins' formats too
+ *  (app/modelFormats). Several files may be picked where the scan is opened — a
  *  textured OBJ with its material library and image — and the model among
  *  them is what opens, the rest riding on it (see app/scanFiles). */
 export function HiddenFileInput({ inputRef, accept, onOpen, multiple = false }: { inputRef: RefObject<HTMLInputElement | null>; accept: string; onOpen: (file: File) => void; multiple?: boolean }) {
@@ -17,7 +19,7 @@ export function HiddenFileInput({ inputRef, accept, onOpen, multiple = false }: 
     <input
       ref={inputRef}
       type="file"
-      accept={accept}
+      accept={withPluginFormats(accept)}
       multiple={multiple}
       hidden
       onChange={(e) => {

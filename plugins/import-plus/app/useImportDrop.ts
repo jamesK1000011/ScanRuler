@@ -12,6 +12,16 @@ import { formatOf } from '../core/convert'
 
 const NONE: PluginRuntime = {}
 
+/** A file picked in an Open picker (registerModelFormat), opened through
+ *  import.open as the scan or the reference — said in the status line, as
+ *  a drop is. */
+export async function openPicked(file: File, as: 'scan' | 'reference', discard: boolean): Promise<void> {
+  useStore.getState().setStatus(`Reading ${file.name}…`)
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  await runCommand('import.open', { bytes, name: file.name, as, ...(discard ? { discard } : {}) })
+  useStore.getState().setStatus(`${file.name} opened.`)
+}
+
 export function useImportDrop(): PluginRuntime {
   useEffect(() => {
     const onDrop = (e: DragEvent) => {

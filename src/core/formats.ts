@@ -10,6 +10,10 @@
 // The worker keeps its own dispatch on these extensions: it is the thing that
 // can actually parse them, and a file that slipped past the picker (dropped,
 // or renamed) has to be refused there too.
+//
+// A plugin that reads other formats adds them to the pickers through
+// app/modelFormats.ts (registerModelFormat), and opens them itself: they are
+// not named here, so a build without the plugin offers none of them.
 
 /** Mesh formats: what a scanner or a mesh tool writes. */
 const MESH_EXTENSIONS = ['stl', 'ply', 'obj', '3mf'] as const

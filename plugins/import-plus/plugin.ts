@@ -4,9 +4,10 @@
 // app's own readers as STL. A .blend is converted on this computer by the
 // MCP server's blender_convert tool first. No workspace of its own.
 
-import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerCommands, registerGuide, registerModelFormat, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { importCommands } from './app/importCommands'
-import { useImportDrop } from './app/useImportDrop'
+import { FORMATS } from './core/convert'
+import { openPicked, useImportDrop } from './app/useImportDrop'
 import { useImportPlus } from './state/importStore'
 
 const plugin: ScanRulerPlugin = {
@@ -16,6 +17,8 @@ const plugin: ScanRulerPlugin = {
   install() {
     registerCommands('import', importCommands)
     registerStateSection('import', () => ({ last: useImportPlus.getState().last }))
+    // Offered by the Open pickers too, not only taken when dropped.
+    registerModelFormat({ extensions: FORMATS.flatMap((f) => f.extensions), open: openPicked })
     registerGuide({
       id: 'import-plus',
       title: 'Opening GLB, glTF, FBX, 3DS, Collada, AMF, VRML and Blender files',
