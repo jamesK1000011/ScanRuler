@@ -12,7 +12,7 @@ import { useDeviation } from '../../../src/state/deviationStore'
 import { useStore } from '../../../src/state/store'
 import { mirror, surface, type Mesh, type Region } from '../core/geometry'
 import { prewarp, stopRule } from '../core/prewarp'
-import { diff, rebuild } from '../core/repair'
+import { diff, rebuild, scatter, scatterNote } from '../core/repair'
 import { useWear, type Reference } from '../state/wearStore'
 
 type Json = Record<string, unknown>
@@ -155,7 +155,7 @@ export const reference: Command<{ source?: 'mirror' | 'deviation'; plane?: 'x' |
 export const diffCommand: Command<{ names?: string[] }> = {
   name: 'diff',
   title: 'Read the wear',
-  description: 'For each region tagged worn (or those named): how far the scan stands in from the reference — lost, the deepest, mm, negative — and out from it — added — with the mean, the RMS and how many points are past the tolerance either way. Changes nothing.',
+  description: 'For each region tagged worn (or those named): how far the scan stands in from the reference — lost, the deepest, mm, negative — and out from it — added — with the mean, the RMS and how many points are past the tolerance either way. scatter is the scan’s own spread against the reference off the worn regions (mm, robust); note says when the tolerance is too tight for it. Changes nothing.',
   input: obj({ names: arr(str(), 'Only these regions.', { minItems: 1 }) }),
   readOnly: true,
   run: async ({ names }) => {
@@ -164,7 +164,9 @@ export const diffCommand: Command<{ names?: string[] }> = {
     if (!worn.length) throw new CommandError('invalid_state', 'No region tagged worn — wear.tag first.')
     const scan = scanMesh()
     const ref = referenceSurface(scan)
-    return { ...sizeWarning(), reference: st.reference, tolerance: st.settings.tolerance, regions: diff(scan, ref, worn, st.settings.tolerance, st.settings.maxMm) }
+    const spread = scatter(scan, ref, worn.map((t) => t.region), st.settings.maxMm)
+    const note = scatterNote(spread, st.settings.tolerance)
+    return { ...sizeWarning(), reference: st.reference, tolerance: st.settings.tolerance, ...(spread ? { scatter: spread.mm } : {}), ...(note ? { note } : {}), regions: diff(scan, ref, worn, st.settings.tolerance, st.settings.maxMm) }
   },
 }
 
