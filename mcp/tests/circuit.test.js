@@ -15,7 +15,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { extraTools } from '../src/extras/index.js'
-import { build, buildInTurn, builtPath, circuitsDir, circuitTools, e24Above, entryOf, files, findTsci, newProject, notchedOutline, readCircuitFile, TEMPLATES, templateValues } from '../src/extras/circuit.js'
+import { build, buildInTurn, builtPath, bunDirs, circuitsDir, circuitTools, e24Above, entryOf, files, findTsci, newProject, notchedOutline, readCircuitFile, TEMPLATES, templateValues } from '../src/extras/circuit.js'
 import { attachCircuitAsks } from '../src/pageAsks.js'
 import { fakeTsci } from './fakeTsci.js'
 
@@ -314,4 +314,29 @@ test('files and reads stay in the circuits folder and the projects made or built
   await symlink(elsewhere, join(circuitsDir(env), 'linked'))
   await assert.rejects(files({ project: 'linked' }, env), /not a circuit project/)
   await assert.rejects(readCircuitFile({ project: 'linked', path: 'secret.txt' }, env), /links to/)
+})
+
+test('a tsci that runs on Bun is run with Bun on the PATH, from a bare launchd PATH', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'circuit-bun-'))
+  const bin = join(dir, 'npm', 'bin')
+  await mkdir(bin, { recursive: true })
+  const real = await fakeTsci(join(dir, 'npm'))
+  // tsci as npm installs it: `#!/usr/bin/env bun`.
+  const tsci = join(bin, 'tsci')
+  await writeFile(tsci, (await readFile(real, 'utf8')).replace('#!/usr/bin/env node', '#!/usr/bin/env bun'))
+  await chmod(tsci, 0o755)
+  const env = { HOME: dir, SCANRULER_HOME: join(dir, 'sr'), SCANRULER_TSCI: tsci, PATH: '/usr/bin:/bin' }
+  // Where this machine has a Bun of its own (/usr/local/bin), the first half can't be shown.
+  if (!bunDirs(env).length) {
+    const none = await circuitTools(env)
+    assert.equal(none.ready, false)
+    assert.match(none.howTo, /Bun is not installed/)
+  }
+  // Bun where its installer puts it: ~/.bun/bin/bun (here, Node standing in).
+  await mkdir(join(dir, '.bun', 'bin'), { recursive: true })
+  await writeFile(join(dir, '.bun', 'bin', 'bun'), `#!/bin/sh\nexec "${process.execPath}" "$@"\n`)
+  await chmod(join(dir, '.bun', 'bin', 'bun'), 0o755)
+  const ok = await circuitTools(env)
+  assert.equal(ok.ready, true, ok.howTo)
+  assert.equal(ok.tsci.version, '0.1.2446')
 })

@@ -144,8 +144,17 @@ async function npmGlobalBin(env) {
 
 /** The environment a program found here runs in: its own folder and this
  *  Node's on the PATH, so a `#!/usr/bin/env node` script finds a node. */
+/** Folders holding a `bun` this server can run. */
+export function bunDirs(env = process.env) {
+  const h = env.HOME ?? homedir()
+  const onPath = (env.PATH ?? '').split(delimiter)
+  return [...new Set([env.BUN_INSTALL && join(env.BUN_INSTALL, 'bin'), join(h, '.bun', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', ...onPath])].filter((d) => d && existsSync(join(d, 'bun')))
+}
+
 function envFor(path, env) {
-  const dirs = [dirname(path), dirname(process.execPath)]
+  // tsci starts with `#!/usr/bin/env bun`, so Bun's folder goes on the PATH
+  // too: a server started by launchd has a bare one.
+  const dirs = [dirname(path), ...bunDirs(env), dirname(process.execPath)]
   return { ...env, PATH: [...dirs, env.PATH ?? ''].filter(Boolean).join(delimiter) }
 }
 
@@ -177,7 +186,7 @@ export async function findTsci(env = process.env, projectDir = null) {
 }
 
 export const INSTALL_HOW_TO =
-  'tscircuit is not installed where this server looks. On a Mac: install Node.js (nodejs.org, or `brew install node`), then in Terminal `npm install -g tscircuit` (or with Bun: `bun install --global tscircuit`), and check with `tsci --help`. If it is installed and still not found, set SCANRULER_TSCI to the path `which tsci` prints, in the agent app’s server settings, and restart it.'
+  'tscircuit is not installed where this server looks. On a Mac: install Node.js (nodejs.org, or `brew install node`), then Bun (`curl -fsSL https://bun.sh/install | bash`; tsci runs on it), then in Terminal `npm install -g tscircuit` (or `bun install --global tscircuit`), and check with `tsci --help`. If it is installed and still not found, set SCANRULER_TSCI to the path `which tsci` prints, in the agent app’s server settings, and restart it.'
 
 /** What the installed tsci's --help lists for a subcommand: its flags, and
  *  for export the formats it names. Kept per program and modification time. */
@@ -233,7 +242,7 @@ export async function circuitTools(env = process.env) {
     // Found, but it does not run.
   }
   const base = { tsci: { path: t.path, via: t.via, version }, projects: circuitsDir(env) }
-  if (!version) return { ready: false, ...base, howTo: `Found ${t.path}${t.via === 'bunx' ? ' (bunx tscircuit)' : ''} but it did not answer --version. ${INSTALL_HOW_TO}` }
+  if (!version) return { ready: false, ...base, howTo: `Found ${t.path}${t.via === 'bunx' ? ' (bunx tscircuit)' : ''} but it did not answer --version.${bunDirs(env).length ? '' : ' Bun is not installed, and tsci runs on it: `curl -fsSL https://bun.sh/install | bash`.'} ${INSTALL_HOW_TO}` }
   const [top, build, exp] = [await helpOf(t, '', env), await helpOf(t, 'build', env), await helpOf(t, 'export', env)]
   const lacking = ['build', 'export'].filter((c) => !top.commands.includes(c))
   return {
