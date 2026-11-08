@@ -80,6 +80,7 @@ const showParam = (k: string, n: number, len: BoundLength) => {
 }
 /** A finding's value or limit as the person reads it. */
 const showValue = (n: number, unit: string, len: BoundLength) =>
+  // units-ok: reads the finding's unit name, to convert it to the units shown
   unit === 'mm' ? len.fmt(n, 2) : unit === 'mm²' ? len.area(n, 1) : unit === 'mm³' ? len.vol(n, 1) : `${fmt(n)}${unit.startsWith('°') ? '°' : unit ? ` ${unit}` : ''}`
 /** Display ↔ millimetres for a parameter typed in the rule editor. */
 const toShown = (k: string, n: number, len: BoundLength) => (powerOf(k) ? n / len.fromDisplay(1) ** powerOf(k) : n)
