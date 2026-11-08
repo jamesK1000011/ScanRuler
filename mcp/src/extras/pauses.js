@@ -90,33 +90,72 @@ export function layersOf(lines) {
     layers.push(m)
   }
   // Where the pause goes: after the layer's first move up, if it comes
-  // before the layer's first extrusion; else after the marker.
+  // before the layer's first extrusion; else after the marker. Never inside
+  // a block the printer may skip — Bambu Studio's timelapse (M622 … M623,
+  // run only when the printer records one) or an object's moves (M624 …
+  // M625, skipped with the object): a pause there would not stop the print.
+  const depth = blockDepths(lines)
   for (let k = 0; k < layers.length; k++) {
     const L = layers[k]
     const end = k + 1 < layers.length ? layers[k + 1].at : lines.length
-    L.insertAt = L.after
+    let first = null // the first open place after a move up made outside a block
+    let any = null // … after a move up made inside one
+    let open = depth[L.after] === 0 ? L.after : null
+    let liftOut = false
+    let lift = false
     for (let i = L.after; i < end; i++) {
       const code = lines[i].split(';')[0].trim()
-      if (!code) continue
-      const e = EXTRUDE.exec(code)
-      if (e && Number(e[1]) > 0 && XY.test(code)) break
-      if (Z_MOVE.test(code)) {
-        L.insertAt = i + 1
-        break
+      if (code) {
+        const e = EXTRUDE.exec(code)
+        if (e && Number(e[1]) > 0 && XY.test(code)) break
+        if (Z_MOVE.test(code)) {
+          lift = true
+          if (depth[i] === 0) liftOut = true
+        }
       }
+      if (depth[i + 1] !== 0) continue
+      if (open === null) open = i + 1
+      if (liftOut && first === null) first = i + 1
+      if (lift && any === null) any = i + 1
+      if (first !== null) break
     }
+    L.insertAt = first ?? any ?? open ?? L.after
+    if (depth[L.insertAt] !== 0) L.skippable = true
   }
   return layers
 }
 
+const OPENS = /^M62[24](?:\s|$)/i
+const CLOSES = /^M62[35](?:\s|$)/i
+
+/** How deep in skippable blocks the place before each line is: M622/M623
+ *  (Bambu Studio's conditional blocks) and M624/M625 (an object's moves). */
+export function blockDepths(lines) {
+  const out = new Int32Array(lines.length + 1)
+  let d = 0
+  for (let i = 0; i < lines.length; i++) {
+    out[i] = d
+    const code = lines[i].split(';')[0].trim()
+    if (OPENS.test(code)) d++
+    else if (CLOSES.test(code)) d = Math.max(0, d - 1)
+  }
+  out[lines.length] = d
+  return out
+}
+
 /** Which pause command, and whether the printer shows a message. */
 export function pauseCommandOf(config, asked = 'auto', header = '') {
-  if (asked && asked !== 'auto') {
-    if (!COMMANDS.includes(asked)) throw new Error(`pauseCommand is one of ${COMMANDS.join(', ')}.`)
-    return { lines: [asked], message: asked !== 'M400 U1', source: 'asked' }
-  }
   const flavor = String(config.gcode_flavor ?? '').toLowerCase()
   const bambu = /bambu/i.test(String(config.printer_model ?? '')) || /^;\s*BambuStudio/m.test(header)
+  if (asked && asked !== 'auto') {
+    if (!COMMANDS.includes(asked)) throw new Error(`pauseCommand is one of ${COMMANDS.join(', ')}.`)
+    // A command the printer does not know is passed over, and the print
+    // goes on over the empty pocket: refused where the G-code names one.
+    const known = bambu ? ['M400 U1'] : flavor === 'klipper' ? ['PAUSE', 'M600'] : /^marlin/.test(flavor) ? ['M601', 'M600'] : null
+    if (known && !known.includes(asked)) throw new Error(`${asked} does not pause ${bambu ? 'a Bambu Lab printer' : `${flavor} firmware`}: it would go on printing over the empty pocket. Use ${known.join(' or ')}.`)
+    const warn = asked === 'M600' ? (flavor === 'klipper' ? 'M600 pauses Klipper only where its config has an M600 macro: check before printing.' : 'M600 pauses only firmware built with filament change (Marlin ADVANCED_PAUSE_FEATURE): check the printer stops on it before printing.') : null
+    return { lines: [asked], message: asked !== 'M400 U1', source: 'asked', ...(warn ? { warning: warn } : {}) }
+  }
   const own = config.pause_print_gcode ?? config.machine_pause_gcode
   if (own && own.trim()) {
     const lines = own.split('\\n').map((l) => l.trim()).filter(Boolean)
@@ -125,7 +164,10 @@ export function pauseCommandOf(config, asked = 'auto', header = '') {
   }
   if (bambu) return { lines: ['M400 U1'], message: false, source: 'Bambu Lab printer' }
   if (flavor === 'klipper') return { lines: ['PAUSE'], message: true, source: 'gcode_flavor klipper' }
-  if (/^marlin/.test(flavor) || /prusa/i.test(String(config.printer_model ?? ''))) return { lines: ['M601'], message: true, source: `gcode_flavor ${flavor || 'prusa'}` }
+  // PrusaSlicer names its own printers by model alone (MK4S, MINI, XL):
+  // the vendor is in the profile's name and notes.
+  if (/prusa/i.test(`${config.printer_model ?? ''} ${config.printer_settings_id ?? ''} ${config.printer_notes ?? ''}`)) return { lines: ['M601'], message: true, source: `gcode_flavor ${flavor || 'prusa'}` }
+  if (/^marlin/.test(flavor)) return { lines: ['M601'], message: true, source: `gcode_flavor ${flavor}`, warning: 'M601 pauses Marlin only where it is built with PARK_HEAD_ON_PAUSE (Prusa firmware always is): check the printer stops on it, or give pauseCommand M600.' }
   throw new Error(`The G-code does not say which printer it is for (gcode_flavor ${flavor || 'not set'}, no pause G-code in its profile): give pauseCommand — M601 (Prusa, Marlin with park on pause), M600 (Marlin filament change), PAUSE (Klipper) or M400 U1 (Bambu Lab).`)
 }
 
@@ -169,13 +211,14 @@ export function injectPauses(text, pauses, { pauseCommand = 'auto' } = {}) {
   const layers = layersOf(lines)
   const cmd = pauseCommandOf(config, pauseCommand, lines.slice(0, 5).join('\n'))
   const by = new Map()
-  const warnings = []
+  const warnings = cmd.warning ? [cmd.warning] : []
   for (const p of asked) {
     const k = layers.findIndex((L, i) => (i === 0 ? 0 : layers[i - 1].z) >= p.z - EPS)
     if (k < 1) {
       if (k === 0) throw new Error(`A pause at ${p.z} would be before the first layer.`)
       throw new Error(`A pause at ${p.z} is above the print's last layer bottom (${layers.length > 1 ? layers[layers.length - 2].z : 0}; it prints to ${layers[layers.length - 1].z}): is it the right part, placed on the bed as exported?`)
     }
+    if (layers[k].skippable) throw new Error(`Layer ${k + 1} starts inside a block the printer may skip (M622/M624): a pause there might not stop the print. Slice without timelapse or object skipping, or add the pause in the slicer.`)
     const bottom = layers[k - 1].z
     if (bottom - p.z > EPS) {
       const below = k >= 2 ? layers[k - 2].z : 0
@@ -217,8 +260,10 @@ export async function addPauses({ gcode, tmf, pauses, pauseCommand }) {
   const buf = await readFile(gcode)
   if (isBinaryGcode(buf)) throw new Error('The slicer wrote binary G-code (binary_gcode on in the printer profile): pauses go into text G-code only. Turn it off for this job, or add the pauses in the slicer.')
   const r = injectPauses(buf.toString('utf8'), pauses, { pauseCommand })
-  await writeFile(gcode, r.text)
+  // Written only once every file has taken its pauses: a refusal part way
+  // leaves the job as the slicer wrote it, to be tried again.
   const plates = []
+  let tmfOut = null
   if (tmf && existsSync(tmf)) {
     const zip = await zipEntries(tmf)
     const files = []
@@ -253,7 +298,9 @@ export async function addPauses({ gcode, tmf, pauses, pauseCommand }) {
       }
       plates.push(row)
     }
-    if (plates.length) await writeFile(tmf, zipWrite(files))
+    if (plates.length) tmfOut = zipWrite(files)
   }
+  await writeFile(gcode, r.text)
+  if (tmfOut) await writeFile(tmf, tmfOut)
   return { ...r, text: undefined, ...(plates.length ? { plates } : {}), how: 'Put into the G-code after slicing (the slicers’ own per-layer pause is set in their app, not on their command line).' }
 }
