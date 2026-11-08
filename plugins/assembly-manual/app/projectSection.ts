@@ -23,4 +23,11 @@ export const asmSection: ProjectSection<Saved> = {
     return () => useAsm.getState().replace({ settings: { ...DEFAULT_SETTINGS, ...v.settings }, parts: v.parts, steps: v.steps, style: v.style ?? DEFAULT_STYLE })
   },
   hasContent: (v) => v.parts.length > 0 || v.steps.length > 0,
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['settings', 'parts', 'steps', 'style'] as const
+    return useAsm.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }
