@@ -159,6 +159,7 @@ pauses, the part is dropped in, and the layers above close over it.
      the pause in (see the slicer-loop guide).
    - A part whose cut was removed, or whose body isn't built, is left out
      and named. `hw.unembed { id }` or `{ all: true }` forgets one.
+   - `hw.clear` puts away the last plan and check; nothing cut changes.
 6. Tell the person, per pause: the layer, what goes in, and which way up (a
    magnet's poles). They press resume on the printer, or through
    `printer_resume`, which asks them.

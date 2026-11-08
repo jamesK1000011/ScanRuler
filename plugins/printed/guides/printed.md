@@ -77,6 +77,9 @@ figure; tables that give 0.0530 use annealed copper at 1.724e-8.
    so the files are separate. Load them into the slicer together as one
    object of several parts, so they keep their places, then set the
    filaments.
+6. `printed.clear` puts away the plan and check. `printed.forget { id }`
+   (or `{ all: true }`) takes a circuit off the export list; its features
+   stay in Reverse Engineer.
 
 ## Routing
 
