@@ -62,6 +62,7 @@ import { ImprintModal } from './ui/Imprint'
 import { SettingsModal } from './ui/SettingsModal'
 import { UnitsModal } from './ui/UnitsModal'
 import { SupportAsk, SupportCard } from './ui/SupportCard'
+import { HoverTips } from './ui/HoverTips'
 import { ViewBar } from './ui/ViewBar'
 import { DeviationPanel } from './ui/DeviationPanel'
 import { ThicknessPanel } from './ui/ThicknessPanel'
@@ -1798,6 +1799,7 @@ export default function App() {
               the bar's switches to act on. */}
           <div className="stagecorner">
             {!picking && <SupportCard />}
+            <HoverTips />
             {!picking && !onFlat && <ViewBar partKeys={active?.partKeys} sideKeys={active?.viewKeys} scanKey={active?.scanKey} hideModelKeys={active?.hideModelKeys} viewDirection={() => sceneRef.current?.viewDirection() ?? [0, 0, -1]} stageCentre={() => sceneRef.current?.stageCentre() ?? [0, 0, 0]} />}
           </div>
           {/* With no card on the stage any more, the step that is still
