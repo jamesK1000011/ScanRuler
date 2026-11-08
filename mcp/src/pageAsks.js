@@ -11,6 +11,7 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { librariesStatus, modelFiles, searchModels, takeModel } from './extras/models.js'
+import { feaTools, MATERIALS, solve } from './extras/fea.js'
 
 const ACTIONS = new Set(['search', 'files', 'take', 'open', 'status', 'cancel'])
 
@@ -79,5 +80,61 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
     }
     if (signal.aborted) return
     await link.run('catalog.answer', answer).catch((e) => log(`The catalog's answer did not reach the page: ${e.message}`))
+  })
+}
+
+/** The FEA panel's asks (fea.solve: tools, solve, cancel): the part meshed
+ *  and solved on this computer by Gmsh and CalculiX (extras/fea.js), how
+ *  far it has got said as it goes (fea.progress), the answer as fea.answer.
+ *  One solve at a time: a second waits its turn, or is cancelled. */
+export function attachFeaAsks({ link, holds = () => true, env = process.env, log = () => {}, waiting = 3 }) {
+  const running = new Map()
+  // A cancel that came before its solve: kept a while, so the solve is not run.
+  const cancelledEarly = new Map()
+  let queued = 0
+  let queue = Promise.resolve()
+  link.on?.('notice', async ({ kind, data }) => {
+    if (kind !== 'fea.solve' || !holds()) return
+    const req = typeof data?.req === 'string' ? data.req.slice(0, 40) : null
+    if (!req || !['tools', 'solve', 'cancel'].includes(data.action)) return
+    if (data.action === 'cancel') {
+      const of = String(data.of ?? '').slice(0, 40)
+      const ctl = running.get(of)
+      if (ctl) ctl.abort()
+      else if (of) {
+        const now = Date.now()
+        for (const [k, t] of cancelledEarly) if (now - t > 30_000) cancelledEarly.delete(k)
+        if (cancelledEarly.size < 50) cancelledEarly.set(of, now)
+      }
+      return
+    }
+    if (running.has(req)) return
+    if (cancelledEarly.delete(req)) return
+    const ctl = new AbortController()
+    const say = (phase, detail) => link.run('fea.progress', { req, phase, detail: String(detail ?? '').slice(0, 200) }).catch(() => {})
+    const answerNow = (answer) => link.run('fea.answer', answer).catch((e) => log(`The FEA answer did not reach the page: ${e.message}`))
+    if (data.action === 'solve' && queued >= waiting) return answerNow({ req, ok: false, error: `${queued} studies are already waiting to solve: cancel one, or wait for them.` })
+    running.set(req, ctl)
+    let answer
+    const work = async () => {
+      try {
+        if (ctl.signal.aborted) throw Object.assign(new Error('Cancelled.'), { cancelled: true })
+        const result = data.action === 'tools' ? { ...(await feaTools(env)), materials: MATERIALS } : await solve(data.job, env, { signal: ctl.signal, progress: say })
+        answer = { req, ok: true, result }
+      } catch (e) {
+        answer = { req, ok: false, error: String(e?.message ?? e).slice(0, 500) }
+      } finally {
+        running.delete(req)
+      }
+      if (ctl.signal.aborted) return
+      await answerNow(answer)
+    }
+    if (data.action === 'tools') return work()
+    queued++
+    const turn = async () => {
+      queued--
+      await work()
+    }
+    queue = queue.then(turn, turn)
   })
 }

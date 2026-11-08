@@ -18,7 +18,7 @@ import { failuresOnce } from './reCommandAnswers'
 import { allFeatures, type Json, withHeldBuild } from './reCommandCore'
 import { add, build, clear, importStep, list, move, refit, remove, rollback, schema, sketchEdit, suppress, update } from './reFeatureCommands'
 import { buildStop } from './reBuildStop'
-import { bodySet, check, clearance, compare, compareInDeviationCommand, describe, faceTriangles, step, stl } from './reBodyCommands'
+import { bodySet, check, clearance, compare, compareInDeviationCommand, describe, bodyNames, faceTriangles, selectedFaces, step, stl } from './reBodyCommands'
 import { volumeCompare } from './reVolumeCompare'
 import { bodyProbe, bodySection } from './reProbeCommands'
 import { review } from './reReview'
@@ -118,6 +118,8 @@ export const reverseCommands: Command<never>[] = ([
   buildStop,
   { ...describe, name: 'body.describe' },
   { ...faceTriangles, name: 'body.face_triangles' },
+  { ...selectedFaces, name: 'body.selected_faces' },
+  { ...bodyNames, name: 'body.names' },
   { ...bodySet, name: 'body.set' },
   { ...clearance, name: 'body.clearance' },
   { ...bodySection, name: 'body.section' },

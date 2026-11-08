@@ -1063,3 +1063,56 @@ export const faceTriangles: Command<{ body: Ref; faces?: number[]; where?: Where
     return { body: b.name, faces: picked, triangles: new Float32Array(tris) }
   },
 }
+
+/** The faces selected on the bodies now, by body and index — what the FEA
+ *  workspace takes for a hold or a load ("the faces I picked"). For the
+ *  page: an agent names faces by index or query. */
+export const selectedFaces: Command<Record<string, never>> = {
+  name: 'selected_faces',
+  title: 'The faces selected on the bodies',
+  description: 'Used by other workspaces: the faces selected on the bodies now, each body with its face indices (as reverse.body.describe lists them). Not for an agent.',
+  input: obj({}),
+  readOnly: true,
+  history: false,
+  internal: true,
+  run: async () => {
+    const s = await ready()
+    const sel = re().selection
+    const picked: { bodyId: number; hash: number }[] = []
+    if (sel?.kind === 'bodyFace') picked.push({ bodyId: sel.bodyId, hash: sel.face.hash })
+    if (sel?.kind === 'bodyItems') for (const it of sel.items) if (it.type === 'face') picked.push({ bodyId: it.bodyId, hash: it.face.hash })
+    const out: { body: string; id: number; faces: number[] }[] = []
+    for (const p of picked) {
+      const b = re().bodies.find((x) => x.id === p.bodyId)
+      if (!b) continue
+      const i = topologyOf(s, b).faces.findIndex((f) => f.hash === p.hash)
+      if (i < 0) continue
+      const row = out.find((x) => x.id === b.id) ?? (out.push({ body: b.name, id: b.id, faces: [] }), out[out.length - 1])
+      if (!row.faces.includes(i)) row.faces.push(i)
+    }
+    return { bodies: out }
+  },
+}
+
+/** The solid bodies in brief — id, name, face count, volume and box — for
+ *  other workspaces to list and to tell a body changed by. Cheap: no mesh
+ *  is read. Not for an agent: reverse.body.describe is theirs. */
+export const bodyNames: Command<Record<string, never>> = {
+  name: 'names',
+  title: 'The bodies in brief',
+  description: 'Used by other workspaces: each body’s id, name, whether a sheet, face count, volume and box — a key that changes when the body does. Not for an agent.',
+  input: obj({}),
+  readOnly: true,
+  history: false,
+  internal: true,
+  run: async () => ({
+    bodies: re().bodies.map((b) => ({
+      id: b.id,
+      name: b.name,
+      ...(b.surface ? { surface: true } : {}),
+      faces: b.faces,
+      volume: b.volume,
+      key: `${b.faces}|${Math.round(b.volume * 1000)}|${b.box ? [...b.box.min, ...b.box.max].map((x) => Math.round(x * 1000)).join(',') : ''}|${b.triangles}`,
+    })),
+  }),
+}
