@@ -196,10 +196,20 @@ export function drawFigures(k: DrawKernel, bodiesIn: BodyIn[], figures: Figure[]
         const p = project(c, q)
         const near = nearestOn(view.visible, p)
         const span = Math.max(...[0, 1, 2].map((j) => partBox.max[j] - partBox.min[j]))
+        if (!q.every(Number.isFinite) || [0, 1, 2].some((j) => q[j] < partBox.min[j] - span || q[j] > partBox.max[j] + span)) {
+          missed.push({ n: nm.n, why: 'the point is far off the part' })
+          continue
+        }
         const eps = span * 1e-3
         const ray = k.makeLineEdge({ x: q[0] + c.toward[0] * eps, y: q[1] + c.toward[1] * eps, z: q[2] + c.toward[2] * eps }, { x: q[0] + c.toward[0] * span * 3, y: q[1] + c.toward[1] * span * 3, z: q[2] + c.toward[2] * span * 3 })
-        const clear = k.distanceBetween(ray, whole) > eps / 4
-        k.release(ray)
+        let clear = false
+        try {
+          clear = k.distanceBetween(ray, whole) > eps / 4
+        } catch {
+          clear = false
+        } finally {
+          k.release(ray)
+        }
         const onPart = p[0] >= box.minX - tol && p[0] <= box.maxX + tol && p[1] >= box.minY - tol && p[1] <= box.maxY + tol
         if (!clear || !onPart || !near) {
           missed.push({ n: nm.n, why: 'the point is hidden or off the part in this view' })

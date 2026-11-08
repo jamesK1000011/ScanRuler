@@ -19,6 +19,7 @@ input.pl-input {
   box-shadow: var(--inset);
   width: 100%;
   min-width: 0;
+  text-overflow: ellipsis;
 }
 
 .pl-text {

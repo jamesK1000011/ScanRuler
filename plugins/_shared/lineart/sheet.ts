@@ -73,6 +73,20 @@ const PT = 72 / 25.4
 const WIN: Record<string, number> = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97, '™': 0x99 }
 const winAnsi = (t: string) => [...t].map((c) => (WIN[c] !== undefined ? String.fromCharCode(WIN[c]) : c.charCodeAt(0) < 256 ? c : '?')).join('')
 
+/** The characters a sheet's text holds that the PDF's Helvetica can't
+ *  show — they print as "?" there (the SVG and HTML show them). */
+export function pdfMissing(sheets: Sheet[]): string[] {
+  const out = new Set<string>()
+  for (const sh of sheets) for (const m of sh.marks) if ('text' in m && typeof m.text === 'string') for (const c of m.text) if (WIN[c] === undefined && c.charCodeAt(0) >= 256) out.add(c)
+  return [...out]
+}
+
+/** What to tell the person of pdfMissing, or null. */
+export function pdfMissingNote(sheets: Sheet[]): string | null {
+  const m = pdfMissing(sheets)
+  return m.length ? `The PDF's font has no ${m.slice(0, 8).join(' ')}${m.length > 8 ? ' …' : ''}: they print there as "?". The HTML and SVG show them; use those, or write those words in Latin letters for the PDF.` : null
+}
+
 /** The sheets as one PDF, a page each. */
 export function toPdf(sheets: Sheet[]): Uint8Array {
   const objs: string[] = []

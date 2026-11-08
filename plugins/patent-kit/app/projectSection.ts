@@ -24,4 +24,11 @@ export const patentSection: ProjectSection<Saved> = {
     return () => usePatent.getState().replace({ settings: { ...DEFAULT_SETTINGS, ...v.settings }, figures: v.figures, numerals: v.numerals, draft: v.draft ?? {} })
   },
   hasContent: (v) => v.figures.length > 0 || v.numerals.length > 0 || Object.keys(v.draft ?? {}).length > 0,
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['settings', 'figures', 'numerals', 'draft'] as const
+    return usePatent.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }

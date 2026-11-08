@@ -15,6 +15,7 @@ import { Busy, Notes, Pager, Paper, Status } from '../../_shared/ui/kit'
 import { VIEW_NAMES } from '../../_shared/lineart/views'
 import { SECTIONS, type Section } from '../core/model'
 import { usePatent } from '../state/patentStore'
+import { bodiesNow } from '../app/patentCommands'
 
 type Json = Record<string, any>
 type FileOut = { name: string; mimeType: string; bytes: Uint8Array }
@@ -49,6 +50,7 @@ async function draw(sheet: number) {
 async function save(format: 'zip' | 'pdf' | 'spec' | 'md') {
   const r = await run('save', { format }, 'Saving…')
   if (r) saveFile((r.file as FileOut).name, new Blob([(r.file as FileOut).bytes as BlobPart], { type: (r.file as FileOut).mimeType }))
+  if (r?.note) useStore.getState().setStatus(String(r.note))
 }
 
 export function PatentSheet() {
@@ -80,6 +82,10 @@ export function PatentPanel() {
   const busy = v.busy !== null
   const draftText = text ?? st.draft[section] ?? ''
   const none = !st.figures.length
+  // Read on each draw: the panel is drawn afresh on coming to the workspace,
+  // after the bodies are built in Reverse Engineer.
+  const noPart = bodiesNow().length === 0
+  const noDraft = !Object.values(st.draft).some((v) => v && String(v).trim())
   const flagged = v.findings?.filter((f) => f.level !== 'note').length ?? 0
 
   return (
@@ -131,7 +137,7 @@ export function PatentPanel() {
         <div className="sec-head">
           Figures <b>{st.figures.length || ''}</b>
         </div>
-        {none && <p className="hint">Build the part in Reverse Engineer, then plan the figures.</p>}
+        {none && <p className="hint">{noPart ? 'Build the part in Reverse Engineer first: the figures are drawn from its bodies.' : 'Plan the standard figures, or add views and sections.'}</p>}
         <div>
           {st.figures.map((f, i) => (
             <div className="kv" key={f.id} data-test="patent-figure">
@@ -144,10 +150,10 @@ export function PatentPanel() {
           ))}
         </div>
         <div className="toolrow">
-          <button disabled={busy} onClick={() => void run('figures', { plan: 'standard' })}>
+          <button disabled={busy || noPart} onClick={() => void run('figures', { plan: 'standard' })}>
             Plan standard figures
           </button>
-          <select disabled={busy} value="" onChange={(e) => e.target.value && void run('figures', { add: [{ kind: 'view', view: e.target.value }] })}>
+          <select disabled={busy || noPart} value="" onChange={(e) => e.target.value && void run('figures', { add: [{ kind: 'view', view: e.target.value }] })}>
             <option value="">Add a view…</option>
             {VIEW_NAMES.map((n) => (
               <option key={n} value={n}>
@@ -177,7 +183,7 @@ export function PatentPanel() {
             ))}
           </select>
           <button
-            disabled={busy}
+            disabled={busy || noPart}
             onClick={() => void run('figures', { add: [{ kind: 'section', view: 'front', section: { axis: cut.axis, offset: cut.offset, keep: cut.keep, ...(cut.from ? { from: cut.from } : {}) } }] })}
           >
             Add section
@@ -203,6 +209,7 @@ export function PatentPanel() {
                 className="pl-input"
                 type="text"
                 defaultValue={n.label}
+                title={n.label}
                 disabled={busy}
                 onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                 onBlur={(e) =>
@@ -218,7 +225,7 @@ export function PatentPanel() {
           ))}
         </div>
         <div className="toolrow">
-          <button disabled={busy} onClick={() => void run('numerals', { assign: 'bodies' })}>
+          <button disabled={busy || noPart} onClick={() => void run('numerals', { assign: 'bodies' })}>
             Number the bodies
           </button>
           <button disabled={busy || !st.numerals.length} onClick={() => void run('numerals', { renumber: true })}>
@@ -313,12 +320,12 @@ export function PatentPanel() {
           <button disabled={busy || none} onClick={() => void save('pdf')}>
             Drawings (.pdf)
           </button>
-          <button disabled={busy} title="The draft laid out as 37 CFR 1.52 asks: margins, 1½ spacing, paragraphs numbered [0001], claims and abstract on their own pages" onClick={() => void save('spec')}>
+          <button disabled={busy || noDraft} title="The draft laid out as 37 CFR 1.52 asks: margins, 1½ spacing, paragraphs numbered [0001], claims and abstract on their own pages" onClick={() => void save('spec')}>
             Specification (.pdf)
           </button>
         </div>
         <div className="toolrow">
-          <button disabled={busy} onClick={() => void save('md')}>
+          <button disabled={busy || noDraft} onClick={() => void save('md')}>
             Draft (.md)
           </button>
         </div>
