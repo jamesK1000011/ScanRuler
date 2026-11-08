@@ -11,6 +11,7 @@ import { arr, bool, enumOf, int, num, obj, oneOf, str, vec3 } from '../../../src
 import { normalize } from '../../../src/core/vec'
 import type { Vec3 } from '../../../src/core/types'
 import { type Command, CommandError } from '../../../src/plugins/api'
+import { noTrueSize, noTrueSizeText } from '../../../src/core/scanScale'
 import { useStore } from '../../../src/state/store'
 import { decide, PITCH_FLOOR } from '../core/decide'
 import { readingOf, type ReverseRead } from '../core/identify'
@@ -44,6 +45,17 @@ const axisInput = oneOf(
 )
 
 const fmt = (v: number) => String(Math.round(v * 1000) / 1000)
+
+
+/** A scan with no true size — Meshroom's, or one a few millimetres or
+ *  several metres across — measured as if it had one gives confident
+ *  nonsense: said with the answer, with how to scale it. */
+const sizeWarning = () => {
+  const st = useStore.getState()
+  const across = 2 * st.modelSize
+  const none = noTrueSize(st.fileName, across, Boolean(st.scanScale))
+  return none ? { sizeWarning: noTrueSizeText(none, across) } : {}
+}
 
 export const identify: Command<{ axis: Json; families?: Family[]; band?: number; length?: number; limit?: number; detail?: 'brief' | 'full' }> = {
   name: 'identify',
@@ -126,6 +138,7 @@ export const identify: Command<{ axis: Json; families?: Family[]; band?: number;
         ? { candidates: v.candidates.map((c) => ({ designation: c.designation, score: c.score, pitchOff: c.pitchOff, diameterOff: c.diameterOff, consistent: c.consistent, ...(c.against.length ? { against: c.against } : {}) })), ...(shape ? { tooth: shape.tooth } : {}) }
         : {}),
       note: noteFor(v, reading.internal, shape?.flankConfidence ?? null),
+      ...sizeWarning(),
     }
     useThreadMatch.getState().remember({ verdict: v.verdict, best: best?.designation ?? null, tied: v.tied, at: r.axis.origin })
     return out

@@ -60,3 +60,7 @@
   sits on top of the scan's.
 - **Don't quote standard text.** Name the standard (`source`) and give
   dimensions from `thread.lookup`.
+
+## Scale first
+
+A scan with no true size reads a pitch and diameter in no unit. `thread_identify` says so with `sizeWarning`; scale it with `scan_scale` from a length measured on the part, then identify again.
