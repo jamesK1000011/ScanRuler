@@ -63,3 +63,55 @@ function entriesOf(buf, path, maxEntryBytes) {
   }
   return { entries, read }
 }
+
+/** A zip of the entries given, stored (no compression — models' buffers
+ *  and textures barely shrink), for a take to unpack. */
+export function zipStore(entries) {
+  const crcTable = new Uint32Array(256).map((_, n) => {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    return c >>> 0
+  })
+  const crc = (b) => {
+    let c = 0xffffffff
+    for (let i = 0; i < b.length; i++) c = crcTable[(c ^ b[i]) & 0xff] ^ (c >>> 8)
+    return (c ^ 0xffffffff) >>> 0
+  }
+  const locals = []
+  const centrals = []
+  let at = 0
+  for (const { name, data } of entries) {
+    const n = Buffer.from(String(name).replace(/\\/g, '/').replace(/^\/+/, ''))
+    const d = Buffer.from(data)
+    const c = crc(d)
+    const l = Buffer.alloc(30)
+    l.writeUInt32LE(0x04034b50, 0)
+    l.writeUInt16LE(20, 4)
+    l.writeUInt16LE(0x0800, 6)
+    l.writeUInt32LE(c, 14)
+    l.writeUInt32LE(d.length, 18)
+    l.writeUInt32LE(d.length, 22)
+    l.writeUInt16LE(n.length, 26)
+    const e = Buffer.alloc(46)
+    e.writeUInt32LE(0x02014b50, 0)
+    e.writeUInt16LE(20, 4)
+    e.writeUInt16LE(20, 6)
+    e.writeUInt16LE(0x0800, 8)
+    e.writeUInt32LE(c, 16)
+    e.writeUInt32LE(d.length, 20)
+    e.writeUInt32LE(d.length, 24)
+    e.writeUInt16LE(n.length, 28)
+    e.writeUInt32LE(at, 42)
+    locals.push(l, n, d)
+    centrals.push(e, n)
+    at += 30 + n.length + d.length
+  }
+  const cd = Buffer.concat(centrals)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(entries.length, 8)
+  end.writeUInt16LE(entries.length, 10)
+  end.writeUInt32LE(cd.length, 12)
+  end.writeUInt32LE(at, 16)
+  return new Uint8Array(Buffer.concat([...locals, cd, end]))
+}

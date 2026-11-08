@@ -7,7 +7,7 @@ import { create } from 'zustand'
 import { notifyAgent } from '../../../src/plugins/api'
 import { useAgentLink } from '../../../src/commands/agentLink'
 
-export type Library = 'sketchfab' | 'thingiverse' | 'cults3d'
+export type Library = 'sketchfab' | 'thingiverse' | 'cults3d' | 'polyhaven'
 
 export interface ModelHit {
   source: Library
@@ -101,6 +101,8 @@ export interface ModelsState {
   busy: string | null
   /** The search the hits are of: what More goes on with. */
   searched?: { query: string; libraries: Library[] }
+  /** Where each library's next page starts, as its last answer said. */
+  cursors?: Partial<Record<Library, string>>
   /** More results found nothing new: the end of the list. */
   noMore?: boolean
   /** When the work in busy began, ms — the panel counts the seconds. */
@@ -111,4 +113,4 @@ export interface ModelsState {
   taken: { hit: ModelHit; paths: string[] } | null
 }
 
-export const useModels = create<ModelsState>(() => ({ query: '', libraries: ['sketchfab', 'thingiverse', 'cults3d'], page: 1, hits: null, missing: {}, errors: {}, busy: null, since: null, open: null, taken: null }))
+export const useModels = create<ModelsState>(() => ({ query: '', libraries: ['sketchfab', 'thingiverse', 'cults3d', 'polyhaven'], page: 1, hits: null, missing: {}, errors: {}, busy: null, since: null, open: null, taken: null }))

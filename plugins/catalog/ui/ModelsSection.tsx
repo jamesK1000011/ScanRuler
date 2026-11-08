@@ -18,9 +18,10 @@ const LIBS: { id: Library; label: string; note: string; get: string; how: string
   { id: 'sketchfab', label: 'Sketchfab', note: 'Searches with no account; downloads take your Sketchfab API token', get: 'https://sketchfab.com/settings/password', how: 'Sign in, open Settings → Password & API, copy the API token.', form: 'the token' },
   { id: 'thingiverse', label: 'Thingiverse', note: 'Takes a Thingiverse app token', get: 'https://www.thingiverse.com/developers', how: 'Create an app (Desktop app) and copy its App Token. New apps may not be approved at the moment.', form: 'the app token' },
   { id: 'cults3d', label: 'Cults3D', note: 'Takes your Cults3D user name and API key; its files stay on its site', get: 'https://cults3d.com/en/pages/graphql', how: 'Sign in and create an API key from the API page.', form: 'your user name, a colon, then the key — user:key' },
+  { id: 'polyhaven', label: 'Poly Haven', note: 'CC0 models, no account needed — powered by Poly Haven', get: 'https://polyhaven.com/models', how: 'No key: Poly Haven’s API is free and open.', form: 'nothing' },
 ]
 
-type LibStatus = Record<Library, { key: 'set' | 'not set'; search: boolean; download: boolean }>
+type LibStatus = Record<Library, { key: 'set' | 'not set' | 'none needed'; search: boolean; download: boolean }>
 
 /** Each library's key — set or not, never the key — what it can do, and
  *  how to get and set one, the command to copy for Terminal. */
@@ -32,7 +33,7 @@ function Keys() {
     <details className="pl-fold" data-test="catalog-keys" onToggle={(e) => (e.target as HTMLDetailsElement).open && link === 'connected' && read()}>
       <summary>Library keys</summary>
       <p className="hint">Keys are kept in your Mac's Keychain and used only from your computer; this page never sees them. Set one in Terminal, in the ScanRuler folder — it asks for the key without showing it. Run one command at a time.</p>
-      {LIBS.map((l) => {
+      {LIBS.filter((l) => l.id !== 'polyhaven').map((l) => {
         const st = status?.[l.id]
         const cmd = `node mcp/src/extras/secrets.js set catalog:${l.id}`
         return (
@@ -110,11 +111,11 @@ async function search(more = false) {
   const names = asked.libraries.map((id) => LIBS.find((l) => l.id === id)?.label).join(', ')
   const signal = begin(`${more ? 'More from' : 'Searching'} ${names}…`, more ? {} : { open: null, taken: null, errors: {}, searched: asked })
   try {
-    const r = await ask<{ results: ModelHit[]; missing?: Record<string, string>; errors?: Record<string, string> }>('search', { query: asked.query, sources: asked.libraries, page }, WAIT.search, signal)
+    const r = await ask<{ results: ModelHit[]; missing?: Record<string, string>; errors?: Record<string, string>; cursors?: Partial<Record<Library, string>> }>('search', { query: asked.query, sources: asked.libraries, page, ...(more && s.cursors ? { cursors: s.cursors } : {}) }, WAIT.search, signal)
     if (!Array.isArray(r?.results)) throw new Error('The agent’s server answered the search in a shape this page does not read — restart it (and the agent app).')
     const seen = new Set((more ? (s.hits ?? []) : []).map((h) => `${h.source}:${h.id}`))
     const fresh = r.results.filter((h) => !seen.has(`${h.source}:${h.id}`))
-    useModels.setState({ hits: more ? [...(s.hits ?? []), ...fresh] : r.results, page, missing: r.missing ?? {}, errors: r.errors ?? {}, ...(more && fresh.length === 0 ? { noMore: true } : more ? {} : { noMore: false }) })
+    useModels.setState({ hits: more ? [...(s.hits ?? []), ...fresh] : r.results, page, cursors: r.cursors ?? {}, missing: r.missing ?? {}, errors: r.errors ?? {}, ...(more && fresh.length === 0 ? { noMore: true } : more ? {} : { noMore: false }) })
   } catch (e) {
     report(e)
   } finally {
@@ -281,7 +282,7 @@ export function ModelsSection() {
       <div className="sec-head">
         Find a model
         <InfoDot title="Find a model">
-          <p>Searches Sketchfab, Thingiverse and Cults3D through their own APIs, from your computer. Keys stay in your Keychain; this page sees only results.</p>
+          <p>Searches Sketchfab, Thingiverse, Cults3D and Poly Haven through their own APIs, from your computer. Keys stay in your Keychain; this page sees only results.</p>
           <p>Bring in downloads a file to the imports folder with its source and licence. Share credits it, or leaves it out if it may not be passed on.</p>
         </InfoDot>
       </div>

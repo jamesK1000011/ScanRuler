@@ -9,7 +9,7 @@ Four jobs:
    of a query, a whole size ("M5x16", "608") and a standard ("ISO 4762").
 2. **Builds search links** to the catalogues and model libraries, each with
    what its terms allow (`core/links.ts`).
-3. **Searches model libraries** — Sketchfab, Thingiverse and Cults3D — from
+3. **Searches model libraries** — Sketchfab, Thingiverse, Cults3D and Poly Haven (CC0, no key) — from
    the panel's *Find a model*, through their official APIs. Results come
    back as cards with picture, designer and licence; a model's files are
    listed, one is brought in, then opened as the reference or the part.
@@ -73,7 +73,7 @@ page is busy with other work.
 | `catalog_downloads` | server | New CAD files and zips in the downloads folder |
 | `catalog_take` | server | Brings one in, with its source and licence |
 | `catalog_libraries` | server | Which model libraries have keys, and what each can do |
-| `catalog_models_search` | server | Sketchfab, Thingiverse and Cults3D at once |
+| `catalog_models_search` | server | Sketchfab, Thingiverse, Cults3D and Poly Haven at once |
 | `catalog_models_files` | server | A model's downloadable files |
 | `catalog_models_take` | server | Downloads one into the imports folder, licence recorded |
 | `catalog_sources` / `catalog_source` | server | McMaster-Carr and TraceParts accounts: state, on/off |

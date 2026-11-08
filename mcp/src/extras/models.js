@@ -11,6 +11,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { take } from './catalog.js'
+import { zipStore } from './zip.js'
 import { getSecret } from './secrets.js'
 import { home } from './slicer.js'
 
@@ -18,6 +19,7 @@ export const LIBRARIES = {
   sketchfab: { label: 'Sketchfab', account: 'catalog:sketchfab', secret: 'your API token (sketchfab.com → Settings → Password & API) — only to download; search needs none', needsKeyToSearch: false, files: true },
   thingiverse: { label: 'Thingiverse', account: 'catalog:thingiverse', secret: 'an app token (thingiverse.com/developers → create an app → App Token)', needsKeyToSearch: true, files: true },
   cults3d: { label: 'Cults3D', account: 'catalog:cults3d', secret: 'your user name and API key as user:key (cults3d.com → your account → API)', needsKeyToSearch: true, files: false },
+  polyhaven: { label: 'Poly Haven', account: null, secret: null, needsKeyToSearch: false, files: true },
 }
 
 const setUp = (id) => `node mcp/src/extras/secrets.js set ${LIBRARIES[id].account}`
@@ -45,6 +47,7 @@ async function http(url, { headers = {}, method = 'GET', body, timeoutMs = 15_00
   signal?.addEventListener('abort', stop, { once: true })
   try {
     const r = await fetch(url, { method, headers: { 'User-Agent': 'ScanRuler catalog (scanruler-mcp)', Accept: as === 'json' ? 'application/json' : '*/*', ...headers }, body, signal: ctl.signal, redirect: 'follow' })
+    if (r.status === 403 && /challenge/i.test(r.headers.get('cf-mitigated') ?? '')) throw Object.assign(new Error(`${new URL(url).host} is asking for a browser check (Cloudflare) and its API can't answer through it now — try again later, or search the others.`), { ours: true })
     if (r.status === 401 || r.status === 403) throw Object.assign(new Error(`${new URL(url).host} refused the key (${r.status}) — check it is set and current.`), { ours: true })
     if (r.status === 429) throw Object.assign(new Error(`${new URL(url).host} asks to slow down (429): try again in a minute.`), { ours: true })
     if (!r.ok) throw Object.assign(new Error(`${new URL(url).host} answered ${r.status}.`), { ours: true })
@@ -115,11 +118,15 @@ export const mayShare = (licence) => {
 }
 
 const sketchfab = {
-  async search(query, page, secret, env, signal) {
+  async search(query, page, secret, env, signal, cursor) {
     const u = new URL(`${api(env, 'sketchfab', 'https://api.sketchfab.com')}/v3/search`)
-    u.search = new URLSearchParams({ type: 'models', q: query, downloadable: 'true', count: String(PER), ...(page > 1 ? { cursor: String((page - 1) * PER) } : {}) }).toString()
+    // Sketchfab pages by an opaque cursor its answer gives (cursors.next);
+    // a numeric offset only where no cursor was kept.
+    const at = typeof cursor === 'string' && cursor ? cursor : page > 1 ? String((page - 1) * PER) : null
+    u.search = new URLSearchParams({ type: 'models', q: query, downloadable: 'true', count: String(PER), ...(at ? { cursor: at } : {}) }).toString()
     const d = await http(u.toString(), { signal, ...(secret ? { headers: { Authorization: `Token ${secret}` } } : {}) })
-    return (d.results ?? []).map((m) => ({
+    const next = typeof d.cursors?.next === 'string' ? d.cursors.next : typeof d.next === 'string' ? (new URL(d.next, u).searchParams.get('cursor') ?? null) : null
+    return Object.assign((d.results ?? []).map((m) => ({
       source: 'sketchfab',
       id: m.uid,
       name: m.name,
@@ -129,7 +136,7 @@ const sketchfab = {
       thumbnail: [...(m.thumbnails?.images ?? [])].sort((a, b) => a.width - b.width).find((i) => i.width >= 200)?.url ?? null,
       downloadable: m.isDownloadable !== false,
       faces: m.faceCount ?? null,
-    }))
+    })), { next })
   },
   async files(id, secret, env, signal) {
     if (!secret) throw new Error(`A Sketchfab download takes your API token: ${setUp('sketchfab')}`)
@@ -205,14 +212,78 @@ const cults3d = {
   },
 }
 
-const PROVIDERS = { sketchfab, thingiverse, cults3d }
+/** Poly Haven: CC0 models, no account, its own public API — the whole
+ *  list asked once and searched here (it has no search of its own), each
+ *  model a glTF with its buffers and textures. Credit "Powered by Poly
+ *  Haven" where its models are shown. */
+const polyhaven = {
+  list: null,
+  async all(env, signal) {
+    const base = api(env, 'polyhaven', 'https://api.polyhaven.com')
+    if (this.list && this.list.base === base && Date.now() - this.list.at < 3_600_000) return this.list.items
+    const d = await http(`${base}/assets?type=models`, { signal, timeoutMs: 20_000 })
+    const items = Object.entries(d && typeof d === 'object' ? d : {}).map(([id, a]) => ({ id, ...(a && typeof a === 'object' ? a : {}) }))
+    this.list = { base, at: Date.now(), items }
+    return items
+  },
+  async search(query, page, _secret, env, signal) {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+    const text = (a) => [a.id, a.name, ...(Array.isArray(a.tags) ? a.tags : []), ...(Array.isArray(a.categories) ? a.categories : [])].join(' ').toLowerCase()
+    const hits = (await this.all(env, signal)).filter((a) => words.every((w) => text(a).includes(w)))
+    hits.sort((a, b) => (b.download_count ?? 0) - (a.download_count ?? 0))
+    return hits.slice((page - 1) * PER, page * PER).map((a) => ({
+      source: 'polyhaven',
+      id: String(a.id),
+      name: typeof a.name === 'string' ? a.name : String(a.id),
+      author: a.authors && typeof a.authors === 'object' ? Object.keys(a.authors).join(', ') || null : null,
+      licence: 'CC0 (Poly Haven)',
+      url: `https://polyhaven.com/a/${encodeURIComponent(a.id)}`,
+      thumbnail: typeof a.thumbnail_url === 'string' ? a.thumbnail_url : `https://cdn.polyhaven.com/asset_img/thumbs/${encodeURIComponent(a.id)}.png?width=256&height=256`,
+      downloadable: true,
+    }))
+  },
+  async files(id, _secret, env, signal) {
+    const base = api(env, 'polyhaven', 'https://api.polyhaven.com')
+    const d = await http(`${base}/files/${encodeURIComponent(id)}`, { signal })
+    // The glTF at each resolution offered, smallest textures first: the shape
+    // is the same, only the pictures grow.
+    const gltf = d?.gltf && typeof d.gltf === 'object' ? d.gltf : {}
+    const sizes = Object.keys(gltf).sort((a, b) => parseInt(a) - parseInt(b))
+    const files = sizes.filter((k) => gltf[k]?.gltf?.url).map((k) => {
+      const g = gltf[k].gltf
+      const extra = Object.values(g.include ?? {}).reduce((s, f) => s + (Number(f?.size) || 0), 0)
+      return { id: `gltf-${k}`, name: `${id}_${k}.zip`, size: (Number(g.size) || 0) + extra || null, format: `gltf, ${k} textures (zip)` }
+    })
+    return {
+      licence: 'CC0 (Poly Haven)',
+      url: `https://polyhaven.com/a/${encodeURIComponent(id)}`,
+      files,
+      fetch: async (fileId) => {
+        const k = String(fileId).replace(/^gltf-/, '')
+        const g = gltf[k]?.gltf
+        if (!g?.url) throw new Error(`Poly Haven model ${id} has no ${fileId}.`)
+        // The glTF and everything it names, kept at the paths it names them
+        // by, in one zip the take unpacks into a folder of its own.
+        const entries = [{ name: g.url.split('/').pop().split('?')[0], data: await http(g.url, { as: 'bytes', timeoutMs: 120_000, signal }) }]
+        for (const [path, f] of Object.entries(g.include ?? {})) {
+          if (!f?.url || /(^|\/)\.\.(\/|$)/.test(path)) continue
+          entries.push({ name: path, data: await http(f.url, { as: 'bytes', timeoutMs: 120_000, signal }) })
+        }
+        return zipStore(entries)
+      },
+    }
+  },
+}
+
+const PROVIDERS = { sketchfab, thingiverse, cults3d, polyhaven }
 
 /** Which libraries are set up, never the key itself. */
 export async function librariesStatus(env = process.env) {
   return Object.fromEntries(
     await Promise.all(
       Object.entries(LIBRARIES).map(async ([id, l]) => {
-        const has = (await getSecret(l.account, env)) !== null
+        const has = l.account ? (await getSecret(l.account, env).catch(() => null)) !== null : false
+        if (!l.account) return [id, { label: l.label, key: 'none needed', search: true, download: l.files }]
         return [id, { label: l.label, key: has ? 'set' : 'not set', search: has || !l.needsKeyToSearch, download: l.files && has, ...(has ? {} : { setUp: `${l.secret}: ${setUp(id)}` }) }]
       }),
     ),
@@ -241,7 +312,7 @@ export const THUMBS_DEADLINE_MS = 6_000
  *  whole search answers within SEARCH_DEADLINE_MS + THUMBS_DEADLINE_MS;
  *  a library past its time is named in errors, a missing picture is left
  *  out. signal (the page's Cancel) stops it all. */
-export async function searchModels({ query, sources, page = 1, thumbnails = true, signal, deadlineMs = SEARCH_DEADLINE_MS, thumbsMs = THUMBS_DEADLINE_MS } = {}, env = process.env) {
+export async function searchModels({ query, sources, page = 1, thumbnails = true, signal, cursors = {}, deadlineMs = SEARCH_DEADLINE_MS, thumbsMs = THUMBS_DEADLINE_MS } = {}, env = process.env) {
   if (typeof query !== 'string' || !query.trim()) throw new Error('Say what to search for.')
   if (signal?.aborted) throw new Cancelled()
   const asked = Array.isArray(sources) ? sources : typeof sources === 'string' ? [sources] : []
@@ -253,6 +324,7 @@ export async function searchModels({ query, sources, page = 1, thumbnails = true
   const results = []
   const missing = {}
   const errors = Object.fromEntries(unknown.map((s) => [s, `no library "${s}" — ${Object.keys(LIBRARIES).join(', ')}`]))
+  const next = {}
   await Promise.all(
     ids.map(async (id) => {
       const ctl = new AbortController()
@@ -260,6 +332,7 @@ export async function searchModels({ query, sources, page = 1, thumbnails = true
       signal?.addEventListener('abort', stop, { once: true })
       try {
         const key = async () => {
+          if (!LIBRARIES[id].account) return null
           try {
             return await getSecret(LIBRARIES[id].account, env)
           } catch (e) {
@@ -268,8 +341,9 @@ export async function searchModels({ query, sources, page = 1, thumbnails = true
             throw e
           }
         }
-        const going = (async () => PROVIDERS[id].search(query.trim().slice(0, 200), pageNo, await key(), env, ctl.signal))()
+        const going = (async () => PROVIDERS[id].search(query.trim().slice(0, 200), pageNo, await key(), env, ctl.signal, typeof cursors?.[id] === 'string' ? cursors[id].slice(0, 200) : undefined))()
         const hits = await within(going, deadlineMs, `did not answer in ${Math.round(deadlineMs / 1000)} s — it may be down or slow; try again, or search the others`)
+        if (typeof hits?.next === 'string') next[id] = hits.next
         results.push(...(Array.isArray(hits) ? hits.filter((h) => h && typeof h.id === 'string' && h.id && typeof h.name === 'string').map((h) => ({ ...h, name: h.name.slice(0, 300), url: /^https?:\/\//i.test(h.url ?? '') ? h.url : null })) : []))
       } catch (e) {
         if (e.late) ctl.abort()
@@ -288,14 +362,14 @@ export async function searchModels({ query, sources, page = 1, thumbnails = true
   for (let i = 0; by.some((l) => i < l.length); i++) for (const l of by) if (l[i]) mixed.push(l[i])
   if (thumbnails) await Promise.all(mixed.map(async (r) => (r.thumbnail = await thumb(r.thumbnail, signal, thumbsMs, local))))
   if (signal?.aborted) throw new Cancelled()
-  return { query: query.trim(), page: pageNo, results: mixed, ...(Object.keys(missing).length ? { missing } : {}), ...(Object.keys(errors).length ? { errors } : {}) }
+  return { query: query.trim(), page: pageNo, results: mixed, ...(Object.keys(next).length ? { cursors: next } : {}), ...(Object.keys(missing).length ? { missing } : {}), ...(Object.keys(errors).length ? { errors } : {}) }
 }
 
 /** A model's files, to pick one to take. */
 export async function modelFiles({ source, id, signal } = {}, env = process.env) {
   if (!Object.hasOwn(LIBRARIES, String(source))) throw new Error(`No library "${source}" — ${Object.keys(LIBRARIES).join(', ')}.`)
   if (id === undefined || id === null || !String(id).trim()) throw new Error('Name the model (id), from a search.')
-  const r = await PROVIDERS[source].files(String(id), await getSecret(LIBRARIES[source].account, env), env, signal)
+  const r = await PROVIDERS[source].files(String(id), LIBRARIES[source].account ? await getSecret(LIBRARIES[source].account, env) : null, env, signal)
   return { source, id: String(id), licence: r.licence, url: r.url, files: r.files }
 }
 
@@ -304,7 +378,7 @@ export async function modelFiles({ source, id, signal } = {}, env = process.env)
 export async function takeModel({ source, id, file, to, signal } = {}, env = process.env) {
   if (!Object.hasOwn(LIBRARIES, String(source))) throw new Error(`No library "${source}" — ${Object.keys(LIBRARIES).join(', ')}.`)
   if (id === undefined || id === null || !String(id).trim()) throw new Error('Name the model (id), from a search.')
-  const r = await PROVIDERS[source].files(String(id), await getSecret(LIBRARIES[source].account, env), env, signal)
+  const r = await PROVIDERS[source].files(String(id), LIBRARIES[source].account ? await getSecret(LIBRARIES[source].account, env) : null, env, signal)
   const ids = r.files.map((f) => f.id).join(', ') || 'none'
   let pick
   if (file !== undefined && file !== null && String(file) !== '') {

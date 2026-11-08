@@ -182,3 +182,64 @@ test('tool arguments are checked against the schema', () => {
   assert.throws(() => checkArgs(s, { query: 'x', page: NaN }), /number/)
   assert.deepEqual(checkArgs(s, { query: 'x', sources: ['a'], page: 2 }), { query: 'x', sources: ['a'], page: 2 })
 })
+
+test('Poly Haven: searched without a key, CC0 and shared on; a glTF comes with its buffer and textures', async () => {
+  const d = await dir()
+  const env = { SCANRULER_HOME: d, SCANRULER_SECRETS: 'file' }
+  const real = globalThis.fetch
+  globalThis.fetch = async (url) => {
+    const u = new URL(url)
+    if (u.host === 'api.polyhaven.com' && u.pathname === '/assets') return new Response(JSON.stringify({ wooden_crate: { name: 'Wooden Crate', tags: ['box', 'crate'], categories: ['props'], authors: { Ann: 'All' }, download_count: 9 }, rock_01: { name: 'Rock', tags: ['stone'] } }))
+    if (u.pathname === '/files/wooden_crate') return new Response(JSON.stringify({ gltf: { '1k': { gltf: { url: 'https://dl.polyhaven.org/c/crate_1k.gltf', size: 10, include: { 'crate.bin': { url: 'https://dl.polyhaven.org/c/crate.bin', size: 4 }, 'textures/crate_diff_1k.jpg': { url: 'https://dl.polyhaven.org/c/d.jpg', size: 3 } } } } } }))
+    if (u.host === 'dl.polyhaven.org') return new Response(u.pathname.endsWith('.gltf') ? '{"asset":{}}' : 'bin', { headers: { 'content-type': 'application/octet-stream' } })
+    return new Response('{}', { status: 404 })
+  }
+  try {
+    const r = await searchModels({ query: 'crate', sources: ['polyhaven'], thumbnails: false }, env)
+    assert.deepEqual(r.results.map((x) => x.id), ['wooden_crate'])
+    assert.equal(r.results[0].licence, 'CC0 (Poly Haven)')
+    assert.equal(r.missing, undefined)
+    const t = await takeModel({ source: 'polyhaven', id: 'wooden_crate' }, env)
+    assert.equal(t.redistribute, true)
+    assert.match(t.taken[0], /crate_1k\.gltf$/)
+    const folder = t.taken[0].replace(/[/\\][^/\\]+$/, '')
+    assert.equal(await readFile(join(folder, 'crate.bin'), 'utf8'), 'bin')
+    assert.equal(await readFile(join(folder, 'textures', 'crate_diff_1k.jpg'), 'utf8'), 'bin')
+  } finally {
+    globalThis.fetch = real
+  }
+})
+
+test('Sketchfab pages by the cursor its answer gave', async () => {
+  const d = await dir()
+  const env = { SCANRULER_HOME: d, SCANRULER_SECRETS: 'file' }
+  const asked = []
+  const real = globalThis.fetch
+  globalThis.fetch = async (url) => {
+    const u = new URL(url)
+    asked.push(u.searchParams.get('cursor'))
+    return new Response(JSON.stringify({ results: [{ uid: `m${asked.length}`, name: 'x', isDownloadable: true }], cursors: { next: 'opaque-abc' } }))
+  }
+  try {
+    const a = await searchModels({ query: 'x', sources: ['sketchfab'], thumbnails: false }, env)
+    assert.deepEqual(a.cursors, { sketchfab: 'opaque-abc' })
+    await searchModels({ query: 'x', sources: ['sketchfab'], page: 2, thumbnails: false, cursors: a.cursors }, env)
+    assert.deepEqual(asked, [null, 'opaque-abc'])
+  } finally {
+    globalThis.fetch = real
+  }
+})
+
+test('a Cloudflare check is said as one, not as a bad key', async () => {
+  const real = globalThis.fetch
+  globalThis.fetch = async () => new Response('<html>', { status: 403, headers: { 'cf-mitigated': 'challenge' } })
+  try {
+    const d = await dir()
+    const env = { SCANRULER_HOME: d, SCANRULER_SECRETS: 'file' }
+    await setSecret('catalog:thingiverse', 'tv', env)
+    const r = await searchModels({ query: 'x', sources: ['thingiverse'], thumbnails: false }, env)
+    assert.match(r.errors.thingiverse, /browser check/)
+  } finally {
+    globalThis.fetch = real
+  }
+})

@@ -16,6 +16,8 @@ const ACTIONS = new Set(['search', 'files', 'take', 'open', 'status', 'cancel'])
 
 /** What is being asked now, by request, to cancel. */
 const running = new Map()
+/** Asks cancelled before they came, for 30 s. */
+const cancelled = new Map()
 
 /** The files a take may open: those it just brought in, by path. */
 const taken = new Set()
@@ -32,17 +34,29 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
     // The page's Cancel: stops the ask it names; the page has stopped
     // waiting already, so nothing is answered.
     if (data.action === 'cancel') {
-      running.get(String(data.of ?? '').slice(0, 40))?.abort()
+      const of = String(data.of ?? '').slice(0, 40)
+      running.get(of)?.abort()
+      // A cancel that came before its ask: the ask, when it comes, is dropped.
+      cancelled.set(of, Date.now())
+      for (const [k, t] of cancelled) if (Date.now() - t > 30_000) cancelled.delete(k)
       return
     }
-    if (running.has(req)) return
+    if (running.has(req) || cancelled.has(req)) return
+    if (running.size >= 6) {
+      await link.run('catalog.answer', { req, ok: false, error: 'Too many asks at once: wait for one to finish.' }).catch(() => {})
+      return
+    }
+    if (data.action === 'open' && data.as !== 'scan' && data.as !== 'reference') {
+      await link.run('catalog.answer', { req, ok: false, error: 'Open it as the scan or as the reference.' }).catch(() => {})
+      return
+    }
     const ctl = new AbortController()
     running.set(req, ctl)
     const signal = ctl.signal
     let answer
     try {
       let result
-      if (data.action === 'search') result = await searchModels({ query: String(data.query ?? ''), sources: Array.isArray(data.sources) ? data.sources.map(String) : undefined, page: Number(data.page) || 1, thumbnails: true, signal }, env)
+      if (data.action === 'search') result = await searchModels({ query: String(data.query ?? ''), sources: Array.isArray(data.sources) ? data.sources.map(String) : undefined, page: Number(data.page) || 1, thumbnails: true, signal, ...(data.cursors && typeof data.cursors === 'object' ? { cursors: data.cursors } : {}) }, env)
       else if (data.action === 'files') result = await modelFiles({ source: String(data.source), id: String(data.id), signal }, env)
       else if (data.action === 'take') {
         result = await takeModel({ source: String(data.source), id: String(data.id), ...(data.file ? { file: String(data.file) } : {}), signal }, env)
