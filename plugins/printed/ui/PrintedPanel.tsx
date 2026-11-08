@@ -159,7 +159,7 @@ export function PrintedPanel() {
       )}
       <label className="pc-col">
         <span>Nets</span>
-        <textarea className="pl-input pc-nets" aria-label="Nets" spellCheck={false} rows={6} title="As printed.plan takes them: name, points or two pads, width, vias" value={f.nets} onChange={(e) => put({ nets: e.target.value })} />
+        <textarea className="pl-input pc-nets" aria-label="Nets" spellCheck={false} rows={6} title="One net per line: name, points or two pads, width, vias" value={f.nets} onChange={(e) => put({ nets: e.target.value })} />
       </label>
       <div className="toolrow">
         <button disabled={busy || !f.body} data-test="printed-plan" title="Work it out without making it" onClick={() => go('plan')}>
