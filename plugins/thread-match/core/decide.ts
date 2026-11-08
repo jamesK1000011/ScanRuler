@@ -233,9 +233,12 @@ function decidingFor(tied: Scored[], reading: Reading): Deciding[] {
     out.push({
       d: {
         measure: inch
+          // units-ok: the agent's readout and the thread standards, in millimetres
           ? 'Count the crests over 25.4 mm (1 inch) with a ruler or a thread pitch gauge, or measure across 10 crests with calipers'
           : 'Measure across 10 crests with calipers (11 crests, 10 gaps), or try a thread pitch gauge',
+        // units-ok: the agent's readout and the thread standards, in millimetres
         expect: all((s) => `${fmt(10 * s.pitch)} mm over 10 pitches${s.tpi ? `, ${s.tpi} per inch` : ''}`),
+        // units-ok: the agent's readout and the thread standards, in millimetres
         separation: `${fmt(10 * spread)} mm over 10 pitches`,
       },
       weight: 10 * spread,
@@ -247,6 +250,7 @@ function decidingFor(tied: Scored[], reading: Reading): Deciding[] {
   if (dSpread > 0.01) {
     const where = reading.internal === true ? 'the bore across its crests (the minor diameter) with pin gauges or the calipers’ inside jaws' : 'the crests (the major diameter) with calipers, square across the thread'
     out.push({
+      // units-ok: the agent's readout and the thread standards, in millimetres
       d: { measure: `Measure ${where}`, expect: tied.map((s) => ({ designation: s.designation, value: `${fmt(dOf(s))} mm` })), separation: `${fmt(dSpread)} mm` },
       // Calipers read to about 0.02 mm; under a tenth the reading is close.
       weight: dSpread < 0.1 ? dSpread / 2 : dSpread,
@@ -265,8 +269,11 @@ function decidingFor(tied: Scored[], reading: Reading): Deciding[] {
     const L = Math.max(reading.length, 10)
     out.push({
       d: {
+        // units-ok: the agent's readout and the thread standards, in millimetres
         measure: `Measure the ${reading.internal === true ? 'bore' : 'crests'} at each end of the thread, ${fmt(L)} mm apart, and compare`,
+        // units-ok: the agent's readout and the thread standards, in millimetres
         expect: all((s) => (s.taper > 0 ? `${fmt(L / 16)} mm larger at one end` : 'the same at both ends')),
+        // units-ok: the agent's readout and the thread standards, in millimetres
         separation: `${fmt(L / 16)} mm`,
       },
       weight: L / 16,
