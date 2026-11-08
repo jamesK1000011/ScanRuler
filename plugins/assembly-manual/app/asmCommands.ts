@@ -12,8 +12,8 @@ import { runCommand } from '../../../src/commands/registry'
 import { anyObject, arr, bool, enumOf, int, num, obj, oneOf, str, vec3 } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { bom, direction, issues, stepCamera, type Issue } from '../core/assembly'
-import type { Hit, PartIn } from '../core/geometry'
+import { bom, direction, issues, partNames, stepCamera, type Issue } from '../core/assembly'
+import { MAX_KERNEL_FACES, type Hit, type PartIn } from '../core/geometry'
 import { lint, limitsOf } from '../core/lint'
 import { html } from '../core/htmlManual'
 import { manualPages, stepFigure } from '../core/manual'
@@ -28,13 +28,24 @@ interface ReverseBody {
   id: number
   name: string
   visible: boolean
+  faces?: number
   surface?: boolean
 }
 
-function bodiesNow(): { id: number; name: string }[] {
-  const rev = readStateSections().reverse as { bodies?: ReverseBody[] } | undefined
-  return (rev?.bodies ?? []).filter((b) => !b.surface).map((b) => ({ id: b.id, name: b.name }))
+function reverseNow() {
+  return readStateSections().reverse as { bodies?: ReverseBody[]; features?: { id: number; name: string }[] } | undefined
 }
+
+/** The solid bodies, each with the name its part goes by (partNames). */
+function bodiesNow(): { id: number; name: string; faces: number; part: string }[] {
+  const rev = reverseNow()
+  const solids = (rev?.bodies ?? []).filter((b) => !b.surface)
+  const names = partNames(solids, rev?.features ?? [])
+  return solids.map((b) => ({ id: b.id, name: b.name, faces: b.faces ?? 0, part: names.get(b.id) ?? b.name }))
+}
+
+/** A body by its name, or by the name of the feature that made it. */
+const bodyCalled = (bodies: ReturnType<typeof bodiesNow>, name: string) => bodies.find((b) => b.name === name) ?? bodies.find((b) => b.part === name)
 
 /** Bodies renamed in Reverse Engineer since: their parts follow. */
 function sync() {
@@ -52,20 +63,35 @@ function sync() {
   if (changed) useAsm.getState().set({ parts })
 }
 
-async function partsIn(progress?: (t: string) => void): Promise<PartIn[]> {
+/** The parts as STEP, read from Reverse Engineer. A body past
+ *  MAX_KERNEL_FACES (a mesh import) is never exported — exporting and
+ *  sweeping one took the tab down: the sweep leaves it out and says so
+ *  ('skip'), the drawing stops with what to do instead ('refuse'). */
+async function partsIn(progress?: (t: string) => void, heavy: 'skip' | 'refuse' = 'refuse'): Promise<PartIn[]> {
   sync()
   const s = useAsm.getState()
   const bodies = bodiesNow()
   const out: PartIn[] = []
+  const tooHeavy: string[] = []
   for (const p of s.parts) {
     if (!p.body) continue
     const b = bodies.find((x) => x.name === p.body) ?? bodies.find((x) => x.id === p.bodyId)
     if (!b) throw new CommandError('invalid_state', `"${p.name}" is body "${p.body}", which is not in Reverse Engineer now.`)
+    if (b.faces > MAX_KERNEL_FACES) {
+      tooHeavy.push(`${p.name} (body "${b.name}", ${b.faces.toLocaleString('en-US')} faces)`)
+      if (heavy === 'skip') out.push({ name: p.name })
+      continue
+    }
     progress?.(`Reading ${p.name}…`)
     const r = (await runCommand('reverse.export.step', { bodies: [b.id] })) as { file?: { bytes: Uint8Array } }
     if (!r?.file?.bytes) throw new CommandError('failed', `${p.name} gave no STEP.`)
     out.push({ name: p.name, step: new TextDecoder().decode(r.file.bytes) })
   }
+  if (tooHeavy.length && heavy === 'refuse')
+    throw new CommandError(
+      'invalid_state',
+      `Too heavy to draw: ${tooHeavy.join('; ')} — over ${MAX_KERNEL_FACES.toLocaleString('en-US')} faces, a mesh brought in as a body. Rebuild it from features in Reverse Engineer (a fitted or sketched body draws cleanly), or take it out of the parts (asm.parts) and show it in a photo instead.`,
+    )
   return out
 }
 
@@ -142,7 +168,7 @@ const parts: Command<{ fromBodies?: boolean; set?: PartInput[]; remove?: string[
   name: 'parts',
   title: 'The parts of the assembly',
   description:
-    'The parts the manual puts together, and the bill of materials they come to. fromBodies: true adds every solid body in Reverse Engineer that isn\'t a part yet, named after it — imported STEP parts and catalog matches included. set adds or changes parts by name: body (its Reverse Engineer body, in its assembled place), kind part or hardware, designation for hardware ("M3×10 ISO 4762"; alike designations come as one item with a count), source (supplier, catalog file, "printed"), qty for an item with no body per piece (a tube of glue). remove drops parts; clear empties the list. A body renamed in Reverse Engineer keeps its part. Returns the parts and the bill of materials.',
+    'The parts the manual puts together, and the bill of materials they come to. fromBodies: true adds every solid body in Reverse Engineer that isn\'t a part yet — a body still called "Solid n" named after the feature that made it ("Lid"), any other by its own name; imported STEP parts and catalog matches included. set adds or changes parts by name: body (its Reverse Engineer body, in its assembled place — by the body\'s name or the feature that made it), kind part or hardware, designation for hardware ("M3×10 ISO 4762"; alike designations come as one item with a count), source (supplier, catalog file, "printed"), qty for an item with no body per piece (a tube of glue). remove drops parts; clear empties the list. A body renamed in Reverse Engineer keeps its part. Returns the parts and the bill of materials.',
   input: obj({
     fromBodies: bool(),
     set: arr(obj({ name: str(undefined, { minLength: 1 }), body: str(), kind: enumOf(['part', 'hardware']), designation: str(), source: str(), qty: int(undefined, { minimum: 1 }) }, ['name'])),
@@ -153,12 +179,14 @@ const parts: Command<{ fromBodies?: boolean; set?: PartInput[]; remove?: string[
     sync()
     let list = clear ? [] : [...useAsm.getState().parts]
     const bodies = bodiesNow()
-    if (fromBodies) for (const b of bodies) if (!list.some((p) => p.body === b.name || p.bodyId === b.id)) list.push({ name: b.name, body: b.name, bodyId: b.id, kind: 'part' })
+    if (fromBodies) for (const b of bodies) if (!list.some((p) => p.body === b.name || p.bodyId === b.id)) list.push({ name: b.part, body: b.name, bodyId: b.id, kind: 'part' })
     for (const x of set ?? []) {
       const old = list.find((p) => p.name === x.name)
-      const body = x.body ?? old?.body
-      const id = body ? bodies.find((b) => b.name === body)?.id : undefined
-      if (body && id === undefined) throw new CommandError('invalid_input', `There is no body "${body}" in Reverse Engineer (bodies: ${bodies.map((b) => b.name).join(', ') || 'none'}).`)
+      const asked = x.body ?? old?.body
+      const found = asked ? bodyCalled(bodies, asked) : undefined
+      if (asked && !found) throw new CommandError('invalid_input', `There is no body "${asked}" in Reverse Engineer (bodies: ${bodies.map((b) => (b.part !== b.name ? `${b.name} (${b.part})` : b.name)).join(', ') || 'none'}).`)
+      const body = found?.name
+      const id = found?.id
       const p: Part = { name: x.name, kind: x.kind ?? old?.kind ?? (x.designation ? 'hardware' : 'part'), ...(body ? { body, bodyId: id } : {}), ...((x.designation ?? old?.designation) ? { designation: x.designation ?? old?.designation } : {}), ...((x.source ?? old?.source) ? { source: x.source ?? old?.source } : {}), ...((x.qty ?? old?.qty) ? { qty: x.qty ?? old?.qty } : {}) }
       list = old ? list.map((q) => (q === old ? p : q)) : [...list, p]
     }
@@ -260,15 +288,16 @@ const check: Command<Record<string, never>> = {
     const s = useAsm.getState()
     const found: Issue[] = issues(s.parts, s.steps, bodiesNow().map((b) => b.name))
     if (found.some((x) => x.level === 'error')) return { ok: false, issues: found, note: 'Fix these before the sweep can run.' }
-    const ins = await partsIn((t) => ctx?.progress(t))
+    const ins = await partsIn((t) => ctx?.progress(t), 'skip')
     ctx?.progress('Sweeping each part in…')
     const r = await sweepInWorker(ins, s.steps).catch((e: Error) => {
       throw new CommandError('failed', `The sweep failed: ${e.message}`)
     })
     for (const h of r.hits) found.push({ level: 'error', step: h.step, part: h.part, message: hitWords(h) })
+    for (const name of r.skipped) found.push({ level: 'warn', part: name, message: `${name} was not swept: its body is over ${MAX_KERNEL_FACES.toLocaleString('en-US')} faces (a mesh brought in as a body), past what the check can hold. Nothing was checked against it, so check its fit by hand or rebuild it from features.` })
     for (const c of r.clashes) found.push({ level: 'warn', step: c.step, part: c.part, message: `Step ${c.step}: ${c.part} and ${c.with} overlap by ${c.volume.toFixed(2)} mm³ in their places — a press fit, or a model to fix.` })
     const text = s.steps.map((x, i) => ({ step: i + 1, findings: x.text ? lint(x.text, s.style).length : null }))
-    return { ok: !found.some((x) => x.level === 'error'), issues: found, hits: r.hits, clashes: r.clashes, lint: text }
+    return { ok: !found.some((x) => x.level === 'error'), issues: found, hits: r.hits, clashes: r.clashes, ...(r.skipped.length ? { notSwept: r.skipped } : {}), lint: text }
   },
 }
 

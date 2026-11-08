@@ -22,8 +22,16 @@ export interface AsmKernel extends LineKernel {
 
 export interface PartIn {
   name: string
-  step: string
+  /** The part as STEP. Left out for a body too heavy for the kernel's
+   *  booleans (a mesh import): the part is then left out of the sweep, and
+   *  said to be. */
+  step?: string
 }
+
+/** Faces past which a body is left out of the sweep and the drawing: a
+ *  faceted import (one face a triangle) of this size takes the kernel's
+ *  booleans and hidden-line pass past what a tab can hold. */
+export const MAX_KERNEL_FACES = 5000
 
 export interface Hit {
   step: number
@@ -63,6 +71,7 @@ export function travelOf(b: Box, d: V3): number {
 function load(k: AsmKernel, parts: PartIn[]): Map<string, { shape: H; box: Box; volume: number }> {
   const m = new Map<string, { shape: H; box: Box; volume: number }>()
   for (const p of parts) {
+    if (p.step === undefined) continue
     const shape = k.importStep(p.step)
     m.set(p.name, { shape, box: boxOf(k, shape), volume: Math.abs(k.getVolume(shape)) })
   }
@@ -98,8 +107,9 @@ const touchVolume = (k: AsmKernel, a: H, b: H): number => {
  *  place, against the parts placed before it (earlier steps, and earlier in
  *  its own step): where it first runs into one, and parts that overlap in
  *  their places. */
-export function sweep(k: AsmKernel, parts: PartIn[], steps: Step[], samples = 40): { hits: Hit[]; clashes: Clash[] } {
+export function sweep(k: AsmKernel, parts: PartIn[], steps: Step[], samples = 40): { hits: Hit[]; clashes: Clash[]; skipped: string[] } {
   const shapes = load(k, parts)
+  const skipped = parts.filter((p) => p.step === undefined).map((p) => p.name)
   const subs = subAssemblies(steps)
   const placedIn = new Map<string, string[]>()
   const hits: Hit[] = []
@@ -144,7 +154,7 @@ export function sweep(k: AsmKernel, parts: PartIn[], steps: Step[], samples = 40
       placed.push(...members)
     }
   })
-  return { hits, clashes }
+  return { hits, clashes, skipped }
 }
 
 export interface Line {

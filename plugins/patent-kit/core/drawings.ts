@@ -147,13 +147,50 @@ function samples(lines: Polyline[], step: number): [number, number][] {
   return out
 }
 
-function shortest(lines: Polyline[]): number {
-  let s = Infinity
-  for (const l of lines) {
+/** Pieces shorter than this, part mm, are the kernel's leftovers — a seam
+ *  sliver, a scrap of an edge the hidden-line pass split — not a detail
+ *  anyone drew: the shortest-edge check would read them as 0.00 mm. */
+export const EDGE_NOISE = 0.1
+
+/** The shortest visible edge as a reader sees one, part mm: pieces that
+ *  meet end to end with no third piece there and turn less than 30° are
+ *  one edge (an edge the hidden-line pass cut in two, a curve in segments),
+ *  and leftovers under EDGE_NOISE are not counted. */
+export function shortest(lines: Polyline[]): number {
+  const pieces = lines.filter((l) => l.length >= 4)
+  const ends: [number, number][] = []
+  for (const l of pieces) ends.push([l[0], l[1]], [l[l.length - 2], l[l.length - 1]])
+  const tol = 1e-3
+  const key = (p: [number, number]) => `${Math.round(p[0] / tol)},${Math.round(p[1] / tol)}`
+  const at = new Map<string, number[]>()
+  ends.forEach((p, i) => at.set(key(p), [...(at.get(key(p)) ?? []), i]))
+  const lengthOf = (l: Polyline) => {
     let len = 0
     for (let i = 0; i + 3 < l.length; i += 2) len += Math.hypot(l[i + 2] - l[i], l[i + 3] - l[i + 1])
-    if (len > 1e-6) s = Math.min(s, len)
+    return len
   }
+  // The way a piece leaves the end it is read at, pointing out of it.
+  const away = (l: Polyline, start: boolean): [number, number] => {
+    const n = l.length
+    const [x0, y0, x1, y1] = start ? [l[0], l[1], l[2], l[3]] : [l[n - 2], l[n - 1], l[n - 4], l[n - 3]]
+    const d = Math.hypot(x1 - x0, y1 - y0) || 1
+    return [(x1 - x0) / d, (y1 - y0) / d]
+  }
+  const parent = pieces.map((_, i) => i)
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])))
+  for (const list of at.values()) {
+    if (list.length !== 2) continue
+    const [a, b] = list.map((e) => ({ piece: e >> 1, start: (e & 1) === 0 }))
+    if (a.piece === b.piece) continue
+    const u = away(pieces[a.piece], a.start)
+    const v = away(pieces[b.piece], b.start)
+    // Straight on is u = -v; 30° of turn or less.
+    if (-(u[0] * v[0] + u[1] * v[1]) >= Math.cos(Math.PI / 6)) parent[find(a.piece)] = find(b.piece)
+  }
+  const total = new Map<number, number>()
+  pieces.forEach((l, i) => total.set(find(i), (total.get(find(i)) ?? 0) + lengthOf(l)))
+  let s = Infinity
+  for (const len of total.values()) if (len >= EDGE_NOISE) s = Math.min(s, len)
   return s
 }
 

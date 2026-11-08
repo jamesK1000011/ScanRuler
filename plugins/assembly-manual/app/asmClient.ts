@@ -37,5 +37,5 @@ function ask<T>(msg: Record<string, unknown>): Promise<T> {
   })
 }
 
-export const sweepInWorker = (parts: PartIn[], steps: Step[]) => ask<{ hits: Hit[]; clashes: Clash[] }>({ kind: 'sweep', parts, steps })
+export const sweepInWorker = (parts: PartIn[], steps: Step[]) => ask<{ hits: Hit[]; clashes: Clash[]; skipped: string[] }>({ kind: 'sweep', parts, steps })
 export const drawInWorker = (parts: PartIn[], steps: Step[], cameras: Camera[], explode: number) => ask<StepDrawing[]>({ kind: 'draw', parts, steps, cameras, explode })

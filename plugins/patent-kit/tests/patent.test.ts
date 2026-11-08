@@ -8,7 +8,7 @@ import { camera } from '../../_shared/lineart/views'
 import { crc32, zip } from '../../_shared/zip'
 import { briefDescription, expand, numeralsIn, toMarkdown } from '../core/draft'
 import { SPEC_MARGIN, specification } from '../core/spec'
-import { drawFigures, type DrawKernel } from '../core/drawings'
+import { drawFigures, shortest, type DrawKernel } from '../core/drawings'
 import { layout, MARGIN, PAPER, segmentsCross } from '../core/layout'
 import { DEFAULT_SETTINGS, type Figure, type Numeral } from '../core/model'
 import { assignBodies, renumber, retoken, syncBodies } from '../core/numerals'
@@ -42,6 +42,21 @@ describe('hidden lines', () => {
 })
 
 const step = (shape: unknown) => k.exportStep(shape) as string
+
+describe('the shortest edge', () => {
+  it('an edge in pieces is one edge, and the kernel’s scraps are not counted', () => {
+    // A 10 mm edge the hidden-line pass split in two, a 2 mm edge at a right
+    // angle off its end, and a 0.001 mm scrap.
+    const lines = [
+      [0, 0, 4, 0],
+      [4, 0, 10, 0.1],
+      [10, 0.1, 10, 2.1],
+      [20, 20, 20.001, 20],
+    ]
+    expect(shortest(lines)).toBeCloseTo(2, 6)
+    expect(shortest([[0, 0, 0.02, 0]])).toBe(Infinity)
+  })
+})
 
 describe('figures on sheets', () => {
   const settings = { ...DEFAULT_SETTINGS, figuresPerSheet: 2 as const }

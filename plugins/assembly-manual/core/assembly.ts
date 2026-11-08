@@ -139,3 +139,23 @@ export function direction(d: V3 | string): V3 {
   if (!v) throw new Error(`"${d}" is not a direction: give [x, y, z], or one of ${Object.keys(NAMED).join(', ')}.`)
   return v
 }
+
+/** What to call each body's part: a body Reverse Engineer still calls by
+ *  its count ("Solid 2") goes by the feature that made it ("Lid") when
+ *  that feature made no other body; a body given a name of its own, or a
+ *  STEP part's name, keeps it. A body's maker is the whole of its id (see
+ *  reverse/core/features.ts bodyMaker). */
+export function partNames(bodies: readonly { id: number; name: string }[], features: readonly { id: number; name: string }[]): Map<number, string> {
+  const counted = /^(Solid|Shell) \d+$/
+  const byFeature = new Map<number, number>()
+  for (const b of bodies) byFeature.set(Math.floor(b.id), (byFeature.get(Math.floor(b.id)) ?? 0) + 1)
+  const out = new Map<number, string>()
+  const taken = new Set<string>()
+  for (const b of bodies) {
+    const f = features.find((x) => x.id === Math.floor(b.id))
+    const name = counted.test(b.name) && f && byFeature.get(f.id) === 1 && !taken.has(f.name) && !bodies.some((o) => o.name === f.name && o.id !== b.id) ? f.name : b.name
+    taken.add(name)
+    out.set(b.id, name)
+  }
+  return out
+}

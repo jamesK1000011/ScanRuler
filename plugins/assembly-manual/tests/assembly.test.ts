@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { toPdf, toSvg } from '../../_shared/lineart/sheet'
-import { bestView, bom, direction, issues, itemOf, stepCamera, subAssemblies } from '../core/assembly'
+import { bestView, bom, direction, issues, itemOf, partNames, stepCamera, subAssemblies } from '../core/assembly'
 import { drawSteps, sweep, type AsmKernel, type PartIn } from '../core/geometry'
 import { lint, parseStyleFile } from '../core/lint'
 import { html, sentences } from '../core/htmlManual'
@@ -59,6 +59,17 @@ describe('the order parts go in', () => {
     expect(r.hits).toEqual([])
     expect(r.clashes).toEqual([])
     expect(issues(parts, steps, fixture.map((f) => f.name))).toEqual([])
+  }, 120_000)
+
+  it('a body too heavy to export is left out of the sweep and named, not a crash', () => {
+    const steps: Step[] = [
+      { id: 's1', place: [{ part: 'Box', move: down }] },
+      { id: 's2', place: [{ part: 'Lid', move: down }] },
+    ]
+    const r = sweep(k as AsmKernel, [fixture[0], { name: 'Lid' }], steps)
+    expect(r.skipped).toEqual(['Lid'])
+    expect(r.hits).toEqual([])
+    expect(r.clashes).toEqual([])
   }, 120_000)
 
   it('screws before the lid: the lid hits their heads on the way down', () => {
@@ -342,5 +353,25 @@ describe('stays local', () => {
     walk(join(__dirname, '..'))
     expect(files.length).toBeGreaterThan(4)
     for (const f of files) expect(readFileSync(f, 'utf8'), f).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/)
+  })
+})
+
+describe('what a part is called', () => {
+  it('a counted body goes by the feature that made it; a named one keeps its name', () => {
+    const features = [
+      { id: 1, name: 'Base' },
+      { id: 2, name: 'Lid' },
+      { id: 3, name: 'Knob' },
+      { id: 4, name: 'Split 1' },
+    ]
+    const bodies = [
+      { id: 1, name: 'Solid 1' },
+      { id: 2, name: 'Solid 2' },
+      { id: 3, name: 'Handle' },
+      { id: 4, name: 'Solid 3' },
+      { id: 4.001, name: 'Solid 4' },
+    ]
+    const n = partNames(bodies, features)
+    expect([...n.values()]).toEqual(['Base', 'Lid', 'Handle', 'Solid 3', 'Solid 4'])
   })
 })

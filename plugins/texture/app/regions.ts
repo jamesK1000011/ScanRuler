@@ -76,13 +76,14 @@ function grownFrom(mesh: ScanSurface, point: Vec3, spreadDeg: number): Uint8Arra
   const { positions: p, indices: ix } = mesh
   const faces = ix.length / 3
   const faceN = faceNormals(p, ix)
-  // The seed: the face whose centroid is nearest the point.
+  // The seed: the face whose surface comes nearest the point, as BumpMesh's
+  // bucket starts from the face under the cursor. Not the nearest centre: on
+  // a coarse CAD mesh a wall's two long triangles have their centres far
+  // off, and a small face in a pocket behind the wall won.
   let seed = -1
   let best = Infinity
   for (let f = 0; f < faces; f++) {
-    const a = ix[f * 3] * 3, b = ix[f * 3 + 1] * 3, c = ix[f * 3 + 2] * 3
-    const cx = (p[a] + p[b] + p[c]) / 3 - point[0], cy = (p[a + 1] + p[b + 1] + p[c + 1]) / 3 - point[1], cz = (p[a + 2] + p[b + 2] + p[c + 2]) / 3 - point[2]
-    const d = cx * cx + cy * cy + cz * cz
+    const d = distanceToTriangle(p, ix[f * 3], ix[f * 3 + 1], ix[f * 3 + 2], point)
     if (d < best) { best = d; seed = f }
   }
   const picked = new Uint8Array(p.length / 3)
@@ -104,6 +105,38 @@ function grownFrom(mesh: ScanSurface, point: Vec3, spreadDeg: number): Uint8Arra
     }
   }
   return picked
+}
+
+/** Squared distance from a point to a triangle's surface (closest point on
+ *  the triangle, Ericson, Real-Time Collision Detection 5.1.5). */
+export function distanceToTriangle(p: ArrayLike<number>, ia: number, ib: number, ic: number, q: Vec3): number {
+  const ax = p[ia * 3], ay = p[ia * 3 + 1], az = p[ia * 3 + 2]
+  const abx = p[ib * 3] - ax, aby = p[ib * 3 + 1] - ay, abz = p[ib * 3 + 2] - az
+  const acx = p[ic * 3] - ax, acy = p[ic * 3 + 1] - ay, acz = p[ic * 3 + 2] - az
+  const apx = q[0] - ax, apy = q[1] - ay, apz = q[2] - az
+  const d1 = abx * apx + aby * apy + abz * apz, d2 = acx * apx + acy * apy + acz * apz
+  const at = (u: number, v: number) => {
+    const x = ax + abx * u + acx * v - q[0], y = ay + aby * u + acy * v - q[1], z = az + abz * u + acz * v - q[2]
+    return x * x + y * y + z * z
+  }
+  if (d1 <= 0 && d2 <= 0) return at(0, 0)
+  const bpx = q[0] - p[ib * 3], bpy = q[1] - p[ib * 3 + 1], bpz = q[2] - p[ib * 3 + 2]
+  const d3 = abx * bpx + aby * bpy + abz * bpz, d4 = acx * bpx + acy * bpy + acz * bpz
+  if (d3 >= 0 && d4 <= d3) return at(1, 0)
+  const vc = d1 * d4 - d3 * d2
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) return at(d1 / (d1 - d3), 0)
+  const cpx = q[0] - p[ic * 3], cpy = q[1] - p[ic * 3 + 1], cpz = q[2] - p[ic * 3 + 2]
+  const d5 = abx * cpx + aby * cpy + abz * cpz, d6 = acx * cpx + acy * cpy + acz * cpz
+  if (d6 >= 0 && d5 <= d6) return at(0, 1)
+  const vb = d5 * d2 - d1 * d6
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) return at(0, d2 / (d2 - d6))
+  const va = d3 * d6 - d5 * d4
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) {
+    const w = (d4 - d3) / (d4 - d3 + (d5 - d6))
+    return at(1 - w, w)
+  }
+  const den = 1 / (va + vb + vc)
+  return at(vb * den, vc * den)
 }
 
 function faceNormals(p: Float32Array, ix: Uint32Array): Float32Array {
