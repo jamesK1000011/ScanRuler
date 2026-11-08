@@ -141,6 +141,71 @@ export function CompareStage() {
   )
 }
 
+function RuleRow({ r }: { r: Json }) {
+  const busy = useDfmView((s) => s.busy !== null)
+  const own = useDfm((s) => s.overrides[r.id])
+  const [open, setOpen] = useState(false)
+  const [vals, setVals] = useState<Record<string, string>>({})
+  const params = Object.entries(r.params as Record<string, number>)
+  const save = async (extra: Json = {}) => {
+    const changed = Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Number(x)]).filter(([, n]) => Number.isFinite(n as number)))
+    if (await run('rules', { action: 'set', rule: r.id, ...(Object.keys(changed).length ? { params: changed } : {}), ...extra })) {
+      setVals({})
+      await loadProfiles()
+    }
+  }
+  return (
+    <div className={`dfm-rule${open ? ' open' : ''}`} data-test="dfm-rule" data-rule={r.id}>
+      <button className={`kv dfm-rule-head${r.disabled ? ' ghost' : ''}`} title={`${r.rationale}\n\nSource: ${r.source}`} onClick={() => setOpen(!open)}>
+        <span className="name">{RULE_WORDS[r.id] ?? r.id}</span>
+        <b>
+          {params
+            .filter(([k]) => !/Area/.test(k))
+            .slice(0, 2)
+            .map(([k, n]) => `${PARAM_WORDS[k] ?? k} ${fmt(n)}${unitOf(k)}`)
+            .join(' · ') || '—'}
+        </b>
+        <span className="pl-aside">{[...new Set(Object.values(r.setBy as Record<string, string>).filter((x) => x !== 'default'))].join(', ') || 'default'}</span>
+      </button>
+      {open && (
+        <div className="pl-card">
+          {params.map(([k, n]) => (
+            <label key={k} className="field">
+              <span>
+                {PARAM_WORDS[k] ?? k}
+                {unitOf(k) && <small> ({unitOf(k).trim()})</small>}
+              </span>
+              <input type="number" step="any" min={0} data-test={`dfm-param-${k}`} value={vals[k] ?? String(n)} disabled={busy} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+            </label>
+          ))}
+          <label className="checkrow">
+            <input type="checkbox" checked={!r.disabled} disabled={busy} onChange={(e) => void save({ disabled: !e.target.checked })} />
+            Checked
+          </label>
+          <div className="toolrow">
+            <button className="primary" data-test="dfm-rule-save" disabled={busy || !Object.keys(vals).length} onClick={() => void save()}>
+              Set for this project
+            </button>
+            <button
+              disabled={busy || !own}
+              title="Back to the profiles' and guide's numbers"
+              onClick={async () => {
+                if (await run('rules', { action: 'clear', rule: r.id })) {
+                  setVals({})
+                  await loadProfiles()
+                }
+              }}
+            >
+              Reset
+            </button>
+          </div>
+          <p className="hint">{r.rationale}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function DfmPanel() {
   const st = useDfm()
   const v = useDfmView()
@@ -312,22 +377,12 @@ export function DfmPanel() {
         <div className="sec-head">
           Rules in force
           <InfoDot title="Changing a rule">
-            <p>Ask the agent to change a rule for this project (dfm.rules set), or import a guide of your own below.</p>
+            <p>Click a rule to change its numbers for this project, or switch it off. Your change sits over every profile and guide, and goes with the project; Reset takes it back.</p>
           </InfoDot>
         </div>
         <div>
           {(v.rules ?? []).map((r) => (
-            <div key={r.id} className={`kv${r.disabled ? ' ghost' : ''}`} title={`${r.rationale}\n\nSource: ${r.source}`}>
-              <span className="name">{RULE_WORDS[r.id] ?? r.id}</span>
-              <b>
-                {Object.entries(r.params as Record<string, number>)
-                  .filter(([k]) => !/Area/.test(k))
-                  .slice(0, 2)
-                  .map(([k, n]) => `${PARAM_WORDS[k] ?? k} ${fmt(n)}${unitOf(k)}`)
-                  .join(' · ') || '—'}
-              </b>
-              <span className="pl-aside">{[...new Set(Object.values(r.setBy as Record<string, string>).filter((x) => x !== 'default'))].join(', ') || 'default'}</span>
-            </div>
+            <RuleRow key={r.id} r={r} />
           ))}
         </div>
       </div>
