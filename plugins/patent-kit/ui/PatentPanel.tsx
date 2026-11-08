@@ -323,7 +323,7 @@ export function PatentPanel() {
           <button disabled={busy || none} onClick={() => void save('pdf')}>
             Drawings (.pdf)
           </button>
-          <button disabled={busy || noDraft} title="The draft as a PDF laid out to 37 CFR 1.52: margins, 1½ spacing, numbered paragraphs" onClick={() => void save('spec')}>
+          <button disabled={busy || noDraft} title="Save the draft as a PDF laid out to 37 CFR 1.52" onClick={() => void save('spec')}>
             Specification (.pdf)
           </button>
         </div>
