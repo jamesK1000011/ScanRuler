@@ -11,6 +11,7 @@ not in this repository.
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
 | [catalog/](catalog/) | Parts catalog — standard parts by size, search links, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras |
+| [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab for Claude to look at |
 
 ## The rules
 

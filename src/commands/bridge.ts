@@ -40,6 +40,7 @@ import { decoder, encode, type Message } from './framing'
 import { sceneOf } from './host'
 import { listCommands, runCommand } from './registry'
 import { CommandError } from './types'
+import { setNoticeOut } from './notice'
 
 /** The close codes the server turns a page away with (mcp/src/link.js). */
 const REFUSED = new Set([4001, 4003, 4008, 4009])
@@ -92,6 +93,8 @@ const PAGE_SINCE = new Date(typeof performance !== 'undefined' && performance.ti
 /** Whether the tab is hidden — in the background, its window covered or
  *  minimised, the screen locked — where the browser stops drawing it. */
 const tabHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
+
+export { notifyAgent } from './notice'
 
 /** Connect to the agent's server, and keep connecting while switched on.
  *  The returned function switches it off. */
@@ -208,12 +211,14 @@ export function startBridge({ port, token, socket = (url) => new WebSocket(url),
     }
   }
 
+  setNoticeOut((m) => send(m))
   const visibility = () => send({ event: 'visibility', hidden: tabHidden() })
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', visibility)
   void connect()
   return () => {
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', visibility)
     stopped = true
+    setNoticeOut(null)
     clearTimeout(timer)
     ws?.close(1000, 'Switched off')
     ws = null

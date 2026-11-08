@@ -28,6 +28,7 @@ import { lstat, mkdir, open, readdir, readFile, realpath, stat, writeFile } from
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { attachNotices } from './notices.js'
 import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
 import { extraTools } from './extras/index.js'
@@ -370,12 +371,12 @@ export const ANSWER_CAP = 40_000
 /** Commands whose answer may run past ANSWER_CAP before it is written to a
  *  file, and how far. A guide is read whole, before a task's first step,
  *  and is worth its room: several asked for together are answered while
- *  they fit some 80 k characters, the rest named to read next (the page's
- *  guide.read), so a read does not reach this. 90 k stays under Claude Code's
+ *  they fit some 60 k characters, the rest named to read next (the page's
+ *  guide.read), so a read does not reach this. 70 k stays under Claude Code's
  *  default limit on a tool's answer, 25 000 tokens (MAX_MCP_OUTPUT_TOKENS)
- *  — some 100 k characters at four a token, less for text with many
- *  escapes and marks. */
-export const ANSWER_CAPS = { 'guide.read': 90_000 }
+ *  — some 75 k characters of a guide's text, its marks and escapes three
+ *  characters a token; 80 k was cut off. */
+export const ANSWER_CAPS = { 'guide.read': 70_000 }
 
 /** What a spilled answer of a command says to ask for next time: less of
  *  it, by the command's own fields — the command's own word (askForLess,
@@ -494,7 +495,7 @@ export function createMcpServer({
   const server = new Server(
     { name: 'scanruler', title: 'ScanRuler', version },
     {
-      capabilities: { tools: { listChanged: true } },
+      capabilities: { tools: { listChanged: true }, logging: {} },
       instructions:
         (headless ? HEADLESS_INSTRUCTIONS : INSTRUCTIONS)[compact ? 'compact' : 'full'] +
         (selection.named ? ` This server lists ScanRuler’s tools by namespace, as it was started (--tools ${selection.text}); a tool of a namespace left out is unknown here.` : ''),
@@ -508,7 +509,9 @@ export function createMcpServer({
   // A server shipped with a newer list than the one kept lists its own: the
   // kept one may be days old (listBeforePage).
   let lastPage = listBeforePage(remembered?.load() ?? null)
-  const commands = () => (link.page?.commands?.length ? link.page.commands : lastPage?.commands ?? SNAPSHOT)
+  // A command marked internal is the page's answer to this server — never
+  // a tool: link.run reaches it, an agent does not.
+  const commands = () => (link.page?.commands?.length ? link.page.commands : lastPage?.commands ?? SNAPSHOT).filter((c) => !c.internal)
   const remember = () => {
     const list = link.page?.commands
     if (!list?.length) return
@@ -780,6 +783,24 @@ export function createMcpServer({
   }
   /** A reply with the reload said in it, when one is to be said: in an
    *  object answer as pageReloaded, first; after a refusal's message. */
+  // What the page told without being asked — a screenshot the person took
+  // — said with the next answer (notices.js).
+  const notices = attachNotices({
+    link,
+    folder: () => workFolderNow().catch(() => null),
+    outDir,
+    log,
+    notify: (text) => server.sendLoggingMessage?.({ level: 'info', logger: 'scanruler', data: text }).catch(() => {}),
+  })
+  const withNews = (reply, tool) => {
+    if (/^snapshot_/.test(tool ?? '')) {
+      notices.seen()
+      return reply
+    }
+    const lines = notices.drain()
+    if (!lines.length || !Array.isArray(reply?.content)) return reply
+    return { ...reply, content: [...reply.content, { type: 'text', text: lines.join('\n') }] }
+  }
   const withReload = (reply) => {
     if (!reloaded || !link.connected) return reply
     const block = reply?.content?.find((x) => x.type === 'text')
@@ -1385,8 +1406,9 @@ export function createMcpServer({
    *  the job the call is part of, which the page keeps its outcome under.
    *  `deferred`: more changes follow straight after it (a batch with
    *  build: "end"), and the page may leave their rebuild to the last.
+   *  `whole`: the answer is written to a file, so no cap cuts it.
    *  A `{ "$file": path }` anywhere in the arguments is that file's JSON. */
-  const runPageTool = async (name, given, onProgress, { timings = false, ms = false, batched = false, job, deferred = false } = {}) => {
+  const runPageTool = async (name, given, onProgress, { timings = false, ms = false, batched = false, job, deferred = false, whole = false } = {}) => {
     const command = commands().find((c) => toolName(c) === name)
     const needsPage = !command && headless ? link.pageCommand(name) : null
     if (needsPage) return failure({ code: 'unavailable', message: `${name} needs the ScanRuler page — a scan, the viewport or the browser — and this server runs ScanRuler headless, with none. Start scanruler-mcp in page mode (without --engine or --headless) and pair it with a ScanRuler tab for it.` })
@@ -1434,6 +1456,8 @@ export function createMcpServer({
         const lost = lostSinceLastSave(saved)
         if (lost) saved.warning = saved.warning ? `${saved.warning} ${lost}` : lost
       }
+      // An answer bound for a file (a batch call's to) goes whole.
+      if (whole) return text(saved, Boolean(command.exact))
       return text(await fitted(saved, name, Boolean(command.exact), [], { cap: capOf(command), ...(lessOf(command) ? { less: lessOf(command) } : {}) }), Boolean(command.exact))
     } catch (e) {
       // A page older than its app, said once so: the status keeps it.
@@ -1484,7 +1508,7 @@ export function createMcpServer({
     name: 'scanruler_batch',
     title: 'Run several ScanRuler tools',
     description:
-      `Run several of the ScanRuler tools in one call, in order, each with its own arguments — a run of scan_nearest, element_fit or section_get calls, say. Returns results, one per call in order: { tool, ok, result } or { tool, ok: false, error: { code, message } }. The first refused stops the rest (stopped says which index, failed: { index, tool, error } which call) unless stopOnError is false. notes, when a call answered with the notes left for you, is the last call’s, repeated at the top. When the refused call is a change, then with rollback (the default) every change the batch made before it is undone, so the batch stands or falls whole: undone names the steps taken back, newest first, callsUndone counts the calls, and each of those answers ok: false and undone: true, its result kept as it was. Before anything runs, the names the calls would give new things (a command that says which of its fields name them, in one name space) are checked against each other: two alike — case and spaces at the ends aside — refuse the batch with nothing run, naming both calls; a name the session already has is the page’s to refuse. A refused read — section_get, scan_query, any tool that changes nothing — undoes nothing: what came before it stands (kept says so). A call refused busy is run again once the page is idle (retried: "busy" on its result). Each call that changes the session is still its own undo step. build: "end" builds a modelled part once for a run of changes to it — sketches edited one after another, say — rather than after each: every call but the last is sent deferred, and a change so sent answers before its rebuild (build: "held", its result and bodies the part as last built; a pick by index names a face of that part); the last call builds them all, and so does a read of the part, or any other kind of tool, met on the way. timings: true gives each call its ms and the batch total_ms, and a change\'s build the steps it played with their ms (result.steps.played). wait: false answers at once with { queued, job }, and so does a batch still running at the server’s answer limit (with after, its seconds); scanruler_wait { for: "job", job } gives the batch\'s answer. A { "$file": path } anywhere in a call’s arguments is that JSON file’s contents. ${relativeFrom(cwd)} A tool that returns a picture is not shown here: the picture is written to a file — its call’s path, or a new file in ${WORK_FOLDER} in the folder the scan open now was opened from (by scan_open or project_load with a path), else in ${outDir} — and its result gives that file.path (and file.folder, the ${WORK_FOLDER} folder); call the tool directly to see the picture. The server’s own tools (scanruler_status, _open, _wait, _batch, _write, _files, _read, _tools) cannot be batched.`,
+      `Run several of the ScanRuler tools in one call, in order, each with its own arguments — a run of scan_nearest, element_fit or section_get calls, say. Returns results, one per call in order: { tool, ok, result } or { tool, ok: false, error: { code, message } }. The first refused stops the rest (stopped says which index, failed: { index, tool, error } which call) unless stopOnError is false. notes, when a call answered with the notes left for you, is the last call’s, repeated at the top. When the refused call is a change, then with rollback (the default) every change the batch made before it is undone, so the batch stands or falls whole: undone names the steps taken back, newest first, callsUndone counts the calls, and each of those answers ok: false and undone: true, its result kept as it was. Before anything runs, the names the calls would give new things (a command that says which of its fields name them, in one name space) are checked against each other: two alike — case and spaces at the ends aside — refuse the batch with nothing run, naming both calls; a name the session already has is the page’s to refuse. A refused read — section_get, scan_query, any tool that changes nothing — undoes nothing: what came before it stands (kept says so). A call refused busy is run again once the page is idle (retried: "busy" on its result). Each call that changes the session is still its own undo step. build: "end" builds a modelled part once for a run of changes to it — sketches edited one after another, say — rather than after each: every call but the last is sent deferred, and a change so sent answers before its rebuild (build: "held", its result and bodies the part as last built; a pick by index names a face of that part); the last call builds them all, and so does a read of the part, or any other kind of tool, met on the way. timings: true gives each call its ms and the batch total_ms, and a change\'s build the steps it played with their ms (result.steps.played). wait: false answers at once with { queued, job }, and so does a batch still running at the server’s answer limit (with after, its seconds); scanruler_wait { for: "job", job } gives the batch\'s answer. A { "$file": path } anywhere in a call’s arguments is that JSON file’s contents, and { "$file": path, "$at": "loops.0.points" } the part of it there (keys and indices by dots). A call’s to writes its answer to a .json file in place of carrying it — a long reading fed on to a later call by $file, not through the conversation. ${relativeFrom(cwd)} A tool that returns a picture is not shown here: the picture is written to a file — its call’s path, or a new file in ${WORK_FOLDER} in the folder the scan open now was opened from (by scan_open or project_load with a path), else in ${outDir} — and its result gives that file.path (and file.folder, the ${WORK_FOLDER} folder); call the tool directly to see the picture. The server’s own tools (scanruler_status, _open, _wait, _batch, _write, _files, _read, _tools) cannot be batched.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -1498,6 +1522,7 @@ export function createMcpServer({
             properties: {
               tool: { type: 'string', minLength: 1, description: 'A tool’s name, as listed — scan_nearest, element_fit.' },
               arguments: { type: 'object', description: 'Its arguments, as the tool takes them; {} for none.' },
+              to: { type: 'string', minLength: 1, description: 'A .json file its answer is written to, whole, in place of carrying it here — a long reading (outlines, a grid, a description) a later call takes as { "$file": to, "$at": "loops.0.points" }. The result then says where (written: { path, bytes }) and what the answer holds (keys, a list’s length). A file there already is replaced.' },
             },
             required: ['tool'],
             additionalProperties: false,
@@ -1554,6 +1579,20 @@ export function createMcpServer({
     return { calls }
   }
 
+  /** A call's answer written whole to `to` (a .json file, a relative one
+   *  taken from where every relative path is): where, and what it holds —
+   *  its keys, a list's length — for the batch's result in its place. */
+  const answerTo = async (to, answer) => {
+    if (typeof to !== 'string' || !to) return { error: 'give a .json file.' }
+    if (extname(to).toLowerCase() !== '.json') return { error: `"${to}" is no .json file — the answer is written as JSON.` }
+    const path = absolute(to, pathBase())
+    const body = JSON.stringify(answer)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, body)
+    const holds = (v) => (Array.isArray(v) ? { list: v.length } : v && typeof v === 'object' ? { keys: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Array.isArray(x) ? x.length : x && typeof x === 'object' ? 'object' : typeof x === 'string' && x.length > 80 ? `${x.length} characters` : x])) } : { value: v })
+    return { written: { path, bytes: Buffer.byteLength(body) }, ...holds(answer) }
+  }
+
   /** The batch's calls run in order — see scanruler_batch. `job` is the
    *  batch's, sent with each of its calls for the page to keep. */
   const runBatch = async (calls, args, ctx = null, job = undefined) => {
@@ -1594,7 +1633,7 @@ export function createMcpServer({
       const hiddenAt = hiddenNow()
       const deferred = atEnd && i < calls.length - 1
       lastDeferred = deferred
-      const run = () => runPageTool(tool, callArgs, (line) => noteProgress(jobs.get(job), line, i), { timings, batched: true, job, deferred })
+      const run = () => runPageTool(tool, callArgs, (line) => noteProgress(jobs.get(job), line, i), { timings, batched: true, job, deferred, whole: c.to !== undefined })
       let one = own.some((t) => t.name === tool) ? failure({ code: 'invalid_input', message: `${tool} is the server’s own and is not batched — call it on its own.` }) : await run()
       // Busy with something of the page's own — a map being worked out,
       // say: once it is idle, the call is run again, once.
@@ -1625,6 +1664,21 @@ export function createMcpServer({
           parsed = JSON.parse(body)
         } catch {
           parsed = body
+        }
+        if (c.to !== undefined) {
+          const written = await answerTo(c.to, parsed).catch((e) => ({ error: e?.message ?? String(e) }))
+          if (written.error) {
+            const error = { code: 'invalid_input', message: `calls[${i}].to: ${written.error} The call ran; its answer is not kept.` }
+            results.push({ tool, ok: false, error, ...again, ...ms })
+            if (stopOnError) {
+              stopped = i
+              failed = { index: i, tool, error }
+              break
+            }
+            continue
+          }
+          results.push({ tool, ok: true, result: written, ...again, ...ms })
+          continue
         }
         results.push({ tool, ok: true, result: parsed, ...again, ...ms })
       }
@@ -1734,13 +1788,13 @@ export function createMcpServer({
   // lines of their own.
   let callNo = 0
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-    if (!trace) return withReload(await dispatch(request, extra, null))
+    if (!trace) return withNews(withReload(await dispatch(request, extra, null)), request.params.name)
     const { name, arguments: args } = request.params
     const ctx = { call: ++callNo, fields: {} }
     const t = trace.now()
     const hiddenAt = hiddenNow()
     const running = runningJobs()
-    const reply = withReload(await dispatch(request, extra, ctx))
+    const reply = withNews(withReload(await dispatch(request, extra, ctx)), name)
     trace.write({
       ev: 'call',
       call: ctx.call,
