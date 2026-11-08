@@ -150,6 +150,13 @@ function Legend({ field, target }: { field: Field; target: number }) {
   )
 }
 
+const MODE_WORDS: Record<string, string> = {
+  'in the layers': 'in the layers',
+  'layers pulled apart': 'where the layers pull apart',
+  'layers sheared': 'where the layers shear',
+  'layers crushed': 'where the layers are crushed',
+}
+
 function Answer({ bodyKey }: { bodyKey: string | null }) {
   const r = useFea((s) => s.result)
   useFea((s) => s.holds)
@@ -170,14 +177,20 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
       {stale && <Status tone="warn">Out of date: {stale}. Solve again.</Status>}
       {w.mode && (
         <p className="hint">
-          Weakest {w.mode === 'in the layers' ? 'in the layers' : w.mode === 'layers pulled apart' ? 'where the layers pull apart' : 'where the layers shear'}, at ({w.at?.join(', ')}).
+          Weakest {MODE_WORDS[w.mode] ?? w.mode}, at ({w.at?.join(', ')}).
         </p>
       )}
-      {w.atAHold && w.awayFromHolds && (
-        <p className="hint" title="A perfectly rigid hold makes stress no real mount does">
-          That spot is on a hold; away from the holds: {w.awayFromHolds.safety} ({w.awayFromHolds.mode}).
+      {(w.atAHold || w.atALoad) && w.awayFromHolds && (
+        <p className="hint" title="A perfectly rigid hold, or a load on a small spot, makes stress no real part sees">
+          That spot is on a {w.atAHold ? 'hold' : 'load'}; away from holds and loads: {w.awayFromHolds.safety}
+          {w.awayFromHolds.mode ? ` (${MODE_WORDS[w.awayFromHolds.mode] ?? w.awayFromHolds.mode})` : ''}.
         </p>
       )}
+      {r.warnings?.map((x) => (
+        <Status key={x} tone="warn">
+          {x}
+        </Status>
+      ))}
       <div className="kv">
         <span className="name">Largest stress</span>
         <span>{w.vonMises} MPa</span>

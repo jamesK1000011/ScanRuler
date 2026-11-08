@@ -13,9 +13,15 @@ The work runs on your computer, through the agent's server
 - **CalculiX** solves it, with the material written as engineering constants
   about the layers' axes (`*ORIENTATION`).
 - The server reads the results back and judges each node:
-  - Hill's quadratic check in the layers, with tension or compression
-    strength as the stress has it.
-  - The between-layer check: pulled apart, or sheared.
+  - A quadratic check in the layers on the in-layer principal stresses,
+    with tension or compression strength as each has it (the same whichever
+    way the part is turned in the layer).
+  - The between-layer check: the pull across and the shear between the
+    layers together, and compression across on its own.
+- Before solving, the server reads the STEP in millimetres whatever its
+  units, joins touching solids, refuses a piece that is not held or a mesh
+  too large for the computer's memory, and refuses an answer that
+  overflowed rather than reporting it.
 
 Both programs come with FreeCAD (`FreeCAD.app/Contents/Resources/bin`), or
 from Homebrew. They run as programs of their own, and nothing is linked into

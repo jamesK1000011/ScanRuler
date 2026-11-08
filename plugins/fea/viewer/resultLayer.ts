@@ -57,7 +57,7 @@ export class FeaResultLayer {
 
   private drawn: ArrayLike<number> | null = null
 
-  show(positions: ArrayLike<number>, values: ArrayLike<number>, field: Field, colormap: string, target: number): void {
+  show(positions: Float32Array, index: Uint32Array, values: ArrayLike<number>, field: Field, colormap: string, target: number): void {
     // The same part: only its colours change.
     if (this.mesh && this.drawn === positions) {
       this.mesh.geometry.setAttribute('color', new THREE.BufferAttribute(this.colours(values, field, colormap, target), 3))
@@ -67,7 +67,8 @@ export class FeaResultLayer {
     this.clear()
     this.drawn = positions
     const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(positions), 3))
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    g.setIndex(new THREE.BufferAttribute(index, 1))
     g.setAttribute('color', new THREE.BufferAttribute(this.colours(values, field, colormap, target), 3))
     g.computeVertexNormals()
     g.computeBoundingSphere()

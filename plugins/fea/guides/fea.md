@@ -40,11 +40,16 @@ found. FreeCAD ships both.
 - `fea.solve` returns the worst **safety factor** and where it is: below 1
   it breaks, and `target` (2 by default) is what the person wants. **mode**
   says how it fails:
-  - *in the layers*: Hill's check on the in-layer stresses.
-  - *layers pulled apart*: tension across the layers.
-  - *layers sheared*: shear between the layers.
-- When the worst spot is on a hold, `awayFromHolds` gives the worst
-  elsewhere. Report both, and say the hold's figure is pessimistic.
+  - *in the layers*: the in-layer stresses.
+  - *layers pulled apart*: tension across the layers (with any shear).
+  - *layers sheared*: shear between the layers (with any tension).
+  - *layers crushed*: compression across the layers.
+- When the worst spot is on a hold (`atAHold`) or a load (`atALoad`),
+  `awayFromHolds` gives the worst clear of both. Report both, and say the
+  first figure is pessimistic.
+- `warnings` says what to tell the person: part of a hold or load not found
+  on the mesh, faces in two loads, large strain or movement (a linear answer
+  only roughly holds), or no stress at all.
 - `vonMises` (MPa) and `displacement` (mm) are the largest anywhere.
 - `fea.show { field }` colours the part, and `view.render` pictures it.
   Fields: safety, vonMises, displacement, across (pull across the layers),

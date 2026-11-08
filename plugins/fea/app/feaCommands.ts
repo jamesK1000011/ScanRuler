@@ -9,7 +9,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { anyObject, arr, bool, enumOf, int, num, obj, oneOf, str, vec3 } from '../../../src/commands/schema'
 import { useShell } from '../../../src/state/shellStore'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { setupOf, useFea, type FacePick, type FeaAnswer, type FeaSetup, type Field, type Fineness, type Hold, type Load } from '../state/feaStore'
+import { setupOf, useFea, type FacePick, type FeaAnswer, type FeaSetup, type FeaWire, type Field, type Fineness, type Hold, type Load } from '../state/feaStore'
 import { answered, askServer, Cancelled, progressed } from './feaAsk'
 
 /** The printed materials the server starts from (extras/fea.js MATERIALS). */
@@ -287,19 +287,36 @@ export const cancelSolve = () => current?.abort()
 /** Whether a solve under way was cancelled (not an error to show). */
 export const wasCancelled = (e: unknown) => e instanceof CommandError && /was cancelled/.test(e.message)
 
-/** The answer as the page can draw it: every field there, one per corner. */
-function checked(r: FeaAnswer): FeaAnswer {
-  const n = r?.surface?.positions?.length
-  if (!r || !r.worst || !r.mesh || typeof n !== 'number' || n % 9 !== 0) throw new CommandError('failed', 'The server’s answer is not one this page reads — restart it (and the agent app).')
-  for (const f of FIELDS) if (r.surface.fields?.[f]?.length !== n / 3) throw new CommandError('failed', `The server’s answer has no ${f} for each corner — restart it (and the agent app).`)
-  return r
+const bytesOf = (b64: unknown): ArrayBuffer => {
+  if (typeof b64 !== 'string') throw new CommandError('failed', 'The server’s answer is not one this page reads — restart it (and the agent app).')
+  const bin = atob(b64)
+  const u = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+  return u.buffer
+}
+
+/** The answer as the page can draw it: decoded, every field there, one per node. */
+function checked(w: FeaWire): FeaAnswer {
+  const old = 'The server’s answer is not one this page reads — restart it (and the agent app).'
+  const s = w?.surface
+  if (!w || !w.worst || !w.mesh || !s || s.encoding !== 'base64-le') throw new CommandError('failed', old)
+  const positions = new Float32Array(bytesOf(s.positions))
+  const index = new Uint32Array(bytesOf(s.index))
+  if (positions.length !== s.vertices * 3 || index.length !== s.triangles * 3 || index.some((i) => i >= s.vertices)) throw new CommandError('failed', old)
+  const fields = {} as Record<Field, Float32Array>
+  for (const f of FIELDS) {
+    const v = new Float32Array(bytesOf(s.fields?.[f]))
+    if (v.length !== s.vertices) throw new CommandError('failed', `The server’s answer has no ${f} for each corner — restart it (and the agent app).`)
+    fields[f] = v
+  }
+  return { ...w, surface: { positions, index, fields } }
 }
 
 const solve: Command<Record<string, never>> = {
   name: 'solve',
   title: 'Solve the study',
   description:
-    'Mesh the body (quadratic tetrahedra, Gmsh) and solve it (CalculiX) on this computer through the agent’s server, the material stiffer and stronger in its layers than across them about the build direction. Returns the worst safety factor and where — the lesser of Hill’s check in the layers and the between-layer check (pulled apart or sheared) — with its mode, whether it meets the target, the worst found away from the holds (a rigid hold makes stress no real mount does), the largest von Mises stress (MPa) and displacement (mm), and the mesh. The result is then on the part (fea.show). Holds and loads picked by index stay where they were picked; queries are asked again. A medium mesh takes seconds to a minute; fea.cancel stops it, and other changes wait (are refused as busy) until it is done.',
+    'Mesh the body (quadratic tetrahedra, Gmsh) and solve it (CalculiX) on this computer through the agent’s server, the material stiffer and stronger in its layers than across them about the build direction. Returns the worst safety factor and where — the least of the in-layer check and the between-layer checks (pulled apart, sheared or crushed) — with its mode, whether it meets the target, the worst found away from holds and loads (a rigid hold makes stress no real mount does), any warnings, the largest von Mises stress (MPa) and displacement (mm), and the mesh. The result is then on the part (fea.show). Holds and loads picked by index stay where they were picked; queries are asked again. A medium mesh takes seconds to a minute; fea.cancel stops it, and other changes wait (are refused as busy) until it is done.',
   input: obj({}),
   long: true,
   timeoutMs: 2_700_000,
@@ -336,7 +353,7 @@ const solve: Command<Record<string, never>> = {
       const job = { step: new TextDecoder().decode(step.file.bytes), build: s.build, material: { id: s.material, overrides: s.overrides }, fixtures, loads, mesh: { fineness: s.fineness, ...(s.size ? { size: s.size } : {}) } }
       useFea.setState({ busy: 'Meshing and solving…' })
       const r = checked(
-        await askServer<FeaAnswer>('solve', { job }, {
+        await askServer<FeaWire>('solve', { job }, {
           signal: ctl.signal,
           timeoutMs: 2_600_000,
           progress: (phase, detail) => {

@@ -35,7 +35,7 @@ export function useFeaPlugin(host: PluginHost): PluginRuntime {
       return
     }
     layer.current ??= new FeaResultLayer(scene)
-    layer.current.show(result.surface.positions, result.surface.fields[field], field, colormap, target)
+    layer.current.show(result.surface.positions, result.surface.index, result.surface.fields[field], field, colormap, target)
   }, [host, drawn, result, field, colormap, target])
 
   return {

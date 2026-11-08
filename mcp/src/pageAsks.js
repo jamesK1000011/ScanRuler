@@ -87,21 +87,34 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
  *  and solved on this computer by Gmsh and CalculiX (extras/fea.js), how
  *  far it has got said as it goes (fea.progress), the answer as fea.answer.
  *  One solve at a time: a second waits its turn, or is cancelled. */
-export function attachFeaAsks({ link, holds = () => true, env = process.env, log = () => {} }) {
+export function attachFeaAsks({ link, holds = () => true, env = process.env, log = () => {}, waiting = 3 }) {
   const running = new Map()
+  // A cancel that came before its solve: kept a while, so the solve is not run.
+  const cancelledEarly = new Map()
+  let queued = 0
   let queue = Promise.resolve()
   link.on?.('notice', async ({ kind, data }) => {
     if (kind !== 'fea.solve' || !holds()) return
     const req = typeof data?.req === 'string' ? data.req.slice(0, 40) : null
     if (!req || !['tools', 'solve', 'cancel'].includes(data.action)) return
     if (data.action === 'cancel') {
-      running.get(String(data.of ?? '').slice(0, 40))?.abort()
+      const of = String(data.of ?? '').slice(0, 40)
+      const ctl = running.get(of)
+      if (ctl) ctl.abort()
+      else if (of) {
+        const now = Date.now()
+        for (const [k, t] of cancelledEarly) if (now - t > 30_000) cancelledEarly.delete(k)
+        if (cancelledEarly.size < 50) cancelledEarly.set(of, now)
+      }
       return
     }
     if (running.has(req)) return
+    if (cancelledEarly.delete(req)) return
     const ctl = new AbortController()
-    running.set(req, ctl)
     const say = (phase, detail) => link.run('fea.progress', { req, phase, detail: String(detail ?? '').slice(0, 200) }).catch(() => {})
+    const answerNow = (answer) => link.run('fea.answer', answer).catch((e) => log(`The FEA answer did not reach the page: ${e.message}`))
+    if (data.action === 'solve' && queued >= waiting) return answerNow({ req, ok: false, error: `${queued} studies are already waiting to solve: cancel one, or wait for them.` })
+    running.set(req, ctl)
     let answer
     const work = async () => {
       try {
@@ -114,9 +127,14 @@ export function attachFeaAsks({ link, holds = () => true, env = process.env, log
         running.delete(req)
       }
       if (ctl.signal.aborted) return
-      await link.run('fea.answer', answer).catch((e) => log(`The FEA answer did not reach the page: ${e.message}`))
+      await answerNow(answer)
     }
     if (data.action === 'tools') return work()
-    queue = queue.then(work, work)
+    queued++
+    const turn = async () => {
+      queued--
+      await work()
+    }
+    queue = queue.then(turn, turn)
   })
 }

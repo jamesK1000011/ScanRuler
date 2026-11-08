@@ -8,15 +8,15 @@
 // triangles of the CAD faces they act on, matched to the mesh's surface
 // here, so no face numbering has to agree between programs. The answer:
 // displacement, stress, the stress across the layers, and a safety factor
-// from the in-layer (Hill) and the between-layer checks.
+// from the in-layer and the between-layer checks.
 //
 // The job and the answer are plain JSON (FeaJob, FeaAnswer below), so
 // another solver can stand behind the same exchange.
 
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { accessSync, constants, existsSync, statSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { homedir, tmpdir } from 'node:os'
+import { homedir, tmpdir, totalmem } from 'node:os'
 import { dirname, join } from 'node:path'
 
 // ---- the programs ---------------------------------------------------------------
@@ -24,39 +24,63 @@ import { dirname, join } from 'node:path'
 const BUNDLES = ['/Applications/FreeCAD.app/Contents/Resources/bin', join(homedir(), 'Applications/FreeCAD.app/Contents/Resources/bin')]
 const SYSTEM = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin']
 
-function run(cmd, args, { cwd, env, timeoutMs = 600_000, signal, onLine } = {}) {
+const cancelled = () => Object.assign(new Error('Cancelled.'), { cancelled: true })
+
+/** A program run to its end: its output (capped), exit code and signal,
+ *  and whether it ran out of time. Cancel or a timeout kills it and
+ *  anything it started (its process group, where the system has them). */
+function run(cmd, args, { cwd, env, timeoutMs = 600_000, signal } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
+    if (signal?.aborted) return reject(cancelled())
+    const group = process.platform !== 'win32'
+    const child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: group })
     let out = ''
     let err = ''
-    let rest = ''
-    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
-    const stop = () => child.kill('SIGKILL')
-    signal?.addEventListener('abort', stop, { once: true })
+    let timedOut = false
+    const kill = () => {
+      try {
+        if (group && child.pid) process.kill(-child.pid, 'SIGKILL')
+        else child.kill('SIGKILL')
+      } catch {
+        try {
+          child.kill('SIGKILL')
+        } catch {}
+      }
+    }
+    const timer = setTimeout(() => {
+      timedOut = true
+      kill()
+    }, timeoutMs)
+    signal?.addEventListener('abort', kill, { once: true })
+    const done = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', kill)
+    }
     child.stdout.on('data', (d) => {
       out += d
       if (out.length > 4e6) out = out.slice(-2e6)
-      if (onLine) {
-        const lines = (rest + d).split('\n')
-        rest = lines.pop()
-        for (const l of lines) onLine(l)
-      }
     })
     child.stderr.on('data', (d) => {
       err += d
       if (err.length > 1e6) err = err.slice(-5e5)
     })
     child.on('error', (e) => {
-      clearTimeout(timer)
+      done()
       reject(new Error(`${cmd} could not be started: ${e.message}`))
     })
     child.on('close', (code, sig) => {
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', stop)
-      if (signal?.aborted) return reject(Object.assign(new Error('Cancelled.'), { cancelled: true }))
-      resolve({ code, signal: sig, out, err })
+      done()
+      if (signal?.aborted) return reject(cancelled())
+      resolve({ code, signal: sig, timedOut, out, err })
     })
   })
+}
+
+/** How a program's run ended, in words, when it did not end well. */
+function ending(name, r) {
+  if (r.timedOut) return `${name} ran out of time`
+  if (r.signal) return `${name} was killed (${r.signal}) — most often out of memory: try a coarser mesh`
+  return `${name} stopped (exit ${r.code})`
 }
 
 /** The environment a bundled program runs in: a Linux FreeCAD keeps its
@@ -68,13 +92,23 @@ function envFor(path, env) {
 }
 
 async function which(name, env) {
-  for (const d of String(env.PATH ?? '').split(':').filter(Boolean)) if (existsSync(join(d, name))) return join(d, name)
+  for (const d of String(env.PATH ?? '').split(':').filter(Boolean)) if (runnable(join(d, name))) return join(d, name)
   return null
 }
 
+const runnable = (p) => {
+  try {
+    if (!statSync(p).isFile()) return false
+    accessSync(p, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function find(name, envKey, env) {
-  if (env[envKey]) return existsSync(env[envKey]) ? env[envKey] : null
-  for (const d of [...BUNDLES, ...SYSTEM]) if (existsSync(join(d, name))) return join(d, name)
+  if (env[envKey]) return runnable(env[envKey]) ? env[envKey] : null
+  for (const d of [...BUNDLES, ...SYSTEM]) if (runnable(join(d, name))) return join(d, name)
   return which(name, env)
 }
 
@@ -98,11 +132,13 @@ export async function feaTools(env = process.env) {
     ccx: ccx ? { path: ccx, version: await version(ccx, ['-v'], /Version\s+([\d.]+)/i) } : null,
   }
   const missing = [!tools.gmsh && 'Gmsh', !tools.ccx && 'CalculiX'].filter(Boolean)
+  // Found but not answering for its version: there, but it does not run.
+  const broken = [tools.gmsh && !tools.gmsh.version && `Gmsh (${tools.gmsh.path})`, tools.ccx && !tools.ccx.version && `CalculiX (${tools.ccx.path})`].filter(Boolean)
   return {
     ...tools,
-    ready: missing.length === 0,
-    ...(missing.length
-      ? { howTo: `${missing.join(' and ')} not found. Installing FreeCAD (freecad.org) brings both; or Homebrew: brew install gmsh, and brew tap costerwi/calculix && brew install calculix-ccx. Elsewhere, set SCANRULER_GMSH / SCANRULER_CCX to the programs.` }
+    ready: missing.length === 0 && broken.length === 0,
+    ...(missing.length || broken.length
+      ? { howTo: `${[missing.length ? `${missing.join(' and ')} not found.` : '', broken.length ? `${broken.join(' and ')} found but did not run.` : ''].filter(Boolean).join(' ')} Installing FreeCAD (freecad.org) brings both; or Homebrew: brew install gmsh, and brew tap costerwi/calculix && brew install calculix-ccx. Elsewhere, set SCANRULER_GMSH / SCANRULER_CCX to the programs.` }
       : {}),
   }
 }
@@ -129,15 +165,27 @@ export const MATERIALS = {
 /** A material whole: a preset, with the person's figures over it, and what
  *  follows from them — the shear moduli and the between-layer shear
  *  strength — where not given. */
+const FIGURES = { Exy: 'MPa', Ez: 'MPa', Gxy: 'MPa', Gz: 'MPa', nuXY: '', nuZ: '', Xt: 'MPa', Xc: 'MPa', Zt: 'MPa', Zc: 'MPa', S: 'MPa', Sz: 'MPa' }
+
 export function materialOf(id = 'pla', overrides = {}) {
-  const base = MATERIALS[id]
+  const base = typeof id === 'string' && Object.hasOwn(MATERIALS, id) ? MATERIALS[id] : null
   if (!base) throw new Error(`No material "${id}" — ${Object.keys(MATERIALS).join(', ')}, with overrides for your own figures.`)
-  const m = { id, ...base, ...Object.fromEntries(Object.entries(overrides ?? {}).filter(([, v]) => typeof v === 'number' && Number.isFinite(v))) }
+  const given = {}
+  for (const [k, v] of Object.entries(overrides ?? {})) {
+    if (v === undefined || v === null) continue
+    if (!Object.hasOwn(FIGURES, k)) throw new Error(`The material has no figure "${k}" — ${Object.keys(FIGURES).join(', ')}.`)
+    if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`The material's ${k} must be a number.`)
+    given[k] = v
+  }
+  const m = { id, ...base, ...given }
   m.Gxy ??= m.Exy / (2 * (1 + m.nuXY))
   // Across the layers the shear stiffness follows the softer direction.
   m.Gz ??= Math.min(m.Exy, m.Ez) / (2 * (1 + m.nuZ))
   m.Sz ??= 0.6 * m.Zt
   for (const k of ['Exy', 'Ez', 'Gxy', 'Gz', 'Xt', 'Xc', 'Zt', 'Zc', 'S', 'Sz']) if (!(m[k] > 0)) throw new Error(`The material's ${k} must be more than 0 MPa.`)
+  // Plausible for a solid: stiffness 1 MPa to 1000 GPa, strength under it.
+  for (const k of ['Exy', 'Ez', 'Gxy', 'Gz']) if (m[k] < 1 || m[k] > 1e6) throw new Error(`The material's ${k} (${m[k]} MPa) is not a stiffness a printed part has: 1 to 1,000,000 MPa.`)
+  for (const k of ['Xt', 'Xc', 'Zt', 'Zc', 'S', 'Sz']) if (m[k] > 1e4) throw new Error(`The material's ${k} (${m[k]} MPa) is not a strength a printed part has — is it in MPa?`)
   // Stable: the compliance matrix positive definite.
   const n21 = m.nuXY, n31 = (m.nuZ * m.Ez) / m.Exy
   if (!(m.nuXY > -1 && m.nuXY < 1) || 1 - n21 * n21 - 2 * m.nuZ * n31 - 2 * n21 * m.nuZ * n31 <= 0) throw new Error("The material's Poisson's ratios make it unstable: keep them nearer 0.3.")
@@ -150,7 +198,7 @@ export function materialOf(id = 'pla', overrides = {}) {
  *  tetrahedra with their mid-side nodes put in CalculiX's order (C3D10:
  *  corners, then edges 1-2, 2-3, 3-1, 1-4, 2-4, 3-4) by where they lie, not
  *  by trusting either program's numbering. */
-export function readMsh(text) {
+export function readMsh(text, { linear = false } = {}) {
   const lines = text.split(/\r?\n/)
   let i = 0
   const nodes = new Map()
@@ -167,13 +215,24 @@ export function readMsh(text) {
       const n = Number(lines[i++])
       for (let k = 0; k < n; k++) {
         const p = lines[i++].trim().split(/\s+/).map(Number)
-        if (p[1] !== 11) continue
+        if (p[1] !== (linear ? 4 : 11)) continue
         const tags = p[2]
-        tets.push(p.slice(3 + tags, 3 + tags + 10))
+        tets.push(p.slice(3 + tags, 3 + tags + (linear ? 4 : 10)))
       }
     }
   }
   if (!tets.length) throw new Error('Gmsh made no solid elements: is the part one closed solid?')
+  if (linear) {
+    // Just where the part is and how much of it: its nodes and volume.
+    const xyz = Float64Array.from([...nodes.values()].flat())
+    let volume = 0
+    for (const t of tets) {
+      const q = t.map((n) => nodes.get(n))
+      if (q.some((x) => !x)) throw new Error('The mesh names a node it does not hold.')
+      volume += Math.abs(det(sub(q[1], q[0]), sub(q[2], q[0]), sub(q[3], q[0]))) / 6
+    }
+    return { xyz, volume }
+  }
   // Renumber 1.. in the order used, and order each element's mid-side nodes.
   const id = new Map()
   const xyz = []
@@ -264,7 +323,7 @@ export function surfaceOf(mesh) {
     // as the flat triangle's centre would be.
     const m = nodes.slice(3).map(at)
     const centre = [0, 1, 2].map((k) => (-(a[k] + b[k] + c[k]) + 4 * (m[0][k] + m[1][k] + m[2][k])) / 9)
-    faces.push({ nodes, normal: [cr[0] / (2 * area), cr[1] / (2 * area), cr[2] / (2 * area)], area, centre })
+    faces.push({ nodes, normal: [cr[0] / (2 * area), cr[1] / (2 * area), cr[2] / (2 * area)], area, centre, corners: [...a, ...b, ...c] })
   }
   return faces
 }
@@ -299,59 +358,129 @@ function toTriangle(p, t, q) {
   return at(vb * den, vc * den)
 }
 
-/** The surface faces that lie on a group's CAD triangles: centre within
- *  tol of one, facing within 30° of it either way (a CAD mesh's winding is
- *  not trusted). */
+/** The surface faces that lie on a group's CAD triangles (nine numbers
+ *  each, the part's frame): a face's centre within tolerance of one and
+ *  facing within 30° of it. The tolerance grows where the display mesh is
+ *  coarse on a curve (a hole drawn with few sides lies off the true wall by
+ *  its sagitta), estimated from the angle to the triangle's neighbours.
+ *  Each triangle faces one way: where both walls of a slit thinner than
+ *  the tolerance come within reach, the wall it lies on wins (each
+ *  triangle's side voted by its nearest faces, the closest counting most).
+ *  A group smaller than one mesh face takes the face under it. */
 export function facesOn(surface, tris, tol) {
-  const n = tris.length / 9
+  const n = Math.floor(tris.length / 9)
   if (!n) return []
   const nrm = []
-  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]
+  const len = new Float64Array(n)
   for (let t = 0; t < n; t++) {
     const o = t * 9
-    const c = cross([tris[o + 3] - tris[o], tris[o + 4] - tris[o + 1], tris[o + 5] - tris[o + 2]], [tris[o + 6] - tris[o], tris[o + 7] - tris[o + 1], tris[o + 8] - tris[o + 2]])
-    const l = norm(c) || 1
-    nrm.push([c[0] / l, c[1] / l, c[2] / l])
-    for (let k = 0; k < 9; k++) {
-      lo[k % 3] = Math.min(lo[k % 3], tris[o + k])
-      hi[k % 3] = Math.max(hi[k % 3], tris[o + k])
+    const e1 = [tris[o + 3] - tris[o], tris[o + 4] - tris[o + 1], tris[o + 5] - tris[o + 2]]
+    const e2 = [tris[o + 6] - tris[o], tris[o + 7] - tris[o + 1], tris[o + 8] - tris[o + 2]]
+    const e3 = [tris[o + 6] - tris[o + 3], tris[o + 7] - tris[o + 4], tris[o + 8] - tris[o + 5]]
+    const c = cross(e1, e2)
+    const l = norm(c)
+    nrm.push(l > 0 ? [c[0] / l, c[1] / l, c[2] / l] : null)
+    len[t] = Math.max(norm(e1), norm(e2), norm(e3))
+  }
+  // The bend to each neighbour across a shared edge (a smooth one: under 61°).
+  const key = (o) => `${Math.round(tris[o] * 1e4)},${Math.round(tris[o + 1] * 1e4)},${Math.round(tris[o + 2] * 1e4)}`
+  const edges = new Map()
+  for (let t = 0; t < n; t++) {
+    const v = [key(t * 9), key(t * 9 + 3), key(t * 9 + 6)]
+    for (let k = 0; k < 3; k++) {
+      const a = v[k], b = v[(k + 1) % 3]
+      const e = a < b ? `${a}|${b}` : `${b}|${a}`
+      const list = edges.get(e)
+      if (list) list.push(t)
+      else edges.set(e, [t])
     }
   }
+  const bend = new Float64Array(n)
+  for (const list of edges.values())
+    for (const t of list)
+      for (const u of list) {
+        if (t === u || !nrm[t] || !nrm[u]) continue
+        const th = Math.acos(Math.min(1, Math.abs(dot(nrm[t], nrm[u]))))
+        if (th < (61 * Math.PI) / 180 && th > bend[t]) bend[t] = th
+      }
+  const tolOf = new Float64Array(n)
+  const cosOf = new Float64Array(n)
+  let tolMax = tol
+  for (let t = 0; t < n; t++) {
+    tolOf[t] = Math.max(tol, (1.5 * len[t] * bend[t]) / 8)
+    cosOf[t] = Math.cos(Math.max(Math.PI / 6, bend[t] / 2 + Math.PI / 9))
+    tolMax = Math.max(tolMax, tolOf[t])
+  }
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]
+  for (let k = 0; k < n * 9; k++) {
+    lo[k % 3] = Math.min(lo[k % 3], tris[k])
+    hi[k % 3] = Math.max(hi[k % 3], tris[k])
+  }
   const diag = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])
-  const cell = Math.max(tol * 2, diag / 64, 1e-3)
-  const dims = [0, 1, 2].map((a) => Math.max(1, Math.ceil((hi[a] - lo[a] + 2 * tol) / cell)))
-  const base = lo.map((x) => x - tol)
+  const cell = Math.max(tolMax * 2, diag / 64, 1e-3)
+  const dims = [0, 1, 2].map((a) => Math.max(1, Math.ceil((hi[a] - lo[a] + 2 * tolMax) / cell)))
+  const base = lo.map((x) => x - tolMax)
   const cellOf = (x, a) => Math.min(dims[a] - 1, Math.max(0, Math.floor((x - base[a]) / cell)))
   const grid = new Map()
   for (let t = 0; t < n; t++) {
+    if (!nrm[t]) continue
     const o = t * 9
-    const b0 = [0, 1, 2].map((a) => cellOf(Math.min(tris[o + a], tris[o + 3 + a], tris[o + 6 + a]) - tol, a))
-    const b1 = [0, 1, 2].map((a) => cellOf(Math.max(tris[o + a], tris[o + 3 + a], tris[o + 6 + a]) + tol, a))
+    const b0 = [0, 1, 2].map((a) => cellOf(Math.min(tris[o + a], tris[o + 3 + a], tris[o + 6 + a]) - tolOf[t], a))
+    const b1 = [0, 1, 2].map((a) => cellOf(Math.max(tris[o + a], tris[o + 3 + a], tris[o + 6 + a]) + tolOf[t], a))
     for (let i = b0[0]; i <= b1[0]; i++)
       for (let j = b0[1]; j <= b1[1]; j++)
         for (let k = b0[2]; k <= b1[2]; k++) {
-          const key = (i * dims[1] + j) * dims[2] + k
-          const list = grid.get(key)
+          const g = (i * dims[1] + j) * dims[2] + k
+          const list = grid.get(g)
           if (list) list.push(t)
-          else grid.set(key, [t])
+          else grid.set(g, [t])
         }
   }
-  const cos = Math.cos(Math.PI / 6)
-  const tol2 = tol * tol
-  const out = []
+  // Each face's nearest triangle (as a share of that triangle's tolerance).
+  const hits = []
   surface.forEach((f, idx) => {
     const q = f.centre
-    if (q.some((x, a) => x < base[a] || x > hi[a] + tol)) return
+    if (q.some((x, a) => x < base[a] || x > hi[a] + tolMax)) return
     const list = grid.get((cellOf(q[0], 0) * dims[1] + cellOf(q[1], 1)) * dims[2] + cellOf(q[2], 2))
     if (!list) return
+    let best = -1, r = Infinity, side = 0
     for (const t of list) {
-      if (Math.abs(dot(f.normal, nrm[t])) < cos) continue
-      if (toTriangle(tris, t, q) > tol2) continue
-      out.push(idx)
-      return
+      const d = dot(f.normal, nrm[t])
+      if (Math.abs(d) < cosOf[t]) continue
+      const rr = Math.sqrt(toTriangle(tris, t, q)) / tolOf[t]
+      if (rr <= 1 && rr < r) {
+        best = t
+        r = rr
+        side = Math.sign(d)
+      }
     }
+    if (best >= 0) hits.push({ idx, t: best, r, side })
   })
-  return out
+  const vote = new Float64Array(n)
+  for (const h of hits) vote[h.t] += h.side * (1 - h.r + 1e-6)
+  const out = hits.filter((h) => vote[h.t] === 0 || Math.sign(vote[h.t]) === h.side).map((h) => h.idx)
+  if (out.length || n > 2000) return out
+  // Smaller than a mesh face: the face each triangle's middle lies on.
+  const got = new Set()
+  for (let t = 0; t < n; t++) {
+    if (!nrm[t]) continue
+    const o = t * 9
+    const c = [0, 1, 2].map((a) => (tris[o + a] + tris[o + 3 + a] + tris[o + 6 + a]) / 3)
+    let best = -1, d2 = tolOf[t] ** 2
+    surface.forEach((f, idx) => {
+      if (Math.abs(dot(f.normal, nrm[t])) < cosOf[t]) return
+      const reach = 2 * Math.sqrt(2 * f.area) + tolOf[t]
+      if ((f.centre[0] - c[0]) ** 2 + (f.centre[1] - c[1]) ** 2 + (f.centre[2] - c[2]) ** 2 > reach * reach) return
+      const corners = f.corners
+      const d = toTriangle(corners, 0, c)
+      if (d <= d2) {
+        d2 = d
+        best = idx
+      }
+    })
+    if (best >= 0) got.add(best)
+  }
+  return [...got]
 }
 
 // ---- CalculiX's input ------------------------------------------------------------
@@ -427,6 +556,14 @@ export function nodalForces(surface, loads) {
 
 /** CalculiX's result file (.frd, ASCII): the last step's nodal
  *  displacement and stress, by node. */
+const num = (t) => {
+  const x = Number(t)
+  if (!Number.isNaN(x)) return x
+  // CalculiX writes overflowed values as INF (or NAN): kept as such, not as 0.
+  if (/INF/i.test(t)) return t.includes('-') ? -Infinity : Infinity
+  return NaN
+}
+
 export function readFrd(text) {
   const lines = text.split(/\r?\n/)
   const disp = new Map()
@@ -434,8 +571,11 @@ export function readFrd(text) {
   let into = null
   for (const l of lines) {
     if (/^\s+-4\s+DISP\b/.test(l)) {
+      // A step's displacement comes before its stress: a new step's
+      // displacement starts both afresh.
       into = disp
       disp.clear()
+      stress.clear()
       continue
     }
     if (/^\s+-4\s+STRESS\b/.test(l)) {
@@ -454,7 +594,7 @@ export function readFrd(text) {
     if (!into || !l.startsWith(' -1')) continue
     const node = Number(l.slice(3, 13))
     const vals = []
-    for (let k = 13; k + 12 <= l.length; k += 12) vals.push(Number(l.slice(k, k + 12)))
+    for (let k = 13; k + 12 <= l.length; k += 12) vals.push(num(l.slice(k, k + 12)))
     into.set(node, vals)
   }
   if (!disp.size) throw new Error('CalculiX wrote no displacements.')
@@ -478,33 +618,47 @@ function inAxes(s, ax) {
 }
 
 /** What a node's stress comes to for a printed part: von Mises; the stress
- *  across the layers and the shear between them; and the safety factor —
- *  the lesser of Hill's quadratic check in the layers (tension or
- *  compression strengths as the stress has it) and the between-layer check
- *  (pulled apart, or sheared). */
+ *  across the layers and the shear between them; and the safety factor, the
+ *  least of three checks, its mode the one that sets it:
+ *  - in the layers: a quadratic check on the in-layer principal stresses
+ *    (so it does not depend on which way in the layer is "x"), tension or
+ *    compression strength as each has it, through the in-layer shear
+ *    strength S where they differ in sign;
+ *  - layers pulled apart or sheared: the pull across them and the shear
+ *    between them together, √((σ₃₃⁺/Zt)² + (τ/Sz)²);
+ *  - layers crushed: compression across them on its own, −σ₃₃/Zc. */
 export function judge(s, m, ax) {
   const vm = Math.sqrt(0.5 * ((s[0] - s[1]) ** 2 + (s[1] - s[2]) ** 2 + (s[2] - s[0]) ** 2) + 3 * (s[3] ** 2 + s[4] ** 2 + s[5] ** 2))
   const a = inAxes(s, ax)
-  const X1 = a.s11 >= 0 ? m.Xt : m.Xc
-  const X2 = a.s22 >= 0 ? m.Xt : m.Xc
-  const Z = a.s33 >= 0 ? m.Zt : m.Zc
-  // Hill (1948) for transverse isotropy: 1, 2 in the layer, 3 across.
-  const F = 0.5 * (1 / X2 ** 2 + 1 / Z ** 2 - 1 / X1 ** 2)
-  const G = 0.5 * (1 / Z ** 2 + 1 / X1 ** 2 - 1 / X2 ** 2)
-  const H = 0.5 * (1 / X1 ** 2 + 1 / X2 ** 2 - 1 / Z ** 2)
-  const hill = F * (a.s22 - a.s33) ** 2 + G * (a.s33 - a.s11) ** 2 + H * (a.s11 - a.s22) ** 2 + (a.t23 ** 2 + a.t13 ** 2) / m.Sz ** 2 + a.t12 ** 2 / m.S ** 2
+  // In-layer principal stresses.
+  const c = (a.s11 + a.s22) / 2
+  const r = Math.hypot((a.s11 - a.s22) / 2, a.t12)
+  const p1 = c + r, p2 = c - r
+  const X1 = p1 >= 0 ? m.Xt : m.Xc
+  const X2 = p2 >= 0 ? m.Xt : m.Xc
+  // Same sign: Tsai–Hill's cross term. Opposite: set by S (pure shear,
+  // p1 = −p2, fails at S), held short of making the check indefinite.
+  const k = p1 * p2 >= 0 ? 1 / (X1 * X2) : Math.max(1 / m.S ** 2 - 1 / X1 ** 2 - 1 / X2 ** 2, -1.9 / (X1 * X2))
+  const inLayer = (p1 / X1) ** 2 + (p2 / X2) ** 2 - k * p1 * p2
   const shear = Math.hypot(a.t13, a.t23)
-  const apart = Math.max(a.s33 > 0 ? a.s33 / m.Zt : 0, shear / m.Sz)
-  const sfHill = hill > 0 ? 1 / Math.sqrt(hill) : Infinity
-  const sfLayers = apart > 0 ? 1 / apart : Infinity
-  return { vm, across: a.s33, shear, sf: Math.min(sfHill, sfLayers), mode: sfLayers <= sfHill * (1 + 1e-9) ? (a.s33 > 0 && a.s33 / m.Zt >= shear / m.Sz ? 'layers pulled apart' : 'layers sheared') : 'in the layers' }
+  const pull = Math.max(a.s33, 0) / m.Zt
+  const between = Math.hypot(pull, shear / m.Sz)
+  const crush = Math.max(-a.s33, 0) / m.Zc
+  const checks = [
+    [inLayer > 0 ? 1 / Math.sqrt(inLayer) : Infinity, 'in the layers'],
+    [between > 0 ? 1 / between : Infinity, pull >= shear / m.Sz ? 'layers pulled apart' : 'layers sheared'],
+    [crush > 0 ? 1 / crush : Infinity, 'layers crushed'],
+  ]
+  let [sf, mode] = checks[0]
+  for (const [x, w] of checks.slice(1)) if (x < sf * (1 - 1e-9)) [sf, mode] = [x, w]
+  return { vm, across: a.s33, shear, sf, mode: Number.isFinite(sf) ? mode : null }
 }
 
 // ---- the run ---------------------------------------------------------------------
 
 /**
  * @typedef {object} FeaJob
- * @property {string} step          The part as STEP text, in mm.
+ * @property {string} step          The part as STEP text (read in mm whatever its units).
  * @property {number[]} build        The build direction (the layers' normal), part frame.
  * @property {{ id?: string, overrides?: object }} material
  * @property {{ name?: string, triangles: number[] }[]} fixtures  Faces held still.
@@ -514,76 +668,195 @@ export function judge(s, m, ax) {
 
 const FINENESS = { coarse: 12, medium: 24, fine: 40 }
 
+/** About how many elements this computer solves: CalculiX's direct solver
+ *  needs about 40 kB per quadratic element; half the memory is left for
+ *  everything else. */
+export function elementCap(bytes = totalmem()) {
+  return Math.max(30_000, Math.min(400_000, Math.floor(bytes / 2 / 40_000)))
+}
+
+const isVec = (v) => Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === 'number' && Number.isFinite(x))
+
+/** A group's triangles checked: nine finite numbers each. */
+function trianglesOf(g, what, i) {
+  const t = g?.triangles
+  const name = `${what} ${g?.name ?? i + 1}`
+  if (!Array.isArray(t) && !ArrayBuffer.isView(t)) throw new Error(`${name} needs its faces as triangles (nine numbers each).`)
+  if (!t.length || t.length % 9) throw new Error(`${name}'s triangles must be nine numbers each (x, y, z of three corners); it has ${t.length} numbers.`)
+  for (let k = 0; k < t.length; k++) if (typeof t[k] !== 'number' || !Number.isFinite(t[k])) throw new Error(`${name}'s triangle ${Math.floor(k / 9) + 1} has a coordinate that is not a number.`)
+  return Float64Array.from(t)
+}
+
+/** The mesh's connected pieces: each element's nodes joined. */
+function piecesOf(mesh) {
+  const nodes = mesh.xyz.length / 3
+  const up = new Int32Array(nodes + 1).map((_, i) => i)
+  const root = (x) => {
+    while (up[x] !== x) x = up[x] = up[up[x]]
+    return x
+  }
+  const E = mesh.elements
+  for (let e = 0; e < E.length; e += 10) for (let k = 1; k < 10; k++) up[root(E[e + k])] = root(E[e])
+  const piece = new Int32Array(nodes + 1)
+  const ids = new Map()
+  for (let n = 1; n <= nodes; n++) {
+    const r = root(n)
+    if (!ids.has(r)) ids.set(r, ids.size)
+    piece[n] = ids.get(r)
+  }
+  return { count: ids.size, piece }
+}
+
 /** Mesh, solve and judge a part. progress(phase, detail) says how far. */
 export async function solve(job, env = process.env, { signal, progress = () => {} } = {}) {
+  const check = () => {
+    if (signal?.aborted) throw cancelled()
+  }
   const tools = await feaTools(env)
   if (!tools.ready) throw new Error(tools.howTo)
+  check()
   if (typeof job?.step !== 'string' || !/ISO-10303-21/.test(job.step.slice(0, 400))) throw new Error('The part must come as STEP.')
   const material = materialOf(job.material?.id ?? 'pla', job.material?.overrides)
-  const axes = layerAxes(Array.isArray(job.build) && job.build.length === 3 ? job.build : [0, 0, 1])
+  if (job.build !== undefined && !isVec(job.build)) throw new Error('The build direction is three numbers [x, y, z].')
+  const axes = layerAxes(job.build ?? [0, 0, 1])
   const fixtures = Array.isArray(job.fixtures) ? job.fixtures : []
-  const loads = Array.isArray(job.loads) ? job.loads : []
+  const loads0 = Array.isArray(job.loads) ? job.loads : []
   if (!fixtures.length) throw new Error('Hold the part somewhere: at least one fixed face.')
-  if (!loads.length) throw new Error('Load the part: at least one face with a force or a pressure.')
-  for (const L of loads) {
-    const hasForce = Array.isArray(L.force) && L.force.length === 3 && L.force.every(Number.isFinite) && L.force.some((x) => x !== 0)
-    const hasPressure = typeof L.pressure === 'number' && Number.isFinite(L.pressure) && L.pressure !== 0
-    if (hasForce === hasPressure) throw new Error(`Each load is a force [x, y, z] in N or a pressure in MPa, one of them (${L.name ?? 'a load'}).`)
+  if (!loads0.length) throw new Error('Load the part: at least one face with a force or a pressure.')
+  const loads = loads0.map((L, i) => {
+    const hasForce = isVec(L?.force) && L.force.some((x) => x !== 0)
+    const hasPressure = typeof L?.pressure === 'number' && Number.isFinite(L.pressure) && L.pressure !== 0
+    if (hasForce === hasPressure) throw new Error(`Each load is a force [x, y, z] in N or a pressure in MPa, one of them (${L?.name ?? `load ${i + 1}`}).`)
+    const { force: _f, pressure: _p, ...rest } = L
+    return hasForce ? { ...rest, force: L.force.map(Number) } : { ...rest, pressure: L.pressure }
+  })
+  const fixTris = fixtures.map((g, i) => trianglesOf(g, 'Fixture', i))
+  const loadTris = loads.map((g, i) => trianglesOf(g, 'Load', i))
+  const fineness = job.mesh?.fineness ?? 'medium'
+  if (!Object.hasOwn(FINENESS, fineness)) throw new Error(`The mesh's fineness is coarse, medium or fine, not "${fineness}".`)
+  let asked = null
+  if (job.mesh?.size !== undefined && job.mesh?.size !== null) {
+    asked = Number(job.mesh.size)
+    if (!Number.isFinite(asked) || asked <= 0) throw new Error('The mesh size is a length in mm, more than 0.')
   }
   const dir = await mkdtemp(join(tmpdir(), 'scanruler-fea-'))
   try {
     await writeFile(join(dir, 'part.step'), job.step)
-    // The part's size from the STEP's points, for the element size.
-    const pts = [...job.step.matchAll(/CARTESIAN_POINT\s*\(\s*'[^']*'\s*,\s*\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/g)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3])])
-    const lo = [0, 1, 2].map((a) => Math.min(...pts.map((p) => p[a])))
-    const hi = [0, 1, 2].map((a) => Math.max(...pts.map((p) => p[a])))
-    const diag = pts.length ? Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) : 100
-    const size = job.mesh?.size > 0 ? job.mesh.size : diag / (FINENESS[job.mesh?.fineness ?? 'medium'] ?? 24)
+    // Read as millimetres whatever the STEP's units, and touching solids
+    // joined so they share their faces' nodes.
+    await writeFile(join(dir, 'part.geo'), 'SetFactory("OpenCASCADE");\nGeometry.OCCTargetUnit = "MM";\nMerge "part.step";\nCoherence;\n')
+    const gEnv = envFor(tools.gmsh.path, env)
+    // The part's size and volume from a mesh as coarse as Gmsh makes it.
+    progress('meshing', 'measuring the part')
+    const p = await run(tools.gmsh.path, ['part.geo', '-3', '-clmax', '1e9', '-format', 'msh22', '-o', 'probe.msh'], { cwd: dir, env: gEnv, signal, timeoutMs: 120_000 })
+    if (p.code !== 0 || p.signal || !existsSync(join(dir, 'probe.msh'))) throw new Error(`Gmsh could not read the part: ${gmshSaid(p) || ending('Gmsh', p)}`)
+    const probe = readMsh(await readFile(join(dir, 'probe.msh'), 'utf8'), { linear: true })
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]
+    for (let k = 0; k < probe.xyz.length; k++) {
+      lo[k % 3] = Math.min(lo[k % 3], probe.xyz[k])
+      hi[k % 3] = Math.max(hi[k % 3], probe.xyz[k])
+    }
+    const diag = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])
+    const volume = probe.volume
+    const want = asked ?? diag / FINENESS[fineness]
+    const size = Math.min(Math.max(want, diag / 200), diag / 4)
+    const cap = elementCap(Number(env.SCANRULER_FEA_MEMORY) > 0 ? Number(env.SCANRULER_FEA_MEMORY) : undefined)
+    // A regular tetrahedron of edge a holds a³/(6√2); curves refine it further.
+    const guess = Math.round((volume * 6 * Math.SQRT2) / size ** 3)
+    if (guess > cap * 1.5) throw new Error(`Elements of ${size.toPrecision(2)} mm come to about ${guess.toLocaleString('en')} — more than this computer solves (about ${cap.toLocaleString('en')}). Ask for a coarser mesh (fineness: "coarse", or a size of ${((volume * 6 * Math.SQRT2) / cap) ** (1 / 3) > 0 ? (((volume * 6 * Math.SQRT2) / cap) ** (1 / 3)).toPrecision(2) : '—'} mm or more).`)
+    check()
     progress('meshing', `elements about ${size.toPrecision(2)} mm`)
-    const g = await run(tools.gmsh.path, ['part.step', '-3', '-order', '2', '-clmax', String(size), '-clmin', String(size / 4), '-setnumber', 'Mesh.MeshSizeFromCurvature', '12', '-format', 'msh22', '-o', 'part.msh', '-nt', '4'], { cwd: dir, env: envFor(tools.gmsh.path, env), signal, timeoutMs: 600_000 })
-    if (g.code !== 0 || !existsSync(join(dir, 'part.msh'))) throw new Error(`Gmsh could not mesh the part: ${(g.err || g.out).split('\n').filter((l) => /error/i.test(l)).slice(-3).join(' ') || `exit ${g.code}`}`)
+    const g = await run(tools.gmsh.path, ['part.geo', '-3', '-order', '2', '-clmax', String(size), '-clmin', String(size / 4), '-setnumber', 'Mesh.MeshSizeFromCurvature', '12', '-format', 'msh22', '-o', 'part.msh', '-nt', '4'], { cwd: dir, env: gEnv, signal, timeoutMs: 600_000 })
+    if (g.code !== 0 || g.signal || !existsSync(join(dir, 'part.msh'))) throw new Error(`Gmsh could not mesh the part: ${gmshSaid(g) || ending('Gmsh', g)}`)
+    check()
     const mesh = readMsh(await readFile(join(dir, 'part.msh'), 'utf8'))
     const elements = mesh.elements.length / 10
-    if (elements > 400_000) throw new Error(`The mesh came to ${elements} elements — more than this solves on a laptop. Ask for a coarser mesh (fineness: "coarse", or a larger size).`)
+    if (elements > cap) throw new Error(`The mesh came to ${elements.toLocaleString('en')} elements — more than this computer solves (about ${cap.toLocaleString('en')}). Ask for a coarser mesh (fineness: "coarse", or a larger size).`)
+    check()
     const surface = surfaceOf(mesh)
     const tol = Math.max(0.05, diag * 2e-3)
-    const groups = (list, what) =>
+    const warnings = []
+    const groups = (list, tris, what) =>
       list.map((g, i) => {
-        const faces = facesOn(surface, Float64Array.from(g.triangles ?? []), tol)
+        const faces = facesOn(surface, tris[i], tol)
+        const name = g.name ?? `${what.toLowerCase()} ${i + 1}`
         if (!faces.length) throw new Error(`${what} ${g.name ?? i + 1} lies on none of the part's surface — are its faces from this body, in its frame?`)
+        const got = faces.reduce((s, k) => s + surface[k].area, 0)
+        let cad = 0
+        const t = tris[i]
+        for (let o = 0; o < t.length; o += 9) cad += norm(cross([t[o + 3] - t[o], t[o + 4] - t[o + 1], t[o + 5] - t[o + 2]], [t[o + 6] - t[o], t[o + 7] - t[o + 1], t[o + 8] - t[o + 2]])) / 2
+        if (got < 0.9 * cad) warnings.push(`${name} met the mesh on ${Math.round((100 * got) / cad)} % of its area — some of its faces were not found.`)
         return { ...g, faces }
       })
-    const fix = groups(fixtures, 'Fixture')
-    const ld = groups(loads, 'Load')
+    const fix = groups(fixtures, fixTris, 'Fixture')
+    const ld0 = groups(loads, loadTris, 'Load')
+    check()
     const fixed = new Set(fix.flatMap((g) => g.faces.flatMap((i) => surface[i].nodes)))
+    // A load on a hold goes straight into it: those faces dropped, and said.
+    const ld = ld0.map((g, i) => {
+      const faces = g.faces.filter((k) => !surface[k].nodes.every((n) => fixed.has(n)))
+      const name = g.name ?? `load ${i + 1}`
+      if (!faces.length) throw new Error(`${name} lies on a hold, so it would go straight into it: load another face, or hold this one less.`)
+      if (faces.length < g.faces.length) warnings.push(`${name}: ${g.faces.length - faces.length} of its ${g.faces.length} faces are on a hold and carry nothing.`)
+      return { ...g, faces }
+    })
+    const seen = new Map()
+    ld.forEach((g, i) => g.faces.forEach((k) => seen.set(k, (seen.get(k) ?? 0) | (1 << Math.min(i, 30)))))
+    const shared = [...seen.values()].filter((b) => b & (b - 1)).length
+    if (shared) warnings.push(`${shared} surface faces lie in more than one load and carry each of them.`)
+    // Every piece held: one that is not would fly off (CalculiX answers
+    // that with enormous numbers, not an error).
+    const { count, piece } = piecesOf(mesh)
+    if (count > 1) {
+      const held = new Set([...fixed].map((n) => piece[n]))
+      for (let k = 0; k < count; k++)
+        if (!held.has(k)) {
+          let n = 1
+          while (piece[n] !== k) n++
+          const at = [mesh.xyz[(n - 1) * 3], mesh.xyz[(n - 1) * 3 + 1], mesh.xyz[(n - 1) * 3 + 2]].map((x) => Math.round(x * 10) / 10)
+          throw new Error(`The body is ${count} separate pieces, and one (near ${at.join(', ')}) is not held. Fuse the pieces into one solid, or hold each.`)
+        }
+      warnings.push(`The body is ${count} separate pieces, each held on its own: nothing passes between them.`)
+    }
     const forces = nodalForces(surface, ld)
+    check()
     progress('solving', `${elements} elements, ${mesh.xyz.length / 3} nodes`)
     await writeFile(join(dir, 'job.inp'), writeInp(mesh, { material, axes, fixed, forces }))
+    check()
     const c = await run(tools.ccx.path, ['-i', 'job'], { cwd: dir, env: { ...envFor(tools.ccx.path, env), OMP_NUM_THREADS: env.OMP_NUM_THREADS ?? '4', CCX_NPROC_EQUATION_SOLVER: env.CCX_NPROC_EQUATION_SOLVER ?? '4' }, signal, timeoutMs: 1_800_000 })
     const said = `${c.out}\n${c.err}`
     const err = said.split('\n').filter((l) => /\*ERROR/i.test(l))
-    if (err.length || !existsSync(join(dir, 'job.frd'))) throw new Error(`CalculiX did not solve it: ${err.slice(0, 2).join(' ').trim() || said.trim().split('\n').slice(-3).join(' ')}`)
+    if (err.length) throw new Error(`CalculiX did not solve it: ${err.slice(0, 2).join(' ').trim()}`)
+    if (c.code !== 0 || c.signal || !existsSync(join(dir, 'job.frd'))) throw new Error(`CalculiX did not solve it: ${ending('CalculiX', c)}. ${said.trim().split('\n').slice(-2).join(' ')}`.trim())
     progress('reading', 'the results')
     const r = readFrd(await readFile(join(dir, 'job.frd'), 'utf8'))
-    return answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size })
+    return answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size, diag, warnings })
   } finally {
     if (!env.SCANRULER_FEA_KEEP) await rm(dir, { recursive: true, force: true }).catch(() => {})
   }
 }
 
-/** The answer: the worst of it, where, and the outside as triangles with a
- *  value at each corner, to colour the part by. */
-function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size }) {
+const gmshSaid = (r) => (r.err || r.out).split('\n').filter((l) => /error/i.test(l)).slice(-3).join(' ')
+
+const b64 = (typed) => Buffer.from(typed.buffer, typed.byteOffset, typed.byteLength).toString('base64')
+
+/** The answer: the worst of it, where, and the outside as triangles over
+ *  the surface's nodes with a value at each, to colour the part by — as
+ *  little-endian Float32 / Uint32 arrays in base64 (surface.encoding). */
+function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size, diag, warnings }) {
   const nodes = mesh.xyz.length / 3
   const vm = new Float32Array(nodes + 1)
   const sf = new Float32Array(nodes + 1).fill(Infinity)
   const across = new Float32Array(nodes + 1)
   const shear = new Float32Array(nodes + 1)
   const disp = new Float32Array(nodes + 1)
-  let worst = { sf: Infinity, node: 0, mode: '' }
+  const mode = new Array(nodes + 1)
+  const overflow = () => new Error("CalculiX's answer overflowed — a piece of the part is free to move (not held), or the load is far too large for it.")
+  let worst = { sf: Infinity, node: 0, mode: null }
   let maxVm = 0, maxDisp = 0, maxDispNode = 0
   for (let n = 1; n <= nodes; n++) {
     const u = r.disp.get(n) ?? [0, 0, 0]
+    if (!u.every(Number.isFinite)) throw overflow()
     disp[n] = Math.hypot(u[0], u[1], u[2])
     if (disp[n] > maxDisp) {
       maxDisp = disp[n]
@@ -591,41 +864,80 @@ function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, siz
     }
     const s = r.stress.get(n)
     if (!s) continue
+    if (!s.every(Number.isFinite)) throw overflow()
     const j = judge(s, material, axes)
     vm[n] = j.vm
     sf[n] = j.sf
+    mode[n] = j.mode
     across[n] = j.across
     shear[n] = j.shear
     if (j.vm > maxVm) maxVm = j.vm
     if (j.sf < worst.sf) worst = { sf: j.sf, node: n, mode: j.mode }
   }
+  if (maxDisp > 0.5 * diag) throw new Error(`The part moved ${maxDisp.toPrecision(3)} mm, more than half its size: a piece of it is not held, or the load is far beyond what a linear answer means.`)
+  const strain = maxVm / Math.min(material.Exy, material.Ez)
+  if (strain > 0.02) warnings.push(`The strain reaches about ${(100 * strain).toFixed(1)} % — past where this linear answer holds; read it as a rough guide.`)
+  if (maxDisp > 0.05 * diag) warnings.push(`The part moves ${maxDisp.toPrecision(3)} mm, a large share of its size: a linear answer understates what really happens.`)
+  if (!Number.isFinite(worst.sf)) warnings.push('No stress anywhere: the loads go straight into the holds.')
   const at = (n) => [mesh.xyz[(n - 1) * 3], mesh.xyz[(n - 1) * 3 + 1], mesh.xyz[(n - 1) * 3 + 2]].map((x) => Math.round(x * 1000) / 1000)
-  // A singular spot: the worst at a fixed node, where a perfectly rigid hold
-  // makes stress no part sees. The worst away from the holds is said too.
-  let away = { sf: Infinity, node: 0, mode: '' }
-  for (let n = 1; n <= nodes; n++) {
-    if (fixed.has(n) || !(sf[n] < away.sf)) continue
-    const s = r.stress.get(n)
-    if (!s) continue
-    away = { sf: sf[n], node: n, mode: judge(s, material, axes).mode }
+  // A rigid hold, or a load on a sharp spot, makes stress no part sees.
+  // The worst clear of both (by two elements, or a fortieth of the part) is said too.
+  const loaded = new Set(ld.flatMap((g) => g.faces.flatMap((i) => surface[i].nodes)))
+  const reach = Math.max(2 * size, diag / 40)
+  const near = new Map()
+  const cellKey = (x, y, z) => `${Math.floor(x / reach)},${Math.floor(y / reach)},${Math.floor(z / reach)}`
+  for (const n of [...fixed, ...loaded]) {
+    const p = at(n)
+    const k = cellKey(p[0], p[1], p[2])
+    if (near.has(k)) near.get(k).push(p)
+    else near.set(k, [p])
   }
-  // The outside: each quadratic face as four flat triangles.
-  const positions = []
-  const fields = { vonMises: [], safety: [], displacement: [], across: [], shear: [] }
+  const isNear = (n) => {
+    const p = at(n)
+    const i = Math.floor(p[0] / reach), j = Math.floor(p[1] / reach), k = Math.floor(p[2] / reach)
+    for (let a = -1; a <= 1; a++)
+      for (let b = -1; b <= 1; b++)
+        for (let c = -1; c <= 1; c++)
+          for (const q of near.get(`${i + a},${j + b},${k + c}`) ?? []) if ((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 + (q[2] - p[2]) ** 2 <= reach * reach) return true
+    return false
+  }
+  const atAHold = fixed.has(worst.node)
+  const atALoad = loaded.has(worst.node)
+  let away = { sf: Infinity, node: 0, mode: null }
+  if (worst.node && isNear(worst.node))
+    for (let n = 1; n <= nodes; n++) {
+      if (!(sf[n] < away.sf) || isNear(n)) continue
+      away = { sf: sf[n], node: n, mode: mode[n] }
+    }
+  // The outside: the surface's nodes, each quadratic face as four triangles.
+  const vid = new Map()
+  const order = []
+  const index = []
   const SPLIT = [[0, 3, 5], [3, 1, 4], [5, 4, 2], [3, 4, 5]]
-  for (const face of surface) {
+  for (const face of surface)
     for (const tri of SPLIT)
       for (const k of tri) {
         const n = face.nodes[k]
-        const p = at(n)
-        positions.push(p[0], p[1], p[2])
-        fields.vonMises.push(Math.round(vm[n] * 1000) / 1000)
-        fields.safety.push(Number.isFinite(sf[n]) ? Math.round(Math.min(sf[n], 1e6) * 1000) / 1000 : 1e6)
-        fields.displacement.push(Math.round(disp[n] * 1e6) / 1e6)
-        fields.across.push(Math.round(across[n] * 1000) / 1000)
-        fields.shear.push(Math.round(shear[n] * 1000) / 1000)
+        if (!vid.has(n)) {
+          vid.set(n, order.length)
+          order.push(n)
+        }
+        index.push(vid.get(n))
       }
-  }
+  const V = order.length
+  const positions = new Float32Array(V * 3)
+  const field = () => new Float32Array(V)
+  const fields = { vonMises: field(), safety: field(), displacement: field(), across: field(), shear: field() }
+  order.forEach((n, v) => {
+    positions[v * 3] = mesh.xyz[(n - 1) * 3]
+    positions[v * 3 + 1] = mesh.xyz[(n - 1) * 3 + 1]
+    positions[v * 3 + 2] = mesh.xyz[(n - 1) * 3 + 2]
+    fields.vonMises[v] = vm[n]
+    fields.safety[v] = Number.isFinite(sf[n]) ? Math.min(sf[n], 1e6) : 1e6
+    fields.displacement[v] = disp[n]
+    fields.across[v] = across[n]
+    fields.shear[v] = shear[n]
+  })
   const r3 = (x) => Math.round(x * 1000) / 1000
   return {
     solver: { gmsh: tools.gmsh.version, calculix: tools.ccx.version },
@@ -637,12 +949,35 @@ function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, siz
       safety: Number.isFinite(worst.sf) ? r3(worst.sf) : null,
       at: worst.node ? at(worst.node) : null,
       mode: worst.mode || null,
-      atAHold: fixed.has(worst.node),
-      ...(fixed.has(worst.node) && Number.isFinite(away.sf) ? { awayFromHolds: { safety: r3(away.sf), at: at(away.node), mode: away.mode } } : {}),
+      atAHold,
+      atALoad,
+      ...(Number.isFinite(away.sf) ? { awayFromHolds: { safety: r3(away.sf), at: at(away.node), mode: away.mode } } : {}),
       vonMises: r3(maxVm),
       displacement: Math.round(maxDisp * 1e6) / 1e6,
       displacementAt: maxDispNode ? at(maxDispNode) : null,
     },
-    surface: { positions, fields },
+    ...(warnings.length ? { warnings } : {}),
+    surface: {
+      encoding: 'base64-le',
+      vertices: V,
+      triangles: index.length / 3,
+      positions: b64(positions),
+      index: b64(Uint32Array.from(index)),
+      fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, b64(v)])),
+    },
+  }
+}
+
+/** A surface field of an answer read back (for tests and other readers). */
+export function decodeSurface(surface) {
+  const f32 = (s) => {
+    const b = Buffer.from(s, 'base64')
+    return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))
+  }
+  const b = Buffer.from(surface.index, 'base64')
+  return {
+    positions: f32(surface.positions),
+    index: new Uint32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)),
+    fields: Object.fromEntries(Object.entries(surface.fields).map(([k, v]) => [k, f32(v)])),
   }
 }

@@ -61,12 +61,21 @@ export interface FeaAnswer {
     at: number[] | null
     mode: string | null
     atAHold: boolean
-    awayFromHolds?: { safety: number; at: number[]; mode: string }
+    atALoad?: boolean
+    awayFromHolds?: { safety: number; at: number[]; mode: string | null }
     vonMises: number
     displacement: number
     displacementAt: number[] | null
   }
-  surface: { positions: number[]; fields: Record<Field, number[]> }
+  /** Things worth knowing about the answer (part of a hold not found, large strain…). */
+  warnings?: string[]
+  /** The outside, decoded: the surface's nodes, triangles over them, and each field at each node. */
+  surface: { positions: Float32Array; index: Uint32Array; fields: Record<Field, Float32Array> }
+}
+
+/** The answer as the server sends it: the surface as base64 little-endian arrays. */
+export type FeaWire = Omit<FeaAnswer, 'surface'> & {
+  surface: { encoding: string; vertices: number; triangles: number; positions: string; index: string; fields: Record<Field, string> }
 }
 
 export interface FeaState extends FeaSetup {
