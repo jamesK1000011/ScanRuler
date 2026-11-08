@@ -186,6 +186,30 @@ function start(name: string, input: unknown, onProgress: ((text: string) => void
   return job
 }
 
+/**
+ * A change run as part of the change running now: a plugin's command that
+ * makes its change through another workspace's (hw.apply through
+ * reverse.feature.add). runCommand would queue it behind its caller, which
+ * waits for it — for good. Here its input is checked as runCommand checks
+ * it, and it runs at once, inside the running change's undo step. A
+ * read-only command runs as runCommand runs it. Refused while no change
+ * runs.
+ */
+export async function runWithin(name: string, input: unknown = {}, ctx?: CommandContext): Promise<unknown> {
+  const command = commands.get(name)
+  if (!command) throw new CommandError('unknown_command', `There is no command "${name}".`)
+  const errors = validate(command.input, input ?? {})
+  if (errors.length) throw new CommandError('invalid_input', `${name}: ${errors.join('; ')}`)
+  if (command.readOnly) return runCommand(name, input)
+  if (current === null) throw new CommandError('invalid_state', `${name} runs within a change only; run it with runCommand.`)
+  const abort = new AbortController()
+  try {
+    return await command.run((input ?? {}) as Record<string, unknown>, ctx ?? { progress: () => {}, signal: abort.signal })
+  } catch (e) {
+    throw asCommandError(e)
+  }
+}
+
 /** The change running now, while one runs: its name, and whether it was
  *  run deferred. */
 let current: { name: string; deferred: boolean } | null = null
