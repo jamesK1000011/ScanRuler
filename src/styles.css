@@ -87,6 +87,8 @@
   --mono: 'B612 Mono', Consolas, 'Cascadia Mono', monospace;
   --r: 3px;
   --inset: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2375787b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chevron-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b5b4ad' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 /* The dark instrument: the same chassis with the lights off. Keyed on the
@@ -101,6 +103,8 @@
    the scrollbars — dark with it. */
 :root[data-theme='dark'] {
   color-scheme: dark;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a3a7ac' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chevron-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%234b5057' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --chassis: #1b1d20;
   --panel: #25282c;
   --well: #1e2124;
@@ -733,6 +737,22 @@ select {
   border-radius: var(--r);
   padding: 5px 7px;
   box-shadow: var(--inset);
+}
+
+/* A drop-down's own arrow, set in from the edge rather than hard against it
+   as the browser draws it — the chevron in each theme's dim ink. */
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 26px;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 10px 6px;
+}
+
+select:not([multiple]):not([size]):disabled {
+  background-image: var(--chevron-off);
 }
 
 select:disabled {
@@ -3017,6 +3037,12 @@ button.x:disabled {
   color: var(--dim);
   padding: 5px 13px;
   white-space: nowrap;
+}
+
+.modeswitch button.stage {
+  /* A new stage of the work — measure, model, make, share — set apart by a
+     rule of the switch's own well showing through. */
+  margin-left: 3px;
 }
 
 .modeswitch button + button {

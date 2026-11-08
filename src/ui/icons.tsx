@@ -819,6 +819,47 @@ const ICONS = {
       <path className="i-a" d="M12 11v7M8.5 14.5h7" />
     </>
   ),
+  // the plugins' workspaces: the share of a pack, the printer a job goes
+  // to, the manual's open book, the patent's sealed page, the catalogue's screw
+  share: (
+    <>
+      <circle className="i-g" cx="6" cy="12" r="2.6" />
+      <circle className="i-g" cx="18" cy="5.5" r="2.6" />
+      <circle className="i-g" cx="18" cy="18.5" r="2.6" />
+      <path className="i-a" d="m8.3 10.8 7.4-4m-7.4 6.4 7.4 4" />
+    </>
+  ),
+  printer: (
+    <>
+      <path d="M7 9V3.5h10V9" />
+      <path className="i-g" d="M3.5 9h17v8h-17Z" />
+      <path className="i-f" d="M7 14h10v6.5H7Z" />
+      <circle className="i-adt" cx="17" cy="11.5" r="0.9" />
+    </>
+  ),
+  manual: (
+    <>
+      <path className="i-g" d="M2.5 5.5c3.2-1.2 6.4-1 9.5 1v13c-3.1-2-6.3-2.2-9.5-1Z" />
+      <path className="i-g" d="M21.5 5.5c-3.2-1.2-6.4-1-9.5 1v13c3.1-2 6.3-2.2 9.5-1Z" />
+      <path className="i-a" d="M14.5 9.5h4.5M14.5 12.5h4.5M14.5 15.5h3" />
+    </>
+  ),
+  patent: (
+    <>
+      <path className="i-g" d="M5 2.5h10l4 4v15H5Z" />
+      <path d="M15 2.5v4h4" />
+      <path className="i-th" d="M8 9h7M8 12h8" />
+      <circle className="i-f" cx="14" cy="16" r="2.6" />
+      <path className="i-a" d="m12.6 18.2-.9 3.3 2.3-1.2 2.3 1.2-.9-3.3" />
+    </>
+  ),
+  catalog: (
+    <>
+      <path className="i-g" d="M7 2.5h10v4.5H7Z" />
+      <path className="i-g" d="M9.5 7h5v14.5h-5Z" />
+      <path className="i-a" d="m9.5 10 5-1.2m-5 4.2 5-1.2m-5 4.2 5-1.2m-5 4.2 5-1.2" />
+    </>
+  ),
   save: (
     <>
       <path className="i-g" d="M4 4h12.5L20 7.5V20H4Z" />
