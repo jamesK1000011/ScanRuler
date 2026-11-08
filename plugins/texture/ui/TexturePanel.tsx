@@ -142,7 +142,7 @@ export function TexturePanel(p: TexturePanelProps) {
               <b>Keep plain</b>: paint the surfaces that must stay as they are — a mating face, a cutout, a button.
               <b> Texture only</b>: paint the panels to texture, and the rest stays plain. Switching clears the paint.
             </p>
-            <p>Mark the part with the window, brush or lasso, then take the marking into the layer. The window and lasso take only the surface you can see; to reach a face behind another, switch on Mark through the part.</p>
+            <p>Mark with the window, brush or lasso, then take the marking into the layer. Window and lasso take only what you can see; Mark through the part reaches behind.</p>
           </InfoDot>
         </div>
         <div className="moderow" role="radiogroup" aria-label="Mask mode">

@@ -111,7 +111,7 @@ async function search(more = false) {
   const signal = begin(`${more ? 'More from' : 'Searching'} ${names}…`, more ? {} : { open: null, taken: null, errors: {}, searched: asked })
   try {
     const r = await ask<{ results: ModelHit[]; missing?: Record<string, string>; errors?: Record<string, string> }>('search', { query: asked.query, sources: asked.libraries, page }, WAIT.search, signal)
-    if (!Array.isArray(r?.results)) throw new Error('The agent’s server answered the search in a shape this page does not read — restart it (and Claude).')
+    if (!Array.isArray(r?.results)) throw new Error('The agent’s server answered the search in a shape this page does not read — restart it (and the agent app).')
     const seen = new Set((more ? (s.hits ?? []) : []).map((h) => `${h.source}:${h.id}`))
     const fresh = r.results.filter((h) => !seen.has(`${h.source}:${h.id}`))
     useModels.setState({ hits: more ? [...(s.hits ?? []), ...fresh] : r.results, page, missing: r.missing ?? {}, errors: r.errors ?? {}, ...(more && fresh.length === 0 ? { noMore: true } : more ? {} : { noMore: false }) })
@@ -264,7 +264,7 @@ function Busy({ label, since }: { label: string; since: number | null }) {
         {secs >= 3 ? ` ${secs} s` : ''}
         {secs >= 15 && /^(Searching|More from)/.test(label) ? ' — a slow library is given up at 20 s' : ''}
       </p>
-      <button style={{ flex: 'none' }} data-test="catalog-model-cancel" title="Stop waiting; the server stops asking the library" onClick={cancelWork}>
+      <button style={{ flex: 'none' }} data-test="catalog-model-cancel" title="Stop waiting and stop the search" onClick={cancelWork}>
         Cancel
       </button>
     </div>
@@ -281,11 +281,11 @@ export function ModelsSection() {
       <div className="sec-head">
         Find a model
         <InfoDot title="Find a model">
-          <p>Searches the model libraries through their own APIs — Sketchfab, Thingiverse and Cults3D — from your computer, with their keys kept in your Keychain. This page only sees the results.</p>
-          <p>Bring in downloads a file into the imports folder and records where it came from and its licence; Share then credits it, or leaves it out if it may not be passed on.</p>
+          <p>Searches Sketchfab, Thingiverse and Cults3D through their own APIs, from your computer. Keys stay in your Keychain; this page sees only results.</p>
+          <p>Bring in downloads a file to the imports folder with its source and licence. Share credits it, or leaves it out if it may not be passed on.</p>
         </InfoDot>
       </div>
-      {off && <p className="hint">Needs the agent connection (Settings → Agents, or open ScanRuler from Claude): the libraries are asked from your computer, where their keys are.</p>}
+      {off && <p className="hint">Needs the agent connection (Settings → Agents, or open ScanRuler from your AI app): the libraries are asked from your computer, where their keys are.</p>}
       <div className="toolrow">
         <input className="pl-input" type="text" value={st.query} placeholder="608 bearing holder, M18 battery mount…" aria-label="Find a model" readOnly={busy} disabled={off} data-test="catalog-model-query" onChange={(e) => useModels.setState({ query: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && !busy && st.query.trim() && st.libraries.length > 0 && void search()} />
         <button className="primary" style={{ flex: 'none' }} disabled={busy || off || !st.query.trim() || !st.libraries.length} data-test="catalog-model-search" onClick={() => void search()}>

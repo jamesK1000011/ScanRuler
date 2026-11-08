@@ -2,8 +2,8 @@
 
 The printer tools (`printer_*`) belong to the MCP server, listed when
 `SCANRULER_MCP_EXTRAS` includes `printer`. If `printer_list` isn't there,
-the person adds `printer` to that setting in their Claude config and
-restarts Claude.
+the person adds `printer` to that setting in their agent app's config and
+restarts the agent app.
 
 **You never start a print.** `printer_start` asks the person: a dialog on
 their Mac, a card in ScanRuler (a printer's `confirm: "app"`), or a page in

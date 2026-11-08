@@ -37,6 +37,21 @@ Commands under `texture` (`texture_*` tools through scanruler-mcp):
 guide is `guide.read { topic: "texture" }`. `texture.check` proves after an
 export that every protected vertex is where it was.
 
+`texture.mask` takes a `region` as ScanRuler's region shapes, `"marked"`, or:
+
+- **CAD faces of a Reverse Engineer body** — `{ faces: { body, faces | where,
+  tolerance?, angleDeg? } }`: the part's surface lying on those faces (by
+  index, or a `where` query as `reverse.body.describe` takes it), within
+  `tolerance` (0.25 mm by default) and with normals agreeing within
+  `angleDeg`. The faces come from the internal
+  `reverse.body.face_triangles`, so the mask is exact and never leaks into a
+  pocket — the first choice for a part built in the Reverse engineer. Open
+  the body's STL, or the scan it was fitted to, in the same frame.
+- **A point** — `{ near, spreadDeg }` grows from the face whose surface lies
+  nearest the point (not the nearest face centre, which on a coarse CAD
+  mesh could seed inside a pocket) across every edge gentler than
+  `spreadDeg`.
+
 ## The engine
 
 `bumpmesh/` holds BumpMesh's engine and texture library, copied from a

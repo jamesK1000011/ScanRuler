@@ -71,7 +71,7 @@ export function PackPanel() {
           Share this part
           <InfoDot title="A pack you upload yourself">
             <p>The model, renders, a README, a LICENSE and the upload form’s text, as a zip saved here.</p>
-            <p>Each upstream part’s licence is checked against yours, remixes are credited, and personal details are taken out of every file. Nothing is uploaded or posted.</p>
+            <p>Upstream licences are checked against yours, remixes credited, personal details scrubbed. Nothing is uploaded.</p>
           </InfoDot>
         </div>
         <TextField label="Title" value={s.title} disabled={busy} onCommit={(title) => title.trim() && set({ title })} />

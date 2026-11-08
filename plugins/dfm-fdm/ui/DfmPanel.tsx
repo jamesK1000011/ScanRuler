@@ -255,7 +255,7 @@ export function DfmPanel() {
         <div className="sec-head">
           Printed on
           <InfoDot title="How the limits are set">
-            <p>The rules start from a generic pack. The nozzle, material and printer profiles change the numbers they speak to, then a published guide if you choose one, then your own changes for this project. Each rule says which of them set its numbers.</p>
+            <p>A generic pack, then the nozzle, material and printer profiles, a published guide if chosen, and your project changes. Each rule says which set its numbers.</p>
           </InfoDot>
         </div>
         <label className="field">
@@ -397,7 +397,7 @@ export function DfmPanel() {
         <div className="sec-head">
           Rules in force
           <InfoDot title="Changing a rule">
-            <p>Click a rule to change its numbers for this project, or switch it off. Your change sits over every profile and guide, and goes with the project; Reset takes it back.</p>
+            <p>Click a rule to change its numbers for this project, or switch it off. Your change wins over every profile and guide; Reset takes it back.</p>
           </InfoDot>
         </div>
         <div>
@@ -482,7 +482,7 @@ export function DfmPanel() {
         <div className="sec-head">
           Design review
           <InfoDot title="Beyond the numbers">
-            <p>The questions to ask of a printed part that no rule measures — in this plugin’s words. ISO/ASTM 52910 is the standard on design for additive manufacturing; it is named, not reproduced.</p>
+            <p>Questions no rule measures, in this plugin’s words. ISO/ASTM 52910 (design for additive manufacturing) is named, not reproduced.</p>
           </InfoDot>
         </div>
         {!v.review ? (

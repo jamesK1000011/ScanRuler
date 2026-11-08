@@ -19,7 +19,7 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'dfm',
     label: 'Printability',
-    title: 'Check a part for FDM printing against rules set for the nozzle, material, printer — or a published guide',
+    title: 'Check a part for FDM printing against nozzle, material and printer rules, or a guide',
     icon: 'slice',
     order: 30,
     group: 'make',

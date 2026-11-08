@@ -3,8 +3,12 @@
 
 A sliced job onto the printers set up on this computer. The tools are the
 MCP server's (`mcp/src/extras/printer.js`, `printers/`), listed when
-`SCANRULER_MCP_EXTRAS` includes `printer`. This plugin carries the agent's
-guide.
+`SCANRULER_MCP_EXTRAS` includes `printer`: `printer_list`, `_add`,
+`_remove`, `_test`, `_upload`, `_start`, `_requests`, `_status`, `_pause`,
+`_resume`, `_stop` and `_camera`. This plugin carries the agent's guide and
+the **Print** workspace, where a printer set to `confirm: "app"` asks for
+its start on a card in ScanRuler (`printer.ask`, internal: the server's
+call, never the agent's).
 
 | Kind | Route | Secret | Start |
 |---|---|---|---|
@@ -19,9 +23,10 @@ guide.
   terminal (`node mcp/src/extras/secrets.js set printer:<name>`): in the
   macOS Keychain, or elsewhere in `secrets.json` under `SCANRULER_HOME`,
   mode 600.
-- **The start gate.** `printer_start` makes a request. A native dialog on
-  a Mac, or a one-time page on `127.0.0.1` opened in the person's browser,
-  shows printer, file, time and filament with Start and Cancel. Only their
+- **The start gate.** `printer_start` (and `printer_resume` on a paused
+  print) makes a request. A native dialog on a Mac, the card in the Print
+  workspace, or a one-time page on `127.0.0.1` opened in the person's
+  browser, shows printer, file, time and filament with Start and Cancel. Only their
   Start sends the command. The page's address never appears in any
   answer, and no tool can answer a request. Requests expire after 15
   minutes.

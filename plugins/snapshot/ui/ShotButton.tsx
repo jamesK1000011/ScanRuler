@@ -85,7 +85,7 @@ export function ShotButton() {
               if (now) announce(now)
             }}
           />
-          <p className="hint">Claude is told about it with its next answer, and can look with snapshot_latest.</p>
+          <p className="hint">The agent is told about it with its next answer, and can look with snapshot_latest.</p>
           {shot.path && <p className="sn-saved" title={shot.path}>Saved to {shot.path}</p>}
           <label className="checkrow">
             <input type="checkbox" checked={save} onChange={(e) => useShots.getState().setSave(e.target.checked)} />
@@ -117,7 +117,7 @@ export function ShotButton() {
       <button
         className="sn-shoot"
         data-test="snapshot-button"
-        title="Screenshot this tab for Claude (⌥⇧S / Alt+Shift+S) — your browser asks which tab to share; choose this one"
+        title="Screenshot this tab for the agent (⌥⇧S / Alt+Shift+S) — share this tab when asked"
         aria-label="Screenshot this tab"
         disabled={busy}
         onClick={() => void takeShot(box.current)}

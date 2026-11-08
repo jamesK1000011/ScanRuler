@@ -43,11 +43,11 @@ export class Cancelled extends Error {
 /** Ask the agent's server; the answer comes as catalog.answer. signal (the
  *  panel's Cancel) stops waiting at once and tells the server to stop. */
 export function ask<T = any>(action: string, data: Record<string, unknown> = {}, timeoutMs = 60_000, signal?: AbortSignal): Promise<T> {
-  if (useAgentLink.getState().status !== 'connected') return Promise.reject(new Error('The model libraries are searched through the agent connection: switch it on in Settings → Agents (or open ScanRuler from Claude).'))
+  if (useAgentLink.getState().status !== 'connected') return Promise.reject(new Error('The model libraries are searched through the agent connection: switch it on in Settings → Agents (or open ScanRuler from your AI app).'))
   if (signal?.aborted) return Promise.reject(new Cancelled())
   // A server started before model search was there never answers: say so
   // at once rather than spin.
-  if (!useAgentLink.getState().server?.features?.includes('catalog.models')) return Promise.reject(new Error('The agent’s server running now is older than this page and does not search the model libraries. Quit Claude completely and open it again (that restarts the server), then reload this page.'))
+  if (!useAgentLink.getState().server?.features?.includes('catalog.models')) return Promise.reject(new Error('The agent’s server running now is older than this page and does not search the model libraries. Quit the agent app completely and open it again (that restarts the server), then reload this page.'))
   const req = `m${Date.now().toString(36)}${(n++).toString(36)}`
   return new Promise<T>((resolve, reject) => {
     const done = () => {
@@ -70,7 +70,7 @@ export function ask<T = any>(action: string, data: Record<string, unknown> = {},
     const timer = setTimeout(() => {
       done()
       notifyAgent('catalog.models', { req: `${req}x`, action: 'cancel', of: req })
-      reject(new Error(`No answer in ${Math.round(timeoutMs / 1000)} s. If this keeps happening the agent’s server may be older than this page, or stuck: restart it (and Claude), then try again.`))
+      reject(new Error(`No answer in ${Math.round(timeoutMs / 1000)} s. If this keeps happening the agent’s server may be older than this page, or stuck: restart it (and the agent app), then try again.`))
     }, timeoutMs)
     signal?.addEventListener('abort', cancel, { once: true })
     waiting.set(req, {

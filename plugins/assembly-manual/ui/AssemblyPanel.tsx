@@ -128,7 +128,7 @@ export function AssemblyPanel() {
                   <b>{t.name}</b> — {t.about}
                 </p>
               ))}
-              <p>The theme sets the saved HTML’s type, colours and layout, and the accent and balloons on the PDF pages. The colour key puts your own accent over it.</p>
+              <p>The theme sets the HTML’s type, colours and layout, and the PDF’s accent and balloons. The colour key sets your own accent.</p>
             </InfoDot>
           </span>
           <span className="pl-inline" style={{ flex: '0 1 172px', minWidth: 108 }}>
@@ -198,7 +198,7 @@ export function AssemblyPanel() {
           <span>
             Writing style
             <InfoDot title="Writing style">
-              <p>Each step’s words are checked as you write them. STE habits: one instruction a sentence, short sentences, the verb first, no “should”. Plain English is looser. A style file of your own can add words to avoid.</p>
+              <p>Each step’s words are checked as you write. STE: one instruction a sentence, the verb first, no “should”. Plain English is looser; a style file can add words to avoid.</p>
             </InfoDot>
           </span>
           <select value={st.style.name} disabled={busy} onChange={(e) => void run('style', { name: e.target.value })}>
@@ -402,7 +402,7 @@ export function AssemblyPanel() {
         <div className="toolrow">
           <button
             disabled={busy}
-            title="What IEC/IEEE 82079-1 asks instructions for use to carry, in this plugin’s words — a checklist, not a certificate"
+            title="What IEC/IEEE 82079-1 asks a manual to carry — a checklist, not a certificate"
             onClick={() =>
               void run('review', {}).then((r) => {
                 if (r) useAsmView.setState({ review: r.items as Json[] })

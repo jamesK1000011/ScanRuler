@@ -18,7 +18,7 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'pack',
     label: 'Share',
-    title: 'Pack a finished part to share: licences checked, remixes credited, personal details taken out — a zip you upload yourself',
+    title: 'Pack a part to share: licences checked, remixes credited, personal details removed',
     icon: 'share',
     order: 44,
     group: 'share',

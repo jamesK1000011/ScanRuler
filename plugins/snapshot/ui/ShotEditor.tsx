@@ -186,7 +186,7 @@ export function ShotEditor() {
           </button>
           <button onClick={close}>Cancel</button>
         </div>
-        <p className="hint">Done keeps the marks with the shot and tells Claude. The shot underneath is kept as taken.</p>
+        <p className="hint">Done keeps the marks with the shot and tells the agent. The shot underneath is kept as taken.</p>
       </aside>
     </div>
   )

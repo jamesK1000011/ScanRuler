@@ -14,8 +14,9 @@ on this computer. You upload it yourself.
   All-rights-reserved parts need the author's permission. A blocked pack
   says why. This is a guide, not legal advice.
 - **Left out and linked.** Parts from TraceParts, McMaster, MISUMI or
-  GrabCAD, or recorded by catalog as not to be shared on, are taken out
-  of the model export and listed in the README with their links.
+  GrabCAD, or recorded by catalog as not to be shared on (no-derivatives
+  and unclear licences included), are taken out of the model export and
+  listed in the README with their links.
 - **Attribution.** Each remixed part gets a line with its title, author,
   page and licence, noting that it was changed.
 - **Privacy scrub.** Every file, including those inside a 3MF, is
@@ -44,3 +45,5 @@ on this computer. You upload it yourself.
 | `pack.scrub` | nothing | What the scrub takes out of each file |
 | `pack.presets` | presets | Platform presets, built in and your own |
 | `pack.build` | nothing | The zip |
+
+The agent guide is `guide.read { id: "library-pack" }`.

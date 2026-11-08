@@ -9,13 +9,13 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
-| [texture/](texture/) | The Texture workspace — a printable surface texture with BumpMesh's engine |
+| [texture/](texture/) | The Texture workspace — a printable surface texture with BumpMesh's engine, masked by paint or by a Reverse body's CAD faces |
 | [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
 | [fit-comp/](fit-comp/) | Print fit — scanned print against its CAD, to slicer settings or a compensated model |
 | [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML, and .blend through Blender |
 | [dfm-fdm/](dfm-fdm/) | Printability check — FDM rules from editable profiles, with findings you can waive |
 | [printer-handoff/](printer-handoff/) | Printer hand-off — the guide for the MCP server's printer tools; a print starts only on your Start |
-| [catalog/](catalog/) | Parts catalog — standard parts by size, search links, downloads brought in with their licence |
+| [catalog/](catalog/) | Parts catalog — standard parts by size, catalogue links, Sketchfab/Thingiverse/Cults3D search, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras |
 | [wear-repair/](wear-repair/) | Wear repair — worn regions back onto the mirrored half or the CAD; prints pre-warped |
 | [assembly-manual/](assembly-manual/) | Assembly manual — steps checked for a clear way in, drawn and written; HTML and PDF |
@@ -23,7 +23,7 @@ not in this repository.
 | [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG) and a zip writer; no plugin.ts |
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
-| [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab for Claude to look at |
+| [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
 
 ## The rules
 

@@ -61,7 +61,7 @@ function Identify() {
       <div className="sec-head">
         Identify a part
         <InfoDot title="Identify a part">
-          <p>Measure the part — element fits, a section, or calipers — and type what you read. The standard sizes that fit come back best first, with how far off the worst dimension is.</p>
+          <p>Measure the part — element fits, a section, or calipers — and type what you read. Standard sizes that fit come back best first.</p>
           <p>Worn, printed or a maker's own range fits loosely; under about 3 % off is a good fit.</p>
         </InfoDot>
       </div>
@@ -175,8 +175,8 @@ function FindCad() {
       <div className="sec-head">
         Catalogues
         <InfoDot title="Catalogues">
-          <p>For a part a maker sells — a screw, a bearing, a motor — opens each catalogue's own search in your browser. You sign in where a site asks and click download yourself — nothing is fetched behind your back.</p>
-          <p>Ask Claude to watch your downloads: what arrives is brought into the project with its source and licence, and recorded below.</p>
+          <p>For a part a maker sells — a screw, a bearing, a motor — opens each catalogue's search in your browser. You sign in and click download yourself.</p>
+          <p>Ask the agent to watch your downloads: what arrives comes into the project with its source and licence, recorded below.</p>
         </InfoDot>
       </div>
       <div className="toolrow">
@@ -232,7 +232,7 @@ function Provenance() {
           <p>Share (Library Pack) leaves out anything not to be shared on and links its page instead.</p>
         </InfoDot>
       </div>
-      {parts.length === 0 && <p className="hint">Nothing recorded yet. A download brought in by Claude is recorded here; add one by hand below.</p>}
+      {parts.length === 0 && <p className="hint">Nothing recorded yet. A download brought in by the agent is recorded here; add one by hand below.</p>}
       {parts.map((p) => (
         <div key={p.file} className="pl-card" data-test="catalog-record">
           <div className="pl-cardhead">

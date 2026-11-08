@@ -16,7 +16,13 @@ to 37 CFR 1.84, and a draft description tied to the same numerals.
 - **Draft.** Sections from field to abstract. Numerals are written as
   tokens, so a rename rewrites the text. Every section is marked a draft
   for attorney review.
-- **Checklist.** 37 CFR 1.84, as a target, not a guarantee.
+- **Checklist.** 37 CFR 1.84, as a target, not a guarantee. The
+  shortest-edge check (1.84(k)(1), legible at a 2/3 reduction) joins the
+  pieces of an edge the hidden-line pass split and ignores kernel scraps
+  under 0.1 mm, so it no longer reports 0.00 mm.
+- **Specification.** The draft laid out as 37 CFR 1.52 and 1.77 ask —
+  margins, 1½ spacing, paragraphs numbered [0001], claims and abstract on
+  new pages — as a PDF.
 - **Stays here.** No network requests, and a test checks the source. The
   only output is the file `patent.save` writes.
 
@@ -30,7 +36,7 @@ to 37 CFR 1.84, and a draft description tied to the same numerals.
 | `patent.render` | nothing | One sheet as PNG, SVG or PDF |
 | `patent.check` | nothing | The 37 CFR 1.84 checklist |
 | `patent.draft` | draft | Read and write sections; the brief description; a scaffold |
-| `patent.save` | nothing | A zip, the PDF or the Markdown, to save locally |
+| `patent.save` | nothing | A zip, the drawings PDF, the specification PDF or the Markdown, to save locally |
 
 The agent guide is `guide.read { id: "patent-kit" }`.
 
@@ -40,7 +46,7 @@ The agent guide is `guide.read { id: "patent-kit" }`.
 |---|---|
 | `../_shared/lineart/` | Views, HLR to polylines, sheets as SVG, PDF and PNG; shared with assembly-manual |
 | `../_shared/zip.ts` | A stored zip |
-| `core/drawings.ts` | Figures from STEP: HLR, sections, explode, where lead lines end |
+| `core/drawings.ts` | Figures from STEP: HLR, sections, explode, where lead lines end, the shortest edge |
 | `core/layout.ts` | Sheets: margins, scale, numerals, lead lines, hatching, cut lines |
 | `core/rules.ts` | The 37 CFR 1.84 checklist |
 | `core/draft.ts` | Numeral tokens, the brief description, Markdown |

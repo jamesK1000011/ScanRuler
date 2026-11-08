@@ -66,5 +66,5 @@ never in the chat. Credit "Powered by TraceParts" where you show its parts.
 
 - The offline table holds common metric fasteners and deep-groove bearings
   only. Anything else goes through the search pages.
-- Catalogue APIs (TraceParts, McMaster) need the person's own credentials,
-  and aren't connected yet. The browser route works for every source today.
+- Catalogue APIs (TraceParts, McMaster) need the person's own credentials
+  (above). Without them, the browser route works for every source.
