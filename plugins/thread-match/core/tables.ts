@@ -168,6 +168,7 @@ function build(): ThreadRow[] {
   for (const [d, pitches] of TR)
     for (const p of pitches) {
       const ac = trClearance(p)
+      // units-ok: the thread standards' own note, in millimetres
       rows.push({ family: 'tr', size: `Tr${d}`, designation: `Tr${d}×${trim(p)}`, major: d, pitch: p, minorExternal: r4(d - 2 * (p / 2 + ac)), minorInternal: r4(d - p), angle: 30, taper: 0, depthShare: r4(0.5 + ac / p), ...(d === 8 && p === 2 ? { note: 'Common on 3D-printer lead screws as Tr8×8 (P2): 4 starts, 8 mm lead' } : {}) })
     }
   for (const [size, din, tpi] of ACME) {
