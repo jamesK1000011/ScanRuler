@@ -8,7 +8,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { anyObject, bool, enumOf, num, obj, str } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { generatorOf, GENERATORS, valuesOf, type Generator, type Value } from '../core/generators'
+import { generatorOf, GENERATORS, matchParts, valuesOf, type Generator, type Value } from '../core/generators'
 import type { GenPart } from '../core/genWorker'
 import { build, stop } from './genClient'
 import { setupOf, useGen } from '../state/genStore'
@@ -75,7 +75,27 @@ const set: Command<{ generator?: string; params?: Record<string, unknown>; reset
   },
 }
 
-/** Builds in the worker, with the panel told it is busy. */
+/** Builds one at a time — a make's bodies are told apart from what was
+ *  there before it — with the panel told it is busy. A stop also ends
+ *  those waiting their turn. */
+let queue: Promise<unknown> = Promise.resolve()
+let waitingTurn = 0
+let stops = 0
+function inTurn<T>(job: () => Promise<T>): Promise<T> {
+  const asked = stops
+  waitingTurn++
+  useGen.setState({ busy: true })
+  const mine = queue.then(async () => {
+    if (stops !== asked) throw new CommandError('failed', 'Stopped.')
+    return job()
+  })
+  const settle = () => {
+    if (--waitingTurn === 0) useGen.setState({ busy: false, status: '' })
+  }
+  queue = mine.then(settle, settle)
+  return mine
+}
+
 async function run(g: Generator, v: Record<string, Value>, out: 'step' | 'stl' | 'info', signal?: AbortSignal, chord?: number) {
   useGen.setState({ busy: true, status: `Building ${g.label.toLowerCase()}…` })
   try {
@@ -83,50 +103,60 @@ async function run(g: Generator, v: Record<string, Value>, out: 'step' | 'stl' |
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e)
     throw new CommandError('failed', m === 'Stopped.' ? 'Stopped.' : `${g.label} could not be built: ${m}`)
-  } finally {
-    useGen.setState({ busy: false, status: '' })
   }
 }
 
 interface ReverseBody {
+  id: number
   name: string
+  bounds?: { min: [number, number, number]; max: [number, number, number] } | null
 }
-const bodyNames = () => ((readStateSections().reverse as { bodies?: ReverseBody[] } | undefined)?.bodies ?? []).map((b) => b.name)
+const reverseBodies = () => (readStateSections().reverse as { bodies?: ReverseBody[] } | undefined)?.bodies ?? []
 
 const make: Command<{ generator?: string; params?: Record<string, unknown>; name?: string }> = {
   name: 'make',
   title: 'Make the part in Reverse Engineer',
   description:
-    'Build the part and bring it into Reverse Engineer as bodies of their own — an Import feature saved with the project, to cut, fillet, check and export like any other (reverse.feature.add, reverse.export.stl). Values as set (gen.set) unless given here; name names the bodies (the generator’s names otherwise). Each part stands on z = 0, centred on the origin; a lid lies beside its box. Returns the bodies, each part’s volume (mm³) and size (mm).',
+    'Build the part and bring it into Reverse Engineer as bodies of their own — an Import feature saved with the project, to cut, fillet, check and export like any other (reverse.feature.add, reverse.export.stl). Values as set (gen.set) unless given here; name names the bodies (the generator’s names otherwise, with 2, 3 … after a name taken). Each part stands on z = 0, centred on the origin; a lid lies beside its box. Returns the bodies, each part’s volume (mm³) and size (mm).',
   input: obj({ generator: genIn, params: paramsIn, name: str('What to call the bodies (up to 60 characters).', { minLength: 1 }) }),
   long: true,
   timeoutMs: 300_000,
   label: ({ generator: id }) => `make ${generatorOf(id ?? st().generator)?.label.toLowerCase() ?? 'part'}`,
-  run: async ({ generator: id, params, name }, ctx) => {
+  run: async ({ generator: id, params, name: given }, ctx) => {
     const g = generator(id)
     const v = values(g, params)
-    if (name !== undefined && name.trim().length > 60) throw new CommandError('invalid_input', 'name: up to 60 characters.')
-    ctx.progress(`Building ${g.label.toLowerCase()}…`)
-    const a = await run(g, v, 'step', ctx.signal)
-    if (!a.step) throw new CommandError('failed', `${g.label} gave no STEP.`)
-    ctx.signal?.throwIfAborted()
-    const before = new Set(bodyNames())
-    const base = (name ?? a.parts.map((p) => p.name).join(' + ')).replace(/[\\/:*?"<>|]+/g, ' ').trim() || g.label
-    await runCommand('reverse.import.step', { bytes: new TextEncoder().encode(a.step), name: `${base}.step` })
-    const fresh = bodyNames().filter((n) => !before.has(n))
-    // Named after the generator's parts, unless a body already goes by it.
-    const taken = new Set([...before].map((n) => n.toLowerCase()))
-    const bodies: string[] = []
-    for (const [i, was] of fresh.entries()) {
-      const want0 = name ? (fresh.length > 1 ? `${name} ${a.parts[i]?.name ?? i + 1}` : name) : (a.parts[i]?.name ?? was)
-      let want = want0
-      for (let n = 2; taken.has(want.toLowerCase()); n++) want = `${want0} ${n}`
-      taken.add(want.toLowerCase())
-      if (want !== was) await runCommand('reverse.body.set', { body: was, name: want }).catch(() => (want = was))
-      bodies.push(want)
-    }
-    useGen.setState({ made: { generator: g.id, params: v, parts: a.parts, bodies } })
-    return { generator: g.id, values: v, bodies, parts: a.parts.map(partOut), status: `${g.label}: ${bodies.join(', ')} in Reverse Engineer.` }
+    const name = given?.trim()
+    if (given !== undefined && !name) throw new CommandError('invalid_input', 'name: give some letters, or leave it out.')
+    if (name !== undefined && name.length > 60) throw new CommandError('invalid_input', 'name: up to 60 characters.')
+    return inTurn(async () => {
+      ctx.progress(`Building ${g.label.toLowerCase()}…`)
+      const a = await run(g, v, 'step', ctx.signal)
+      if (!a.step) throw new CommandError('failed', `${g.label} gave no STEP.`)
+      ctx.signal?.throwIfAborted()
+      const before = reverseBodies()
+      const had = new Set(before.map((b) => b.id))
+      const base = (name ?? a.parts.map((p) => p.name).join(' + ')).replace(/[\\/:*?"<>|]+/g, ' ').trim() || g.label
+      await runCommand('reverse.import.step', { bytes: new TextEncoder().encode(a.step), name: `${base}.step` })
+      const fresh = reverseBodies().filter((b) => !had.has(b.id))
+      // Each part to the body that stands where it does (the file's order
+      // is not promised), then named after it.
+      const partOf = matchParts(a.parts, fresh)
+      const taken = new Set([...before, ...fresh].map((b) => b.name.toLowerCase()))
+      const bodies: string[] = []
+      for (const [i, b] of fresh.entries()) {
+        const part = partOf[i]
+        const want0 = name ? (fresh.length > 1 ? `${name} ${part?.name ?? i + 1}` : name) : (part?.name ?? b.name)
+        taken.delete(b.name.toLowerCase())
+        let want = want0
+        for (let n = 2; taken.has(want.toLowerCase()); n++) want = `${want0} ${n}`
+        if (want !== b.name) await runCommand('reverse.body.set', { body: b.id, name: want }).catch(() => (want = b.name))
+        taken.add(want.toLowerCase())
+        bodies.push(want)
+      }
+      const parts = fresh.map((_, i) => partOf[i]).filter((p): p is GenPart => !!p)
+      useGen.setState({ made: { generator: g.id, params: v, parts: parts.length === fresh.length ? parts : a.parts, bodies } })
+      return { generator: g.id, values: v, bodies, parts: a.parts.map(partOut), status: `${g.label}: ${bodies.join(', ')} in Reverse Engineer.` }
+    })
   },
 }
 
@@ -143,7 +173,7 @@ const exportFile: Command<{ generator?: string; params?: Record<string, unknown>
     const g = generator(id)
     const v = values(g, params)
     ctx.progress(`Building ${g.label.toLowerCase()}…`)
-    const a = await run(g, v, format, ctx.signal, chord)
+    const a = await inTurn(() => run(g, v, format, ctx.signal, chord))
     const base = a.parts.map((p) => p.name).join(' + ').replace(/[\\/:*?"<>|]+/g, ' ').trim()
     const file = format === 'stl' ? { name: `${base}.stl`, mimeType: 'model/stl', bytes: a.stl as Uint8Array } : { name: `${base}.step`, mimeType: 'model/step', bytes: new TextEncoder().encode(a.step ?? '') }
     if (!file.bytes?.length) throw new CommandError('failed', `${g.label} gave an empty file.`)
@@ -162,7 +192,7 @@ const measure: Command<{ generator?: string; params?: Record<string, unknown> }>
   run: async ({ generator: id, params }, ctx) => {
     const g = generator(id)
     const v = values(g, params)
-    const a = await run(g, v, 'info', ctx.signal)
+    const a = await inTurn(() => run(g, v, 'info', ctx.signal))
     return { generator: g.id, values: v, parts: a.parts.map(partOut) }
   },
 }
@@ -176,6 +206,7 @@ const stopCmd: Command<Record<string, never>> = {
   history: false,
   run: async () => {
     const was = st().busy
+    stops++
     stop('Stopped.')
     return { stopped: was }
   },

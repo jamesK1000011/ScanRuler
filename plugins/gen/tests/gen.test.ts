@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { beforeAll, describe, expect, it } from 'vitest'
-import { generatorOf, GENERATORS, valuesOf } from '../core/generators'
+import { generatorOf, GENERATORS, matchParts, valuesOf } from '../core/generators'
+import { prism } from '../core/kernel'
 import type { GenKernel } from '../core/kernel'
 import { setupIn } from '../app/projectSection'
 
-type K = GenKernel & { makeCompound(s: unknown[]): unknown; releaseAll(): void; mirror(s: unknown, p: { x: number; y: number; z: number }, n: { x: number; y: number; z: number }): unknown }
+type K = GenKernel & { makeCompound(s: unknown[]): unknown; releaseAll(): void; isValid(s: unknown): boolean; common(a: unknown, b: unknown): unknown; makeBox(dx: number, dy: number, dz: number): unknown; mirror(s: unknown, p: { x: number; y: number; z: number }, n: { x: number; y: number; z: number }): unknown }
 let k: K
 beforeAll(async () => {
   k = (await (await import('occt-wasm')).OcctKernel.init()) as unknown as K
@@ -77,7 +78,45 @@ describe('Gridfinity', () => {
   })
 })
 
+describe('Gridfinity, to the specification', () => {
+  const vol = (s: unknown) => k.getVolume(s)
+  /** A 0.2 mm cube of the part at a point, as a volume: > 0 where there is material. */
+  const at = (s: unknown, x: number, y: number, z: number) => vol(k.common(s, k.translate(k.makeBox(0.2, 0.2, 0.2), x - 0.1, y - 0.1, z - 0.1)))
+  it('the lip stands on a 45° support, not a flat overhang', () => {
+    const [b] = build('gridfinity_bin', { units: 3, wall: 1.2 })
+    const H = 21, edge = 41.5 / 2
+    // 0.3 mm under the lip's foot, 2 mm in from the outside: the support.
+    expect(at(b.shape, edge - 2, 0, H - 0.3)).toBeGreaterThan(0.007)
+    // Below the support, the hollow.
+    expect(at(b.shape, edge - 2, 0, H - 2)).toBe(0)
+    expect(k.isValid(b.shape)).toBe(true)
+  })
+  it('a bin stacked on another sits in its lip without touching it', () => {
+    const lower = build('gridfinity_bin', { units: 3 })[0].shape
+    const upper = k.translate(build('gridfinity_bin', { units: 2, lip: false })[0].shape, 0, 0, 21)
+    expect(Math.abs(vol(k.cut(upper, lower)) - vol(upper))).toBeLessThan(0.5)
+  })
+  it('magnet holes 6.5 × 2.4 mm, four to a cell, 13 mm each way from its centre', () => {
+    const plain = vol(build('gridfinity_bin', { x: 2 })[0].shape)
+    const holed = build('gridfinity_bin', { x: 2, magnets: true })[0].shape
+    const holes = 8 * Math.PI * 3.25 ** 2 * 2.4
+    expect(Math.abs(plain - vol(holed) - holes)).toBeLessThan(0.1)
+    expect(at(holed, 21 + 13, 13, 1)).toBe(0)
+    expect(at(holed, 21 + 13 + 3.4, 13, 1)).toBeGreaterThan(0)
+  })
+  it('the base is 4.75 mm: 0.8 at 45°, 1.8 straight, 2.15 at 45°, from a 35.6 mm foot', () => {
+    const b = build('gridfinity_bin', { lip: false, units: 2, wall: 0 })[0].shape
+    expect(at(b, 35.6 / 2 - 0.35, 0, 0.1)).toBeGreaterThan(0)
+    expect(at(b, 35.6 / 2 + 0.35, 0, 0.1)).toBe(0)
+    // At 0.8 mm the foot is 37.2 wide, and stays so to 2.6 mm.
+    expect(at(b, 37.2 / 2 - 0.35, 0, 2.5)).toBeGreaterThan(0)
+    expect(at(b, 37.2 / 2 + 0.35, 0, 2.5)).toBe(0)
+    expect(at(b, 41.5 / 2 - 0.35, 0, 4.9)).toBeGreaterThan(0)
+  })
+})
+
 describe('Project box', () => {
+  const vol = (s: unknown) => k.getVolume(s)
   it('box and lid, the lid laid beside', () => {
     const [box, lid] = build('project_box', { width: 80, depth: 60, height: 30 })
     expect(box.name).toBe('Box')
@@ -98,6 +137,19 @@ describe('Project box', () => {
       expect(Math.abs(k.getVolume(k.cut(box.shape, over)) - k.getVolume(box.shape))).toBeLessThan(0.5)
     }
   })
+  it('corner bosses stay inside however round the corners', () => {
+    for (const corner of [0, 4, 10, 20, 29]) {
+      const [box] = build('project_box', { width: 80, depth: 60, height: 30, corner, screws: true })
+      expect(vol(k.cut(box.shape, prism(k, 0, 0, 80, 60, corner, -1, 31)))).toBeLessThan(0.01)
+      expect(k.isValid(box.shape)).toBe(true)
+    }
+  })
+  it('refuses walls that leave no inside, and a lip with no room', () => {
+    const box = generatorOf('project_box')!
+    expect(() => valuesOf(box, { width: 20, depth: 20, wall: 10, screws: false, corner: 2 })).toThrow(/wall/)
+    expect(() => valuesOf(box, { width: 20, depth: 20, wall: 6.5, clearance: 1, screws: false, corner: 2, lip: 3 })).toThrow(/lip/)
+    expect(() => valuesOf(box, { width: 20, depth: 20, wall: 6.5, clearance: 1, screws: false, corner: 2, lip: 0 })).not.toThrow()
+  })
   it('a flat lid has no lip', () => {
     const [, lid] = build('project_box', { lip: 0, screws: false, lid: 2 })
     expect(size(lid.shape)[2]).toBe(2)
@@ -111,5 +163,20 @@ describe('project section', () => {
     expect(s.values).toEqual({ gridfinity_bin: { x: 2 } })
     expect(setupIn({ generator: 'nope' }).generator).toBe(GENERATORS[0].id)
     expect(setupIn(null).values).toEqual({})
+  })
+  it('keeps a value that needs another first, in whatever order saved', () => {
+    // A 30 mm lip needs the 60 mm height saved after it; a 40 mm corner the width and depth.
+    const saved = { project_box: { lip: 30, corner: 40, height: 60, width: 100, depth: 100 } }
+    expect(setupIn({ values: saved }).values).toEqual(saved)
+  })
+})
+
+describe('making', () => {
+  it('names each body after the part that stands where it does', () => {
+    const part = (name: string, x: number) => ({ name, volume: 1, box: { min: [x, 0, 0] as [number, number, number], max: [x + 10, 10, 10] as [number, number, number] } })
+    const parts = [part('Box', 0), part('Lid', 90)]
+    const named = matchParts(parts, [{ bounds: { min: [90, 0, 0], max: [100, 10, 10] } }, { bounds: { min: [0, 0, 0], max: [10, 10, 10] } }])
+    expect(named.map((p) => p?.name)).toEqual(['Lid', 'Box'])
+    expect(matchParts(parts, [{ bounds: null }, { bounds: null }]).map((p) => p?.name)).toEqual(['Box', 'Lid'])
   })
 })

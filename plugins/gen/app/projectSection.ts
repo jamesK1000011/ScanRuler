@@ -23,12 +23,21 @@ export function setupIn(u: unknown): GenSetup {
     const g = Object.hasOwn(vs, id) ? generatorOf(id) : undefined
     if (!g || !raw || typeof raw !== 'object') continue
     const kept: Record<string, Value> = {}
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      try {
-        valuesOf(g, { [k]: v }, { ...g.defaults, ...kept })
-        kept[k] = v as Value
-      } catch {
-        // Dropped: a value this version does not take.
+    // Each value against those kept so far, round again while one more is
+    // kept: a value that needs another first (a floor a taller bin allows)
+    // is kept wherever it stands.
+    const entries = Object.entries(raw as Record<string, unknown>)
+    for (let more = true; more; ) {
+      more = false
+      for (const [k, v] of entries) {
+        if (Object.hasOwn(kept, k)) continue
+        try {
+          valuesOf(g, { [k]: v }, { ...g.defaults, ...kept })
+          kept[k] = v as Value
+          more = true
+        } catch {
+          // Dropped, unless a later round keeps it: a value this version does not take.
+        }
       }
     }
     try {

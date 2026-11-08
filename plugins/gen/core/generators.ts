@@ -5,6 +5,7 @@
 
 import { box, BOX_DEFAULTS, checkBox, lid, type BoxParams } from './enclosure'
 import { BASE_DEFAULTS, baseplate, bin, BIN_DEFAULTS, checkBin, type BaseParams, type BinParams } from './gridfinity'
+import type { GenPart } from './genWorker'
 import type { GenKernel, H } from './kernel'
 
 export type Value = number | boolean
@@ -131,4 +132,24 @@ export function valuesOf(g: Generator, given: Record<string, unknown> = {}, base
   const why = g.check(out)
   if (why) throw new Error(why)
   return out
+}
+
+/** The part each new body is: by where its box stands, nearest first; in
+ *  order where a body has no box. */
+export function matchParts(parts: GenPart[], bodies: { bounds?: { min: number[]; max: number[] } | null }[]): (GenPart | undefined)[] {
+  const left = new Set(parts.map((_, i) => i))
+  return bodies.map((b, i) => {
+    let best = -1
+    let far = Infinity
+    if (b.bounds)
+      for (const j of left) {
+        const p = parts[j]
+        const d = [0, 1, 2].reduce((s, k) => s + Math.abs(p.box.min[k] - b.bounds!.min[k]) + Math.abs(p.box.max[k] - b.bounds!.max[k]), 0)
+        if (d < far) [best, far] = [j, d]
+      }
+    if (best < 0) best = left.has(i) ? i : [...left][0] ?? -1
+    if (best < 0) return undefined
+    left.delete(best)
+    return parts[best]
+  })
 }

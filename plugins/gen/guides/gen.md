@@ -4,7 +4,7 @@ Standard parts made to size as solids, then finished in Reverse Engineer.
 
 1. `gen.list` gives the generators (`gridfinity_bin`, `gridfinity_baseplate`, `project_box`), each parameter's key, kind, range and unit, and the values set now.
 2. `gen.measure { generator, params }` builds without making anything and gives each part's size and volume: check before you make.
-3. `gen.make { generator, params, name? }` brings the part into Reverse Engineer as bodies (an Import feature, saved with the project). The box and its lid come in as two bodies, the lid beside the box, upside down.
+3. `gen.make { generator, params, name? }` brings the part into Reverse Engineer as bodies (an Import feature, saved with the project). The box and its lid come in as two bodies, the lid beside the box, upside down. A name already taken gets 2, 3 … after it. Builds run one at a time; `gen.stop` ends the one running and any waiting.
 4. Finish it there: cut a pocket or a slot with `reverse.feature.add`, move it with `moveBody`, check it with `reverse.body.check`, and export with `reverse.export.stl` or `reverse.export.step`.
 5. `gen.export { format: "step" | "stl" }` gives the file alone, without the project.
 

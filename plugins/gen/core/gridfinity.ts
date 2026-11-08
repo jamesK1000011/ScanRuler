@@ -8,7 +8,7 @@
 // straight, a 2.15 mm 45° chamfer — 4.75 mm, ending 41.5 mm square with
 // 3.75 mm corners (half a millimetre short of the grid for clearance).
 // Stacking lip, inward from the top edge: 0.7 mm at 45°, 1.8 mm straight,
-// 1.9 mm at 45° — 4.4 mm tall. Baseplate pockets are the base's mirror,
+// 1.9 mm at 45° — 4.4 mm tall, on a 45° support out from the wall. Baseplate pockets are the base's mirror,
 // 42 mm square with 4 mm corners at the top. Magnets 6 × 2 mm (6.5 × 2.4
 // pockets) and M3 screws at ±13 mm from each cell's centre.
 
@@ -20,6 +20,8 @@ const CLEAR = 0.5
 const BASE_H = 4.75
 const LIP_H = 4.4
 const OUTER_R = 3.75
+/** How far in from the outside the lip's foot comes: 0.7 + 1.9 mm. */
+const LIP_IN = 2.6
 
 export interface BinParams {
   /** Cells across (X) and deep (Y). */
@@ -100,7 +102,20 @@ export function bin(k: GenKernel, p: BinParams): H {
     const floorZ = BASE_H + p.floor
     // Up to the lip's ledge (the lip shapes the opening above it), or out
     // through the top without one.
-    const inner = prism(k, 0, 0, W - 2 * p.wall, D - 2 * p.wall, Math.max(0.5, OUTER_R - p.wall), floorZ, p.lip ? H : H + 1)
+    const inR = Math.max(0.5, OUTER_R - p.wall)
+    let inner: H
+    if (p.lip && p.wall < LIP_IN) {
+      // Under the lip, a 45° support from the wall in to the lip's foot, so
+      // nothing overhangs flat; above it, up through the lip's opening.
+      const z = Math.max(floorZ + 0.01, H - (LIP_IN - p.wall))
+      const lipR = Math.max(0.5, OUTER_R - LIP_IN)
+      inner = stepped(k, 0, 0, W, D, [
+        [floorZ, p.wall, inR],
+        [z, p.wall, inR],
+        [H, LIP_IN, lipR],
+        [H + 1, LIP_IN, lipR],
+      ])
+    } else inner = prism(k, 0, 0, W - 2 * p.wall, D - 2 * p.wall, inR, floorZ, p.lip ? H : H + 1)
     body = k.cut(body, inner)
     // Dividing walls, then the label ledge, built back into the hollow.
     const adds: H[] = []
@@ -135,8 +150,8 @@ export function bin(k: GenKernel, p: BinParams): H {
   for (const [cx, cy] of centres)
     for (const sx of [-1, 1])
       for (const sy of [-1, 1]) {
-        if (p.magnets) holes.push(k.translate(k.makeCylinder(3.25, 2.4), cx + sx * 13, cy + sy * 13, -0.01))
-        if (p.screws) holes.push(k.translate(k.makeCylinder(1.5, 6), cx + sx * 13, cy + sy * 13, -0.01))
+        if (p.magnets) holes.push(k.translate(k.makeCylinder(3.25, 2.41), cx + sx * 13, cy + sy * 13, -0.01))
+        if (p.screws) holes.push(k.translate(k.makeCylinder(1.5, 6.01), cx + sx * 13, cy + sy * 13, -0.01))
       }
   if (holes.length) body = k.cutAll(body, holes)
   return body

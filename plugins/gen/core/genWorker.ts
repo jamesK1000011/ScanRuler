@@ -43,7 +43,11 @@ self.onmessage = async (e: MessageEvent<GenAsk>) => {
     const g = generatorOf(generator)
     if (!g) throw new Error(`No generator "${generator}".`)
     kernel ??= import('occt-wasm').then((m) => m.OcctKernel.init({ wasm: wasmUrl }) as unknown as Promise<Kernel>)
-    const k = await kernel
+    const k = await kernel.catch((err) => {
+      // Not loaded: the next build tries again.
+      kernel = null
+      throw err
+    })
     try {
       const made = g.build(k, params)
       const parts: GenPart[] = made.map(({ name, shape }) => {

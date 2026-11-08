@@ -44,14 +44,25 @@ export function checkBox(p: BoxParams): string | null {
   if (p.lip < 0 || p.lip > p.height - p.floor - 1) return 'lip: 0 up to the inside height.'
   if (p.clearance < 0 || p.clearance > 1) return 'clearance: 0 to 1.'
   if (p.corner < 0 || p.corner > Math.min(p.width, p.depth) / 2 - 1) return 'corner: 0 up to just under half the smaller side.'
-  if (p.screws && Math.min(p.width, p.depth) - 2 * p.wall < 4 * BOSS + 4) return 'Too small inside for corner screw bosses: turn screws off or make it bigger.'
+  const inside = Math.min(p.width, p.depth) - 2 * p.wall
+  if (inside < 6) return 'wall: too thick for the size — it leaves next to no room inside.'
+  if (p.lip > 0 && inside - 2 * p.clearance - 2 * Math.min(1.6, p.wall) < 2) return 'Too small inside for the lid’s lip: make it bigger, or the lip 0.'
+  if (p.screws && inside < 4 * BOSS + 4) return 'Too small inside for corner screw bosses: turn screws off or make it bigger.'
   return null
 }
 
-/** Where the bosses stand: inside each corner, touching both walls. */
-function bossCentres(p: BoxParams): [number, number][] {
-  const ox = p.width / 2 - p.wall - BOSS + 0.4
-  const oy = p.depth / 2 - p.wall - BOSS + 0.4
+/** Where the bosses stand: inside each corner, 0.4 mm into both walls —
+ *  or, where the inside corner is rounded wider than a boss, into the
+ *  round, on the diagonal, so no boss stands out through it. */
+export function bossCentres(p: BoxParams): [number, number][] {
+  const inR = Math.max(0, p.corner - p.wall)
+  const cx = p.width / 2 - p.wall - inR
+  const cy = p.depth / 2 - p.wall - inR
+  // From the round's centre to the boss's: square in the corner, or along
+  // the diagonal to 0.4 mm into the round.
+  const off = inR > BOSS - 0.4 ? (inR - BOSS + 0.4) / Math.SQRT2 : inR - BOSS + 0.4
+  const ox = cx + off
+  const oy = cy + off
   return [[-ox, -oy], [ox, -oy], [ox, oy], [-ox, oy]]
 }
 
