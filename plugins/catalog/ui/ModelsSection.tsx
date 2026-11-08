@@ -227,7 +227,7 @@ function Opened() {
             {f.name}
           </span>
           <span className="pl-aside">{[f.format.toUpperCase(), size(f.size)].filter(Boolean).join(' · ')}</span>
-          <button disabled={busy} data-test="catalog-model-take" title="Download it into the imports folder, with its licence recorded" onClick={() => void bringIn(hit, f, licence)}>
+          <button disabled={busy} data-test="catalog-model-take" title="Download to the imports folder, licence recorded" onClick={() => void bringIn(hit, f, licence)}>
             Bring in
           </button>
         </div>
