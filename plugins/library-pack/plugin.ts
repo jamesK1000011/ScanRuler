@@ -19,8 +19,9 @@ const plugin: ScanRulerPlugin = {
     id: 'pack',
     label: 'Share',
     title: 'Pack a finished part to share: licences checked, remixes credited, personal details taken out — a zip you upload yourself',
-    icon: 'save',
-    order: 42,
+    icon: 'share',
+    order: 44,
+    group: 'share',
   },
   usePlugin: usePackPlugin,
   install() {
