@@ -40,6 +40,7 @@ import { decoder, encode, type Message } from './framing'
 import { sceneOf } from './host'
 import { listCommands, runCommand } from './registry'
 import { CommandError } from './types'
+import { setNoticeOut } from './notice'
 
 /** The close codes the server turns a page away with (mcp/src/link.js). */
 const REFUSED = new Set([4001, 4003, 4008, 4009])
@@ -93,20 +94,10 @@ const PAGE_SINCE = new Date(typeof performance !== 'undefined' && performance.ti
  *  minimised, the screen locked — where the browser stops drawing it. */
 const tabHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
 
+export { notifyAgent } from './notice'
+
 /** Connect to the agent's server, and keep connecting while switched on.
  *  The returned function switches it off. */
-/** The open connection's way to tell the agent's server something without
- *  being asked — none while no server is connected. */
-let noticeOut: ((m: Message) => void) | null = null
-
-/** Tell the agent's server that something happened on the page it may want
- *  to know of — the person took a screenshot, say. The server keeps it and
- *  tells the agent with its next answer. Dropped when no server is
- *  connected: a notice is news, not a request. */
-export function notifyAgent(kind: string, data: Record<string, unknown> = {}) {
-  noticeOut?.({ event: 'notice', kind, data })
-}
-
 export function startBridge({ port, token, socket = (url) => new WebSocket(url), reach = fetchHello }: BridgeOptions): () => void {
   let stopped = false
   let ws: WebSocket | null = null
@@ -220,14 +211,14 @@ export function startBridge({ port, token, socket = (url) => new WebSocket(url),
     }
   }
 
-  noticeOut = (m) => send(m)
+  setNoticeOut((m) => send(m))
   const visibility = () => send({ event: 'visibility', hidden: tabHidden() })
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', visibility)
   void connect()
   return () => {
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', visibility)
     stopped = true
-    noticeOut = null
+    setNoticeOut(null)
     clearTimeout(timer)
     ws?.close(1000, 'Switched off')
     ws = null
