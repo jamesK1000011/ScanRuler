@@ -328,6 +328,12 @@ input.pl-input:disabled {
   white-space: nowrap;
 }
 
+/* A value that must be read whole — a file name on a confirmation. */
+.pl-facts dd.wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* A fold for what is seldom needed — "Add a part you didn't design". */
 details.pl-fold > summary {
   font-size: 12px;

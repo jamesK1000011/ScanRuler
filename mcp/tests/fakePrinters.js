@@ -163,6 +163,7 @@ export async function fakeHttp(kind, { key = 'k-123', user = null, password = nu
         return json(200, { result: 'ok' })
       }
       if (url.pathname === '/printer/print/pause') return (seen.state = 'paused'), json(200, { result: 'ok' })
+      if (url.pathname === '/printer/print/resume') return (seen.state = 'printing'), json(200, { result: 'ok' })
       if (url.pathname === '/printer/print/cancel') return (seen.state = 'idle'), json(200, { result: 'ok' })
       if (url.pathname === '/server/webcams/list') return json(200, { result: { webcams: [{ enabled: true, snapshot_url: '/webcam/?action=snapshot' }] } })
       if (url.pathname === '/webcam/') return res.writeHead(200, { 'Content-Type': 'image/png' }).end(PNG)

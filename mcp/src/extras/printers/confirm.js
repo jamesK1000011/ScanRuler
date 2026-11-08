@@ -15,9 +15,17 @@ const EXPIRE_MS = 15 * 60_000
 let server = null
 let serverPort = 0
 
+/** What the person is asked: to start a print, or to resume one that was
+ *  paused (often for a reason at the printer). */
+const WORDS = {
+  start: { ask: 'Start this print?', button: 'Start', dialog: 'Start print', done: 'Started', failed: 'It did not start', why: 'An agent asked to start a print. It starts only if you press Start.', check: 'Check the bed is clear and the right filament is loaded.' },
+  resume: { ask: 'Resume this print?', button: 'Resume', dialog: 'Resume print', done: 'Resumed', failed: 'It did not resume', why: 'An agent asked to resume a paused print. It resumes only if you press Resume.', check: 'Check whatever made it pause is put right: the nozzle, the filament, the part on the bed.' },
+}
+const words = (r) => WORDS[r.verb] ?? WORDS.start
+
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-export const publicView = (r) => ({ request: r.id, printer: r.printer, file: r.file, summary: r.summary, status: r.status, asked: r.createdAt, ...(r.decidedAt ? { decided: r.decidedAt } : {}), ...(r.outcome ? { outcome: r.outcome } : {}), how: r.how })
+export const publicView = (r) => ({ request: r.id, ...(r.verb && r.verb !== 'start' ? { asks: r.verb } : {}), printer: r.printer, file: r.file, summary: r.summary, status: r.status, asked: r.createdAt, ...(r.decidedAt ? { decided: r.decidedAt } : {}), ...(r.outcome ? { outcome: r.outcome } : {}), how: r.how })
 
 export function listRequests() {
   expire()
@@ -49,16 +57,17 @@ async function decide(r, yes) {
 
 function page(r) {
   const s = r.summary ?? {}
+  const w = words(r)
   const rows = [['Printer', r.printer], ['File', r.file], ...(s.time ? [['Time', s.time]] : []), ...(s.filament ? [['Filament', s.filament]] : []), ...(s.size ? [['Size', s.size]] : [])]
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Start this print?</title>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(w.ask)}</title>
 <style>body{font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem}td{padding:.25rem 1rem .25rem 0}button{font-size:1.1rem;padding:.6rem 1.4rem;margin-right:1rem}#start{background:#0a7;color:#fff;border:0;border-radius:6px}</style></head>
-<body><h1>Start this print?</h1><p>An agent asked to start a print. It starts only if you press Start.</p>
+<body><h1>${esc(w.ask)}</h1><p>${esc(w.why)}</p>
 <table>${rows.map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`).join('')}</table>
-<p>Check the bed is clear and the right filament is loaded.</p>
-<form method="post"><button id="start" name="action" value="start">Start</button><button name="action" value="cancel">Cancel</button></form></body></html>`
+<p>${esc(w.check)}</p>
+<form method="post"><button id="start" name="action" value="start">${esc(w.button)}</button><button name="action" value="cancel">Cancel</button></form></body></html>`
 }
 
-const done = (r) => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(r.status)}</title></head><body style="font-family:Helvetica,Arial,sans-serif;max-width:32rem;margin:4rem auto"><h1>${r.status === 'started' ? 'Started' : r.status === 'cancelled' ? 'Cancelled' : r.status === 'failed' ? 'It did not start' : esc(r.status)}</h1><p>${esc(r.outcome?.error ?? (r.status === 'started' ? `${r.file} on ${r.printer}.` : 'Nothing was sent to the printer.'))}</p><p>You can close this tab.</p></body></html>`
+const done = (r) => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(r.status)}</title></head><body style="font-family:Helvetica,Arial,sans-serif;max-width:32rem;margin:4rem auto"><h1>${r.status === 'started' ? esc(words(r).done) : r.status === 'cancelled' ? 'Cancelled' : r.status === 'failed' ? esc(words(r).failed) : esc(r.status)}</h1><p>${esc(r.outcome?.error ?? (r.status === 'started' ? `${r.file} on ${r.printer}.` : 'Nothing was sent to the printer.'))}</p><p>You can close this tab.</p></body></html>`
 
 async function ensureServer() {
   if (server) return serverPort
@@ -98,8 +107,9 @@ async function ensureServer() {
 
 function dialog(r, env, open) {
   const s = r.summary ?? {}
-  const text = `An agent asked to start a print.\n\nPrinter: ${r.printer}\nFile: ${r.file}${s.time ? `\nTime: ${s.time}` : ''}${s.filament ? `\nFilament: ${s.filament}` : ''}\n\nCheck the bed is clear and the right filament is loaded.`.replace(/["\\]/g, (c) => `\\${c}`)
-  const script = `display dialog "${text}" with title "ScanRuler — start this print?" buttons {"Cancel", "Start print"} default button "Cancel" cancel button "Cancel" with icon caution giving up after 600`
+  const w = words(r)
+  const text = `${w.why}\n\nPrinter: ${r.printer}\nFile: ${r.file}${s.time ? `\nTime: ${s.time}` : ''}${s.filament ? `\nFilament: ${s.filament}` : ''}\n\n${w.check}`.replace(/["\\]/g, (c) => `\\${c}`)
+  const script = `display dialog "${text}" with title "ScanRuler — ${w.ask.toLowerCase()}" buttons {"Cancel", "${w.dialog}"} default button "Cancel" cancel button "Cancel" with icon caution giving up after 600`
   const child = spawn(env.SCANRULER_DIALOG ?? 'osascript', ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] })
   let out = ''
   child.stdout.on('data', (d) => (out += d))
@@ -110,7 +120,7 @@ function dialog(r, env, open) {
   })
   child.on('close', (code) => {
     if (r.status !== 'waiting') return
-    const yes = code === 0 && /button returned:Start print/.test(out) && !/gave up:true/.test(out)
+    const yes = code === 0 && out.includes(`button returned:${w.dialog}`) && !/gave up:true/.test(out)
     if (/gave up:true/.test(out)) Object.assign(r, { status: 'expired', decidedAt: new Date().toISOString() })
     else decide(r, yes)
   })
@@ -118,17 +128,17 @@ function dialog(r, env, open) {
 
 /** A request to start a print: the person is asked, and onStart runs only
  *  if they say start. Returns what the agent may see. */
-export async function ask({ printer, file, summary, onStart, open, page }, env = process.env, platform = process.platform) {
+export async function ask({ printer, file, summary, onStart, open, page, verb = 'start' }, env = process.env, platform = process.platform) {
   expire()
   if ([...requests.values()].some((r) => r.printer === printer && r.status === 'waiting')) throw new Error(`There is already a request waiting for ${printer}; printer_requests shows it.`)
   const how = env.SCANRULER_CONFIRM ?? (platform === 'darwin' ? 'dialog' : 'page')
-  const r = { id: randomUUID().slice(0, 8), token: randomBytes(24).toString('base64url'), printer, file, summary, onStart, status: 'waiting', createdAt: new Date().toISOString(), how }
+  const r = { id: randomUUID().slice(0, 8), token: randomBytes(24).toString('base64url'), printer, file, summary, onStart, verb, status: 'waiting', createdAt: new Date().toISOString(), how }
   requests.set(r.id, r)
   if (how === 'dialog') dialog(r, env, open)
   else if (how === 'app' && page) {
     const port = await ensureServer()
     try {
-      await page('printer.ask', { request: r.id, printer, file, summary: summary ?? {}, answer: `http://127.0.0.1:${port}/confirm/${r.token}` })
+      await page('printer.ask', { request: r.id, verb, printer, file, summary: summary ?? {}, answer: `http://127.0.0.1:${port}/confirm/${r.token}` })
     } catch {
       r.how = 'page'
       await open(`http://127.0.0.1:${port}/confirm/${r.token}`)
@@ -141,7 +151,7 @@ export async function ask({ printer, file, summary, onStart, open, page }, env =
   return {
     ...publicView(r),
     how: r.how,
-    next: r.how === 'dialog' ? 'A dialog on this Mac asks the person to start it. printer_requests shows the answer.' : r.how === 'app' ? 'A card in ScanRuler asks the person to start it. printer_requests shows the answer.' : 'A page opened in the person’s browser asks them to start it. printer_requests shows the answer.',
+    next: `${r.how === 'dialog' ? 'A dialog on this Mac' : r.how === 'app' ? 'A card in ScanRuler' : 'A page opened in the person’s browser'} asks the person to ${verb} it. printer_requests shows the answer.`,
   }
 }
 

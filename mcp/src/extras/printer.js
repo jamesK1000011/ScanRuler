@@ -5,7 +5,9 @@
 // through. Secrets come from the Keychain or the secrets file (secrets.js)
 // and never appear in an answer.
 
+import { lookup } from 'node:dns/promises'
 import { existsSync } from 'node:fs'
+import { isIP } from 'node:net'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
@@ -16,7 +18,48 @@ import { getSecret, hasSecret } from './secrets.js'
 import { home, job as sliceJob } from './slicer.js'
 
 const tilde = (p) => (p.startsWith('~/') ? join(homedir(), p.slice(2)) : p)
-const FIELDS = ['name', 'kind', 'host', 'port', 'serial', 'folder', 'app', 'storage', 'useAms', 'amsMapping', 'plate', 'startUrl', 'mqttPort', 'ftpPort', 'user', 'model', 'camera', 'cameraPort', 'ffmpeg', 'confirm', 'fingerprint']
+/** Fields only the person sets, by editing printers.json: a program to run
+ *  (ffmpeg), where a Bambu printer fetches its job (startUrl), and leave to
+ *  reach a printer that is not on the local network (allowPublic). Kept
+ *  across printer_add while the host stays the same. */
+const PERSON_ONLY = ['ffmpeg', 'startUrl', 'allowPublic']
+const FIELDS = ['name', 'kind', 'host', 'port', 'serial', 'folder', 'app', 'storage', 'useAms', 'amsMapping', 'plate', 'startUrl', 'mqttPort', 'ftpPort', 'user', 'model', 'camera', 'cameraPort', 'ffmpeg', 'confirm', 'fingerprint', 'allowPublic']
+
+/** What can be sent to a printer: sliced jobs, nothing else. */
+export const PRINT_FILES = /\.(gcode|gco|g|bgcode|3mf|ufp)$/i
+
+/** The host of a printer address — a name or an IP, with a port and an
+ *  http(s):// in front at most; never a path, a query or a login. */
+export function hostOf(h) {
+  const m = /^(?:(https?):\/\/)?(\[[0-9a-f:.]+\]|[a-z0-9.-]+|[0-9a-f:]+)(?::(\d{1,5}))?\/?$/i.exec(String(h ?? '').trim())
+  if (!m) throw new Error(`"${String(h).slice(0, 60)}" is not a printer address: give its name or IP, with a port if it needs one (192.168.1.40, voron.local, http://octopi:5000) — no path or query.`)
+  return m[2].replace(/^\[|\]$/g, '')
+}
+
+/** Whether an address is on this machine or the local network: loopback,
+ *  the private ranges, link-local, carrier-grade NAT, and their IPv6 kin. */
+export function localAddress(a) {
+  if (isIP(a) === 4) {
+    const [x, y] = a.split('.').map(Number)
+    return x === 10 || x === 127 || (x === 172 && y >= 16 && y < 32) || (x === 192 && y === 168) || (x === 169 && y === 254) || (x === 100 && y >= 64 && y < 128)
+  }
+  if (isIP(a) === 6) {
+    const l = a.toLowerCase()
+    if (l.startsWith('::ffff:')) return localAddress(l.slice(7))
+    return l === '::1' || /^f[cd]/.test(l) || /^fe[89ab]/.test(l)
+  }
+  return false
+}
+
+/** A printer may be reached only on the local network, unless the person
+ *  set allowPublic in printers.json. A name is looked up each time, so one
+ *  that moves to a public address is refused then. */
+async function reachable(p) {
+  if (!p.host || p.allowPublic === true) return
+  const h = hostOf(p.host)
+  const addrs = isIP(h) ? [h] : (await lookup(h, { all: true }).catch(() => { throw new Error(`${h} could not be found on the network.`) })).map((x) => x.address)
+  if (!addrs.length || !addrs.every(localAddress)) throw new Error(`${p.name} is at ${h}, which is not on the local network. Printers are reached on the local network only; if this one really is elsewhere, the person sets "allowPublic": true on it in printers.json.`)
+}
 
 export async function loadPrinters(env = process.env) {
   const file = join(home(env), 'printers.json')
@@ -41,6 +84,7 @@ async function find(name, env) {
 }
 
 async function adapter(p, env) {
+  await reachable(p)
   return adapterFor(p, KINDS[p.kind]?.secret ? await getSecret(account(p.name), env) : null, env)
 }
 
@@ -58,10 +102,13 @@ export async function add(input, env = process.env) {
   if (!kind) throw new Error(`No kind "${input.kind}" — kinds: ${Object.keys(KINDS).join(', ')}.`)
   for (const f of kind.needs) if (!input[f]) throw new Error(`A ${kind.label} needs ${f}.`)
   if (!/^[\w .-]{1,40}$/.test(input.name ?? '')) throw new Error('Name it with letters, digits, spaces, dots, dashes or underscores (40 at most).')
+  if (input.host !== undefined) hostOf(input.host)
+  if (input.app !== undefined && !/^[\w .-]{1,60}$/.test(input.app)) throw new Error('app is the name of the slicer app (BambuStudio, OrcaSlicer).')
   const { printers } = await loadPrinters(env)
-  const entry = Object.fromEntries(FIELDS.filter((f) => f !== 'fingerprint' && input[f] !== undefined).map((f) => [f, f === 'folder' ? resolve(tilde(input[f])) : input[f]]))
+  const entry = Object.fromEntries(FIELDS.filter((f) => f !== 'fingerprint' && !PERSON_ONLY.includes(f) && input[f] !== undefined).map((f) => [f, f === 'folder' ? resolve(tilde(input[f])) : input[f]]))
   const old = printers.find((p) => p.name === input.name)
-  const next = old ? printers.map((p) => (p === old ? { ...entry, ...(old.host === entry.host && old.fingerprint ? { fingerprint: old.fingerprint } : {}) } : p)) : [...printers, entry]
+  const kept = old && old.host === entry.host ? Object.fromEntries(['fingerprint', ...PERSON_ONLY].filter((f) => old[f] !== undefined).map((f) => [f, old[f]])) : {}
+  const next = old ? printers.map((p) => (p === old ? { ...entry, ...kept } : p)) : [...printers, entry]
   const file = await savePrinters(next, env)
   const secretSet = kind.secret ? await hasSecret(account(input.name), env) : null
   return {
@@ -103,7 +150,8 @@ const lastUpload = new Map()
 async function fileFor(p, { file, job }, env) {
   if (file) {
     const f = resolve(tilde(file))
-    if (!existsSync(f)) throw new Error(`There is no file at ${f}.`)
+    if (!PRINT_FILES.test(f)) throw new Error('Only a sliced job goes to a printer: a .gcode, .bgcode or .3mf file.')
+    if (!existsSync(f) || !(await stat(f)).isFile()) throw new Error(`There is no file at ${f}.`)
     return { path: f }
   }
   if (!job) throw new Error('Give a file, or a job from slicer_jobs.')
@@ -147,8 +195,12 @@ export async function start({ printer, file }, env = process.env, platform = pro
 export const requests = () => ({ requests: listRequests() })
 export const withdraw = (id) => cancelRequest(id)
 
-export async function control(name, what, env = process.env) {
+export async function control(name, what, env = process.env, platform = process.platform, page = null) {
   const p = await find(name, env)
+  if (what === 'resume' && KINDS[p.kind].starts === 'after you confirm') {
+    const a = await adapter(p, env)
+    return ask({ verb: 'resume', printer: p.name, file: lastUpload.get(p.name)?.name ?? 'the paused print', summary: {}, onStart: () => a.resume(), open: (u) => openUrl(u, env, platform), page }, p.confirm ? { ...env, SCANRULER_CONFIRM: p.confirm } : env, platform)
+  }
   return { printer: p.name, ...(await (await adapter(p, env))[what]()) }
 }
 

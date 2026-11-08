@@ -163,6 +163,39 @@ test('Moonraker: cancelled at the question, nothing starts; started when the per
   assert.equal(cam.content[0].mimeType, 'image/png')
 })
 
+test('red team: an address is a printer on the local network, a file is a sliced job, and a resume is the person’s', async () => {
+  for (const host of ['http://127.0.0.1:1/collect?x=', '127.0.0.1/path', 'user:pw@127.0.0.1', 'file:///etc/passwd', 'javascript:alert(1)']) {
+    const r = await call('printer_add', { name: 'Odd', kind: 'moonraker', host })
+    assert.equal(r.error, true, host)
+    assert.match(r.text, /not a printer address/)
+  }
+  await ok('printer_add', { name: 'Far', kind: 'moonraker', host: '93.184.215.14' })
+  const far = await call('printer_test', { name: 'Far' })
+  assert.equal(far.error, true)
+  assert.match(far.text, /not on the local network/)
+  await ok('printer_add', { name: 'Far', kind: 'moonraker', host: '93.184.215.14', ffmpeg: '/bin/sh', allowPublic: true })
+  const far2 = JSON.parse(await readFile(join(env.SCANRULER_HOME, 'printers.json'), 'utf8')).printers.find((p) => p.name === 'Far')
+  assert.equal(far2.ffmpeg, undefined)
+  assert.equal(far2.allowPublic, undefined)
+  await ok('printer_remove', { name: 'Far' })
+  const key = join(dir, 'id_rsa')
+  await writeFile(key, 'PRIVATE KEY')
+  const up = await call('printer_upload', { printer: 'Voron', file: key })
+  assert.equal(up.error, true)
+  assert.match(up.text, /sliced job/)
+  assert.ok(!moon.seen.files.has('id_rsa'))
+  const resumes = () => moon.seen.calls.filter((c) => c.path === '/printer/print/resume').length
+  await ok('printer_pause', { name: 'Voron' })
+  const r = await ok('printer_resume', { name: 'Voron' })
+  assert.equal(r.asks, 'resume')
+  assert.equal(resumes(), 0)
+  const page = await (await fetch(_person.address(r.request))).text()
+  assert.match(page, /Resume this print\?/)
+  await answer(r.request, 'start')
+  assert.equal((await settle(r.request)).status, 'started')
+  assert.equal(resumes(), 1)
+})
+
 test('OctoPrint: a wrong key is named; a withdrawn request starts nothing', async () => {
   await ok('printer_add', { name: 'Ender', kind: 'octoprint', host: `127.0.0.1:${octo.port}` })
   await setSecret('printer:Ender', 'wrong', env)
