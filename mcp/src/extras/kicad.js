@@ -254,6 +254,29 @@ const fmt = (x) => String(Math.round(x * 10000) / 10000)
  * VRML ones of the same name (--subst-models); dnp: keep parts marked
  * do-not-populate (dropped by default, where --no-dnp is listed).
  */
+/** The 3D-model folder that comes with this kicad-cli's KiCad: inside the
+ *  Mac app, or the system's share folder. null when there is none. */
+export function modelsDirOf(cli, platform = process.platform) {
+  const tries = platform === 'darwin'
+    ? [resolve(dirname(cli), '..', 'SharedSupport', '3dmodels')]
+    : platform === 'win32'
+      ? [resolve(dirname(cli), '..', 'share', 'kicad', '3dmodels')]
+      : [resolve(dirname(cli), '..', 'share', 'kicad', '3dmodels'), '/usr/share/kicad/3dmodels', '/usr/local/share/kicad/3dmodels']
+  return tries.find((d) => existsSync(d)) ?? null
+}
+
+/** kicad-cli's environment with every version's model variable set: a
+ *  board from KiCad 8 names its models by ${KICAD8_3DMODEL_DIR}, which
+ *  KiCad 10 doesn't set, and its parts came in without them. Variables the
+ *  person set are kept. */
+export function modelEnv(cli, env = process.env, platform = process.platform) {
+  const dir = modelsDirOf(cli, platform)
+  if (!dir) return env
+  const out = { ...env }
+  for (let v = 6; v <= 12; v++) out[`KICAD${v}_3DMODEL_DIR`] ??= dir
+  return out
+}
+
 export async function importBoard({ path, components = true, subst = true, dnp = false } = {}, env = process.env, { signal, progress = () => {} } = {}) {
   const board = await readBoardFile(path, env)
   const tools = await kicadTools(env)
@@ -266,7 +289,7 @@ export async function importBoard({ path, components = true, subst = true, dnp =
   if (!dnp && has('--no-dnp')) args.push('--no-dnp')
   args.push(board.file)
   progress('step', `kicad-cli ${tools.version}: exporting the board as STEP`)
-  const r = await run(tools.path, args, { env, signal, timeoutMs: 900_000, cwd: job })
+  const r = await run(tools.path, args, { env: modelEnv(tools.path, env), signal, timeoutMs: 900_000, cwd: job })
   await writeFile(join(job, 'command.txt'), [tools.path, ...args].map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ') + '\n')
   await writeFile(join(job, 'log.txt'), r.out ?? '')
   const made = await stat(out).catch(() => null)

@@ -372,3 +372,21 @@ test('outline drawn inside a footprint, turned with it; an L-shaped board', () =
   assert.deepEqual(L.size, [60, 50])
   assert.equal(L.outline.length, 7) // closed: the first point again
 })
+
+test('every KiCad version’s 3D-model variable points at the app’s models, unless set', async () => {
+  const { mkdtemp, mkdir } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { modelEnv, modelsDirOf } = await import('../src/extras/kicad.js')
+  const app = await mkdtemp(join(tmpdir(), 'kicad-app-'))
+  const cli = join(app, 'KiCad.app', 'Contents', 'MacOS', 'kicad-cli')
+  await mkdir(join(app, 'KiCad.app', 'Contents', 'MacOS'), { recursive: true })
+  assert.equal(modelsDirOf(cli, 'darwin'), null)
+  assert.equal(modelEnv(cli, { A: '1' }, 'darwin').KICAD8_3DMODEL_DIR, undefined)
+  const models = join(app, 'KiCad.app', 'Contents', 'SharedSupport', '3dmodels')
+  await mkdir(models, { recursive: true })
+  const e = modelEnv(cli, { KICAD9_3DMODEL_DIR: '/mine' }, 'darwin')
+  assert.equal(e.KICAD8_3DMODEL_DIR, models)
+  assert.equal(e.KICAD10_3DMODEL_DIR, models)
+  assert.equal(e.KICAD9_3DMODEL_DIR, '/mine')
+})
