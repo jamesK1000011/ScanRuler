@@ -221,6 +221,48 @@ export function pointSegment2(p: V2, a: V2, b: V2): number {
   return segmentDistance([p[0], p[1], 0], [p[0], p[1], 0], [a[0], a[1], 0], [b[0], b[1], 0])
 }
 
+/** Distance between segments a–b and c–d on the sheet: 0 where they meet. */
+export function segmentSegment2(a: V2, b: V2, c: V2, d: V2): number {
+  if (segmentsMeet(a, b, c, d)) return 0
+  return Math.min(pointSegment2(a, c, d), pointSegment2(b, c, d), pointSegment2(c, a, b), pointSegment2(d, a, b))
+}
+
+/** p inside the closed outline (even-odd). */
+export function insidePolygon(p: V2, poly: V2[]): boolean {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j]
+    if (a[1] > p[1] !== b[1] > p[1] && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) inside = !inside
+  }
+  return inside
+}
+
+/** The gap between two outlines on the sheet, edge to edge: 0 where they
+ *  touch or overlap. */
+export function pieceGap(p: Piece, q: Piece): number {
+  if (p.kind === 'circle' && q.kind === 'circle') return Math.max(0, len2(sub2(p.center, q.center)) - p.radius - q.radius)
+  if (p.kind === 'circle' || q.kind === 'circle') {
+    const c = (p.kind === 'circle' ? p : q) as Extract<Piece, { kind: 'circle' }>
+    const poly = (p.kind === 'circle' ? q : p) as Extract<Piece, { kind: 'polygon' }>
+    if (insidePolygon(c.center, poly.points)) return 0
+    let d = Infinity
+    for (let i = 0; i < poly.points.length; i++) d = Math.min(d, pointSegment2(c.center, poly.points[i], poly.points[(i + 1) % poly.points.length]))
+    return Math.max(0, d - c.radius)
+  }
+  const A = p.points, B = (q as Extract<Piece, { kind: 'polygon' }>).points
+  if (insidePolygon(A[0], B) || insidePolygon(B[0], A)) return 0
+  let d = Infinity
+  for (let i = 0; i < A.length; i++) for (let j = 0; j < B.length; j++) d = Math.min(d, segmentSegment2(A[i], A[(i + 1) % A.length], B[j], B[(j + 1) % B.length]))
+  return d
+}
+
+/** The least gap between two sets of outlines. */
+export function piecesGap(a: Piece[], b: Piece[]): number {
+  let d = Infinity
+  for (const p of a) for (const q of b) d = Math.min(d, pieceGap(p, q))
+  return d
+}
+
 // ---- bends of a swept route -------------------------------------------------------------
 
 /** A route's centreline length with every corner rounded at radius R:

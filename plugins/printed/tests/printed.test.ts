@@ -6,10 +6,10 @@
 // small grids: straight, detour, blocked, clearance. The features a plan
 // makes, and a closed channel's top.
 import { describe, expect, test } from 'vitest'
-import { area, mitredOutline, polylineDistance, routeLength, runPieces, segmentDistance, type V2, type V3 } from '../core/geometry'
+import { area, mitredOutline, pieceGap, piecesGap, polylineDistance, routeLength, runPieces, segmentDistance, type V2, type V3 } from '../core/geometry'
 import { awgDiameter, awgTable, currentFor, loadOf, MATERIALS, resistivityAlong, runResistance, wireOhmPerM } from '../core/materials'
 import { channelOf, channelTop, DEFAULT_SETTINGS, featuresOf, LEAD, measure, type PlanSpec, type Sheet } from '../core/plan'
-import { routeAll, routeOne } from '../core/router'
+import { piecesOf, routeAll, routeOne, shortfall } from '../core/router'
 
 const S = { ...DEFAULT_SETTINGS }
 const pp = MATERIALS.find((m) => m.id === 'protopasta')!
@@ -114,6 +114,11 @@ describe('a plan measured', () => {
     // Centres 2.5 apart, widths 1: 1.5 between edges, under 2.
     const m = measure(spec({ nets: [{ name: 'A', width: 1, points: [[0, 0], [10, 0]], pads: [], vias: [] }, { name: 'B', width: 1, points: [[0, 2.5], [10, 2.5]], pads: [], vias: [] }] }), TOP, { ...S, clearance: 2, current: 0 })
     expect(m.warnings[0]).toMatch(/A and B come 1\.5 apart, under the 2 clearance/)
+    // To a mitred corner: B's round pad 2.2 out from A's bend on the
+    // diagonal, 1.197 from the mitre's point (1.611 from the centreline's
+    // half width).
+    const c = measure(spec({ nets: [{ name: 'A', width: 2, points: [[-10, 0], [0, 0], [0, 10]], pads: [], vias: [] }, { name: 'B', width: 1, points: [[2.2, -2.2], [10, -10]], pads: [{ at: [2.2, -2.2], shape: 'round', size: 1 }], vias: [] }] }), TOP, { ...S, clearance: 1.5, current: 0 })
+    expect(c.warnings.some((w) => /A and B come 1\.197 apart, under the 1\.5 clearance/.test(w))).toBe(true)
     const ok = measure(spec({ nets: [{ name: 'A', width: 1, points: [[0, 0], [10, 0]], pads: [], vias: [] }, { name: 'B', width: 1, points: [[0, 3.5], [10, 3.5]], pads: [], vias: [] }] }), TOP, { ...S, clearance: 2, current: 0 })
     expect(ok.warnings).toEqual([])
   })
@@ -215,6 +220,46 @@ describe('router', () => {
     expect(r.failed[0].why).toMatch(/start is within the clearance of net A/)
   })
 
+  test('every run keeps the clearance as drawn — mitred corners and ends off the grid too', () => {
+    // A seeded set of crowded boards: pads, a keep-out, four nets each.
+    let seed = 11
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    let checked = 0
+    for (let t = 0; t < 300; t++) {
+      const grid = [0.25, 0.5, 1][t % 3]
+      const clearance = 0.4 + rnd() * 0.6
+      const w = 0.6 + rnd() * 2
+      const obstacles = Array.from({ length: 4 }, (_, k) => ({ net: `P${k}`, center: [rnd() * 30 - 15, rnd() * 30 - 15] as V2, radius: 0.5 + rnd() * 2 }))
+      const keepouts = [{ rect: [-3, -3, 3, 3] as [number, number, number, number] }]
+      const asks = Array.from({ length: 4 }, (_, k) => ({ net: `N${k}`, from: [rnd() * 36 - 18, rnd() * 36 - 18] as V2, to: [rnd() * 36 - 18, rnd() * 36 - 18] as V2, width: w }))
+      const r = routeAll(asks, { grid, clearance, bounds: [-20, -20, 20, 20], keepouts, obstacles })
+      const all = [...obstacles, ...r.routed.map((x) => ({ net: x.net, points: x.points, width: w }))]
+      for (const a of r.routed) {
+        const mine = runPieces(a.points, w).pieces
+        for (const o of [...all, ...keepouts]) {
+          if ('net' in o && o.net === a.net) continue
+          expect(piecesGap(mine, piecesOf(o)) >= clearance - 1e-6).toBe(true)
+          checked++
+        }
+      }
+    }
+    expect(checked > 100).toBe(true)
+  })
+
+  test('a mitred corner reaches past the half width: the gap measured to it', () => {
+    // An L of width 2: the outer corner of its mitre at (1, -1) from the bend.
+    const run: V2[] = [[-10, 0], [0, 0], [0, 10]]
+    const pad = { net: 'P', center: [2.2, -2.2] as V2, radius: 0.5 }
+    const gap = piecesGap(runPieces(run, 2).pieces, piecesOf(pad))
+    expect(gap).toBeCloseTo(Math.hypot(1.2, 1.2) - 0.5, 6)
+    // The centreline's distance less the half width would say more.
+    expect(Math.hypot(2.2, 2.2) - 1 - 0.5).toBeGreaterThan(gap + 0.4)
+    expect(shortfall(run, 2, 'A', { clearance: 1.5, keepouts: [], obstacles: [pad] })).toMatchObject({ to: 'net P' })
+    expect(shortfall(run, 2, 'A', { clearance: 1, keepouts: [], obstacles: [pad] })).toBe(null)
+    // Overlap and containment are no gap.
+    expect(pieceGap({ kind: 'circle', center: [0, 0], radius: 1 }, { kind: 'polygon', points: [[-5, -5], [5, -5], [5, 5], [-5, 5]] })).toBe(0)
+  })
+
   test('too fine a grid for the bounds is refused', () => {
     const r = routeOne({ net: 'A', from: [0, 0], to: [10, 0], width: 1 }, { ...base, grid: 0.01, bounds: [-100, -100, 100, 100] })
     expect('fail' in r && r.fail).toMatch(/coarser grid/)
@@ -241,6 +286,19 @@ describe('features', () => {
     expect(b.features[1]).toMatchObject({ kind: 'extrude', name: 'Channels channels', op: 'cut', target: 'Block', extent: { from: LEAD } })
     expect((b.features[1].extent as { to: number }).to).toBeCloseTo(-ch.height, 6)
     expect(b.traces).toBeUndefined()
+  })
+
+  test('a routed channel laid at a pause: square sides to a flat top, not round', () => {
+    const net = { name: 'W', width: 0.944, path: [[0, 0, 5], [10, 0, 5]] as V3[], pads: [], vias: [] }
+    const prof = { W: { plane: { kind: 'world', axis: 'x', offset: 0 }, at: [0, 5] as V2, reversed: false } }
+    const shapeOf = (over: Partial<PlanSpec>) => {
+      const b = featuresOf({ method: 'channel', body: 'Block', name: 'C', depth: 1, carrier: { kind: 'wire', awg: 22 }, nets: [net], ...over }, null, S, prof)
+      return ((b.features[0].sketch as { shapes: { kind: string }[] }).shapes[0]).kind
+    }
+    expect(shapeOf({})).toBe('polyline')
+    expect(shapeOf({ lay: 'pause' })).toBe('polyline')
+    // Threaded after: round, the wire pulled through.
+    expect(shapeOf({ lay: 'thread' })).toBe('circle')
   })
 
   test('a closed channel’s top on a level face: where the pause goes', () => {

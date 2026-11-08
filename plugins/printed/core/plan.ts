@@ -18,7 +18,7 @@
 // Depth is measured into the part from the sheet: 0 the surface, positive
 // under it. Pure: the command reads the sheet and the bodies.
 
-import { type Piece, polylineLength, routeLength, runPieces, turns, type V2, type V3, polylineDistance, MAX_TURN } from './geometry'
+import { type Piece, piecesGap, polylineLength, routeLength, runPieces, turns, type V2, type V3, polylineDistance, MAX_TURN } from './geometry'
 import { awgDiameter, copperOhmCm, customMaterial, loadOf, currentFor, type Material, materialOf, resistivityAlong, runResistance, sig } from './materials'
 
 export type Json = Record<string, unknown>
@@ -396,6 +396,14 @@ export function measure(spec: PlanSpec, sheet: Sheet | null, s: Settings, curren
   for (let i = 0; i < shapes.length; i++)
     for (let j = i + 1; j < shapes.length; j++) {
       const A = shapes[i], B = shapes[j]
+      const na = spec.nets[i], nb = spec.nets[j]
+      // Both on the sheet: their outlines as drawn, mitred corners and all.
+      if (sheet && na.points && nb.points) {
+        const out = (n: typeof na) => [...runPieces(n.points!, trace ? n.width : ch!.width).pieces, ...n.pads.map((p) => padPiece(p))]
+        const gap = piecesGap(out(na), out(nb))
+        if (gap < s.clearance - 1e-6) warnings.push(`${A.name} and ${B.name} come ${r3(Math.max(0, gap))} apart, under the ${s.clearance} clearance${gap <= 1e-9 ? ' — they touch: one conductor' : ''}.`)
+        continue
+      }
       let gap = polylineDistance(A.line, B.line) - A.half - B.half
       for (const p of A.pads) gap = Math.min(gap, polylineDistance([p.at], B.line) - p.half - B.half, ...B.pads.map((q) => polylineDistance([p.at], [q.at]) - p.half - q.half))
       for (const q of B.pads) gap = Math.min(gap, polylineDistance([q.at], A.line) - q.half - A.half)
@@ -497,7 +505,11 @@ export function featuresOf(spec: PlanSpec, sheet: Sheet | null, s: Settings, pro
     const p = profiles[n.name] ?? fail(`${n.name}: its profile plane was not found.`)
     const w = trace ? n.width : ch!.width
     const path = p.reversed ? [...n.path!].reverse() : n.path!
-    const prof: Json = !trace && ch!.round ? { kind: 'circle', center: p.at, radius: r6(w / 2), fixed: true } : { kind: 'polyline', points: [[-w / 2, -t / 2], [w / 2, -t / 2], [w / 2, t / 2], [-w / 2, t / 2]].map(([u, v]) => [r6(p.at[0] + u), r6(p.at[1] + v)]), closed: true, fixed: true }
+    // A closed channel the wire is laid in at a pause: square sides to a
+    // flat top, open as wide as the wire when the print stops there — a
+    // round one would have closed over itself above its middle.
+    const laid = !trace && spec.depth > 1e-9 && (spec.lay ?? 'pause') === 'pause'
+    const prof: Json = !trace && ch!.round && !laid ? { kind: 'circle', center: p.at, radius: r6(w / 2), fixed: true } : { kind: 'polyline', points: [[-w / 2, -t / 2], [w / 2, -t / 2], [w / 2, t / 2], [-w / 2, t / 2]].map(([u, v]) => [r6(p.at[0] + u), r6(p.at[1] + v)]), closed: true, fixed: true }
     sketches.push({ kind: 'sketch', name: `${N} ${n.name} profile`, plane: p.plane, sketch: { shapes: [prof] } })
     solid({ kind: 'sweep', name: `${N} ${n.name}`, profile: `${N} ${n.name} profile`, route: { points: path.map((q) => q.map(r6)), bendRadius: r6(spec.bendRadius ?? Math.max(w, t)) } })
   }

@@ -87,14 +87,19 @@ v0, u1, v1] }` or `{ circle: [u, v, r] }`), from other nets' pads, and from
 runs already there. Nets are routed one at a time, in order; reorder them
 if one fails. A net that can't get through is listed in `failed` with the
 reason, and the rest are planned. There is no rip-up and nothing beyond two
-points; route a three-pad net as two nets.
+points; route a three-pad net as two nets. Each run is checked as it will be
+drawn, mitred corners included, and routed again with more room where a
+corner or an end comes short; the clearance check in the plan measures the
+same outlines.
 
 ## Channels and the pause
 
 A tunnel laid at a pause has to run level: on a face that faces up or down,
 or a level `path`. The print pauses at its top. `printed.apply` records it
 with the Hardware workspace (`hw.record`), so `hw.pauses` gives the layer
-and `slicer_slice { pauses }` stops there. For a tunnel that climbs, use
+and `slicer_slice { pauses }` stops there. A level `path` laid at a pause
+is swept square, not round, so it is open as wide as the wire up to its flat
+top when the print stops. For a tunnel that climbs, use
 `lay: "thread"` to pull the wire through after printing, with pads at both
 ends as the way in and out. Paint goes into an open groove only.
 

@@ -7,7 +7,7 @@
 // No rip-up, no reordering: a net that can't get through is reported, not
 // forced. Pure, millimetres on the sheet.
 
-import { pointSegment2, tidy, type V2 } from './geometry'
+import { type Piece, piecesGap, pointSegment2, runPieces, tidy, type V2 } from './geometry'
 
 export type Keepout = { rect: [number, number, number, number] } | { circle: [number, number, number] }
 
@@ -35,6 +35,9 @@ export interface RouterOpts {
   turnCost?: number
   /** The most cells searched before giving up (default 400 000). */
   maxCells?: number
+  /** The clearance its two ends keep, where the run is given more room
+   *  than `clearance` elsewhere; `clearance` by default. */
+  endClearance?: number
 }
 
 export interface Routed {
@@ -154,8 +157,9 @@ export function routeOne(ask: RouteAsk, o: RouterOpts): { points: V2[] } | { fai
   }
   // The ends themselves: clear of others by the clearance alone.
   for (const [p, word] of [[ask.from, 'start'], [ask.to, 'end']] as const) {
-    for (const k of o.keepouts) if (inKeepout(k, p, half + o.clearance)) return { fail: `its ${word} lies in a keep-out` }
-    for (const ob of o.obstacles) if (ob.net !== ask.net && nearObstacle(ob, p, half, o.clearance)) return { fail: `its ${word} is within the clearance of net ${ob.net}` }
+    const ec = o.endClearance ?? o.clearance
+    for (const k of o.keepouts) if (inKeepout(k, p, half + ec)) return { fail: `its ${word} lies in a keep-out` }
+    for (const ob of o.obstacles) if (ob.net !== ask.net && nearObstacle(ob, p, half, ec)) return { fail: `its ${word} is within the clearance of net ${ob.net}` }
   }
   const n = nu * nv
   // States: cell × heading (8), plus "no heading yet" for the start.
@@ -222,13 +226,57 @@ export function routeOne(ask: RouteAsk, o: RouterOpts): { points: V2[] } | { fai
 
 const round = (x: number) => Math.round(x * 1e6) / 1e6 + 0
 
-/** Several nets, in order; each routed becomes an obstacle to the next. */
+/** What a keep-out or an obstacle is on the sheet, as outlines. */
+export function piecesOf(x: Keepout | Obstacle): Piece[] {
+  if ('rect' in x) {
+    const [a, b, c, d] = x.rect
+    const u0 = Math.min(a, c), u1 = Math.max(a, c), v0 = Math.min(b, d), v1 = Math.max(b, d)
+    return [{ kind: 'polygon', points: [[u0, v0], [u1, v0], [u1, v1], [u0, v1]] }]
+  }
+  if ('circle' in x) return [{ kind: 'circle', center: [x.circle[0], x.circle[1]], radius: x.circle[2] }]
+  if ('center' in x) return [{ kind: 'circle', center: x.center, radius: x.radius }]
+  if (x.points.length < 2) return [{ kind: 'circle', center: x.points[0], radius: x.width / 2 }]
+  return runPieces(x.points, x.width).pieces
+}
+
+/**
+ * A run checked as it would be drawn — its outline with mitred corners,
+ * which reach past the centreline's half width at a bend — against the
+ * keep-outs and the others' outlines: the least gap, and to
+ * what. Null where it keeps the clearance everywhere.
+ */
+export function shortfall(points: V2[], width: number, net: string, o: Pick<RouterOpts, 'clearance' | 'keepouts' | 'obstacles'>): { gap: number; to: string } | null {
+  const mine = runPieces(points, width).pieces
+  let worst: { gap: number; to: string } | null = null
+  const see = (gap: number, to: string) => {
+    if (gap < o.clearance - 1e-6 && (!worst || gap < worst.gap)) worst = { gap, to }
+  }
+  for (const k of o.keepouts) see(piecesGap(mine, piecesOf(k)), 'a keep-out')
+  for (const ob of o.obstacles) if (ob.net !== net) see(piecesGap(mine, piecesOf(ob)), `net ${ob.net}`)
+  return worst
+}
+
+/** Several nets, in order; each routed becomes an obstacle to the next.
+ *  Each run is checked as drawn, its mitred corners and its ends off the
+ *  grid too, and routed again with more room where it falls short. */
 export function routeAll(asks: RouteAsk[], o: RouterOpts): { routed: Routed[]; failed: Failed[] } {
   const obstacles = [...o.obstacles]
   const routed: Routed[] = []
   const failed: Failed[] = []
   for (const a of asks) {
-    const r = routeOne(a, { ...o, obstacles })
+    let r = routeOne(a, { ...o, obstacles })
+    let extra = 0
+    for (let k = 0; k < 4 && !('fail' in r); k++) {
+      const short = shortfall(r.points, a.width, a.net, { ...o, obstacles })
+      if (!short) break
+      if (k === 3) {
+        r = { fail: `the nearest way found passes ${Math.max(0, Math.round(short.gap * 1000) / 1000)} from ${short.to}, under the ${o.clearance} clearance: a finer grid, or more room` }
+        break
+      }
+      // Its corners and ends need more room than the grid allowed for.
+      extra += Math.max(o.clearance - short.gap, 0) + o.grid * 0.05
+      r = routeOne(a, { ...o, clearance: o.clearance + extra, endClearance: o.clearance, obstacles })
+    }
     if ('fail' in r) {
       failed.push({ net: a.net, why: r.fail })
       continue
