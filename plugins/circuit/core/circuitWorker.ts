@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The Circuit workspace's own CAD kernel, in a worker: the board's solids
+// built off the page's thread and handed back as a STEP file with each
+// part's figures. It loads OCCT from the same wasm file as Reverse Engineer
+// and makes no other request.
+
+import wasmUrl from 'occt-wasm/dist/occt-wasm.wasm?url'
+import { buildSolids, partOf, type BoardKernel, type Part, type SolidOptions } from './boardSolids'
+import type { CircuitBoard } from './circuitJson'
+
+export interface SolidsAsk {
+  id: number
+  board: CircuitBoard
+  options: SolidOptions
+  out: 'step' | 'info'
+}
+
+export interface SolidsAnswer {
+  parts: Part[]
+  notes: string[]
+  step?: string
+}
+
+type Kernel = BoardKernel & { releaseAll(): void }
+
+let kernel: Promise<Kernel> | null = null
+
+self.onmessage = async (e: MessageEvent<SolidsAsk>) => {
+  const { id, board, options, out } = e.data
+  const post = (m: unknown) => (self as unknown as Worker).postMessage(m)
+  try {
+    kernel ??= import('occt-wasm').then((m) => m.OcctKernel.init({ wasm: wasmUrl }) as unknown as Promise<Kernel>)
+    const k = await kernel.catch((err) => {
+      // Not loaded: the next build tries again.
+      kernel = null
+      throw err
+    })
+    try {
+      const made = buildSolids(k, board, options)
+      if (!made.parts.length) throw new Error('Nothing to build: every part is switched off, or the board has none of them.')
+      const parts = made.parts.map((p) => partOf(k, p))
+      const answer: SolidsAnswer = { parts, notes: made.notes }
+      if (out === 'step') answer.step = k.exportStep(made.parts.length === 1 ? made.parts[0].shape : k.makeCompound(made.parts.map((p) => p.shape)))
+      post({ id, result: answer })
+    } finally {
+      k.releaseAll()
+    }
+  } catch (err) {
+    post({ id, error: err instanceof Error ? err.message : String(err) })
+  }
+}

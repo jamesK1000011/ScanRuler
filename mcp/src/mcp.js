@@ -29,7 +29,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { attachNotices } from './notices.js'
-import { attachPageAsks } from './pageAsks.js'
+import { attachCircuitAsks, attachPageAsks } from './pageAsks.js'
 import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
 import { convertBlend, findBlender } from './blender.js'
@@ -797,6 +797,8 @@ export function createMcpServer({
   // What the page asks of this server — the Catalog panel's model search
   // (pageAsks.js) — answered by the copy holding the tab's connection.
   attachPageAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
+  // And the Circuit workspace's: tscircuit's command line run here.
+  attachCircuitAsks({ link, holds: () => serverInfo().role !== 'relay', env: process.env, log })
   const withNews = (reply, tool) => {
     if (/^snapshot_/.test(tool ?? '')) {
       notices.seen()

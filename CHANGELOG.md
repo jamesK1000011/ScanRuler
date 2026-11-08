@@ -7,6 +7,19 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **A Circuit workspace** (2026-11-08, new plugin `circuit`). Circuit boards
+  written as code with tscircuit: a project from a template (a blank board, an
+  LED and its resistor, a Pico or ESP32-DevKitC carrier, a board cut to fit an
+  enclosure — Generate's project box, notched round its bosses), built on this
+  computer with `tsci` into a job folder with Gerbers, BOM, pick-and-place,
+  `.kicad_pcb`, STEP and GLB, and the build's DRC errors. Each flag and format
+  is checked against the installed `tsci --help` and refused by name when it
+  is missing. The board's Circuit JSON is read directly, measured (trace
+  lengths, nets, the least clearance), its trace resistance estimated in
+  copper or a conductive filament, and brought into Reverse Engineer as the
+  board, its top and bottom copper and its parts' keep-outs. The agent's
+  server gains `circuit_*` tools under `SCANRULER_MCP_EXTRAS=circuit`.
+
 - **A Texture workspace** (2026-11-07, local fork). BumpMesh's texturing engine —
   the code its Export button runs, vendored from a BumpMesh checkout — on the
   part open here: library or your own textures, up to four layers, stamps,

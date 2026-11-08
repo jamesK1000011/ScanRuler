@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Tools beyond the page's and the server's own, for the plugins that need
 // this computer — a slicer to run, a printer on the network, a part
-// catalogue's downloads. Listed only when SCANRULER_MCP_EXTRAS names them
-// ("slicer", "catalog", "all"), so the server's own tools stay as they are for
-// everyone who does not ask.
+// catalogue's downloads, tscircuit's command line. Listed only when
+// SCANRULER_MCP_EXTRAS names them ("slicer", "catalog", "circuit", "all"),
+// so the server's own tools stay as they are for everyone who does not ask.
 
 import { downloads, openUrl, stopWatch, take, watch, watchStatus } from './catalog.js'
 import { librariesStatus, LIBRARIES, modelFiles, searchModels, takeModel } from './models.js'
 import { mcmaster, saveSources, loadSources, sourcesStatus, traceparts } from './sources.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
+import { buildInTurn, circuitTools, files as circuitFiles, newProject, OUTPUTS as CIRCUIT_OUTPUTS, readCircuitFile, TEMPLATES as CIRCUIT_TEMPLATES, templatesInfo } from './circuit.js'
 import * as printer from './printer.js'
 import { KINDS as PRINTER_KINDS } from './printers/adapters.js'
 
@@ -59,9 +60,10 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
       annotations: { readOnlyHint: readOnly, openWorldHint: OPEN_WORLD.has(name) },
       call: async (args) => {
         try {
-          // The catalog's tools take only what their schema says (its red-team
-          // round); the others keep taking what they always took.
-          return text(await call(name.startsWith('catalog_') ? checkArgs(inputSchema, args ?? {}) : (args ?? {})))
+          // The catalog's and the circuit tools take only what their schema
+          // says (their red-team rounds); the others keep taking what they
+          // always took.
+          return text(await call(/^(catalog|circuit)_/.test(name) ? checkArgs(inputSchema, args ?? {}) : (args ?? {})))
         } catch (e) {
           return failure(e)
         }
@@ -277,6 +279,46 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
       ),
       async (a) => take(a, env),
       false,
+    )
+  }
+  if (wanted('circuit')) {
+    const project = { type: 'string', description: 'A project’s name (in the circuits folder; circuit_files lists them) or its folder.' }
+    tool(
+      'circuit_tools',
+      'tscircuit on this computer',
+      'Whether tscircuit’s command line (tsci) is found — SCANRULER_TSCI, a project’s node_modules, the PATH, npm’s global folder, Bun’s and nvm’s, else bunx — its version, the build flags and export formats its --help lists, and how to install it when not (npm install -g tscircuit). Also the project templates circuit_new makes and their values. Changes nothing.',
+      obj({}),
+      async () => ({ ...(await circuitTools(env)), templates: templatesInfo() }),
+    )
+    tool(
+      'circuit_new',
+      'Start a circuit board project',
+      `Make a tscircuit project folder from a template — package.json, tsconfig.json and the board in index.circuit.tsx, as tsci init lays one out, made here without the network: ${Object.entries(CIRCUIT_TEMPLATES).map(([id, t]) => `${id} (${t.label})`).join(', ')}. params sets the template’s values (circuit_tools lists them; lengths in mm). In the circuits folder of the ScanRuler folder unless dir is given. Refuses a folder that holds files already. Edit the .tsx, then circuit_build.`,
+      obj({ name: { type: 'string', description: 'The project’s name and folder: letters, digits, . _ -.' }, template: { type: 'string', enum: Object.keys(CIRCUIT_TEMPLATES), description: 'blank by default.' }, params: { type: 'object', description: 'The template’s values by key.' }, dir: { type: 'string', description: 'The folder to make it in, if not the circuits folder.' } }, ['name']),
+      async (a) => newProject(a, env),
+      false,
+    )
+    tool(
+      'circuit_build',
+      'Build a circuit board project',
+      `Run tsci build on a project, then tsci export from the circuit.json it writes for each output asked for — ${Object.keys(CIRCUIT_OUTPUTS).join(', ')} (bom and pnp come out of the Gerbers zip) — into a job folder of its own (circuits/builds/), with the command lines and the log. Every flag and format is checked against the installed tsci’s --help first and refused by name if it lacks one. Returns the job: its files, and what the build said was wrong (its DRC, routing and placement errors and warnings). The Circuit workspace’s circuit.open { job } brings the board in. routing: false skips the autorouter; partsEngine: false skips the parts lookup (no network).`,
+      obj({ project, entry: { type: 'string', description: 'The board file, relative to the project; package.json’s main or index.circuit.tsx otherwise.' }, outputs: { type: 'array', items: { type: 'string', enum: Object.keys(CIRCUIT_OUTPUTS) }, description: 'Files beside circuit.json.' }, routing: { type: 'boolean', description: 'Autoroute (true, the default).' }, partsEngine: { type: 'boolean', description: 'Look parts up (true, the default).' }, name: { type: 'string', description: 'A name for the job folder.' } }, ['project']),
+      async (a) => buildInTurn(a, env),
+      false,
+    )
+    tool(
+      'circuit_files',
+      'Circuit projects, builds and their files',
+      'With nothing: the projects (in the circuits folder, and those made or built elsewhere) and the latest 50 builds. With project or job: its files and sizes. Changes nothing.',
+      obj({ project, job: { type: 'string', description: 'A build’s job id.' } }),
+      async (a) => circuitFiles(a, env),
+    )
+    tool(
+      'circuit_read',
+      'Read a circuit project’s or build’s file',
+      'A text file of a project or build — circuit.json, the .tsx, bom.csv, pick_and_place.csv, a .kicad_pcb, the log — relative to project or job, or by its full path inside one. A zip lists what it holds; entry reads one of its text files. Only projects and builds this server made or built are read. Changes nothing.',
+      obj({ path: { type: 'string', description: 'The file.' }, project, job: { type: 'string', description: 'A build’s job id.' }, entry: { type: 'string', description: 'A file inside a zip.' } }, ['path']),
+      async (a) => readCircuitFile(a, env),
     )
   }
   if (wanted('printer')) {

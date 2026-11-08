@@ -328,7 +328,14 @@ macOS Keychain (elsewhere, `secrets.json` under `SCANRULER_HOME`, mode 600;
 `SCANRULER_SECRETS=file` forces the file). `printer_start` never starts a
 print. It asks the person, in a dialog on a Mac or on a one-time page in
 their browser (`SCANRULER_CONFIRM=dialog|page|app`, or a printer's own `confirm`; `app` puts a card in ScanRuler), and only their Start sends
-the command. Unset, the server lists no extras.
+the command. `circuit` adds `circuit_tools`, `circuit_new`, `circuit_build`,
+`circuit_files` and `circuit_read`. These run tscircuit's command line
+(`tsci`, from `npm install -g tscircuit`; `SCANRULER_TSCI` names another)
+on board projects made from templates under `SCANRULER_HOME`'s `circuits/`,
+each build in a job folder of its own, every flag and export format checked
+against the installed `tsci`'s `--help` first. The Circuit workspace asks the
+same of the server through the page whether or not this is set. Unset, the
+server lists no extras.
 
 ## Tools
 

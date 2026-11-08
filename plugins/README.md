@@ -25,6 +25,7 @@ not in this repository.
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
 | [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, made to size as solids |
+| [circuit/](circuit/) | Circuit — boards as code with tscircuit, built on this computer; Circuit JSON read, measured, and brought into Reverse Engineer as board, copper and keep-out solids |
 
 ## The rules
 
