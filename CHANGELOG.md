@@ -7,6 +7,23 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Printed circuits** (2026-11-08, new plugin `printed`). Circuits made
+  inside a printed part, in a Reverse Engineer body. Traces of conductive
+  filament (Protopasta, Electrifi, or your own figures) on a face or plane,
+  buried, flush or proud, or along a 3D route. The traces are a body of
+  their own, cut out of the part so the two don't overlap, with pads up to
+  the surface (a hole for a pin, square for a contact) and vias between
+  depths. Channels for copper wire (by AWG), copper tape or conductive
+  paint, as a groove open at the surface or a tunnel under a roof. A level
+  tunnel is recorded with `hw.record`, so the print pauses at its top to lay
+  the wire. Each net's resistance is worked out end to end, along and
+  through the layers, with the drop, power per metre and safe current at a
+  current, and warnings for width and thickness against the nozzle and
+  layers, cover, and clearance. `printed.route` routes two-pad nets on a
+  grid with orthogonal and 45° runs, around keep-outs and other nets.
+  `printed.export` gives the part and its traces as named STLs, with the
+  filament each takes. Points take Circuit JSON `{ x, y }` route points.
+
 - **Encased parts** (2026-11-08, `hw`, `slicer-loop`, `printer-handoff`).
   Nuts, magnets, bearings, inserts, or a box or cylinder of your own (BBs,
   a weight, an RFID tag) sealed inside a print. `hw.embed` sinks the pocket

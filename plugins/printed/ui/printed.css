@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.pc-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.pc-row > span:first-child, .pc-col > span:first-child { flex: 0 0 96px; color: var(--muted, #888); font-size: 12px; }
+.pc-row > select, .pc-row > input.pl-input { flex: 1; min-width: 0; }
+.pc-col { display: flex; flex-direction: column; gap: 4px; margin: 4px 0; }
+.pc-nets { font-family: ui-monospace, monospace; font-size: 11px; resize: vertical; width: 100%; box-sizing: border-box; }
+.pc-settings { margin: 8px 0; }
+.pc-settings > summary { cursor: pointer; font-size: 12px; color: var(--muted, #888); }

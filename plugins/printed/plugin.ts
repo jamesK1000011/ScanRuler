@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The Printed circuits workspace: circuits made inside a printed part —
+// traces of conductive filament as a body of their own, cut out of the
+// part, for a two-filament print; or channels for copper wire, tape or
+// paint, open or closed with a pause to lay the wire — each net's
+// resistance worked out, along and through the layers. See README.md.
+
+import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerProjectSection } from '../../src/app/projectSections'
+import { registerHistory } from '../../src/state/historyStore'
+import { describePrinted, printedCommands } from './app/printedCommands'
+import { printedSection } from './app/projectSection'
+import { usePrintedPlugin } from './app/usePrintedPlugin'
+import { settingsOf, usePrinted } from './state/printedStore'
+
+const plugin: ScanRulerPlugin = {
+  id: 'printed',
+  name: 'Printed circuits',
+  workspace: {
+    id: 'printed',
+    label: 'Circuits',
+    title: 'Traces of conductive filament, or channels for copper, made inside a printed part',
+    icon: 'spline',
+    order: 38,
+    group: 'make',
+  },
+  usePlugin: usePrintedPlugin,
+  install() {
+    registerProjectSection(printedSection)
+    registerCommands('printed', printedCommands)
+    registerStateSection('printed', describePrinted)
+    registerHistory({
+      sections: [{ key: 'printed', capture: () => ({ ...settingsOf(usePrinted.getState()), made: usePrinted.getState().made }), apply: (v) => usePrinted.setState(v as Partial<ReturnType<typeof usePrinted.getState>>) }],
+      actions: [{ store: usePrinted, label: 'Circuits', names: ['set', 'setMade'], labels: { setMade: 'circuits made' } }],
+    })
+    registerGuide({
+      id: 'printed',
+      title: 'Printed circuits',
+      when: 'asked to put a circuit, traces, wiring or conductors inside a printed part — conductive filament (Protopasta, Electrifi) printed with a second filament, or channels and tunnels for copper wire, copper tape or conductive paint — or the resistance of a printed trace or a wire by gauge',
+      text: () => import('./guides/printed.md?raw').then((m) => m.default),
+    })
+  },
+}
+
+export default plugin
