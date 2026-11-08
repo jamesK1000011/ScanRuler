@@ -25,8 +25,10 @@ import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { zipEntries, zipWrite } from './zip.js'
 
-/** Two heights closer than this are one, mm: slicers write Z to 3 places. */
-export const EPS = 0.002
+/** Two heights closer than this are one, mm: slicers write Z to 3 places,
+ *  so a micron apart is apart. Between 1 and 2 µm, clear of rounding either
+ *  way; the Hardware workspace names the pause layer with the same. */
+export const EPS = 0.0015
 
 export const COMMANDS = ['auto', 'M601', 'M600', 'PAUSE', 'M400 U1']
 
