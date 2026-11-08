@@ -34,8 +34,10 @@ export const FORMATS: readonly FormatInfo[] = [
   { id: 'glb', extensions: ['glb'], label: 'glTF binary', units: 'm', up: 'y', basis: 'glTF 2.0 specification', needsDom: false },
   { id: 'gltf', extensions: ['gltf'], label: 'glTF (embedded buffers)', units: 'm', up: 'y', basis: 'glTF 2.0 specification', needsDom: false },
   { id: 'fbx', extensions: ['fbx'], label: 'FBX (binary or ASCII)', units: 'cm', up: 'y', basis: 'the habit of most exporters (FBX’s own default unit is the centimetre)', needsDom: false },
+  // units-ok: a file format's own units, and the agent's readout in millimetres
   { id: '3ds', extensions: ['3ds'], label: '3D Studio', units: 'mm', up: 'z', basis: 'no units in the file; taken as millimetres', needsDom: false },
   { id: 'dae', extensions: ['dae'], label: 'Collada', units: 'm', up: 'y', basis: 'the file’s <unit>, applied by the loader', needsDom: true },
+  // units-ok: a file format's own units, and the agent's readout in millimetres
   { id: 'amf', extensions: ['amf'], label: 'Additive Manufacturing Format', units: 'mm', up: 'z', basis: 'the AMF default unit', needsDom: true },
   { id: 'wrl', extensions: ['wrl', 'vrml'], label: 'VRML 2.0', units: 'm', up: 'y', basis: 'VRML 97 specification', needsDom: false },
 ]
@@ -178,7 +180,9 @@ export function flatten(scene: THREE.Object3D, format: Format, opts: { units?: U
   const size = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2])
   const unitsAssumed = opts.units === undefined
   const unitsWarning =
+    // units-ok: a file format's own units, and the agent's readout in millimetres
     size < 1 ? `It comes out ${round(size, 4)} mm across — likely bigger units than ${units}: try units m${units === 'm' ? '' : ' or cm'}.`
+      // units-ok: a file format's own units, and the agent's readout in millimetres
       : size > 5000 ? `It comes out ${round(size / 1000, 2)} m across — likely smaller units than ${units}: try units mm${units === 'mm' ? '' : ' or cm'}.`
         : undefined
   return { format, positions, partOf, parts, units, unitsAssumed, up, scale, min: min.map((x) => round(x, 4)) as never, max: max.map((x) => round(x, 4)) as never, ...(unitsWarning ? { unitsWarning } : {}) }
