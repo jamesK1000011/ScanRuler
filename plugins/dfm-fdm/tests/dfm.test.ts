@@ -131,6 +131,19 @@ describe('published guides', () => {
     expect(eff.find((r) => r.id === 'small-hole')!.params.minDiameterMm).toBe(2)
   })
 
+  test('red team: nonsense numbers, wrong types and false dates are refused', () => {
+    const base = { id: 'x', label: 'X', publisher: 'P' }
+    const bad = (overrides: unknown, extra = {}) => validateGuide({ ...base, overrides, ...extra }, pack as RulePack).join('\n')
+    expect(bad({ 'thin-wall': { params: { minMm: 1e308 } } })).toMatch(/minMm: over 0, up to 1000/)
+    expect(bad({ overhang: { params: { maxDeg: 400 } } })).toMatch(/maxDeg: an angle/)
+    expect(bad({ bridge: { params: { maxMm: 0 } } })).toMatch(/maxMm/)
+    expect(bad([])).toMatch(/overrides: an object/)
+    expect(bad({ overhang: { disabled: 'yes' } })).toMatch(/disabled: true or false/)
+    expect(bad({}, { read: '9999-99-99' })).toMatch(/read:/)
+    expect(bad({}, { label: 'x'.repeat(5000) })).toMatch(/label:/)
+    expect(bad({ 'build-volume': { params: { xMm: 0 } }, overhang: { params: { maxDeg: 45 } } }, { read: '2026-11-07' })).toBe('')
+  })
+
   test('an imported guide is checked against the rules', () => {
     const ok = { id: 'my-shop', label: 'My shop', publisher: 'A. Example', overrides: { 'thin-wall': { params: { minMm: 1.1 } } }, figures: [{ topic: 'pin diameter', value: 2, unit: 'mm' }] }
     expect(validateGuide(ok, pack as RulePack)).toEqual([])
@@ -140,7 +153,7 @@ describe('published guides', () => {
     expect(errors.join('\n')).toMatch(/publisher/)
     expect(errors.join('\n')).toMatch(/no such rule/)
     expect(errors.join('\n')).toMatch(/overhang has maxDeg/)
-    expect(errors.join('\n')).toMatch(/bridge.params.maxMm: a number, 0 or more/)
+    expect(errors.join('\n')).toMatch(/bridge.params.maxMm: over 0, up to 1000/)
     expect(errors.join('\n')).toMatch(/url/)
   })
 

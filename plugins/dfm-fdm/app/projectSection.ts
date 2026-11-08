@@ -32,4 +32,11 @@ export const dfmSection: ProjectSection<SavedDfm> = {
     }
   },
   hasContent: (v) => v.waivers.length > 0 || Object.keys(v.overrides).length > 0 || (v.guides?.length ?? 0) > 0,
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['settings', 'overrides', 'waivers', 'guides'] as const
+    return useDfm.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }

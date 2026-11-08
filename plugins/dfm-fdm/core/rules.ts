@@ -107,16 +107,40 @@ export interface Guide extends Profile {
 
 /** Refuse a guide that names a rule or a parameter the pack doesn't have,
  *  or says nothing of where its numbers come from. */
+/** The sensible range of a rule's parameter, read from its name: angles
+ *  0–89°, lengths over 0 and up to a metre (a build volume's 0 is 'not
+ *  known'), areas and volumes 0 or more, shares 0–1, ratios over 0. Null
+ *  when the value is in range, else what it should be. */
+export function paramProblem(rule: string, key: string, v: unknown): string | null {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 'a number'
+  if (/Deg$/.test(key)) return v >= 0 && v <= 89 ? null : 'an angle, 0 to 89°'
+  if (/Mm[23]$/.test(key)) return v >= 0 && v <= 1e9 ? null : '0 or more'
+  // units-ok: guide files give lengths in millimetres, so the range is said in them
+  if (/Mm$/.test(key)) return (rule === 'build-volume' ? v >= 0 : v > 0) && v <= 1000 ? null : rule === 'build-volume' ? '0 (not known) to 1000 mm' : 'over 0, up to 1000 mm'
+  if (/Share$/.test(key)) return v >= 0 && v <= 1 ? null : 'a share, 0 to 1'
+  if (/Ratio$/.test(key)) return v > 0 && v <= 1000 ? null : 'over 0, up to 1000'
+  return v >= 0 ? null : '0 or more'
+}
+
+/** A real calendar date, YYYY-MM-DD. */
+const isDate = (t: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t)
+  if (!m) return false
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] && +m[1] >= 1990
+}
+
 export function validateGuide(g: unknown, pack: RulePack): string[] {
   const errors: string[] = []
   const x = g as Guide
   if (!x || typeof x !== 'object') return ['A guide is a JSON object.']
   if (typeof x.id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,40}$/.test(x.id)) errors.push('id: lowercase letters, digits and dashes, up to 41.')
-  if (typeof x.label !== 'string' || !x.label.trim()) errors.push('label: what the guide is called.')
-  if (typeof x.publisher !== 'string' || !x.publisher.trim()) errors.push('publisher: who published the numbers — where they come from.')
+  if (typeof x.label !== 'string' || !x.label.trim() || x.label.length > 120) errors.push('label: what the guide is called, 120 characters at most.')
+  if (typeof x.publisher !== 'string' || !x.publisher.trim() || x.publisher.length > 200) errors.push('publisher: who published the numbers — where they come from — 200 characters at most.')
+  if (x.note !== undefined && (typeof x.note !== 'string' || x.note.length > 2000)) errors.push('note: text, 2000 characters at most.')
   if (x.url !== undefined && (typeof x.url !== 'string' || !/^https?:\/\//.test(x.url))) errors.push('url: a web address, or leave it out.')
-  if (x.read !== undefined && (typeof x.read !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.read))) errors.push('read: the date it was read, YYYY-MM-DD.')
-  if (!x.overrides || typeof x.overrides !== 'object') errors.push('overrides: an object of rule ids, {} for none.')
+  if (x.read !== undefined && (typeof x.read !== 'string' || !isDate(x.read))) errors.push('read: the date it was read, YYYY-MM-DD.')
+  if (!x.overrides || typeof x.overrides !== 'object' || Array.isArray(x.overrides)) errors.push('overrides: an object of rule ids, {} for none.')
   else
     for (const [id, o] of Object.entries(x.overrides)) {
       const rule = pack.rules.find((r) => r.id === id)
@@ -126,8 +150,12 @@ export function validateGuide(g: unknown, pack: RulePack): string[] {
       }
       for (const [k, v] of Object.entries(o?.params ?? {})) {
         if (!(k in rule.params)) errors.push(`overrides.${id}.params.${k}: ${id} has ${Object.keys(rule.params).join(', ') || 'no parameters'}.`)
-        else if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) errors.push(`overrides.${id}.params.${k}: a number, 0 or more.`)
+        else {
+          const bad = paramProblem(id, k, v)
+          if (bad) errors.push(`overrides.${id}.params.${k}: ${bad}.`)
+        }
       }
+      if (o?.disabled !== undefined && typeof o.disabled !== 'boolean') errors.push(`overrides.${id}.disabled: true or false.`)
       if (o?.severity !== undefined && !['error', 'warning', 'info'].includes(o.severity)) errors.push(`overrides.${id}.severity: error, warning or info.`)
     }
   if (x.figures !== undefined && (!Array.isArray(x.figures) || x.figures.some((f) => !f || typeof f.topic !== 'string' || (typeof f.value !== 'number' && typeof f.value !== 'string')))) errors.push('figures: a list of { topic, value, unit }.')
