@@ -44,6 +44,57 @@ const workspaceTabs = () => {
   return all.map((w, i) => ({ ...w, opens: i > 0 && (w.group ?? 'model') !== (all[i - 1].group ?? 'model') }))
 }
 
+/** The workspace tabs, and when they are too many for the row, a key at
+ *  each end that shows the ones out of sight — and the wheel scrolls them —
+ *  so a window not at full width still reaches every workspace. */
+function TabStrip({ children }: { children: React.ReactNode }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [ends, setEnds] = useState({ left: false, right: false })
+  const strip = () => box.current?.querySelector<HTMLElement>('.modeswitch') ?? null
+  useEffect(() => {
+    const el = strip()
+    if (!el) return
+    const look = () => {
+      const next = { left: el.scrollLeft > 1, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1 }
+      setEnds((was) => (was.left === next.left && was.right === next.right ? was : next))
+    }
+    const wheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      el.scrollLeft += e.deltaY
+      e.preventDefault()
+    }
+    look()
+    el.addEventListener('scroll', look, { passive: true })
+    el.addEventListener('wheel', wheel, { passive: false })
+    const ro = new ResizeObserver(look)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', look)
+      el.removeEventListener('wheel', wheel)
+      ro.disconnect()
+    }
+  }, [])
+  const step = (dir: -1 | 1) => {
+    const el = strip()
+    el?.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.6), behavior: 'smooth' })
+  }
+  return (
+    <div className="tabstrip" ref={box}>
+      {ends.left && (
+        <button className="tabmore left" title="More workspaces" aria-label="Show the workspaces to the left" onClick={() => step(-1)}>
+          ‹
+        </button>
+      )}
+      {children}
+      {ends.right && (
+        <button className="tabmore right" title="More workspaces" aria-label="Show the workspaces to the right" onClick={() => step(1)}>
+          ›
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** The page's own title, while no project is named. */
 const APP_TITLE = 'ScanRuler by CNC Kitchen'
 
@@ -215,7 +266,8 @@ export function TopBar({
       </div>
       {/* Both workspaces share the loaded scan, the scene and the camera, so
           switching is free and neither side loses what it had. */}
-      <div className="modeswitch" role="tablist">
+      <TabStrip>
+        <div className="modeswitch" role="tablist">
         {workspaceTabs().map((w) => (
           <button
             key={w.id}
@@ -232,7 +284,8 @@ export function TopBar({
             <span className="wtxt">{w.label}</span>
           </button>
         ))}
-      </div>
+        </div>
+      </TabStrip>
       <ProjectName />
       {fileName && (
         <div className="partchip file-info" title={fileName}>
