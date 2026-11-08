@@ -52,6 +52,13 @@ export function hexSlotOutline(c: V2, s: number, angleDeg: number, length: numbe
   return [...corners, side(-1), side(1)]
 }
 
+/** A rectangle w along its own u, l along its v, turned angleDeg on the
+ *  sheet about its centre: its four corners. */
+export function rectOutline(c: V2, w: number, l: number, angleDeg: number): V2[] {
+  const t = (angleDeg * Math.PI) / 180
+  return [[w, l], [-w, l], [-w, -l], [w, -l]].map(([a, b]) => [r6(c[0] + (a / 2) * Math.cos(t) - (b / 2) * Math.sin(t)), r6(c[1] + (a / 2) * Math.sin(t) + (b / 2) * Math.cos(t))] as V2)
+}
+
 /** One step's shapes at every centre. */
 export function shapesOf(step: Step, p: Placement): Json[] {
   const out: Json[] = []
@@ -64,6 +71,8 @@ export function shapesOf(step: Step, p: Placement): Json[] {
       // Stood on a corner where the hole is level: its roof two 60° slopes.
       const angleDeg = p.up ? r6(deg(Math.atan2(p.up[1], p.up[0])) + 30) : 0
       out.push({ kind: 'polygon', center: c, sides: 6, radius: r6(r), fit: 'circumscribed', angleDeg, fixed: true })
+    } else if (step.profile === 'rect') {
+      out.push({ kind: 'polyline', points: rectOutline(c, step.diameter, step.length ?? step.diameter, step.angleDeg ?? 0), closed: true, fixed: true })
     } else {
       out.push({ kind: 'polyline', points: hexSlotOutline(c, step.diameter, step.slot!.angleDeg, step.slot!.length), closed: true, fixed: true })
     }
@@ -124,7 +133,7 @@ export function patternOffsets(pattern: Pattern | undefined): V2[] {
 
 /** Two copies closer than their widest step: they would run into each other. */
 export function overlapping(cut: Cut, offsets: V2[]): number | null {
-  const widest = Math.max(...cut.steps.map((s) => (s.profile === 'circle' ? s.diameter : s.diameter / Math.cos(Math.PI / 6))))
+  const widest = Math.max(...cut.steps.map((s) => (s.profile === 'circle' ? s.diameter : s.profile === 'rect' ? Math.hypot(s.diameter, s.length ?? s.diameter) : s.diameter / Math.cos(Math.PI / 6))))
   let least = Infinity
   for (let i = 0; i < offsets.length; i++)
     for (let j = i + 1; j < offsets.length; j++) least = Math.min(least, Math.hypot(offsets[i][0] - offsets[j][0], offsets[i][1] - offsets[j][1]))

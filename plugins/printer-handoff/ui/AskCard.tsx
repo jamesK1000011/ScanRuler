@@ -21,6 +21,7 @@ function Facts({ a }: { a: Ask }) {
   const rows: [string, string | undefined][] = [
     ['Printer', a.printer],
     ['File', a.file],
+    ['Pauses', a.summary.pauses],
     ['Time', a.summary.time],
     ['Filament', a.summary.filament],
     ['Size', a.summary.size],

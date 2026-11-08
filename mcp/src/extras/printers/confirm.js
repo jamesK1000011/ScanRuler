@@ -58,7 +58,7 @@ async function decide(r, yes) {
 function page(r) {
   const s = r.summary ?? {}
   const w = words(r)
-  const rows = [['Printer', r.printer], ['File', r.file], ...(s.time ? [['Time', s.time]] : []), ...(s.filament ? [['Filament', s.filament]] : []), ...(s.size ? [['Size', s.size]] : [])]
+  const rows = [['Printer', r.printer], ['File', r.file], ...(s.pauses ? [['Pauses', s.pauses]] : []), ...(s.time ? [['Time', s.time]] : []), ...(s.filament ? [['Filament', s.filament]] : []), ...(s.size ? [['Size', s.size]] : [])]
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(w.ask)}</title>
 <style>body{font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem}td{padding:.25rem 1rem .25rem 0}button{font-size:1.1rem;padding:.6rem 1.4rem;margin-right:1rem}#start{background:#0a7;color:#fff;border:0;border-radius:6px}</style></head>
 <body><h1>${esc(w.ask)}</h1><p>${esc(w.why)}</p>
@@ -108,7 +108,7 @@ async function ensureServer() {
 function dialog(r, env, open) {
   const s = r.summary ?? {}
   const w = words(r)
-  const text = `${w.why}\n\nPrinter: ${r.printer}\nFile: ${r.file}${s.time ? `\nTime: ${s.time}` : ''}${s.filament ? `\nFilament: ${s.filament}` : ''}\n\n${w.check}`.replace(/["\\]/g, (c) => `\\${c}`)
+  const text = `${w.why}\n\nPrinter: ${r.printer}\nFile: ${r.file}${s.pauses ? `\nPauses: ${s.pauses}` : ''}${s.time ? `\nTime: ${s.time}` : ''}${s.filament ? `\nFilament: ${s.filament}` : ''}\n\n${w.check}`.replace(/["\\]/g, (c) => `\\${c}`)
   const script = `display dialog "${text}" with title "ScanRuler — ${w.ask.toLowerCase()}" buttons {"Cancel", "${w.dialog}"} default button "Cancel" cancel button "Cancel" with icon caution giving up after 600`
   const child = spawn(env.SCANRULER_DIALOG ?? 'osascript', ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] })
   let out = ''

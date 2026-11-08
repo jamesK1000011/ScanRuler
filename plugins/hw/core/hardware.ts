@@ -52,17 +52,20 @@ export interface Insert {
   length: number
   /** The least wall round the hole. */
   wall: number
+  /** Its outside diameter, over the knurl: the cavity for one dropped in
+   *  mid-print rather than pressed in hot. */
+  od: number
 }
 
 /** Heat-set inserts: typical figures of the common brass ranges for 3D
  *  prints. Check the maker's sheet for yours. */
 export const INSERTS: readonly Insert[] = [
-  { size: 'M2', hole: 3.2, length: 3, wall: 1.3 },
-  { size: 'M2.5', hole: 4, length: 4, wall: 1.6 },
-  { size: 'M3', hole: 4, length: 5.7, wall: 1.6 },
-  { size: 'M3 short', hole: 4, length: 3, wall: 1.6 },
-  { size: 'M4', hole: 5.6, length: 8.1, wall: 2.1 },
-  { size: 'M5', hole: 6.4, length: 9.5, wall: 2.6 },
+  { size: 'M2', hole: 3.2, length: 3, wall: 1.3, od: 3.6 },
+  { size: 'M2.5', hole: 4, length: 4, wall: 1.6, od: 4.6 },
+  { size: 'M3', hole: 4, length: 5.7, wall: 1.6, od: 4.6 },
+  { size: 'M3 short', hole: 4, length: 3, wall: 1.6, od: 4.6 },
+  { size: 'M4', hole: 5.6, length: 8.1, wall: 2.1, od: 6.3 },
+  { size: 'M5', hole: 6.4, length: 9.5, wall: 2.6, od: 7.1 },
 ]
 
 export interface Magnet {

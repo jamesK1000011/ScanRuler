@@ -4,7 +4,7 @@
 // Enough for a slicer's project file; no dependency.
 
 import { readFile } from 'node:fs/promises'
-import { inflateRawSync } from 'node:zlib'
+import { deflateRawSync, inflateRawSync } from 'node:zlib'
 
 /** The most one entry may inflate to: a zip bomb stops here. */
 export const MAX_ENTRY_BYTES = 1024 * 1024 * 1024
@@ -67,6 +67,12 @@ function entriesOf(buf, path, maxEntryBytes) {
 /** A zip of the entries given, stored (no compression — models' buffers
  *  and textures barely shrink), for a take to unpack. */
 export function zipStore(entries) {
+  return zipWrite(entries.map((e) => ({ ...e, method: 0 })))
+}
+
+/** A zip of the entries given, each stored (method 0) or deflated (8), in
+ *  the order given: a .3mf written back with one entry changed. */
+export function zipWrite(entries) {
   const crcTable = new Uint32Array(256).map((_, n) => {
     let c = n
     for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
@@ -80,16 +86,20 @@ export function zipStore(entries) {
   const locals = []
   const centrals = []
   let at = 0
-  for (const { name, data } of entries) {
+  for (const { name, data, method = 0 } of entries) {
+    if (method !== 0 && method !== 8) throw new Error(`${name}: compression method ${method} is not written.`)
     const n = Buffer.from(String(name).replace(/\\/g, '/').replace(/^\/+/, ''))
     const d = Buffer.from(data)
     const c = crc(d)
+    const body = method === 8 ? deflateRawSync(d) : d
+    if (d.length > 0xfffffffe || at > 0xfffffffe) throw new Error('Too big for a zip without its 64-bit extension.')
     const l = Buffer.alloc(30)
     l.writeUInt32LE(0x04034b50, 0)
     l.writeUInt16LE(20, 4)
     l.writeUInt16LE(0x0800, 6)
+    l.writeUInt16LE(method, 8)
     l.writeUInt32LE(c, 14)
-    l.writeUInt32LE(d.length, 18)
+    l.writeUInt32LE(body.length, 18)
     l.writeUInt32LE(d.length, 22)
     l.writeUInt16LE(n.length, 26)
     const e = Buffer.alloc(46)
@@ -97,14 +107,15 @@ export function zipStore(entries) {
     e.writeUInt16LE(20, 4)
     e.writeUInt16LE(20, 6)
     e.writeUInt16LE(0x0800, 8)
+    e.writeUInt16LE(method, 10)
     e.writeUInt32LE(c, 16)
-    e.writeUInt32LE(d.length, 20)
+    e.writeUInt32LE(body.length, 20)
     e.writeUInt32LE(d.length, 24)
     e.writeUInt16LE(n.length, 28)
     e.writeUInt32LE(at, 42)
-    locals.push(l, n, d)
+    locals.push(l, n, body)
     centrals.push(e, n)
-    at += 30 + n.length + d.length
+    at += 30 + n.length + body.length
   }
   const cd = Buffer.concat(centrals)
   const end = Buffer.alloc(22)

@@ -346,3 +346,35 @@ test('no answer ever carries a secret, and printer_list says only whether one is
   const conf = await readFile(join(env.SCANRULER_HOME, 'printers.json'), 'utf8')
   for (const s of Object.values(SECRETS)) assert.ok(!conf.includes(s), 'printers.json holds no secret')
 })
+
+test('a job with pauses says so at the start and the resume; the resume is still the person’s', async () => {
+  const { injectPauses } = await import('../src/extras/pauses.js')
+  const { orcaKlipperGcode } = await import('./gcodeSamples.js')
+  const paused = injectPauses(orcaKlipperGcode({ layers: 30 }), [{ z: 1, note: 'Insert a 6x3 magnet' }, { z: 3, note: 'Insert an M3 nut' }]).text
+  await writeFile(join(dir, 'embedded.gcode'), paused)
+  const up = await ok('printer_upload', { printer: 'Voron', file: join(dir, 'embedded.gcode') })
+  assert.match(up.pauses, /^2 pauses to drop parts in: layer 6 \(Z 1\): a 6x3 magnet; layer 16 \(Z 3\): an M3 nut\./)
+  const before = starts(moon).length
+  const r = await ok('printer_start', { printer: 'Voron' })
+  assert.equal(r.summary.pauses, '2: layer 6 (Z 1): a 6x3 magnet; layer 16 (Z 3): an M3 nut')
+  const page = await (await fetch(_person.address(r.request))).text()
+  assert.match(page, /<b>Pauses<\/b><\/td><td>2: layer 6 \(Z 1\): a 6x3 magnet/)
+  await answer(r.request, 'cancel')
+  assert.equal(starts(moon).length, before)
+  const resumes = () => moon.seen.calls.filter((c) => c.path === '/printer/print/resume').length
+  const was = resumes()
+  const q = await ok('printer_resume', { name: 'Voron' })
+  assert.equal(q.asks, 'resume')
+  assert.match(q.summary.pauses, /^check the part is in — layer 6/)
+  assert.equal(resumes(), was, 'asking resumes nothing')
+  await answer(q.request, 'start')
+  assert.equal((await settle(q.request)).status, 'started')
+  assert.equal(resumes(), was + 1)
+  // CRLF line ends read the same.
+  const { pausesIn } = await import('../src/extras/printer.js')
+  assert.deepEqual(pausesIn(paused.replace(/\n/g, '\r\n')), pausesIn(paused))
+  assert.equal(pausesIn(paused).length, 2)
+  // A plain G-code says nothing of pauses.
+  const plain = await ok('printer_upload', { printer: 'Voron', file: join(dir, 'part.gcode') })
+  assert.equal(plain.pauses, undefined)
+})

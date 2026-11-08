@@ -11,7 +11,7 @@ export interface Ask {
   verb?: 'start' | 'resume'
   printer: string
   file: string
-  summary: { time?: string; filament?: string; size?: string }
+  summary: { time?: string; filament?: string; size?: string; pauses?: string }
   answer: string
   status: 'waiting' | 'sending' | 'started' | 'cancelled' | 'failed' | 'expired' | 'withdrawn' | 'starting'
   error?: string

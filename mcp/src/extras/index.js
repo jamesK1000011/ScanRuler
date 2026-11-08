@@ -106,7 +106,7 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
     tool(
       'slicer_slice',
       'Slice a model',
-      'Slice a model file (STL, 3MF, STEP — export the part from ScanRuler first with export_stl { path }) with a set-up slicer and its profiles (names from slicer_profiles, or paths; the slicer’s defaults otherwise), with settings overridden by key — fit-comp’s suggested changes (fit_suggest changes: { key: to }) go straight in. The run gets its own job folder (inputs, command line, log, G-code). Returns the job: the slicer’s own totals (seconds, filament mm and g, layers), what the moves count (layers and heights, filament by feature, travel, retractions) and a heuristic stringing indicator, labelled so. Refused, naming the flag, when the installed slicer does not list a flag this needs. Nothing is sent to a printer.',
+      'Slice a model file (STL, 3MF, STEP — export the part from ScanRuler first with export_stl { path }) with a set-up slicer and its profiles (names from slicer_profiles, or paths; the slicer’s defaults otherwise), with settings overridden by key — fit-comp’s suggested changes (fit_suggest changes: { key: to }) go straight in. The run gets its own job folder (inputs, command line, log, G-code). pauses puts a pause before the first layer at or above each height, for parts dropped in (hw.pauses gives them) — into the G-code and the exported 3MF. Returns the job: the slicer’s own totals (seconds, filament mm and g, layers), what the moves count (layers and heights, filament by feature, travel, retractions) and a heuristic stringing indicator, labelled so. Refused, naming the flag, when the installed slicer does not list a flag this needs. Nothing is sent to a printer.',
       obj(
         {
           slicer: { type: 'string', description: 'The slicer’s id in slicers.json; the only one when there is one.' },
@@ -118,11 +118,13 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
           print: { type: 'string', description: 'PrusaSlicer: the print profile.' },
           overrides: { type: 'object', description: 'Settings by key: { "xy_hole_compensation": 0.17, "layer_height": 0.2 }.' },
           name: { type: 'string', description: 'A name for the job folder.' },
+          pauses: { type: 'array', items: { type: 'object' }, description: 'Pauses for parts dropped in mid-print: [{ z, note }] — z the pocket’s top above the bed, mm; note what goes in, shown on the printer where it can. hw.pauses gives them as slicer.pauses.' },
+          pauseCommand: { type: 'string', enum: ['auto', 'M601', 'M600', 'PAUSE', 'M400 U1'], description: 'The pause: auto (the printer profile’s own, else by the printer — M601 Prusa/Marlin, PAUSE Klipper, M400 U1 Bambu Lab), or one of these.' },
         },
         ['model'],
       ),
       async (a) => {
-        const r = await slice({ slicerId: a.slicer, model: a.model, machine: a.machine, process: a.process, filament: a.filament, print: a.print, printer: a.printer, overrides: a.overrides ?? {}, name: a.name }, env)
+        const r = await slice({ slicerId: a.slicer, model: a.model, machine: a.machine, process: a.process, filament: a.filament, print: a.print, printer: a.printer, overrides: a.overrides ?? {}, name: a.name, pauses: a.pauses, pauseCommand: a.pauseCommand }, env)
         const { layers, ...rest } = r
         return { ...rest, layerCount: layers.length }
       },

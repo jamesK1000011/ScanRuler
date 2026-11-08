@@ -26,6 +26,27 @@ server's `env` in their client config.
 5. **Compare.** `slicer_compare { a, b }` puts two jobs side by side, to
    check what a changed setting did to time and filament.
 
+## Pauses for parts dropped in
+
+When the part has encased pockets (the Hardware workspace's `hw.embed`, or
+Mass's ballast), call `hw_pauses` (the page's `hw.pauses`) with the
+profile's `layerHeight` and `firstLayer`. If the bodies go out as one STL,
+give `together`. Then slice with `slicer_slice { …, pauses }`, using the
+answer's `slicer.pauses` as is.
+
+- The answer's `pauses` lists each one: `layer` (pause before it, from 1),
+  `z` (the height it pauses at) and `printZ` (that layer's Z in the
+  slicer's preview). It also gives the G-code put in, `command.from` (where
+  the pause command came from), and `warnings`.
+- Check the layers match `hw.pauses`. If they don't, the profile's layer
+  heights differ from what you gave. Ask, then do both again.
+- A warning that a top falls inside a layer means that layer may print
+  closed over the pocket. Plan the pocket again at the profile's layers.
+- `pauseCommand` is needed when the G-code doesn't say which printer it is
+  for: `M601` (Prusa; Marlin with park on pause), `M600` (Marlin filament
+  change), `PAUSE` (Klipper), `M400 U1` (Bambu Lab).
+- Tell the person what to have ready, and what goes in at each layer.
+
 ## Profiles
 
 - **OrcaSlicer and Bambu Studio** profiles are JSON: machine, process and
@@ -40,6 +61,8 @@ server's `env` in their client config.
 
 - A slice is checked against the slicer's `--help`. A flag it doesn't list
   is refused by name. Report it; don't work around it.
+- Pauses go into the G-code after slicing, not through the slicer's own
+  per-layer pause. Say so if asked.
 - Nothing is sent to a printer. That is printer-handoff's job, and a person
   presses Start.
 - Each job keeps its inputs, command line and log in its folder. When a
