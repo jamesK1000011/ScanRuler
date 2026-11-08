@@ -27,7 +27,8 @@ const plugin: ScanRulerPlugin = {
     label: 'Mesh Tools',
     title: 'Clean the scan up — islands, holes, scatter — expand, shrink or hollow it, and reduce it to a light mesh for CAD held within a tolerance you set',
     icon: 'wsMesh',
-    order: 20,
+    order: 10,
+    group: 'model',
     // Two steps deep: the app's own, the scan, then a reduction — walked
     // only while Reduce mesh is the tool in hand.
     useHintStep() {
