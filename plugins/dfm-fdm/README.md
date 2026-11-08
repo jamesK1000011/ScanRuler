@@ -43,3 +43,7 @@ The agent guide is `guide.read { id: "dfm-fdm" }`.
 - Add a JSON file to any of them for your own.
 - The numbers are rules of thumb, and each rule's `source` says so. No
   standard's text is copied.
+
+## Guides
+
+`rules/guides/*.json`: one published design guide each — publisher, url, the date read, the figures it gives, and the ones a check uses as overrides. Stacked last, before the project's own changes. A guide can be imported into a project (`dfm.guides { action: "import" }`); `core/rules.ts` `validateGuide` says what it must hold.

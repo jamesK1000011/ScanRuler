@@ -57,3 +57,12 @@ Nothing is a hidden constant.
   its top.
 - **The numbers are rules of thumb** for a typical printer. A tuned printer
   bridges further and prints steeper. Ask before tightening or loosening one.
+
+## Published guides
+
+`dfm_guides` lists design guides from service bureaus, printer makers and a university, each figure with its publisher, page and the date it was read. No guide is a standard, and they disagree: `dfm_guides { action: "compare" }` shows them side by side, with where they differ.
+
+- `dfm_settings { guide: "uzh-amf" }` stacks a guide's numbers over the nozzle, material and printer. `dfm_rules` then says the guide set them.
+- A guide of the person's own, or a shop's: `dfm_guides { action: "import", guide: { id, label, publisher, overrides, figures } }`. It is checked against the rules and kept with the project.
+- `dfm_guides { action: "export" }` gives the rules in force as a guide, to edit and import elsewhere.
+- `dfm_considerations` is the design review beyond the numbers: what each question is, and whether a rule checks it or it is the person's call. Ask the ones no rule checks.
