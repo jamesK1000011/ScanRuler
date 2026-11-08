@@ -1,0 +1,132 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The Printability workspace's own rules, on the app's tokens and the
+   plugins' kit (plugins/_shared/ui/kit.css). */
+
+.dfm-finding {
+  gap: 4px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--line-strong);
+}
+
+.dfm-finding[data-severity='error'] {
+  border-left-color: var(--red);
+}
+
+.dfm-finding[data-severity='warning'] {
+  border-left-color: var(--amber);
+}
+
+.dfm-finding.waived {
+  opacity: 0.6;
+  border-left-color: var(--line);
+}
+
+.dfm-finding-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  text-align: left;
+}
+
+.dfm-finding-head .name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dfm-value {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.dfm-value small {
+  color: var(--faint);
+}
+
+.dfm-stage {
+  align-items: flex-start;
+}
+
+.dfm-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(100%, 1180px);
+  padding: 16px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.dfm-sheet > button {
+  align-self: flex-start;
+}
+
+.dfm-table-wrap {
+  overflow-x: auto;
+}
+
+.dfm-table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.dfm-table th,
+.dfm-table td {
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.dfm-table thead th {
+  font-family: var(--cond);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dim);
+  border-bottom: 2px solid var(--line-strong);
+  min-width: 96px;
+}
+
+.dfm-table thead a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.dfm-table thead a:hover {
+  color: var(--accent-d);
+  text-decoration: underline;
+}
+
+.dfm-table tbody th {
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.dfm-table tbody th small {
+  font-family: var(--mono);
+  color: var(--amber);
+}
+
+.dfm-table td {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+}
+
+.dfm-table tr.differ th {
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.dfm-table .on {
+  background: var(--accent-soft);
+}
