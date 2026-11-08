@@ -52,6 +52,8 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
         if (!taken.has(path)) throw new Error('Only a file just brought in from a library opens from here.')
         const as = data.as === 'scan' ? 'scan.open' : 'deviation.open_reference'
         const bytes = new Uint8Array(await readFile(path))
+        // Cancelled while the file was read: it is not opened.
+        if (signal.aborted) return
         await link.run(as, { bytes, name: basename(path), ...(as === 'scan.open' && data.discard === true ? { discard: true } : {}) }, 'bytes')
         result = { opened: basename(path), as: as === 'scan.open' ? 'scan' : 'reference' }
       } else result = await librariesStatus(env)

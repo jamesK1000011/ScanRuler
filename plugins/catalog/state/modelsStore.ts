@@ -54,7 +54,14 @@ export function ask<T = any>(action: string, data: Record<string, unknown> = {},
       clearTimeout(timer)
       waiting.delete(req)
       signal?.removeEventListener('abort', cancel)
+      unlink()
     }
+    // The connection closing is the end of waiting: no answer can come.
+    const unlink = useAgentLink.subscribe((s) => {
+      if (s.status === 'connected') return
+      done()
+      reject(new Error('The agent connection closed before the answer came — reconnect (Settings → Agents) and try again.'))
+    })
     const cancel = () => {
       done()
       notifyAgent('catalog.models', { req: `${req}x`, action: 'cancel', of: req })
@@ -80,7 +87,7 @@ export function answered(a: Answer): boolean {
   const w = waiting.get(a.req)
   if (!w) return false
   if (a.ok) w.resolve(a.result)
-  else w.reject(new Error(a.error ?? 'The library did not answer.'))
+  else w.reject(new Error(a.error || 'The library did not answer.'))
   return true
 }
 
@@ -92,6 +99,8 @@ export interface ModelsState {
   missing: Partial<Record<Library, string>>
   errors: Partial<Record<Library, string>>
   busy: string | null
+  /** The search the hits are of: what More goes on with. */
+  searched?: { query: string; libraries: Library[] }
   /** More results found nothing new: the end of the list. */
   noMore?: boolean
   /** When the work in busy began, ms — the panel counts the seconds. */

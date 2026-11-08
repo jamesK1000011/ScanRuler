@@ -39,3 +39,16 @@ test('search links for every source, the query encoded', () => {
   expect(l[1].url).toBe('https://www.mcmaster.com/M5-x-16-socket-head/')
   expect(links('608', ['printables'])).toHaveLength(1)
 })
+
+describe('the red-team round', () => {
+  test('lookup reads every word, a whole size alone, and a standard by number', () => {
+    expect(lookup('M5 socket head').map((p) => p.designation)).toEqual(['M5 socket head cap screw'])
+    expect(lookup('m2').every((p) => p.designation.startsWith('M2 '))).toBe(true)
+    expect(lookup('ISO 7089').every((p) => p.kind === 'washer')).toBe(true)
+    expect(lookup('   ')).toEqual([])
+  })
+
+  test('match takes no inherited name for a dimension', () => {
+    expect(match({ constructor: 5 } as Record<string, number>)).toEqual([])
+  })
+})

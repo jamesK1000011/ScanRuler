@@ -43,14 +43,27 @@ export const KEYCHAIN_TIMEOUT_MS = 8_000
 
 async function fileStore(env) {
   const f = join(home(env), 'secrets.json')
-  return { f, all: existsSync(f) ? JSON.parse(await readFile(f, 'utf8')) : {} }
+  if (!existsSync(f)) return { f, all: {} }
+  let all
+  try {
+    all = JSON.parse(await readFile(f, 'utf8'))
+  } catch {
+    // Never the parser's own words: they quote the file, keys and all.
+    throw new Error(`${f} is not valid JSON — fix it by hand, or delete it and set the keys again.`)
+  }
+  if (!all || typeof all !== 'object' || Array.isArray(all)) throw new Error(`${f} is not a list of keys — delete it and set them again.`)
+  return { f, all }
 }
 
+/** A key as it is used: a string, without the spaces or newlines a paste
+ *  leaves round it; anything else is no key. */
+const clean = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+
 export async function getSecret(account, env = process.env, platform = process.platform) {
-  if (useFile(env, platform)) return (await fileStore(env)).all[account] ?? null
+  if (useFile(env, platform)) return clean((await fileStore(env)).all[account])
   const r = await run('security', ['find-generic-password', '-s', SERVICE, '-a', account, '-w'], Number(env.SCANRULER_KEYCHAIN_TIMEOUT_MS) || KEYCHAIN_TIMEOUT_MS)
   if (r.code === -2) throw new Error(`The Keychain did not hand over "${account}" in time — macOS may be asking you to allow it: look for a Keychain window and choose Always Allow, then try again.`)
-  return r.code === 0 ? r.out.replace(/\n$/, '') : null
+  return r.code === 0 ? clean(r.out) : null
 }
 
 export async function hasSecret(account, env = process.env, platform = process.platform) {

@@ -7,12 +7,12 @@
 
 import { useEffect, useState } from 'react'
 import { useAgentLink } from '../../../src/commands/agentLink'
-import { runCommand } from '../../../src/commands/registry'
 import { useStore } from '../../../src/state/store'
 import { CopyButton } from '../../../src/ui/CopyButton'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
 import { ask, Cancelled, useModels, type Library, type ModelFile, type ModelHit } from '../state/modelsStore'
+import { useCatalog } from '../state/catalogStore'
 
 const LIBS: { id: Library; label: string; note: string; get: string; how: string; form: string }[] = [
   { id: 'sketchfab', label: 'Sketchfab', note: 'Searches with no account; downloads take your Sketchfab API token', get: 'https://sketchfab.com/settings/password', how: 'Sign in, open Settings → Password & API, copy the API token.', form: 'the token' },
@@ -49,7 +49,7 @@ function Keys() {
             </p>
             <div className="cat-cmd">
               <code>{cmd}</code>
-              <CopyButton label="Copy" onCopy={() => void navigator.clipboard.writeText(cmd)} />
+              <CopyButton label="Copy" onCopy={() => void navigator.clipboard.writeText(cmd).catch(report)} />
             </div>
           </div>
         )
@@ -91,16 +91,27 @@ export const cancelWork = () => current?.abort()
 /** How long each kind of ask waits: the server answers a search within
  *  about 26 s with what it has, so 40 s means it is not answering. */
 const WAIT = { search: 40_000, files: 30_000, take: 300_000, open: 300_000 }
-const mayShare = (l: string | null) => /creative commons|^cc[\s-]|cc0|public domain/i.test(l ?? '')
+/** Whether a licence lets the file be passed on: Creative Commons and
+ *  public domain do — but not a no-derivatives one, as a part changed for
+ *  a project is a derivative. As the server's mayShare (models.js). */
+const mayShare = (l: string | null) => /creative commons|^cc[\s-]|cc0|public domain/i.test(l ?? '') && !/\bnd\b|no.?deriv/i.test(l ?? '')
+/** A non-commercial licence: shared on, never sold. */
+const nonCommercial = (l: string | null) => /\bnc\b|non.?commercial/i.test(l ?? '')
+/** Only a web page opens from a library's answer. */
+const web = (u: string | null | undefined) => (u && /^https?:\/\//i.test(u) ? u : undefined)
 const size = (b: number | null) => (b === null ? '' : b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`)
 
 async function search(more = false) {
   const s = useModels.getState()
+  // More goes on with the search made, whatever the box says now.
+  const asked = more && s.searched ? s.searched : { query: s.query.trim(), libraries: [...s.libraries] }
+  if (!asked.query || !asked.libraries.length) return
   const page = more ? s.page + 1 : 1
-  const names = s.libraries.map((id) => LIBS.find((l) => l.id === id)?.label).join(', ')
-  const signal = begin(`${more ? 'More from' : 'Searching'} ${names}…`, more ? {} : { open: null, taken: null, errors: {} })
+  const names = asked.libraries.map((id) => LIBS.find((l) => l.id === id)?.label).join(', ')
+  const signal = begin(`${more ? 'More from' : 'Searching'} ${names}…`, more ? {} : { open: null, taken: null, errors: {}, searched: asked })
   try {
-    const r = await ask<{ results: ModelHit[]; missing?: Record<string, string>; errors?: Record<string, string> }>('search', { query: s.query.trim(), sources: s.libraries, page }, WAIT.search, signal)
+    const r = await ask<{ results: ModelHit[]; missing?: Record<string, string>; errors?: Record<string, string> }>('search', { query: asked.query, sources: asked.libraries, page }, WAIT.search, signal)
+    if (!Array.isArray(r?.results)) throw new Error('The agent’s server answered the search in a shape this page does not read — restart it (and Claude).')
     const seen = new Set((more ? (s.hits ?? []) : []).map((h) => `${h.source}:${h.id}`))
     const fresh = r.results.filter((h) => !seen.has(`${h.source}:${h.id}`))
     useModels.setState({ hits: more ? [...(s.hits ?? []), ...fresh] : r.results, page, missing: r.missing ?? {}, errors: r.errors ?? {}, ...(more && fresh.length === 0 ? { noMore: true } : more ? {} : { noMore: false }) })
@@ -127,11 +138,14 @@ async function bringIn(hit: ModelHit, file: ModelFile, licence: string | null) {
   const signal = begin(`Bringing in ${file.name}…`)
   try {
     const r = await ask<{ taken: string[]; url: string | null; licence: string | null; redistribute: boolean }>('take', { source: hit.source, id: hit.id, file: file.id }, WAIT.take, signal)
-    for (const p of r.taken) {
-      const name = p.split(/[\\/]/).pop()!
-      await runCommand('catalog.provenance', { action: 'record', file: name, source: hit.source, ...(r.url ?? hit.url ? { url: r.url ?? hit.url } : {}), ...(r.licence ?? licence ? { licence: r.licence ?? licence } : {}), redistribute: r.redistribute, note: `${hit.name}${hit.author ? ` by ${hit.author}` : ''}` })
-    }
-    useModels.setState({ taken: { hit, paths: r.taken } })
+    const paths = Array.isArray(r?.taken) ? r.taken.filter((p): p is string => typeof p === 'string') : []
+    if (!paths.length) throw new Error('The take answered with no file brought in.')
+    // Shown first, then recorded straight into the ledger: a busy session
+    // (a build, a render) must not leave a file brought in unrecorded.
+    useModels.setState({ taken: { hit, paths } })
+    const url = web(r.url) ?? web(hit.url)
+    const lic = r.licence ?? licence
+    for (const p of paths) useCatalog.getState().record({ file: p.split(/[\\/]/).pop()!, source: hit.source, ...(url ? { url } : {}), ...(lic ? { licence: lic } : {}), redistribute: r.redistribute === true && mayShare(lic), note: `${hit.name}${hit.author ? ` by ${hit.author}` : ''}`, at: new Date().toISOString() })
   } catch (e) {
     report(e)
   } finally {
@@ -157,8 +171,8 @@ function Card({ hit }: { hit: ModelHit }) {
   const shared = mayShare(hit.licence)
   return (
     <div className="cat-card" data-test="catalog-model" data-source={hit.source}>
-      <a className="cat-thumb" href={hit.url} target="_blank" rel="noopener noreferrer" title={`Open ${hit.name} on ${LIBS.find((l) => l.id === hit.source)?.label}`}>
-        {hit.thumbnail ? <img src={hit.thumbnail} alt="" /> : <span>No picture</span>}
+      <a className="cat-thumb" href={web(hit.url)} target="_blank" rel="noopener noreferrer" title={`Open ${hit.name} on ${LIBS.find((l) => l.id === hit.source)?.label}`}>
+        {hit.thumbnail && /^data:image\//.test(hit.thumbnail) ? <img src={hit.thumbnail} alt="" /> : <span>No picture</span>}
         <i>{LIBS.find((l) => l.id === hit.source)?.label}</i>
       </a>
       <div className="cat-card-name" title={hit.name}>
@@ -167,6 +181,7 @@ function Card({ hit }: { hit: ModelHit }) {
       <div className="cat-card-by">{hit.author ? `by ${hit.author}` : ' '}</div>
       <div className={`cat-licence ${shared ? 'ok' : 'warn'}`} title={hit.licence ? `${hit.licence}\n${shared ? 'May be shared on, crediting the designer' : 'For your own use: not to be shared on'}` : 'Licence not given here — see the page'}>
         {hit.licence ?? 'Licence on the page'}
+        {shared && nonCommercial(hit.licence) ? ' · not for sale' : ''}
         {hit.price && hit.price !== 'free' ? ` · ${hit.price}` : ''}
       </div>
       {hit.downloadable ? (
@@ -174,7 +189,7 @@ function Card({ hit }: { hit: ModelHit }) {
           Files…
         </button>
       ) : (
-        <a className="button" href={hit.url} target="_blank" rel="noopener noreferrer" title="Its files are downloaded on its own site">
+        <a className="button" href={web(hit.url)} target="_blank" rel="noopener noreferrer" title="Its files are downloaded on its own site">
           On the site ↗
         </a>
       )}
@@ -194,7 +209,7 @@ function Opened() {
         <span className="name" title={hit.name}>
           {hit.name}
         </span>
-        <button className="x" title="Close" onClick={() => useModels.setState({ open: null, taken: null })}>
+        <button className="x" title="Close" disabled={busy} onClick={() => useModels.setState({ open: null, taken: null })}>
           ×
         </button>
       </div>
@@ -243,11 +258,11 @@ function Busy({ label, since }: { label: string; since: number | null }) {
   }, [])
   const secs = since ? Math.floor((Date.now() - since) / 1000) : 0
   return (
-    <div className="toolrow" data-test="catalog-model-busy">
+    <div className="toolrow" data-test="catalog-model-busy" aria-live="polite">
       <p className="hint" style={{ flex: 1 }}>
         <span className="spinner" /> {label}
         {secs >= 3 ? ` ${secs} s` : ''}
-        {secs >= 15 ? ' — a slow library is given up at 20 s' : ''}
+        {secs >= 15 && /^(Searching|More from)/.test(label) ? ' — a slow library is given up at 20 s' : ''}
       </p>
       <button style={{ flex: 'none' }} data-test="catalog-model-cancel" title="Stop waiting; the server stops asking the library" onClick={cancelWork}>
         Cancel
@@ -272,7 +287,7 @@ export function ModelsSection() {
       </div>
       {off && <p className="hint">Needs the agent connection (Settings → Agents, or open ScanRuler from Claude): the libraries are asked from your computer, where their keys are.</p>}
       <div className="toolrow">
-        <input className="pl-input" type="text" value={st.query} placeholder="608 bearing holder, M18 battery mount…" disabled={busy || off} data-test="catalog-model-query" onChange={(e) => useModels.setState({ query: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && st.query.trim() && void search()} />
+        <input className="pl-input" type="text" value={st.query} placeholder="608 bearing holder, M18 battery mount…" aria-label="Find a model" readOnly={busy} disabled={off} data-test="catalog-model-query" onChange={(e) => useModels.setState({ query: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && !busy && st.query.trim() && st.libraries.length > 0 && void search()} />
         <button className="primary" style={{ flex: 'none' }} disabled={busy || off || !st.query.trim() || !st.libraries.length} data-test="catalog-model-search" onClick={() => void search()}>
           Search
         </button>
@@ -293,7 +308,7 @@ export function ModelsSection() {
               <b>{LIBS.find((l) => l.id === id)?.label}</b> needs its key: {how?.replace(/:\s*node mcp.*$/, '')}. In Terminal, in the ScanRuler folder:
             </span>
             <code>{cmd}</code>
-            {cmd && <CopyButton label="Copy" onCopy={() => void navigator.clipboard.writeText(cmd)} />}
+            {cmd && <CopyButton label="Copy" onCopy={() => void navigator.clipboard.writeText(cmd).catch(report)} />}
           </div>
         )
       })}
@@ -307,7 +322,7 @@ export function ModelsSection() {
       {st.busy && <Busy label={st.busy} since={st.since} />}
       <Keys />
       <Opened />
-      {st.hits && st.hits.length === 0 && <p className="hint">Nothing found. Try the words a listing would use — what it is, what it fits.</p>}
+      {st.hits && st.hits.length === 0 && !Object.keys(st.errors).length && !Object.keys(st.missing).length && <p className="hint">Nothing found. Try the words a listing would use — what it is, what it fits.</p>}
       {st.hits && st.hits.length > 0 && (
         <>
           <div className="cat-grid" data-test="catalog-model-grid">

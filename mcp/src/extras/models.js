@@ -8,7 +8,7 @@
 // Thumbnails are fetched here and handed on as data, so the page itself
 // reaches no third-party server.
 
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { take } from './catalog.js'
 import { getSecret } from './secrets.js'
@@ -45,15 +45,25 @@ async function http(url, { headers = {}, method = 'GET', body, timeoutMs = 15_00
   signal?.addEventListener('abort', stop, { once: true })
   try {
     const r = await fetch(url, { method, headers: { 'User-Agent': 'ScanRuler catalog (scanruler-mcp)', Accept: as === 'json' ? 'application/json' : '*/*', ...headers }, body, signal: ctl.signal, redirect: 'follow' })
-    if (r.status === 401 || r.status === 403) throw new Error(`${new URL(url).host} refused the key (${r.status}) — check it is set and current.`)
-    if (r.status === 429) throw new Error(`${new URL(url).host} asks to slow down (429): try again in a minute.`)
-    if (!r.ok) throw new Error(`${new URL(url).host} answered ${r.status}.`)
-    return as === 'json' ? await r.json() : new Uint8Array(await r.arrayBuffer())
+    if (r.status === 401 || r.status === 403) throw Object.assign(new Error(`${new URL(url).host} refused the key (${r.status}) — check it is set and current.`), { ours: true })
+    if (r.status === 429) throw Object.assign(new Error(`${new URL(url).host} asks to slow down (429): try again in a minute.`), { ours: true })
+    if (!r.ok) throw Object.assign(new Error(`${new URL(url).host} answered ${r.status}.`), { ours: true })
+    if (as !== 'json') return new Uint8Array(await r.arrayBuffer())
+    const text = await r.text()
+    try {
+      return JSON.parse(text)
+    } catch {
+      throw Object.assign(new Error(`${new URL(url).host} answered with a page, not data — it may be down or changed its API.`), { ours: true })
+    }
   } catch (e) {
     if (signal?.aborted) throw new Cancelled()
+    if (e.ours || e instanceof Cancelled) throw e
     if (e.name === 'AbortError') throw new Error(`${new URL(url).host} did not answer in ${timeoutMs / 1000} s.`)
-    if (e instanceof TypeError) throw new Error(`${new URL(url).host} could not be reached — check this computer is online (${String(e.cause?.code ?? e.message).slice(0, 60)}).`)
-    throw e
+    // Never the fetch's own words past a network code: a bad header's
+    // message quotes the header, and the header is the key.
+    if (e instanceof TypeError && typeof e.cause?.code === 'string') throw new Error(`${new URL(url).host} could not be reached — check this computer is online (${e.cause.code}).`)
+    if (/^\S+ (refused the key|asks to slow down|answered \d+)/.test(e.message ?? '')) throw e
+    throw new Error(`${new URL(url).host}: the request could not be made — check the library's key is set right (it is not shown here).`)
   } finally {
     clearTimeout(t)
     signal?.removeEventListener('abort', stop)
@@ -62,22 +72,47 @@ async function http(url, { headers = {}, method = 'GET', body, timeoutMs = 15_00
 
 /** A thumbnail as a data URL, or null: fetched here, so the page reaches no
  *  third-party server for it. */
-async function thumb(url, signal, timeoutMs = 8000) {
-  if (!url || !/^(https:\/\/|http:\/\/127\.0\.0\.1[:/])/.test(url)) return null
+async function thumb(url, signal, timeoutMs = 8000, local = false) {
+  if (typeof url !== 'string' || !(/^https:\/\//.test(url) || (local && /^http:\/\/127\.0\.0\.1[:/]/.test(url)))) return null
+  const ctl = new AbortController()
+  const t = setTimeout(() => ctl.abort(), timeoutMs)
+  const stop = () => ctl.abort()
+  signal?.addEventListener('abort', stop, { once: true })
   try {
-    const b = await http(url, { as: 'bytes', timeoutMs, signal })
-    if (b.length > THUMB_MAX) return null
+    const r = await fetch(url, { headers: { 'User-Agent': 'ScanRuler catalog (scanruler-mcp)' }, signal: ctl.signal, redirect: 'follow' })
+    // A picture only, from a web page only, and small: read no further.
+    if (!r.ok || !/^https:/.test(r.url || url) && !local) return null
+    if (!/^image\//i.test(r.headers.get('content-type') ?? 'image/')) return null
+    if (Number(r.headers.get('content-length') ?? 0) > THUMB_MAX) return null
+    const parts = []
+    let n = 0
+    for await (const c of r.body ?? []) {
+      n += c.length
+      if (n > THUMB_MAX) {
+        ctl.abort()
+        return null
+      }
+      parts.push(c)
+    }
+    const b = Buffer.concat(parts)
     const type = b[0] === 0x89 ? 'image/png' : b[0] === 0x52 ? 'image/webp' : 'image/jpeg'
-    return `data:${type};base64,${Buffer.from(b).toString('base64')}`
+    return `data:${type};base64,${b.toString('base64')}`
   } catch {
     return null
+  } finally {
+    clearTimeout(t)
+    signal?.removeEventListener('abort', stop)
   }
 }
 
 /** Whether a licence lets the file be passed on (library-pack reads this):
- *  Creative Commons and public domain do; anything else, as far as this can
- *  tell, does not. */
-export const mayShare = (licence) => /creative commons|^cc[\s-]|cc0|public domain/i.test(licence ?? '')
+ *  Creative Commons and public domain do — but not a no-derivatives one, as
+ *  a part changed for a project is a derivative; anything else, as far as
+ *  this can tell, does not. */
+export const mayShare = (licence) => {
+  const l = String(licence ?? '').trim()
+  return /^(creative commons|cc[\s-]|cc0|cc by|public domain)/i.test(l) && !/\bnd\b|no.?deriv|\bnot\b|\bno\b/i.test(l)
+}
 
 const sketchfab = {
   async search(query, page, secret, env, signal) {
@@ -131,7 +166,10 @@ const thingiverse = {
     const h = { headers: { Authorization: `Bearer ${secret}` }, signal }
     const base = api(env, 'thingiverse', 'https://api.thingiverse.com')
     const [thing, files] = await Promise.all([http(`${base}/things/${encodeURIComponent(id)}`, h), http(`${base}/things/${encodeURIComponent(id)}/files`, h)])
-    const list = (Array.isArray(files) ? files : []).map((f) => ({ id: String(f.id), name: f.name, size: f.size ?? null, format: (f.name.split('.').pop() ?? '').toLowerCase(), download: f.download_url ?? f.public_url }))
+    const list = (Array.isArray(files) ? files : []).filter((f) => f && f.id != null).map((f) => {
+      const name = typeof f.name === 'string' && f.name.trim() ? f.name : `file-${f.id}`
+      return { id: String(f.id), name, size: Number.isFinite(f.size) ? f.size : null, format: (name.split('.').pop() ?? '').toLowerCase(), download: f.download_url ?? f.public_url }
+    })
     return {
       licence: thing.license ?? null,
       url: thing.public_url ?? null,
@@ -139,7 +177,16 @@ const thingiverse = {
       fetch: (fileId) => {
         const f = list.find((x) => x.id === fileId)
         if (!f?.download) throw new Error(`Thing ${id} has no file ${fileId}.`)
-        return http(f.download, { ...h, as: 'bytes', timeoutMs: 120_000 })
+        // The token goes to Thingiverse's own API only, never to another
+        // host a file address names.
+        const same = (() => {
+          try {
+            return new URL(f.download).host === new URL(base).host
+          } catch {
+            return false
+          }
+        })()
+        return http(f.download, { ...(same ? h : { signal }), as: 'bytes', timeoutMs: 120_000 })
       },
     }
   },
@@ -196,20 +243,34 @@ export const THUMBS_DEADLINE_MS = 6_000
  *  out. signal (the page's Cancel) stops it all. */
 export async function searchModels({ query, sources, page = 1, thumbnails = true, signal, deadlineMs = SEARCH_DEADLINE_MS, thumbsMs = THUMBS_DEADLINE_MS } = {}, env = process.env) {
   if (typeof query !== 'string' || !query.trim()) throw new Error('Say what to search for.')
-  const ids = (sources?.length ? sources : Object.keys(LIBRARIES)).filter((s) => s in LIBRARIES)
+  if (signal?.aborted) throw new Cancelled()
+  const asked = Array.isArray(sources) ? sources : typeof sources === 'string' ? [sources] : []
+  const unknown = asked.map(String).filter((s) => !Object.hasOwn(LIBRARIES, s))
+  const ids = [...new Set((asked.length ? asked : Object.keys(LIBRARIES)).map(String))].filter((s) => Object.hasOwn(LIBRARIES, s))
   if (!ids.length) throw new Error(`No library to search — ${Object.keys(LIBRARIES).join(', ')}.`)
+  const pageNo = Math.max(1, Math.min(50, Number(page) | 0 || 1))
+  const local = Object.keys(env).some((k) => /^SCANRULER_\w+_API$/.test(k))
   const results = []
   const missing = {}
-  const errors = {}
+  const errors = Object.fromEntries(unknown.map((s) => [s, `no library "${s}" — ${Object.keys(LIBRARIES).join(', ')}`]))
   await Promise.all(
     ids.map(async (id) => {
       const ctl = new AbortController()
       const stop = () => ctl.abort()
       signal?.addEventListener('abort', stop, { once: true })
       try {
-        const asked = (async () => PROVIDERS[id].search(query.trim().slice(0, 200), Math.max(1, Math.min(50, page | 0)), await getSecret(LIBRARIES[id].account, env), env, ctl.signal))()
-        const hits = await within(asked, deadlineMs, `did not answer in ${Math.round(deadlineMs / 1000)} s — it may be down or slow; try again, or search the others`)
-        results.push(...hits)
+        const key = async () => {
+          try {
+            return await getSecret(LIBRARIES[id].account, env)
+          } catch (e) {
+            // A library that searches without a key still does.
+            if (!LIBRARIES[id].needsKeyToSearch) return null
+            throw e
+          }
+        }
+        const going = (async () => PROVIDERS[id].search(query.trim().slice(0, 200), pageNo, await key(), env, ctl.signal))()
+        const hits = await within(going, deadlineMs, `did not answer in ${Math.round(deadlineMs / 1000)} s — it may be down or slow; try again, or search the others`)
+        results.push(...(Array.isArray(hits) ? hits.filter((h) => h && typeof h.id === 'string' && h.id && typeof h.name === 'string').map((h) => ({ ...h, name: h.name.slice(0, 300), url: /^https?:\/\//i.test(h.url ?? '') ? h.url : null })) : []))
       } catch (e) {
         if (e.late) ctl.abort()
         if (signal?.aborted) return
@@ -225,14 +286,15 @@ export async function searchModels({ query, sources, page = 1, thumbnails = true
   const by = ids.map((id) => results.filter((r) => r.source === id))
   const mixed = []
   for (let i = 0; by.some((l) => i < l.length); i++) for (const l of by) if (l[i]) mixed.push(l[i])
-  if (thumbnails) await Promise.all(mixed.map(async (r) => (r.thumbnail = await thumb(r.thumbnail, signal, thumbsMs))))
+  if (thumbnails) await Promise.all(mixed.map(async (r) => (r.thumbnail = await thumb(r.thumbnail, signal, thumbsMs, local))))
   if (signal?.aborted) throw new Cancelled()
-  return { query: query.trim(), page, results: mixed, ...(Object.keys(missing).length ? { missing } : {}), ...(Object.keys(errors).length ? { errors } : {}) }
+  return { query: query.trim(), page: pageNo, results: mixed, ...(Object.keys(missing).length ? { missing } : {}), ...(Object.keys(errors).length ? { errors } : {}) }
 }
 
 /** A model's files, to pick one to take. */
 export async function modelFiles({ source, id, signal } = {}, env = process.env) {
-  if (!(source in LIBRARIES)) throw new Error(`No library "${source}" — ${Object.keys(LIBRARIES).join(', ')}.`)
+  if (!Object.hasOwn(LIBRARIES, String(source))) throw new Error(`No library "${source}" — ${Object.keys(LIBRARIES).join(', ')}.`)
+  if (id === undefined || id === null || !String(id).trim()) throw new Error('Name the model (id), from a search.')
   const r = await PROVIDERS[source].files(String(id), await getSecret(LIBRARIES[source].account, env), env, signal)
   return { source, id: String(id), licence: r.licence, url: r.url, files: r.files }
 }
@@ -240,16 +302,33 @@ export async function modelFiles({ source, id, signal } = {}, env = process.env)
 /** A model's file brought into the imports folder (unpacked if a zip), with
  *  its source, page and licence in the provenance ledger beside it. */
 export async function takeModel({ source, id, file, to, signal } = {}, env = process.env) {
-  if (!(source in LIBRARIES)) throw new Error(`No library "${source}".`)
+  if (!Object.hasOwn(LIBRARIES, String(source))) throw new Error(`No library "${source}" — ${Object.keys(LIBRARIES).join(', ')}.`)
+  if (id === undefined || id === null || !String(id).trim()) throw new Error('Name the model (id), from a search.')
   const r = await PROVIDERS[source].files(String(id), await getSecret(LIBRARIES[source].account, env), env, signal)
-  const pick = r.files.find((f) => f.id === String(file ?? '')) ?? r.files[0]
+  const ids = r.files.map((f) => f.id).join(', ') || 'none'
+  let pick
+  if (file !== undefined && file !== null && String(file) !== '') {
+    pick = r.files.find((f) => f.id === String(file))
+    if (!pick) throw new Error(`${LIBRARIES[source].label} model ${id} has no file "${file}" — its files: ${ids}.`)
+  } else {
+    // The first file this takes: a CAD file or a zip, not a README.
+    pick = r.files.find((f) => /\.(stl|step|stp|3mf|obj|ply|glb|gltf|fbx|3ds|dae|amf|wrl|iges|igs|blend|zip)$/i.test(f.name)) ?? r.files[0]
+  }
   if (!pick) throw new Error(`${LIBRARIES[source].label} model ${id} has no file to download.`)
   const bytes = await r.fetch(pick.id)
   if (signal?.aborted) throw new Cancelled()
-  const stage = join(home(env), 'downloads', source)
-  await mkdir(stage, { recursive: true })
-  const path = join(stage, pick.name.replace(/[^\w.() -]+/g, '_'))
-  await writeFile(path, bytes)
-  const got = await take({ file: path, to, source, url: r.url ?? undefined, licence: r.licence ?? undefined, redistribute: mayShare(r.licence) }, env)
-  return { ...got, source, id: String(id), file: pick.name, licence: r.licence, url: r.url, redistribute: mayShare(r.licence) }
+  const safe = pick.name.replace(/[^\w.() -]+/g, '_').replace(/^\.+/, '') || `${source}-${id}`
+  // A folder of its own for each take: two at once never share a name.
+  const root = join(home(env), 'downloads')
+  await mkdir(root, { recursive: true })
+  const stage = await mkdtemp(join(root, `${source}-`))
+  try {
+    const path = join(stage, safe)
+    await writeFile(path, bytes)
+    if (signal?.aborted) throw new Cancelled()
+    const got = await take({ file: path, to, source, url: r.url ?? undefined, licence: r.licence ?? undefined, redistribute: mayShare(r.licence) }, env)
+    return { ...got, source, id: String(id), file: pick.name, licence: r.licence, url: r.url, redistribute: mayShare(r.licence) }
+  } finally {
+    await rm(stage, { recursive: true, force: true }).catch(() => {})
+  }
 }

@@ -127,7 +127,7 @@ function Lookup() {
     <div className="group">
       <div className="sec-head">Look up a size</div>
       <div className="toolrow">
-        <input className="pl-input" type="text" value={name} placeholder="M5 socket head, 608, M8 washer…" disabled={busy} data-test="catalog-lookup-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && name.trim() && void go()} />
+        <input className="pl-input" type="text" value={name} placeholder="M5 socket head, 608, M8 washer…" aria-label="Look up a standard part" disabled={busy} data-test="catalog-lookup-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && name.trim() && void go()} />
         <button disabled={busy || !name.trim()} style={{ flex: 'none' }} onClick={() => void go()}>
           Look up
         </button>
@@ -180,7 +180,7 @@ function FindCad() {
         </InfoDot>
       </div>
       <div className="toolrow">
-        <input className="pl-input" type="text" value={query} placeholder="M5 x 16 socket head ISO 4762, 608 bearing…" disabled={busy} data-test="catalog-query" onChange={(e) => useCatalogView.setState({ query: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && query.trim() && void go()} />
+        <input className="pl-input" type="text" value={query} placeholder="M5 x 16 socket head ISO 4762, 608 bearing…" aria-label="Search the catalogues" disabled={busy} data-test="catalog-query" onChange={(e) => useCatalogView.setState({ query: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && query.trim() && only.length > 0 && void go()} />
         <button disabled={busy || !query.trim() || !only.length} style={{ flex: 'none' }} data-test="catalog-links" onClick={() => void go()}>
           Search
         </button>
@@ -252,7 +252,7 @@ function Provenance() {
                 <dd title={p.licence}>{p.licence}</dd>
               </>
             )}
-            {p.url && (
+            {p.url && /^https?:\/\//i.test(p.url) && (
               <>
                 <dt>Page</dt>
                 <dd>

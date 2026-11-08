@@ -7,15 +7,62 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { constants as FS } from 'node:fs'
+import { copyFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { home } from './slicer.js'
 import { zipEntries } from './zip.js'
 
 export const CAD = ['.stl', '.step', '.stp', '.3mf', '.obj', '.ply', '.glb', '.gltf', '.fbx', '.3ds', '.dae', '.amf', '.wrl', '.iges', '.igs', '.blend']
 
-const tilde = (p) => (p.startsWith('~/') ? join(homedir(), p.slice(2)) : p)
+const tilde = (p) => (p === '~' ? homedir() : p.startsWith('~/') ? join(homedir(), p.slice(2)) : p)
+
+/** What goes with a glTF or an OBJ in its zip: its buffers and textures. */
+const COMPANIONS = ['.bin', '.mtl', '.png', '.jpg', '.jpeg', '.webp', '.ktx2', '.tga', '.bmp']
+
+/** One ledger update at a time for each imports folder, so two takes at
+ *  once never lose each other's records. */
+const ledgerQueue = new Map()
+function inTurn(folder, job) {
+  const before = ledgerQueue.get(folder) ?? Promise.resolve()
+  const run = before.then(job, job)
+  ledgerQueue.set(folder, run.catch(() => {}))
+  return run
+}
+
+/** A folder's provenance.json as a list. One not readable as a list is set
+ *  aside (provenance.corrupt-<time>.json) rather than lost, and a new one
+ *  begun — the files it names are still in the folder. */
+async function readLedger(ledger) {
+  if (!existsSync(ledger)) return { kept: [], setAside: null }
+  try {
+    const v = JSON.parse(await readFile(ledger, 'utf8'))
+    if (Array.isArray(v)) return { kept: v, setAside: null }
+  } catch {}
+  const aside = ledger.replace(/\.json$/, `.corrupt-${Date.now()}.json`)
+  await rename(ledger, aside)
+  return { kept: [], setAside: aside }
+}
+
+/** A file written under a name not yet taken in dest — x.stl, x-2.stl … —
+ *  claimed with an exclusive create, so two takes at once never write one
+ *  over the other. */
+async function writeFree(dest, name, bytes) {
+  const ext = extname(name)
+  const stem = basename(name, ext) || 'file'
+  for (let i = 1; i < 10_000; i++) {
+    const out = join(dest, i === 1 ? `${stem}${ext}` : `${stem}-${i}${ext}`)
+    try {
+      if (typeof bytes === 'string') await copyFile(bytes, out, FS.COPYFILE_EXCL)
+      else await writeFile(out, bytes, { flag: 'wx' })
+      return out
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e
+    }
+  }
+  throw new Error(`No free name for ${name} in ${dest}.`)
+}
 
 /** Open a web page in the person's default browser. */
 export async function openUrl(url, env = process.env, platform = process.platform) {
@@ -26,7 +73,7 @@ export async function openUrl(url, env = process.env, platform = process.platfor
     throw new Error(`Not a web address: ${url}`)
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Only http and https pages are opened.')
-  const [cmd, args] = env.SCANRULER_OPENER ? [env.SCANRULER_OPENER, [u.href]] : platform === 'darwin' ? ['open', [u.href]] : platform === 'win32' ? ['cmd', ['/c', 'start', '', u.href]] : ['xdg-open', [u.href]]
+  const [cmd, args] = env.SCANRULER_OPENER ? [env.SCANRULER_OPENER, [u.href]] : platform === 'darwin' ? ['open', [u.href]] : platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', u.href]] : ['xdg-open', [u.href]]
   await new Promise((resolveRun, reject) => {
     const child = spawn(cmd, args, { stdio: 'ignore', detached: true })
     child.on('error', (e) => reject(new Error(`The browser could not be opened: ${e.message}`)))
@@ -42,13 +89,19 @@ export async function openUrl(url, env = process.env, platform = process.platfor
 export async function downloads({ dir, sinceMinutes = 120 } = {}, env = process.env) {
   const folder = resolve(tilde(dir ?? env.SCANRULER_DOWNLOADS ?? '~/Downloads'))
   if (!existsSync(folder)) throw new Error(`There is no folder ${folder}.`)
-  const since = Date.now() - sinceMinutes * 60_000
+  const mins = Number(sinceMinutes)
+  const since = Date.now() - (Number.isFinite(mins) && mins > 0 ? mins : 120) * 60_000
   const out = []
   for (const name of await readdir(folder)) {
     const ext = extname(name).toLowerCase()
     if (!CAD.includes(ext) && ext !== '.zip') continue
     const p = join(folder, name)
-    const s = await stat(p)
+    let s
+    try {
+      s = await stat(p)
+    } catch {
+      continue
+    }
     if (!s.isFile() || s.mtimeMs < since) continue
     out.push({ name, path: p, bytes: s.size, at: s.mtime.toISOString(), kind: ext === '.zip' ? 'zip' : ext.slice(1) })
   }
@@ -56,40 +109,64 @@ export async function downloads({ dir, sinceMinutes = 120 } = {}, env = process.
 }
 
 /** Copy a download into the imports folder — unpacking the CAD files of a
- *  zip — and add it to that folder's provenance.json. */
+ *  zip, with the buffers and textures a glTF or OBJ needs in a folder of
+ *  their own — and add it to that folder's provenance.json. Everything is
+ *  read first, then written: a zip that fails part way leaves nothing. */
 export async function take({ file, to, source, url, licence, redistribute = false, note } = {}, env = process.env) {
-  const src = resolve(tilde(file ?? ''))
-  if (!file || !existsSync(src)) throw new Error(`There is no file ${src} — catalog_downloads lists the new ones.`)
+  if (!file || typeof file !== 'string') throw new Error('Name the file to take (file) — catalog_downloads lists the new ones.')
+  const src = resolve(tilde(file))
+  if (!existsSync(src)) throw new Error(`There is no file ${src} — catalog_downloads lists the new ones.`)
+  if (!(await stat(src)).isFile()) throw new Error(`${src} is a folder, not a file.`)
   if (!source) throw new Error('Say where it came from (source): a catalogue or library, so its terms go with it.')
   const dest = resolve(tilde(to ?? join(home(env), 'imports')))
   await mkdir(dest, { recursive: true })
-  const taken = []
-  const free = (name) => {
-    let n = join(dest, name), i = 2
-    while (existsSync(n)) n = join(dest, `${basename(name, extname(name))}-${i++}${extname(name)}`)
-    return n
-  }
-  if (extname(src).toLowerCase() === '.zip') {
-    const zip = await zipEntries(src)
-    for (const e of zip.entries) {
-      if (!CAD.includes(extname(e.name).toLowerCase()) || e.name.endsWith('/')) continue
-      const out = free(basename(e.name))
-      await writeFile(out, zip.read(e))
-      taken.push(out)
-    }
-    if (!taken.length) throw new Error(`${basename(src)} holds no CAD file (${CAD.join(', ')}).`)
-  } else {
-    if (!CAD.includes(extname(src).toLowerCase())) throw new Error(`${basename(src)} is not a CAD file this takes (${CAD.join(', ')}, or a zip of them).`)
-    const out = free(basename(src))
-    await copyFile(src, out)
-    taken.push(out)
-  }
   const ledger = join(dest, 'provenance.json')
-  const kept = existsSync(ledger) ? JSON.parse(await readFile(ledger, 'utf8')) : []
-  const at = new Date().toISOString()
-  for (const p of taken) kept.push({ file: basename(p), from: basename(src), source, ...(url ? { url } : {}), ...(licence ? { licence } : {}), redistribute: redistribute === true, ...(note ? { note } : {}), at })
-  await writeFile(ledger, JSON.stringify(kept, null, 2) + '\n')
-  return { taken, provenance: ledger, next: 'Open it: scan_open or import_open for a mesh, reverse_import_step for a STEP to build on; and catalog_provenance { action: "record" } to keep where it came from with the project.' }
+  return inTurn(dest, async () => {
+    const { kept, setAside } = await readLedger(ledger)
+    const taken = []
+    if (extname(src).toLowerCase() === '.zip') {
+      const zip = await zipEntries(src)
+      const files = zip.entries.filter((e) => !e.name.endsWith('/'))
+      const cad = files.filter((e) => CAD.includes(extname(e.name).toLowerCase()))
+      if (!cad.length) throw new Error(`${basename(src)} holds no CAD file (${CAD.join(', ')}).`)
+      const scene = cad.some((e) => /\.(gltf|obj)$/i.test(e.name))
+      const wanted = scene ? files.filter((e) => CAD.includes(extname(e.name).toLowerCase()) || COMPANIONS.includes(extname(e.name).toLowerCase())) : cad
+      // Read (and so check) every entry before writing any.
+      const read = wanted.map((e) => ({ e, bytes: zip.read(e) }))
+      if (scene) {
+        // A glTF or OBJ finds its files by their paths: kept as they sit in
+        // the zip, under a folder named after it — no path leaving it.
+        let folder
+        for (let i = 1; ; i++) {
+          folder = join(dest, `${basename(src, '.zip')}${i === 1 ? '' : `-${i}`}`)
+          try {
+            await mkdir(folder)
+            break
+          } catch (err) {
+            if (err.code !== 'EEXIST') throw err
+          }
+        }
+        for (const { e, bytes } of read) {
+          const parts = e.name.replace(/\\/g, '/').split('/').filter((x) => x && x !== '.' && x !== '..')
+          if (!parts.length) continue
+          const out = resolve(folder, ...parts)
+          if (relative(folder, out).startsWith('..') || !out.startsWith(folder + sep)) continue
+          await mkdir(dirname(out), { recursive: true })
+          await writeFile(out, bytes, { flag: 'wx' })
+          if (CAD.includes(extname(out).toLowerCase())) taken.push(out)
+        }
+      } else for (const { e, bytes } of read) taken.push(await writeFree(dest, basename(e.name.replace(/\\/g, '/')), bytes))
+    } else {
+      if (!CAD.includes(extname(src).toLowerCase())) throw new Error(`${basename(src)} is not a CAD file this takes (${CAD.join(', ')}, or a zip of them).`)
+      taken.push(await writeFree(dest, basename(src), src))
+    }
+    const at = new Date().toISOString()
+    for (const p of taken) kept.push({ file: relative(dest, p).split(sep).join('/'), from: basename(src), source, ...(url ? { url } : {}), ...(licence ? { licence } : {}), redistribute: redistribute === true, ...(note ? { note } : {}), at })
+    const tmp = `${ledger}.${process.pid}.${Date.now()}.tmp`
+    await writeFile(tmp, JSON.stringify(kept, null, 2) + '\n')
+    await rename(tmp, ledger)
+    return { taken, provenance: ledger, ...(setAside ? { note: `The provenance.json there could not be read; it is kept as ${basename(setAside)} and a new one begun.` } : {}), next: 'Open it: scan_open or import_open for a mesh, reverse_import_step for a STEP to build on; and record it with the page’s catalog.provenance (through scanruler_batch) to keep where it came from with the project.' }
+  })
 }
 
 const PARTIAL = /\.(crdownload|download|part|partial|tmp)$/i
@@ -103,16 +180,33 @@ export async function watch({ dir, to, source, url, licence, redistribute = fals
   if (!source) throw new Error('Say where the downloads will come from (source), so their terms go with them.')
   const folder = resolve(tilde(dir ?? env.SCANRULER_DOWNLOADS ?? '~/Downloads'))
   if (!existsSync(folder)) throw new Error(`There is no folder ${folder}.`)
+  const into = resolve(tilde(to ?? join(home(env), 'imports')))
+  // Checked before the watch running is stopped: a bad start leaves it be.
+  const mins = Number(minutes)
+  if (!(mins > 0 && mins <= 24 * 60)) throw new Error('minutes is how long to watch: more than 0, at most 1440 (a day).')
+  const poll = Math.max(250, Number(pollMs) || 1000)
+  if (into === folder || into.startsWith(folder + sep) || folder.startsWith(into + sep)) throw new Error(`The imports folder (${into}) is inside the folder watched (${folder}) or holds it: the watch would take its own files. Give another to.`)
   stopWatch()
   const seen = new Map()
   for (const name of await readdir(folder)) seen.set(name, 'old')
-  const w = { folder, to: resolve(tilde(to ?? join(home(env), 'imports'))), source, url, licence, redistribute, startedAt: new Date().toISOString(), until: new Date(Date.now() + minutes * 60_000).toISOString(), taken: [], errors: [], sizes: new Map(), timer: null }
+  const w = { folder, to: into, source, url, licence, redistribute, startedAt: new Date().toISOString(), until: new Date(Date.now() + mins * 60_000).toISOString(), taken: [], errors: [], sizes: new Map(), steady: new Map(), tries: new Map(), timer: null, busy: false }
   const tick = async () => {
     if (Date.now() > Date.parse(w.until)) return stopWatch()
+    if (w.busy) return
+    w.busy = true
+    try {
+      await look()
+    } finally {
+      w.busy = false
+    }
+  }
+  const look = async () => {
     let names
     try {
       names = await readdir(folder)
-    } catch {
+      w.folderError = null
+    } catch (e) {
+      w.folderError = `The folder watched can't be read: ${e.code ?? e.message}.`
       return
     }
     for (const name of names) {
@@ -120,25 +214,36 @@ export async function watch({ dir, to, source, url, licence, redistribute = fals
       const ext = extname(name).toLowerCase()
       if (!CAD.includes(ext) && ext !== '.zip') continue
       const p = join(folder, name)
-      let size
+      let st
       try {
-        size = (await stat(p)).size
+        st = await stat(p)
       } catch {
         continue
       }
-      const last = w.sizes.get(name)
-      w.sizes.set(name, size)
-      if (last === undefined || last !== size || size === 0) continue
+      if (!st.isFile()) continue
+      // The same size and time three looks running: finished downloading.
+      const mark = `${st.size}:${st.mtimeMs}`
+      const steady = w.sizes.get(name) === mark ? (w.steady.get(name) ?? 0) + 1 : 0
+      w.sizes.set(name, mark)
+      w.steady.set(name, steady)
+      if (steady < 2 || st.size === 0) continue
       seen.set(name, 'done')
       try {
         const r = await take({ file: p, to: w.to, source, url, licence, redistribute, note }, env)
         w.taken.push({ from: name, files: r.taken, at: new Date().toISOString() })
+        w.tries.delete(name)
       } catch (e) {
-        w.errors.push({ from: name, error: String(e.message ?? e) })
+        // A zip still being written reads as broken: tried again, three times.
+        const tries = (w.tries.get(name) ?? 0) + 1
+        w.tries.set(name, tries)
+        if (tries < 3) {
+          seen.delete(name)
+          w.steady.set(name, 0)
+        } else w.errors.push({ from: name, error: String(e.message ?? e) })
       }
     }
   }
-  w.timer = setInterval(tick, pollMs)
+  w.timer = setInterval(tick, poll)
   w.timer.unref?.()
   watcher = w
   return watchStatus()
@@ -155,6 +260,6 @@ export function stopWatch() {
 
 export function watchStatus() {
   if (!watcher) return { watching: false }
-  const { folder, to, source, url, licence, startedAt, until, taken, errors, stopped } = watcher
-  return { watching: !stopped && Date.now() <= Date.parse(until), folder, to, source, ...(url ? { url } : {}), ...(licence ? { licence } : {}), startedAt, until, taken, ...(errors.length ? { errors } : {}) }
+  const { folder, to, source, url, licence, startedAt, until, taken, errors, stopped, folderError } = watcher
+  return { watching: !stopped && Date.now() <= Date.parse(until), folder, to, source, ...(url ? { url } : {}), ...(licence ? { licence } : {}), startedAt, until, taken, ...(errors.length || folderError ? { errors: [...errors, ...(folderError ? [{ error: folderError }] : [])] } : {}) }
 }

@@ -20,6 +20,33 @@ export function extrasWanted(env = process.env) {
 
 const obj = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false })
 
+/** The arguments against a tool's schema, as obj() writes them: the
+ *  required ones there, no others, each of its type and enum. A client may
+ *  send anything; the functions below take what the schema says. */
+export function checkArgs(schema, args) {
+  const a = args && typeof args === 'object' && !Array.isArray(args) ? args : {}
+  const props = schema?.properties ?? {}
+  for (const k of schema?.required ?? []) if (a[k] === undefined) throw new Error(`${k} is needed.`)
+  for (const [k, v] of Object.entries(a)) {
+    const p = props[k]
+    if (!p) {
+      if (schema?.additionalProperties === false) throw new Error(`${k} is not an input of this tool (it takes ${Object.keys(props).join(', ') || 'none'}).`)
+      continue
+    }
+    if (v === undefined) continue
+    const type = p.type
+    const ok = type === 'string' ? typeof v === 'string' : type === 'number' ? typeof v === 'number' && Number.isFinite(v) : type === 'boolean' ? typeof v === 'boolean' : type === 'array' ? Array.isArray(v) : type === 'object' ? v && typeof v === 'object' && !Array.isArray(v) : true
+    if (!ok) throw new Error(`${k} must be ${type === 'array' ? 'a list' : `a ${type}`}.`)
+    if (p.enum && !p.enum.includes(v)) throw new Error(`${k} is one of ${p.enum.join(', ')}.`)
+    if (type === 'array' && p.items?.enum) for (const x of v) if (!p.items.enum.includes(x)) throw new Error(`${k}: ${JSON.stringify(x)} is not one of ${p.items.enum.join(', ')}.`)
+    if (type === 'array' && p.items?.type === 'string') for (const x of v) if (typeof x !== 'string') throw new Error(`${k} must be a list of strings.`)
+  }
+  return a
+}
+
+/** The tools that reach a site on the internet. */
+const OPEN_WORLD = new Set(['catalog_open_url', 'catalog_models_search', 'catalog_models_files', 'catalog_models_take', 'catalog_mcmaster', 'catalog_traceparts'])
+
 export function extraTools({ text, failure, page = null }, env = process.env) {
   const wanted = extrasWanted(env)
   const tools = []
@@ -29,10 +56,12 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
       title,
       description,
       inputSchema,
-      annotations: { readOnlyHint: readOnly, openWorldHint: false },
+      annotations: { readOnlyHint: readOnly, openWorldHint: OPEN_WORLD.has(name) },
       call: async (args) => {
         try {
-          return text(await call(args ?? {}))
+          // The catalog's tools take only what their schema says (its red-team
+          // round); the others keep taking what they always took.
+          return text(await call(name.startsWith('catalog_') ? checkArgs(inputSchema, args ?? {}) : (args ?? {})))
         } catch (e) {
           return failure(e)
         }
@@ -139,12 +168,24 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
     tool(
       'catalog_open_url',
       'Open a page in the person’s browser',
-      'Open a catalogue or library page (catalog_links gives them) in the default browser on this computer, for the person to sign in if the site asks and click download. Only http and https. Nothing is downloaded by this server.',
+      'Open a catalogue or library page (the page’s catalog.links gives them, through scanruler_batch) in the default browser on this computer, for the person to sign in if the site asks and click download. Only http and https. Nothing is downloaded by this server.',
       obj({ url: { type: 'string', description: 'The page.' }, watch: { type: 'boolean', description: 'Also watch the downloads folder and take what arrives (catalog_watch), with source, licence and redistribute.' }, source: { type: 'string' }, licence: { type: 'string' }, redistribute: { type: 'boolean' }, to: { type: 'string' } }, ['url']),
       async ({ url, watch: w, source, licence, redistribute, to }) => {
-        const opened = await openUrl(url, env)
-        if (!w) return opened
-        return { ...opened, watching: await watch({ source: source ?? new URL(url).hostname, url, licence, redistribute, to }, env), next: 'When the person clicks download, the file comes into the imports folder by itself; catalog_watch { action: "status" } shows what was taken.' }
+        if (!w) return openUrl(url, env)
+        // The watch first: a folder that isn't there fails before the
+        // browser opens, so trying again does not open a second page.
+        let host
+        try {
+          host = new URL(url).hostname
+        } catch {
+          throw new Error(`Not a web address: ${url}`)
+        }
+        const watching = await watch({ source: source ?? host, url, licence, redistribute, to }, env)
+        const opened = await openUrl(url, env).catch((e) => {
+          stopWatch()
+          throw e
+        })
+        return { ...opened, watching, next: 'When the person clicks download, the file comes into the imports folder by itself; catalog_watch { action: "status" } shows what was taken.' }
       },
       false,
     )
@@ -173,7 +214,7 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
     tool(
       'catalog_models_take',
       'Bring a library model in',
-      'Download one of a model’s files (file: its id from catalog_models_files; the first by default) through the library’s API and take it into the imports folder (to), unpacked if a zip, with its source, page and licence in provenance.json beside it — redistribute true only for Creative Commons and public domain. Then open it (scan_open, import_open or reverse_import_step) and record it with catalog_provenance so it stays with the project.',
+      'Download one of a model’s files (file: its id from catalog_models_files; the first by default) through the library’s API and take it into the imports folder (to), unpacked if a zip, with its source, page and licence in provenance.json beside it — redistribute true only for Creative Commons and public domain. Then open it (scan_open, import_open or reverse_import_step) and record it with the page’s catalog.provenance (through scanruler_batch) so it stays with the project.',
       obj({ source: { type: 'string', enum: Object.keys(LIBRARIES) }, id: { type: 'string' }, file: { type: 'string' }, to: { type: 'string' } }, ['source', 'id']),
       async (a) => takeModel(a, env),
       false,
@@ -186,8 +227,10 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
       'Turn a catalogue connection on or off and say where its non-secret parts are: mcmaster { certPath (the .pfx McMaster issued), user }, traceparts { tenantUid, userEmail (TraceParts links each download to an account), cultureInfo (en) }. The passwords and keys are never given here: the person sets them in a terminal (catalog_sources says how).',
       obj({ source: { type: 'string', enum: ['mcmaster', 'traceparts'] }, enabled: { type: 'boolean' }, certPath: { type: 'string' }, user: { type: 'string' }, tenantUid: { type: 'string' }, userEmail: { type: 'string' }, cultureInfo: { type: 'string' } }, ['source']),
       async ({ source, ...a }) => {
+        if (source !== 'mcmaster' && source !== 'traceparts') throw new Error('source is mcmaster or traceparts.')
         const now = (await loadSources(env))[source] ?? {}
         const keep = source === 'mcmaster' ? ['enabled', 'certPath', 'user'] : ['enabled', 'tenantUid', 'userEmail', 'cultureInfo']
+        if (a.enabled !== undefined) a.enabled = a.enabled === true
         await saveSources({ [source]: { ...now, ...Object.fromEntries(Object.entries(a).filter(([k, v]) => keep.includes(k) && v !== undefined)) } }, env)
         return sourcesStatus(env)
       },

@@ -1049,7 +1049,8 @@ export const faceTriangles: Command<{ body: Ref; faces?: number[]; where?: Where
       if (!picked.length) throw new CommandError('not_found', `No face of ${b.name} answers ${JSON.stringify(where)} — reverse.body.describe { body: ${JSON.stringify(b.name)}, where } shows what there is.`)
     }
     const hashes = new Set(picked.map((i) => t.faces[i].hash))
-    const { positions: p, indices: ix, faceHash } = mesh
+    const faceHash: Int32Array = mesh.faceHash
+    const { positions: p, indices: ix } = mesh
     const tris: number[] = []
     for (let f = 0; f < ix.length / 3; f++) {
       if (!hashes.has(faceHash[f])) continue

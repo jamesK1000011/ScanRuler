@@ -29,6 +29,7 @@ export const lookupCommand: Command<{ designation: string }> = {
   input: obj({ designation: str('The part, or the start of its name.', { minLength: 1 }) }, ['designation']),
   readOnly: true,
   run: async ({ designation }) => {
+    if (!designation.trim()) throw new CommandError('invalid_input', 'Give the part: "M5 socket head cap screw", "608", "ISO 7089".')
     const hits = lookup(designation)
     if (!hits.length) throw new CommandError('not_found', `No standard part "${designation}" — catalog.kinds lists what is known.`)
     return { parts: hits }
@@ -43,10 +44,15 @@ export const matchCommand: Command<{ dims: Record<string, number>; kind?: Kind; 
   input: obj({ dims: anyObject('Measured dimensions by name, mm: { "d": 8, "D": 22, "B": 7 }.'), kind: enumOf(KIND_IDS, 'Only this kind.'), limit: int('How many, 5 by default.', { minimum: 1, maximum: 20 }) }, ['dims']),
   readOnly: true,
   run: async ({ dims, kind, limit = 5 }) => {
+    if (!Object.keys(dims).length) throw new CommandError('invalid_input', 'Give at least one dimension: { "d": 8, "D": 22, "B": 7 } — catalog.kinds names them.')
     for (const [k, v] of Object.entries(dims)) if (typeof v !== 'number' || !(v > 0)) throw new CommandError('invalid_input', `dims.${k} must be a positive number of mm.`)
     const hits = match(dims, kind, limit)
-    if (!hits.length) throw new CommandError('not_found', `No kind has all of ${Object.keys(dims).join(', ')} — catalog.kinds says which dimensions each has.`)
-    return { matches: hits.map((m) => ({ designation: m.part.designation, kind: m.part.kind, standard: m.part.standard, worst: m.worst, agree: m.agree })), fit: hits[0].worst <= 0.03 ? 'good' : hits[0].worst <= 0.08 ? 'loose' : 'none close' }
+    if (!hits.length) {
+      const named = kind ? KINDS.find((x) => x.kind === kind) : undefined
+      throw new CommandError('not_found', named ? `A ${kind} is measured by ${Object.keys(named.dims ?? {}).join(', ') || 'other dimensions'}, not ${Object.keys(dims).join(', ')}.` : `No kind has all of ${Object.keys(dims).join(', ')} — catalog.kinds says which dimensions each has.`)
+    }
+    const best = Math.min(...hits.map((m) => m.worst))
+    return { matches: hits.map((m) => ({ designation: m.part.designation, kind: m.part.kind, standard: m.part.standard, worst: m.worst, agree: m.agree })), fit: best <= 0.03 ? 'good' : best <= 0.08 ? 'loose' : 'none close' }
   },
 }
 
@@ -56,7 +62,11 @@ export const linksCommand: Command<{ query: string; sources?: string[] }> = {
   description: `Search pages for a part on the catalogues and model libraries (${SOURCES.map((s) => s.id).join(', ')}), each with what its terms allow for a downloaded model. Build the query from the person’s words and what was measured ("M5 x 16 socket head cap screw ISO 4762", "608 bearing", "Milwaukee M18 battery latch"). Give the person the links, or open one with catalog_open_url; they click download, and catalog_take brings the file in. Changes nothing.`,
   input: obj({ query: str('What to search for.', { minLength: 1 }), sources: arr(enumOf(SOURCES.map((s) => s.id)), 'Only these.', { minItems: 1 }) }, ['query']),
   readOnly: true,
-  run: async ({ query, sources }) => ({ query, links: links(query, sources) }),
+  run: async ({ query, sources }) => {
+    const q = query.trim().slice(0, 200)
+    if (!q) throw new CommandError('invalid_input', 'Say what to search for.')
+    return { query: q, links: links(q, sources) }
+  },
 }
 
 export const provenance: Command<{ action?: 'list' | 'record' | 'forget'; file?: string; source?: string; url?: string; licence?: string; redistribute?: boolean; note?: string }> = {
@@ -65,13 +75,19 @@ export const provenance: Command<{ action?: 'list' | 'record' | 'forget'; file?:
   description: 'The record of each file brought into this project: its source, page, licence and whether it may be shared on. record: add or replace one (catalog_take records its own in the imports folder; record it here too so it stays with the project). forget: drop one. Kept with the project; library-pack leaves out anything not to be redistributed.',
   input: obj({ action: enumOf(['list', 'record', 'forget'], 'list by default.'), file: str('The file’s name.'), source: str('Where from: a source id or a name.'), url: str('The page it came from.'), licence: str('Its licence, as the page says.'), redistribute: bool('May it be shared on? false unless its licence says so.'), note: str('Anything else.') }),
   history: false,
+  // A ledger write: taken even while the session is busy, so a file a
+  // take brought in is never left unrecorded.
+  readOnly: true,
   run: async ({ action = 'list', file, source, url, licence, redistribute, note }) => {
     const st = useCatalog.getState()
+    const name = file?.split(/[\\/]/).pop()?.trim()
     if (action === 'record') {
-      if (!file || !source) throw new CommandError('invalid_input', 'record needs file and source.')
-      st.record({ file, source, ...(url ? { url } : {}), ...(licence ? { licence } : {}), redistribute: redistribute === true, ...(note ? { note } : {}), at: new Date().toISOString() })
+      if (!name || !source?.trim()) throw new CommandError('invalid_input', 'record needs file and source.')
+      if (url && !/^https?:\/\//i.test(url)) throw new CommandError('invalid_input', 'url is the page it came from: an http or https address.')
+      st.record({ file: name, source: source.trim(), ...(url ? { url } : {}), ...(licence ? { licence } : {}), redistribute: redistribute === true, ...(note ? { note } : {}), at: new Date().toISOString() })
     } else if (action === 'forget') {
-      if (!file || !st.forget(file)) throw new CommandError('not_found', `No record for "${file}".`)
+      if (!name) throw new CommandError('invalid_input', 'forget needs file.')
+      if (!st.forget(name)) throw new CommandError('not_found', `No record for "${name}" — the records: ${st.parts.map((p) => p.file).join(', ') || 'none'}.`)
     }
     return { parts: useCatalog.getState().parts }
   },

@@ -80,7 +80,7 @@ export function match(measured: Record<string, number>, kind?: Kind, limit = 5):
   const out: Match[] = []
   for (const part of PARTS) {
     if (kind && part.kind !== kind) continue
-    if (!names.every((n) => n in part.dims)) continue
+    if (!names.every((n) => Object.hasOwn(part.dims, n))) continue
     const agree = names.map((dim) => ({ dim, nominal: part.dims[dim], measured: measured[dim], off: Math.round((measured[dim] - part.dims[dim]) * 1000) / 1000 }))
     const shares = agree.map((a) => Math.abs(a.off) / Math.max(part.dims[a.dim], 0.5))
     const worst = Math.max(...shares)
@@ -91,5 +91,20 @@ export function match(measured: Record<string, number>, kind?: Kind, limit = 5):
 
 export function lookup(designation: string): StandardPart[] {
   const q = designation.toLowerCase().replace(/\s+/g, ' ').trim()
-  return PARTS.filter((p) => p.designation.toLowerCase().includes(q) || p.designation.toLowerCase().startsWith(q.split(' ')[0] + ' '))
+  if (!q) return []
+  const words = q.split(' ')
+  // A size given whole ("m2") is that size, not M20 and M24 with it.
+  const exact = PARTS.filter((p) => p.designation.toLowerCase().split(' ')[0] === words[0])
+  if (words.length === 1 && exact.length) return exact
+  // A standard by its number ("iso 4762").
+  const byStandard = PARTS.filter((p) => p.standard.toLowerCase() === q)
+  if (byStandard.length) return byStandard
+  return PARTS.filter((p) => {
+    const d = p.designation.toLowerCase()
+    if (d.includes(q)) return true
+    // "M5 socket head": the size, then words the name holds — in any order.
+    // One word ("M5"): every part of that size.
+    const [size, ...rest] = d.split(' ')
+    return size === words[0] && words.slice(1).every((w) => d.includes(w)) && (words.length > 1 || rest.length > 0)
+  })
 }
