@@ -33,6 +33,10 @@ thing, a handle that has to sit right in the hand, or a counterweight.
 The study (setup, calibration, target) is saved with the project and is part
 of the undo history.
 
+The materials are the table Strength uses too (`plugins/_shared/materials.ts`):
+the same ids, labels and densities. `tpu` is still taken for `tpu-95a`, and the
+Strength workspace can take its own-weight load from `mass.properties`.
+
 ## Tests
 
 `tests/mass.test.ts` checks:

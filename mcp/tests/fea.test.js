@@ -5,9 +5,9 @@
 // computer (SCANRULER_GMSH / SCANRULER_CCX, or FreeCAD's), a cantilever
 // solved and held to beam theory, layers along it and across it.
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { decodeSurface, facesOn, feaTools, judge, layerAxes, materialOf, nodalForces, readFrd, readMsh, solve, surfaceOf, writeInp } from '../src/extras/fea.js'
+import { decodeSurface, facesOn, feaTools, G, gravityOf, judge, layerAxes, MATERIAL_ALIASES, MATERIALS, materialOf, nodalForces, readFrd, readMsh, solve, surfaceOf, writeInp } from '../src/extras/fea.js'
 
 const quad = (o, u, v) => {
   const c = (s, t) => [0, 1, 2].map((a) => o[a] + u[a] * s + v[a] * t)
@@ -337,4 +337,69 @@ test('a cancel between the mesh and the solve stops it before CalculiX', { skip,
   const pre = new AbortController()
   pre.abort()
   await assert.rejects(solve(axial(beam()), process.env, { signal: pre.signal }), (e) => e.cancelled === true)
+})
+
+// The page's shared table (plugins/_shared/materials.ts), read as text: the
+// server is plain JS and ships on its own, so it keeps its own copy.
+const SHARED = new URL('../../plugins/_shared/materials.ts', import.meta.url)
+
+test('the materials are the page’s: the same ids, labels, densities and aliases', { skip: existsSync(SHARED) ? false : 'not in the app’s repository' }, () => {
+  const text = readFileSync(SHARED, 'utf8')
+  const table = text.slice(text.indexOf('export const MATERIALS'), text.indexOf('} as const'))
+  const page = {}
+  for (const m of table.matchAll(/^\s*'?([a-z0-9-]+)'?: \{ label: '([^']+)', density: ([0-9.]+) \},?$/gm)) page[m[1]] = { label: m[2], density: Number(m[3]) }
+  assert.ok(Object.keys(page).length >= 7, 'the page’s table read')
+  assert.deepEqual(Object.keys(MATERIALS), Object.keys(page))
+  for (const [id, m] of Object.entries(page)) {
+    assert.equal(MATERIALS[id].label, m.label, id)
+    assert.equal(MATERIALS[id].density, m.density, id)
+  }
+  const aliases = text.slice(text.indexOf('export const MATERIAL_ALIASES'))
+  const pageAliases = Object.fromEntries([...aliases.slice(0, aliases.indexOf('}')).matchAll(/^\s*'?([a-z0-9-]+)'?: '([a-z0-9-]+)',?$/gm)].map((m) => [m[1], m[2]]))
+  assert.deepEqual(MATERIAL_ALIASES, pageAliases)
+  assert.equal(materialOf('tpu').id, 'tpu-95a')
+})
+
+test('own weight: checked, and written as a density and a GRAV load in N, mm, s', () => {
+  const pla = materialOf('pla')
+  assert.equal(gravityOf(undefined, pla), null)
+  assert.deepEqual(gravityOf({}, pla), { direction: [0, 0, -1], g: 1, density: 1.24 })
+  assert.deepEqual(gravityOf({ direction: [0, 2, 0], g: 3, density: 0.5 }, pla), { direction: [0, 1, 0], g: 3, density: 0.5 })
+  assert.throws(() => gravityOf({ direction: [0, 0, 0] }, pla), /direction/)
+  assert.throws(() => gravityOf({ g: -1 }, pla), /how many g/)
+  assert.throws(() => gravityOf({ density: 1240 }, pla), /g\/cm³/)
+  const m = readMsh(MSH)
+  const inp = writeInp(m, { material: pla, axes: layerAxes([0, 0, 1]), fixed: new Set([1, 2, 3]), forces: new Map(), gravity: gravityOf({ g: 2 }, pla) })
+  assert.match(inp, /\*DENSITY\n1\.240000000e-9\n/)
+  assert.match(inp, new RegExp(`\\*DLOAD\\nEALL, GRAV, ${(2 * G).toPrecision(10)}, 0, 0, -1\\.0+\\n`))
+  assert.doesNotMatch(inp, /\*CLOAD/)
+  assert.doesNotMatch(writeInp(m, { material: pla, axes: layerAxes([0, 0, 1]), fixed: new Set([1]), forces: new Map([[4, [0, 0, -1]]]) }), /DENSITY|DLOAD/)
+})
+
+test('a PLA cantilever under its own weight against wL⁴/8EI', { skip, timeout: 300_000 }, async () => {
+  // 100 × 10 × 10 mm, held at x = 0; 100 g so the sag is plain to read.
+  const r = await solve({
+    step: beam(),
+    build: [0, 0, 1],
+    material: { id: 'pla' },
+    fixtures: [{ triangles: quad([0, 0, 0], [0, 10, 0], [0, 0, 10]) }],
+    loads: [],
+    gravity: { direction: [0, 0, -1], g: 100 },
+  })
+  const w = 1.24e-9 * 100 * G * 100 // N/mm: ρ (t/mm³) · A · g
+  const I = (10 * 10 ** 3) / 12
+  const want = (w * 100 ** 4) / (8 * 2680 * I)
+  assert.ok(Math.abs(r.worst.displacement / want - 1) < 0.03, `${r.worst.displacement} vs ${want}`)
+  assert.ok(Math.abs(r.gravity.mass - 12.4) < 0.05, `${r.gravity.mass} g`)
+  assert.ok(Math.abs(r.gravity.weight - 12.4e-3 * 9.80665 * 100) < 0.05, `${r.gravity.weight} N`)
+  // The stress at the root, wL²/2 · c / I, by beam theory.
+  assert.ok(Math.abs(r.worst.vonMises / ((w * 100 ** 2) / 2 * 5 / I) - 1) < 0.15, `${r.worst.vonMises}`)
+  await assert.rejects(solve({ ...axial(beam()), loads: [] }), /Load the part/)
+})
+
+test('a STEP in inches, as CAD writes it, solves as millimetres', { skip, timeout: 300_000 }, async () => {
+  const mm = await solve(axial(beam()))
+  const inch = await solve(axial(readFileSync(new URL('./fea-beam-inches.step', import.meta.url), 'utf8')))
+  assert.ok(Math.abs(inch.worst.displacement / mm.worst.displacement - 1) < 0.01, `${inch.worst.displacement} vs ${mm.worst.displacement}`)
+  assert.ok(Math.abs(inch.mesh.size - mm.mesh.size) < 1e-3)
 })

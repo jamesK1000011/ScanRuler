@@ -7,6 +7,37 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Strength** (2026-11-08, new plugin `fea`). Finite elements on a Reverse
+  Engineer body, through the agent's server: Gmsh meshes it in quadratic
+  tetrahedra and CalculiX solves it, both found on this computer (FreeCAD's
+  copies, Homebrew's or the PATH). The material is weaker across the layers
+  than in them, about the build direction. The answer gives the worst safety
+  factor, where it is and how it fails (in the layers, pulled apart, sheared or
+  crushed), the worst away from the holds, and the part coloured by safety,
+  stress, movement, stress across the layers or between-layer shear. Holds and
+  loads are faces by index, query or selection; loads are a force, a pressure
+  or the part's own weight (`*DLOAD … GRAV`, from the Mass workspace's weighing
+  or the solid material, any number of g). STEP files in mm, inches or metres
+  read alike. `fea.*` commands and a `fea` guide.
+
+- **Mass and balance** (2026-11-08, new plugin `mass`). A printed part's
+  weight, balance point and inertia, with its walls and infill counted, from
+  the Reverse Engineer bodies' meshes; calibrated to a print on the scales. A
+  target mass and balance point, the ballast pocket that reaches it (steel BBs,
+  lead shot, tungsten), checked clear of the surface and cut in as editable
+  Reverse Engineer features. `mass.*` commands and a `mass` guide.
+
+- **Generate** (2026-11-08, new plugin `gen`). Parts made to size as OCCT
+  solids and brought into Reverse Engineer as bodies: Gridfinity bins (lip,
+  magnets, screws, dividers, label ledge) and baseplates, and a project box
+  with a lid that drops inside it. `gen.*` commands, STEP and STL export, and
+  a `gen` guide.
+
+- **One materials table** (2026-11-08). Mass and Strength share their printed
+  materials' ids, labels and densities (`plugins/_shared/materials.ts`); the
+  agent's server keeps a copy held to it by a test. Mass's `tpu` is now
+  `tpu-95a`; the old name is still taken, in commands and in saved projects.
+
 - **Hardware** (2026-11-08, new plugin `hw`). Holes for the hardware a printed
   part takes, cut into Reverse Engineer bodies as editable features: ISO 273
   screw clearances with ISO 4762 / 7380 counterbores or ISO 10642

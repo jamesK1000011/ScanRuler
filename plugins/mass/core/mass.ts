@@ -7,6 +7,8 @@
 // each face makes with the origin; the walls are a layer inside the
 // surface, each face's slab with the overlaps and gaps at its edges.
 
+import { MATERIALS as SHARED_MATERIALS } from '../../_shared/materials'
+
 export type V3 = [number, number, number]
 /** Inertia tensor, row by row, kg·mm² (or g·mm² — the mass's unit ×mm²). */
 export type M3 = [V3, V3, V3]
@@ -472,16 +474,9 @@ function rayHits(tris: ArrayLike<number>, t: number, o: V3, d: V3): boolean {
   return f * (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) > 1e-9
 }
 
-/** Printed materials' densities, g/cm³ (typical, from makers' datasheets). */
-export const MATERIALS: Record<string, { label: string; density: number }> = {
-  pla: { label: 'PLA', density: 1.24 },
-  petg: { label: 'PETG', density: 1.27 },
-  abs: { label: 'ABS', density: 1.04 },
-  asa: { label: 'ASA', density: 1.07 },
-  'petg-cf': { label: 'PETG-CF', density: 1.3 },
-  'pa6-cf': { label: 'PA6-CF', density: 1.17 },
-  tpu: { label: 'TPU', density: 1.21 },
-}
+/** Printed materials' densities, g/cm³: the table every workspace shares
+ *  (plugins/_shared/materials.ts), by id. */
+export const MATERIALS: Readonly<Record<string, { label: string; density: number }>> = SHARED_MATERIALS
 
 /** Fillers as packed into a pocket: the bulk density, g/cm³. Spheres pack
  *  randomly to about 62 %; putty fills the pocket whole. */

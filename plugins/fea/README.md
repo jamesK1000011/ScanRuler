@@ -37,7 +37,8 @@ to agree between the programs.
      wanted.
    - Hold it by faces, either the ones selected in Reverse Engineer or the
      flat faces facing a direction.
-   - Load faces with a force (N) or a pressure (MPa).
+   - Load faces with a force (N) or a pressure (MPa), and count the part's
+     own weight if it matters (**Own weight**: the way it pulls).
 3. Press **Solve**. A medium mesh takes seconds, and **Cancel** stops it.
 4. Read the answer:
    - The worst safety factor, where it is, and how it fails.
@@ -50,7 +51,7 @@ to agree between the programs.
 | Command | What it does |
 |---|---|
 | `fea.tools` | Whether Gmsh and CalculiX are found, and the materials |
-| `fea.setup` | Body, build direction, material and overrides, mesh, target |
+| `fea.setup` | Body, build direction, material and overrides, mesh, target, own weight |
 | `fea.hold` / `fea.load` | Faces held, faces loaded: by index, query or selection; `remove` |
 | `fea.solve` / `fea.cancel` | Mesh and solve; stop |
 | `fea.results` / `fea.show` | The last answer; the field on the part |
@@ -73,6 +74,20 @@ in-layer and across-layer stiffness and strength (MPa).
 The figures are for solid print. Use `overrides` for your own, and lower them
 for thin walls and sparse infill.
 
+Ids, labels and densities are the table Mass uses too
+(`plugins/_shared/materials.ts`); the server's copy in `mcp/src/extras/fea.js`
+is held to it by a test. `tpu` is still taken for `tpu-95a`.
+
+## Own weight
+
+`fea.setup { gravity: { direction, g, from } }` adds the part's weight as a
+load on every element (CalculiX `*DLOAD … GRAV`, with the density in t/mm³ in
+the N-mm-s units the job is written in). `g` above 1 stands for a shake or a
+drop. By default the weight is what the Mass workspace weighs the body at, with
+its walls, infill and calibration, spread over the solid; with
+`from: "material"`, or without Mass, it is the solid material's. A cantilever
+under its own weight matches wL⁴/8EI within 0.3 %.
+
 ## Limits
 
 - Linear, static and small-strain only. No buckling, fatigue, creep or
@@ -90,5 +105,7 @@ for thin walls and sparse infill.
   cantilever against beam theory, printed flat and then on end. The
   cantilever runs only where Gmsh and CalculiX are found. It matches beam
   theory within 0.5 %, and printed on end it fails by the layers pulling
-  apart.
+  apart. The same beam under its own weight against wL⁴/8EI, and as a STEP in
+  inches (a `CONVERSION_BASED_UNIT`) and in metres against one in mm. The
+  materials are checked against the page's shared table.
 - `plugins/fea/tests/fea.test.ts`: the project section and the colour range.

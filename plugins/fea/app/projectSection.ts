@@ -3,8 +3,8 @@
 // answer — solved again in seconds, and a mesh's worth of numbers.
 
 import type { ProjectSection } from '../../../src/app/projectSections'
-import { MATERIAL_IDS } from './feaCommands'
-import { DEFAULT_SETUP, setupOf, useFea, type FacePick, type FeaSetup } from '../state/feaStore'
+import { materialId } from '../../_shared/materials'
+import { DEFAULT_SETUP, setupOf, useFea, type FacePick, type FeaSetup, type Gravity } from '../state/feaStore'
 
 interface SavedFea {
   version: 1
@@ -22,6 +22,22 @@ function pickIn(p: Record<string, unknown>): FacePick | null {
   if (!faces && !where) return null
   const tris = Array.isArray(p.triangles) && p.triangles.length % 9 === 0 && p.triangles.length <= 9 * 200_000 && p.triangles.every((x) => typeof x === 'number' && Number.isFinite(x)) ? (p.triangles as number[]) : undefined
   return { ...(faces ? { faces } : { where: where! }), ...(faces && tris ? { triangles: tris } : {}), ...(typeof p.bodyKey === 'string' ? { bodyKey: p.bodyKey } : {}), ...(Number.isInteger(p.count) ? { count: p.count as number } : {}) }
+}
+
+/** The own weight as a file holds it, cleaned; nothing when off or unread. */
+function gravityIn(x: unknown): { gravity?: Gravity } {
+  if (!x || typeof x !== 'object') return {}
+  const g = x as Record<string, unknown>
+  if (!isVec(g.direction)) return {}
+  const l = Math.hypot(...g.direction)
+  if (!(l > 0)) return {}
+  return {
+    gravity: {
+      direction: g.direction.map((c) => c / l) as [number, number, number],
+      g: typeof g.g === 'number' && g.g > 0 && g.g <= 1000 ? g.g : 1,
+      from: g.from === 'material' ? 'material' : 'mass',
+    },
+  }
 }
 
 export const feaSection: ProjectSection<SavedFea> = {
@@ -60,7 +76,7 @@ export const feaSection: ProjectSection<SavedFea> = {
       ...DEFAULT_SETUP,
       body: typeof u.body === 'string' ? u.body : null,
       build: isVec(u.build) && u.build.some((x) => x !== 0) ? u.build : DEFAULT_SETUP.build,
-      material: typeof u.material === 'string' && (MATERIAL_IDS as readonly string[]).includes(u.material) ? u.material : DEFAULT_SETUP.material,
+      material: materialId(u.material) ?? DEFAULT_SETUP.material,
       overrides:
         u.overrides && typeof u.overrides === 'object' && !Array.isArray(u.overrides)
           ? Object.fromEntries(Object.entries(u.overrides).filter(([k, x]) => OVERRIDE_KEYS.includes(k) && typeof x === 'number' && Number.isFinite(x) && (k.startsWith('nu') ? x > -1 && x < 0.5 : x > 0)))
@@ -70,6 +86,7 @@ export const feaSection: ProjectSection<SavedFea> = {
       fineness: u.fineness === 'coarse' || u.fineness === 'fine' ? u.fineness : 'medium',
       ...(typeof u.size === 'number' && u.size >= 0.05 ? { size: u.size } : {}),
       target: typeof u.target === 'number' && u.target > 0 ? u.target : DEFAULT_SETUP.target,
+      ...gravityIn(u.gravity),
     }
     return () => {
       useFea.getState().reset()
@@ -78,7 +95,7 @@ export const feaSection: ProjectSection<SavedFea> = {
   },
   hasContent: (v) => Boolean(v.setup.body) || v.setup.holds.length > 0 || v.setup.loads.length > 0,
   watch(changed) {
-    const keys = ['body', 'build', 'material', 'overrides', 'holds', 'loads', 'fineness', 'size', 'target'] as const
+    const keys = ['body', 'build', 'material', 'overrides', 'holds', 'loads', 'fineness', 'size', 'target', 'gravity'] as const
     return useFea.subscribe((s, prev) => {
       if (keys.some((k) => s[k] !== prev[k])) changed()
     })

@@ -46,6 +46,17 @@ export interface FeaSetup {
   size?: number
   /** The safety factor asked for: the result says whether it is met. */
   target: number
+  /** The part's own weight as a load, when on. */
+  gravity?: Gravity
+}
+
+/** The part's own weight: the way it pulls (part frame, a unit vector), how
+ *  many g, and what it weighs by — the Mass workspace's weighing (walls,
+ *  infill and calibration) or the solid material. */
+export interface Gravity {
+  direction: [number, number, number]
+  g: number
+  from: 'mass' | 'material'
 }
 
 export type Field = 'safety' | 'vonMises' | 'displacement' | 'across' | 'shear'
@@ -55,6 +66,8 @@ export interface FeaAnswer {
   mesh: { elements: number; nodes: number; size: number }
   material: Record<string, unknown>
   build: number[]
+  /** The own weight solved: density g/cm³, mass g, weight N; from says what weighed it. */
+  gravity?: { direction: number[]; g: number; density: number; mass: number; weight: number; from?: 'mass' | 'material' }
   groups: { fixtures: { name: string; faces: number }[]; loads: { name: string; faces: number; force?: number[]; pressure?: number }[] }
   worst: {
     safety: number | null
@@ -94,7 +107,7 @@ export interface FeaState extends FeaSetup {
 
 export const DEFAULT_SETUP: FeaSetup = { body: null, build: [0, 0, 1], material: 'pla', overrides: {}, holds: [], loads: [], fineness: 'medium', target: 2 }
 
-export const setupOf = (s: FeaSetup): FeaSetup => ({ body: s.body, build: s.build, material: s.material, overrides: s.overrides, holds: s.holds, loads: s.loads, fineness: s.fineness, ...(s.size ? { size: s.size } : {}), target: s.target })
+export const setupOf = (s: FeaSetup): FeaSetup => ({ body: s.body, build: s.build, material: s.material, overrides: s.overrides, holds: s.holds, loads: s.loads, fineness: s.fineness, ...(s.size ? { size: s.size } : {}), target: s.target, ...(s.gravity ? { gravity: s.gravity } : {}) })
 
 export const useFea = create<FeaState>((set) => ({
   ...DEFAULT_SETUP,
@@ -106,5 +119,5 @@ export const useFea = create<FeaState>((set) => ({
   field: 'safety',
   shown: false,
   set: (patch) => set(patch),
-  reset: () => set((s) => ({ ...DEFAULT_SETUP, size: undefined, result: null, shown: false, field: 'safety', gen: s.gen + 1 })),
+  reset: () => set((s) => ({ ...DEFAULT_SETUP, size: undefined, gravity: undefined, result: null, shown: false, field: 'safety', gen: s.gen + 1 })),
 }))

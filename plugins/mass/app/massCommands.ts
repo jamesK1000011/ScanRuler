@@ -11,6 +11,7 @@ import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { ballast, BB_GRAMS, boxInside, combine, FILLERS, freeName, inside, massOf, MATERIALS, pocketSize, readStl, type V3 } from '../core/mass'
 import { setupOf, useMass, type BodyMass, type Pocket } from '../state/massStore'
+import { MATERIAL_NAMES, materialId } from '../../_shared/materials'
 
 const st = () => useMass.getState()
 const r3 = (x: number) => Math.round(x * 1000) / 1000
@@ -100,9 +101,9 @@ const materials: Command<Record<string, never>> = {
 const setup: Command<{ material?: string; density?: number | null; infill?: number; walls?: number; lineMm?: number; filler?: string }> = {
   name: 'setup',
   title: 'How the part is printed',
-  description: 'The material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu) or its density (g/cm³; null for the material’s — a material picked alone also goes back to its own), the infill (percent), the walls (count) and line width (mm) — the walls taken as solid all round, the inside at the infill’s share — and the ballast filler (mass.materials lists them). Returns the setup and the density used.',
+  description: 'The material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a) or its density (g/cm³; null for the material’s — a material picked alone also goes back to its own), the infill (percent), the walls (count) and line width (mm) — the walls taken as solid all round, the inside at the infill’s share — and the ballast filler (mass.materials lists them). Returns the setup and the density used.',
   input: obj({
-    material: enumOf(Object.keys(MATERIALS)),
+    material: enumOf(MATERIAL_NAMES),
     density: { oneOf: [num('g/cm³.', { minimum: 0.01, maximum: 25 }), { type: 'null' }], description: 'The density in place of the material’s, g/cm³; null for the material’s.' },
     infill: num('Percent, 0 (walls only) to 100 (solid).', { minimum: 0, maximum: 100 }),
     walls: int('Walls (perimeters).', { minimum: 0, maximum: 50 }),
@@ -110,7 +111,8 @@ const setup: Command<{ material?: string; density?: number | null; infill?: numb
     filler: enumOf(Object.keys(FILLERS)),
   }),
   history: false,
-  run: async ({ material, density: d, infill, walls, lineMm, filler }) => {
+  run: async ({ material: named, density: d, infill, walls, lineMm, filler }) => {
+    const material = named === undefined ? undefined : materialId(named)
     const dens = d !== undefined ? { density: d ?? undefined } : material ? { density: undefined } : {}
     st().set({ ...(material ? { material } : {}), ...dens, ...(infill !== undefined ? { infill } : {}), ...(walls !== undefined ? { walls } : {}), ...(lineMm !== undefined ? { lineMm } : {}), ...(filler ? { filler } : {}) })
     useMass.setState({ reading: null, pocket: null })

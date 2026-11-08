@@ -107,6 +107,12 @@ describe('the Mass commands', () => {
     await run('setup', { material: 'petg' })
     expect(useMass.getState().density).toBe(undefined)
   })
+  it('take the shared materials, and tpu as tpu-95a', async () => {
+    fresh()
+    await run('setup', { material: 'tpu' })
+    expect(useMass.getState().material).toBe('tpu-95a')
+    expect((await run('materials')).materials['tpu-95a']).toEqual({ label: 'TPU 95A', density: 1.21 })
+  })
   it('drop a part of the target given as null, and the target with both gone', async () => {
     fresh()
     await run('target', { mass: 100, com: [1, 2, 3] })

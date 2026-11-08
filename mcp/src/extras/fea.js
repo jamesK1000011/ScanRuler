@@ -151,23 +151,29 @@ export async function feaTools(env = process.env) {
  *  specimens); compression, shear and Poisson's ratios are typical values,
  *  and the between-layer shear strength an estimate (little is published:
  *  0.6 × the across-layer tensile strength). A start, not a datasheet:
- *  the person's own figures go in overrides. */
+ *  the person's own figures go in overrides. Ids, labels and densities
+ *  (g/cm³, solid) are the page's shared table's (plugins/_shared/
+ *  materials.ts); tests/fea.test.js holds the two to each other. */
 export const MATERIALS = {
-  pla: { label: 'PLA', Exy: 2680, Ez: 2160, nuXY: 0.35, nuZ: 0.33, Xt: 39, Xc: 60, Zt: 35, Zc: 55, S: 25 },
-  petg: { label: 'PETG', Exy: 2000, Ez: 1700, nuXY: 0.38, nuZ: 0.36, Xt: 42, Xc: 55, Zt: 30, Zc: 50, S: 26 },
-  abs: { label: 'ABS', Exy: 2000, Ez: 1650, nuXY: 0.35, nuZ: 0.33, Xt: 33, Xc: 50, Zt: 20, Zc: 40, S: 22 },
-  asa: { label: 'ASA', Exy: 1950, Ez: 1600, nuXY: 0.35, nuZ: 0.33, Xt: 35, Xc: 50, Zt: 22, Zc: 40, S: 22 },
-  'petg-cf': { label: 'PETG-CF', Exy: 2460, Ez: 1340, nuXY: 0.34, nuZ: 0.32, Xt: 35, Xc: 50, Zt: 29, Zc: 45, S: 22 },
-  'pa6-cf': { label: 'PA6-CF', Exy: 4430, Ez: 2170, nuXY: 0.33, nuZ: 0.30, Xt: 102, Xc: 90, Zt: 48, Zc: 70, S: 45 },
-  'tpu-95a': { label: 'TPU 95A (linear only near small strain)', Exy: 26, Ez: 22, nuXY: 0.45, nuZ: 0.45, Xt: 30, Xc: 30, Zt: 20, Zc: 30, S: 15 },
+  pla: { label: 'PLA', density: 1.24, Exy: 2680, Ez: 2160, nuXY: 0.35, nuZ: 0.33, Xt: 39, Xc: 60, Zt: 35, Zc: 55, S: 25 },
+  petg: { label: 'PETG', density: 1.27, Exy: 2000, Ez: 1700, nuXY: 0.38, nuZ: 0.36, Xt: 42, Xc: 55, Zt: 30, Zc: 50, S: 26 },
+  abs: { label: 'ABS', density: 1.04, Exy: 2000, Ez: 1650, nuXY: 0.35, nuZ: 0.33, Xt: 33, Xc: 50, Zt: 20, Zc: 40, S: 22 },
+  asa: { label: 'ASA', density: 1.07, Exy: 1950, Ez: 1600, nuXY: 0.35, nuZ: 0.33, Xt: 35, Xc: 50, Zt: 22, Zc: 40, S: 22 },
+  'petg-cf': { label: 'PETG-CF', density: 1.3, Exy: 2460, Ez: 1340, nuXY: 0.34, nuZ: 0.32, Xt: 35, Xc: 50, Zt: 29, Zc: 45, S: 22 },
+  'pa6-cf': { label: 'PA6-CF', density: 1.17, Exy: 4430, Ez: 2170, nuXY: 0.33, nuZ: 0.30, Xt: 102, Xc: 90, Zt: 48, Zc: 70, S: 45 },
+  'tpu-95a': { label: 'TPU 95A', density: 1.21, note: 'Linear only near small strain.', Exy: 26, Ez: 22, nuXY: 0.45, nuZ: 0.45, Xt: 30, Xc: 30, Zt: 20, Zc: 30, S: 15 },
 }
+
+/** Older names still taken (the page's MATERIAL_ALIASES). */
+export const MATERIAL_ALIASES = { tpu: 'tpu-95a' }
 
 /** A material whole: a preset, with the person's figures over it, and what
  *  follows from them — the shear moduli and the between-layer shear
  *  strength — where not given. */
 const FIGURES = { Exy: 'MPa', Ez: 'MPa', Gxy: 'MPa', Gz: 'MPa', nuXY: '', nuZ: '', Xt: 'MPa', Xc: 'MPa', Zt: 'MPa', Zc: 'MPa', S: 'MPa', Sz: 'MPa' }
 
-export function materialOf(id = 'pla', overrides = {}) {
+export function materialOf(name = 'pla', overrides = {}) {
+  const id = typeof name === 'string' && Object.hasOwn(MATERIAL_ALIASES, name) ? MATERIAL_ALIASES[name] : name
   const base = typeof id === 'string' && Object.hasOwn(MATERIALS, id) ? MATERIALS[id] : null
   if (!base) throw new Error(`No material "${id}" — ${Object.keys(MATERIALS).join(', ')}, with overrides for your own figures.`)
   const given = {}
@@ -487,6 +493,38 @@ export function facesOn(surface, tris, tol) {
 
 const f = (x) => (Math.abs(x) < 1e-300 ? '0' : x.toPrecision(10))
 
+/** Standard gravity, mm/s². */
+export const G = 9806.65
+
+/** The part's own weight as a job gives it, checked: the direction it
+ *  pulls (made a unit), how many g (1 for standing still; more for a
+ *  shake or a drop), and the density it weighs at, g/cm³ — the solid
+ *  material's, or the part's mass over its volume as printed. */
+export function gravityOf(gr, material) {
+  if (gr === undefined || gr === null || gr === false) return null
+  if (typeof gr !== 'object') throw new Error('gravity is { direction: [x, y, z], g, density } or left out.')
+  const dir = gr.direction ?? [0, 0, -1]
+  if (!isVec(dir) || !(Math.hypot(...dir) > 0)) throw new Error('The gravity direction is three numbers [x, y, z], not all zero.')
+  const g = gr.g ?? 1
+  if (typeof g !== 'number' || !Number.isFinite(g) || g <= 0 || g > 1000) throw new Error('gravity.g is how many g: more than 0, at most 1000.')
+  const density = gr.density ?? material.density
+  if (typeof density !== 'number' || !Number.isFinite(density) || density < 0.01 || density > 25) throw new Error('gravity.density is g/cm³: 0.01 to 25.')
+  const l = Math.hypot(...dir)
+  return { direction: dir.map((x) => x / l), g, density }
+}
+
+/** A quadratic mesh's volume, mm³, from its elements' corners. */
+export function meshVolume(mesh) {
+  const E = mesh.elements
+  const p = (n) => [mesh.xyz[(n - 1) * 3], mesh.xyz[(n - 1) * 3 + 1], mesh.xyz[(n - 1) * 3 + 2]]
+  let v = 0
+  for (let e = 0; e < E.length; e += 10) {
+    const q = [p(E[e]), p(E[e + 1]), p(E[e + 2]), p(E[e + 3])]
+    v += Math.abs(det(sub(q[1], q[0]), sub(q[2], q[0]), sub(q[3], q[0]))) / 6
+  }
+  return v
+}
+
 /** A plane through the build direction's normal: the material's axes, with
  *  3 the build direction — the layers' normal. */
 export function layerAxes(build) {
@@ -501,7 +539,7 @@ export function layerAxes(build) {
  *  about the layers' axes, the fixed nodes, the loads as nodal forces (a
  *  uniform traction on a quadratic face goes to its mid-side nodes, a
  *  third each), a static step, and displacement and stress written out. */
-export function writeInp(mesh, { material, axes, fixed, forces }) {
+export function writeInp(mesh, { material, axes, fixed, forces, gravity = null }) {
   const { xyz, elements } = mesh
   const L = ['*HEADING', 'ScanRuler FEA', '*NODE, NSET=NALL']
   for (let i = 0; i < xyz.length / 3; i++) L.push(`${i + 1}, ${f(xyz[i * 3])}, ${f(xyz[i * 3 + 1])}, ${f(xyz[i * 3 + 2])}`)
@@ -519,13 +557,19 @@ export function writeInp(mesh, { material, axes, fixed, forces }) {
     // E1, E2, E3, nu12, nu13, nu23, G12, G13 / G23, temperature
     `${f(m.Exy)}, ${f(m.Exy)}, ${f(m.Ez)}, ${f(m.nuXY)}, ${f(m.nuZ)}, ${f(m.nuZ)}, ${f(m.Gxy)}, ${f(m.Gz)}`,
     `${f(m.Gz)}, 0`,
+    // Units N, mm, s: mass in tonnes, so density in t/mm³ (1 g/cm³ = 1e-9).
+    ...(gravity ? ['*DENSITY', f(gravity.density * 1e-9)] : []),
     '*SOLID SECTION, ELSET=EALL, MATERIAL=PRINTED, ORIENTATION=LAYERS',
     '*NSET, NSET=FIXED',
   )
   const fx = [...fixed].sort((a, b) => a - b)
   for (let i = 0; i < fx.length; i += 12) L.push(fx.slice(i, i + 12).join(', ') + (i + 12 < fx.length ? ',' : ''))
-  L.push('*STEP', '*STATIC', '*BOUNDARY', 'FIXED, 1, 3', '*CLOAD')
-  for (const [node, v] of forces) for (let d = 0; d < 3; d++) if (Math.abs(v[d]) > 0) L.push(`${node}, ${d + 1}, ${f(v[d])}`)
+  L.push('*STEP', '*STATIC', '*BOUNDARY', 'FIXED, 1, 3')
+  const cload = []
+  for (const [node, v] of forces) for (let d = 0; d < 3; d++) if (Math.abs(v[d]) > 0) cload.push(`${node}, ${d + 1}, ${f(v[d])}`)
+  if (cload.length) L.push('*CLOAD', ...cload)
+  // The part's own weight: g in mm/s² along the direction, on every element.
+  if (gravity) L.push('*DLOAD', `EALL, GRAV, ${f(G * gravity.g)}, ${gravity.direction.map(f).join(', ')}`)
   L.push('*NODE FILE', 'U', '*EL FILE', 'S', '*END STEP', '')
   return L.join('\n')
 }
@@ -664,6 +708,7 @@ export function judge(s, m, ax) {
  * @property {{ name?: string, triangles: number[] }[]} fixtures  Faces held still.
  * @property {{ name?: string, triangles: number[], force?: number[], pressure?: number }[]} loads  N, or MPa.
  * @property {{ size?: number, fineness?: 'coarse' | 'medium' | 'fine' }} [mesh]
+ * @property {{ direction?: number[], g?: number, density?: number }} [gravity]  The part's own weight: g/cm³, the material's when not given.
  */
 
 const FINENESS = { coarse: 12, medium: 24, fine: 40 }
@@ -722,7 +767,8 @@ export async function solve(job, env = process.env, { signal, progress = () => {
   const fixtures = Array.isArray(job.fixtures) ? job.fixtures : []
   const loads0 = Array.isArray(job.loads) ? job.loads : []
   if (!fixtures.length) throw new Error('Hold the part somewhere: at least one fixed face.')
-  if (!loads0.length) throw new Error('Load the part: at least one face with a force or a pressure.')
+  const gravity = gravityOf(job.gravity, material)
+  if (!loads0.length && !gravity) throw new Error('Load the part: at least one face with a force or a pressure, or its own weight.')
   const loads = loads0.map((L, i) => {
     const hasForce = isVec(L?.force) && L.force.some((x) => x !== 0)
     const hasPressure = typeof L?.pressure === 'number' && Number.isFinite(L.pressure) && L.pressure !== 0
@@ -821,7 +867,7 @@ export async function solve(job, env = process.env, { signal, progress = () => {
     const forces = nodalForces(surface, ld)
     check()
     progress('solving', `${elements} elements, ${mesh.xyz.length / 3} nodes`)
-    await writeFile(join(dir, 'job.inp'), writeInp(mesh, { material, axes, fixed, forces }))
+    await writeFile(join(dir, 'job.inp'), writeInp(mesh, { material, axes, fixed, forces, gravity }))
     check()
     const c = await run(tools.ccx.path, ['-i', 'job'], { cwd: dir, env: { ...envFor(tools.ccx.path, env), OMP_NUM_THREADS: env.OMP_NUM_THREADS ?? '4', CCX_NPROC_EQUATION_SOLVER: env.CCX_NPROC_EQUATION_SOLVER ?? '4' }, signal, timeoutMs: 1_800_000 })
     const said = `${c.out}\n${c.err}`
@@ -830,7 +876,7 @@ export async function solve(job, env = process.env, { signal, progress = () => {
     if (c.code !== 0 || c.signal || !existsSync(join(dir, 'job.frd'))) throw new Error(`CalculiX did not solve it: ${ending('CalculiX', c)}. ${said.trim().split('\n').slice(-2).join(' ')}`.trim())
     progress('reading', 'the results')
     const r = readFrd(await readFile(join(dir, 'job.frd'), 'utf8'))
-    return answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size, diag, warnings })
+    return answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size, diag, warnings, gravity })
   } finally {
     if (!env.SCANRULER_FEA_KEEP) await rm(dir, { recursive: true, force: true }).catch(() => {})
   }
@@ -843,7 +889,7 @@ const b64 = (typed) => Buffer.from(typed.buffer, typed.byteOffset, typed.byteLen
 /** The answer: the worst of it, where, and the outside as triangles over
  *  the surface's nodes with a value at each, to colour the part by — as
  *  little-endian Float32 / Uint32 arrays in base64 (surface.encoding). */
-function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size, diag, warnings }) {
+function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, size, diag, warnings, gravity = null }) {
   const nodes = mesh.xyz.length / 3
   const vm = new Float32Array(nodes + 1)
   const sf = new Float32Array(nodes + 1).fill(Infinity)
@@ -942,8 +988,12 @@ function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, siz
   return {
     solver: { gmsh: tools.gmsh.version, calculix: tools.ccx.version },
     mesh: { elements: mesh.elements.length / 10, nodes, size: r3(size) },
-    material: { id: material.id, label: material.label, Exy: material.Exy, Ez: material.Ez, Xt: material.Xt, Zt: material.Zt, Sz: r3(material.Sz) },
+    material: { id: material.id, label: material.label, density: material.density, Exy: material.Exy, Ez: material.Ez, Xt: material.Xt, Zt: material.Zt, Sz: r3(material.Sz) },
     build: axes.z.map(r3),
+    ...(gravity ? { gravity: (() => {
+      const grams = (gravity.density * meshVolume(mesh)) / 1000
+      return { direction: gravity.direction.map(r3), g: gravity.g, density: r3(gravity.density), mass: r3(grams), weight: r3((grams / 1000) * 9.80665 * gravity.g) }
+    })() } : {}),
     groups: { fixtures: fix.map((g, i) => ({ name: g.name ?? `fixture ${i + 1}`, faces: g.faces.length })), loads: ld.map((g, i) => ({ name: g.name ?? `load ${i + 1}`, faces: g.faces.length, ...(g.force ? { force: g.force } : { pressure: g.pressure }) })) },
     worst: {
       safety: Number.isFinite(worst.sf) ? r3(worst.sf) : null,

@@ -12,7 +12,8 @@ found. FreeCAD ships both.
   stack, in the part's frame: "+z" printed as it stands, "+x" stood on its
   −X end. Ask how it will be printed. If they haven't decided, solving it
   two ways is the answer to "which way up?".
-- Materials: pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a. In-layer and
+- Materials: pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a (the same ids
+  and densities as Mass). In-layer and
   across-layer stiffness and tensile strength come from Bambu Lab
   datasheets. The between-layer shear strength (`Sz`) is an estimate,
   0.6 × the across-layer tensile strength, because little is published.
@@ -30,6 +31,10 @@ found. FreeCAD ships both.
 - `fea.load { …faces, force: [x, y, z] }` in N, the whole force spread over
   the faces by area, or `pressure` in MPa pushing on them. 1 kg ≈ 9.8 N;
   1 bar = 0.1 MPa.
+- `fea.setup { gravity: { direction: "-z" } }` counts the part's own weight,
+  as the Mass workspace weighs it (walls and infill) or as solid material
+  (`from: "material"`). `g: 5` for a 5 g shake. Worth it for long or heavy
+  parts held at one end; `null` takes it off. With it, loads are optional.
 - Name faces by index (`reverse.body.describe`), by query (`where`, e.g.
   `{ kind: "plane", between: [[-1, 0, 0]], withinDeg: 5 }` for flat faces
   facing −X), or `selected: true` for what the person selected in Reverse

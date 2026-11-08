@@ -263,6 +263,10 @@ describe('saved with the project', () => {
     massSection.prepare(undefined, {} as never)()
     expect(setupOf(useMass.getState())).toEqual(setupOf(DEFAULT_MASS))
   })
+  test('a project saved with tpu opens as tpu-95a', () => {
+    massSection.prepare({ version: 1, setup: { material: 'tpu' } }, {} as never)()
+    expect(useMass.getState().material).toBe('tpu-95a')
+  })
   test('the history keeps no density as null, so a step back clears one', () => {
     useMass.getState().reset()
     expect(historyOf(useMass.getState()).density).toBeNull()

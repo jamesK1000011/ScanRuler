@@ -13,7 +13,7 @@ import { usePrefs } from '../../../src/state/prefsStore'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
-import { bodies as listBodies, FIELDS, MATERIAL_IDS, staleness, wasCancelled } from '../app/feaCommands'
+import { bodies as listBodies, FIELDS, MATERIAL_IDS, MATERIALS, staleness, wasCancelled } from '../app/feaCommands'
 import { useFea, type Field, type Load } from '../state/feaStore'
 import { rangeOf } from '../viewer/resultLayer'
 import './fea.css'
@@ -25,7 +25,6 @@ const report = (e: unknown) => {
 }
 const run = (name: string, input: Record<string, unknown> = {}) => runCommand(`fea.${name}`, input).catch(report)
 
-const MATERIAL_WORDS: Record<string, string> = { pla: 'PLA', petg: 'PETG', abs: 'ABS', asa: 'ASA', 'petg-cf': 'PETG-CF', 'pa6-cf': 'PA6-CF', 'tpu-95a': 'TPU 95A' }
 const BUILD: { id: string; label: string; v: [number, number, number] }[] = [
   { id: '+z', label: 'As it stands (+Z up)', v: [0, 0, 1] },
   { id: '-z', label: 'Upside down', v: [0, 0, -1] },
@@ -41,6 +40,14 @@ const FACING: { id: string; label: string; n: [number, number, number] }[] = [
   { id: '-y', label: 'facing −Y', n: [0, -1, 0] },
   { id: '+z', label: 'facing +Z (top)', n: [0, 0, 1] },
   { id: '-z', label: 'facing −Z (bottom)', n: [0, 0, -1] },
+]
+const GRAVITY: { id: string; label: string; v: [number, number, number] }[] = [
+  { id: '-z', label: 'Pulling −Z (down)', v: [0, 0, -1] },
+  { id: '+z', label: 'Pulling +Z', v: [0, 0, 1] },
+  { id: '-x', label: 'Pulling −X', v: [-1, 0, 0] },
+  { id: '+x', label: 'Pulling +X', v: [1, 0, 0] },
+  { id: '-y', label: 'Pulling −Y', v: [0, -1, 0] },
+  { id: '+y', label: 'Pulling +Y', v: [0, 1, 0] },
 ]
 const FIELD_WORDS: Record<Field, string> = { safety: 'Safety factor', vonMises: 'Stress (von Mises), MPa', displacement: 'Displacement, mm', across: 'Across the layers, MPa', shear: 'Between-layer shear, MPa' }
 
@@ -199,6 +206,14 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
         <span className="name">Largest movement</span>
         <span>{w.displacement < 0.01 ? w.displacement.toExponential(2) : w.displacement.toFixed(3)} mm</span>
       </div>
+      {r.gravity && (
+        <div className="kv" title={r.gravity.from === 'mass' ? 'Weighed by the Mass workspace' : 'Weighed as solid material'}>
+          <span className="name">Own weight</span>
+          <span>
+            {r.gravity.mass} g{r.gravity.g !== 1 ? ` × ${r.gravity.g} g` : ''} · {r.gravity.weight} N
+          </span>
+        </div>
+      )}
       <p className="pl-aside">
         {r.mesh.elements.toLocaleString()} elements · {r.mesh.size} mm · Gmsh {r.solver.gmsh ?? '?'} · CalculiX {r.solver.calculix ?? '?'}
       </p>
@@ -300,7 +315,7 @@ export function FeaPanel() {
         <select value={s.material} disabled={busy} aria-label="Material" onChange={(e) => void run('setup', { material: e.target.value })}>
           {MATERIAL_IDS.map((m) => (
             <option key={m} value={m}>
-              {MATERIAL_WORDS[m]}
+              {MATERIALS[m].label}
             </option>
           ))}
         </select>
@@ -313,6 +328,18 @@ export function FeaPanel() {
           </button>
         </p>
       )}
+      <label className="fea-row">
+        <span>Own weight</span>
+        <select value={s.gravity ? (GRAVITY.find((x) => x.v.every((c, i) => Math.abs(c - s.gravity!.direction[i]) < 1e-6))?.id ?? 'custom') : 'off'} disabled={busy} aria-label="Own weight" title="The part’s weight as a load" onChange={(e) => void run('setup', { gravity: e.target.value === 'off' ? null : { direction: e.target.value } })}>
+          <option value="off">Not counted</option>
+          {GRAVITY.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.label}
+            </option>
+          ))}
+          {s.gravity && !GRAVITY.some((x) => x.v.every((c, i) => Math.abs(c - s.gravity!.direction[i]) < 1e-6)) && <option value="custom">Along {s.gravity.direction.map((x) => x.toFixed(2)).join(', ')}</option>}
+        </select>
+      </label>
       <label className="fea-row">
         <span>Mesh</span>
         <select value={s.size ? 'size' : s.fineness} disabled={busy} aria-label="Mesh" onChange={(e) => void run('setup', { fineness: e.target.value, size: null })}>
@@ -353,7 +380,7 @@ export function FeaPanel() {
       ))}
       <FacesAdder kind="load" />
 
-      <button className="primary block" disabled={busy || link !== 'connected' || (tools !== null && !tools.ready) || !s.holds.length || !s.loads.length} data-test="fea-solve" title="Mesh and solve on your computer" onClick={() => void run('solve')}>
+      <button className="primary block" disabled={busy || link !== 'connected' || (tools !== null && !tools.ready) || !s.holds.length || (!s.loads.length && !s.gravity)} data-test="fea-solve" title="Mesh and solve on your computer" onClick={() => void run('solve')}>
         Solve
       </button>
       <Busy />

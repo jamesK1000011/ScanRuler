@@ -4,7 +4,8 @@
 // moment.
 
 import type { ProjectSection } from '../../../src/app/projectSections'
-import { FILLERS, MATERIALS, type V3 } from '../core/mass'
+import { FILLERS, type V3 } from '../core/mass'
+import { materialId } from '../../_shared/materials'
 import { DEFAULT_MASS, setupOf, useMass, type MassSetup } from '../state/massStore'
 
 interface SavedMass {
@@ -28,7 +29,7 @@ export const massSection: ProjectSection<SavedMass> = {
     const u = v.setup as unknown as Record<string, unknown>
     const t = u.target && typeof u.target === 'object' ? (u.target as Record<string, unknown>) : null
     const setup: MassSetup = {
-      material: typeof u.material === 'string' && u.material in MATERIALS ? u.material : DEFAULT_MASS.material,
+      material: materialId(u.material) ?? DEFAULT_MASS.material,
       ...(fin(u.density, 0.01, 25) ? { density: u.density as number } : {}),
       infill: fin(u.infill, 0, 100) ? (u.infill as number) : DEFAULT_MASS.infill,
       walls: fin(u.walls, 0, 50) ? Math.round(u.walls as number) : DEFAULT_MASS.walls,

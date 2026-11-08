@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { feaSection } from '../app/projectSection'
 import { DEFAULT_SETUP, setupOf, useFea } from '../state/feaStore'
 import { rangeOf } from '../viewer/resultLayer'
+import { densityOf, MATERIAL_IDS, materialId } from '../../_shared/materials'
 
 describe('the study in a project', () => {
   test('round trip, and a hostile file cleaned', () => {
@@ -23,6 +24,30 @@ describe('the study in a project', () => {
     expect(s.loads).toEqual([])
     expect(s.target).toBe(DEFAULT_SETUP.target)
     expect(() => feaSection.prepare({ version: 2 }, {} as never)).toThrow()
+  })
+  test('own weight kept; an old material name read as its id now; a broken weight dropped', () => {
+    useFea.getState().reset()
+    useFea.getState().set({ body: 'Arm', gravity: { direction: [0, 0, -1], g: 3, from: 'material' } })
+    const saved = feaSection.collect({} as never)!
+    useFea.getState().reset()
+    feaSection.prepare(JSON.parse(JSON.stringify(saved)), {} as never)()
+    expect(useFea.getState().gravity).toEqual({ direction: [0, 0, -1], g: 3, from: 'material' })
+    feaSection.prepare({ version: 1, setup: { material: 'tpu', gravity: { direction: [0, 0, 0] } } }, {} as never)()
+    expect(useFea.getState().material).toBe('tpu-95a')
+    expect(useFea.getState().gravity).toBeUndefined()
+    feaSection.prepare({ version: 1, setup: { gravity: { direction: [0, 2, 0], g: -1, from: 'x' } } }, {} as never)()
+    expect(useFea.getState().gravity).toEqual({ direction: [0, 1, 0], g: 1, from: 'mass' })
+    useFea.getState().reset()
+    expect(useFea.getState().gravity).toBeUndefined()
+  })
+})
+
+describe('the shared materials', () => {
+  test('one table: ids, aliases and densities', () => {
+    expect(MATERIAL_IDS).toEqual(['pla', 'petg', 'abs', 'asa', 'petg-cf', 'pa6-cf', 'tpu-95a'])
+    expect(materialId('tpu')).toBe('tpu-95a')
+    expect(materialId('toString')).toBeUndefined()
+    expect(densityOf('pla')).toBe(1.24)
   })
 })
 

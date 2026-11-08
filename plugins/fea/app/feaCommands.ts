@@ -11,9 +11,20 @@ import { useShell } from '../../../src/state/shellStore'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { setupOf, useFea, type FacePick, type FeaAnswer, type FeaSetup, type FeaWire, type Field, type Fineness, type Hold, type Load } from '../state/feaStore'
 import { answered, askServer, Cancelled, progressed } from './feaAsk'
+import { densityOf, MATERIAL_IDS, MATERIAL_NAMES, materialId, MATERIALS } from '../../_shared/materials'
+import { readStateSections } from '../../../src/commands/stateSections'
 
-/** The printed materials the server starts from (extras/fea.js MATERIALS). */
-export const MATERIAL_IDS = ['pla', 'petg', 'abs', 'asa', 'petg-cf', 'pa6-cf', 'tpu-95a'] as const
+/** The printed materials the server starts from: the shared table
+ *  (plugins/_shared/materials.ts), which extras/fea.js MATERIALS matches. */
+export { MATERIAL_IDS, MATERIALS }
+const NAMED: Record<string, readonly [number, number, number]> = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+y': [0, 1, 0], '-y': [0, -1, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] }
+const direction = (v: readonly number[] | string, what: string): [number, number, number] => {
+  const d = typeof v === 'string' ? NAMED[v] : v
+  if (!d) throw new CommandError('invalid_input', `${what} is a direction [x, y, z], or one of +x, -x, +y, -y, +z, -z.`)
+  const l = Math.hypot(d[0], d[1], d[2])
+  if (!(l > 0)) throw new CommandError('invalid_input', `${what} must be a direction, not zero.`)
+  return [d[0] / l, d[1] / l, d[2] / l]
+}
 export const FIELDS: Field[] = ['safety', 'vonMises', 'displacement', 'across', 'shear']
 const OVERRIDES = ['Exy', 'Ez', 'nuXY', 'nuZ', 'Gxy', 'Gz', 'Xt', 'Xc', 'Zt', 'Zc', 'S', 'Sz'] as const
 
@@ -166,21 +177,39 @@ const tools: Command<Record<string, never>> = {
   run: async () => askServer('tools', {}, { timeoutMs: 60_000 }),
 }
 
-const setup: Command<{ body?: string; build?: [number, number, number] | string; material?: string; overrides?: Record<string, number>; fineness?: Fineness; size?: number | null; target?: number }> = {
+interface GravityIn {
+  direction?: [number, number, number] | string
+  g?: number
+  from?: 'mass' | 'material'
+}
+
+const setup: Command<{ body?: string; build?: [number, number, number] | string; material?: string; overrides?: Record<string, number>; fineness?: Fineness; size?: number | null; target?: number; gravity?: GravityIn | null }> = {
   name: 'setup',
   title: 'Set the study up',
   description:
-    'The body studied (a Reverse Engineer body, by name; another body clears the holds and loads), the way it is printed — build: the direction the layers stack, in the part’s frame ("+z" printed as it stands; "+x" stood on its −X end) — its material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a) with overrides for your own figures — the whole set, replacing what was there; a new material clears them (MPa: Exy, Ez in and across the layers; Xt, Xc in-layer tension and compression strength; Zt, Zc across; S in-layer shear, Sz between-layer shear; nuXY, nuZ; Gxy, Gz), the mesh (fineness coarse, medium, fine; or size, mm, which wins over fineness — null to go back to it) and the safety factor wanted (target, 2 by default). Holds and loads stay unless the body changes. Returns the study.',
+    'The body studied (a Reverse Engineer body, by name; another body clears the holds and loads), the way it is printed — build: the direction the layers stack, in the part’s frame ("+z" printed as it stands; "+x" stood on its −X end) — its material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a) with overrides for your own figures — the whole set, replacing what was there; a new material clears them (MPa: Exy, Ez in and across the layers; Xt, Xc in-layer tension and compression strength; Zt, Zc across; S in-layer shear, Sz between-layer shear; nuXY, nuZ; Gxy, Gz), the mesh (fineness coarse, medium, fine; or size, mm, which wins over fineness — null to go back to it), the safety factor wanted (target, 2 by default) and the part’s own weight as a load (gravity: { direction, "-z" by default; g, how many, 1 by default — more for a shake or a drop; from: "mass", what the Mass workspace weighs it at with its walls and infill, the default, or "material", solid } — null takes it off). Holds and loads stay unless the body changes. Returns the study.',
   input: obj({
     body: str('The body, by name.', { minLength: 1 }),
     build: oneOf([vec3('The build direction, part frame.'), enumOf(['+x', '-x', '+y', '-y', '+z', '-z'])], 'The way the layers stack.'),
-    material: enumOf([...MATERIAL_IDS]),
+    material: enumOf(MATERIAL_NAMES),
     overrides: anyObject('Your own figures over the material’s, MPa (nuXY, nuZ plain): { "Zt": 20 }.'),
     fineness: enumOf(['coarse', 'medium', 'fine']),
     size: oneOf([num('Element size, mm.', { exclusiveMinimum: 0 }), { type: 'null' }], 'The element size, mm; null for the fineness’s.'),
     target: num('The safety factor wanted.', { exclusiveMinimum: 0 }),
+    gravity: oneOf(
+      [
+        obj({
+          direction: oneOf([vec3('The way it pulls, part frame.'), enumOf(['+x', '-x', '+y', '-y', '+z', '-z'])], 'The way it pulls; -z by default.'),
+          g: num('How many g; 1 by default.', { exclusiveMinimum: 0, maximum: 1000 }),
+          from: enumOf(['mass', 'material'], 'What it weighs: mass (the Mass workspace, walls and infill) or material (solid).'),
+        }),
+        { type: 'null' },
+      ],
+      'The part’s own weight as a load; null takes it off.',
+    ),
   }),
-  run: async ({ body, build, material, overrides, fineness, size, target }) => {
+  run: async ({ body, build, material: named, overrides, fineness, size, target, gravity }) => {
+    const material = named === undefined ? undefined : materialId(named)
     const patch: Partial<ReturnType<typeof fea>> = {}
     if (body !== undefined) {
       const all = await bodies()
@@ -192,13 +221,15 @@ const setup: Command<{ body?: string; build?: [number, number, number] | string;
       if (was !== null && !same(was, b.name)) Object.assign(patch, { body: b.name, holds: [], loads: [] })
       else patch.body = b.name
     }
-    if (build !== undefined) {
-      const NAMED: Record<string, readonly [number, number, number]> = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+y': [0, 1, 0], '-y': [0, -1, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] }
-      const v = typeof build === 'string' ? NAMED[build] : build
-      if (!v) throw new CommandError('invalid_input', 'build is a direction [x, y, z], or one of +x, -x, +y, -y, +z, -z.')
-      const l = Math.hypot(v[0], v[1], v[2])
-      if (!(l > 0)) throw new CommandError('invalid_input', 'build must be a direction, not zero.')
-      patch.build = [v[0] / l, v[1] / l, v[2] / l]
+    if (build !== undefined) patch.build = direction(build, 'build')
+    if (gravity === null) patch.gravity = undefined
+    else if (gravity !== undefined) {
+      const was = fea().gravity
+      patch.gravity = {
+        direction: gravity.direction !== undefined ? direction(gravity.direction, 'gravity.direction') : (was?.direction ?? [0, 0, -1]),
+        g: gravity.g ?? was?.g ?? 1,
+        from: gravity.from ?? was?.from ?? 'mass',
+      }
     }
     if (material !== undefined && material !== fea().material) {
       patch.material = material
@@ -326,7 +357,7 @@ const solve: Command<Record<string, never>> = {
     if (s.busy) throw new CommandError('busy', `A solve is under way (${s.busy}): wait, or fea.cancel.`)
     const b = await bodyNow()
     if (!s.holds.length) throw new CommandError('invalid_state', 'Hold the part somewhere first (fea.hold): with nothing held it flies off under any load.')
-    if (!s.loads.length) throw new CommandError('invalid_state', 'Load it first (fea.load): a force or a pressure on some faces.')
+    if (!s.loads.length && !s.gravity) throw new CommandError('invalid_state', 'Load it first (fea.load): a force or a pressure on some faces, or its own weight (fea.setup { gravity: {} }).')
     current?.abort()
     const ctl = new AbortController()
     current = ctl
@@ -350,7 +381,8 @@ const solve: Command<Record<string, never>> = {
       const moved = s.holds.concat(s.loads as Hold[]).filter((p) => p.faces && p.bodyKey && p.bodyKey !== b.key).map((p) => p.name)
       const fixtures = await Promise.all(s.holds.map(async (h) => ({ name: h.name, triangles: await named(h.name, h) })))
       const loads = await Promise.all(s.loads.map(async (l) => ({ name: l.name, triangles: await named(l.name, l), ...(l.force ? { force: l.force } : { pressure: l.pressure }) })))
-      const job = { step: new TextDecoder().decode(step.file.bytes), build: s.build, material: { id: s.material, overrides: s.overrides }, fixtures, loads, mesh: { fineness: s.fineness, ...(s.size ? { size: s.size } : {}) } }
+      const weight = s.gravity ? await weightOf(s, b.name) : null
+      const job = { step: new TextDecoder().decode(step.file.bytes), build: s.build, material: { id: s.material, overrides: s.overrides }, fixtures, loads, mesh: { fineness: s.fineness, ...(s.size ? { size: s.size } : {}) }, ...(weight ? { gravity: weight.gravity } : {}) }
       useFea.setState({ busy: 'Meshing and solving…' })
       const r = checked(
         await askServer<FeaWire>('solve', { job }, {
@@ -365,8 +397,10 @@ const solve: Command<Record<string, never>> = {
       // A study cleared or a project opened while it ran: not its answer.
       if (fea().gen !== gen) throw new CommandError('failed', 'The study was replaced while it was solved: its answer is dropped.')
       lastKey = b.key
-      useFea.setState({ result: { ...r, at: new Date().toISOString(), setup: setupNow, bodyKey: b.key }, shown: true })
-      return { ...brief(fea().result!), ...(moved.length ? { note: `The body has changed since ${moved.join(', ')} ${moved.length === 1 ? 'was' : 'were'} picked by face: held where picked. Pick again if the faces moved.` } : {}) }
+      const solved = weight && r.gravity ? { ...r, gravity: { ...r.gravity, from: weight.from } } : r
+      useFea.setState({ result: { ...solved, at: new Date().toISOString(), setup: setupNow, bodyKey: b.key }, shown: true })
+      const notes = [...(moved.length ? [`The body has changed since ${moved.join(', ')} ${moved.length === 1 ? 'was' : 'were'} picked by face: held where picked. Pick again if the faces moved.`] : []), ...(weight?.note ? [weight.note] : [])]
+      return { ...brief(fea().result!), ...(notes.length ? { note: notes.join(' ') } : {}) }
     } catch (e) {
       if (e instanceof Cancelled || ctl.signal.aborted) throw new CommandError('failed', 'The solve was cancelled.')
       if (e instanceof CommandError) throw e
@@ -376,6 +410,32 @@ const solve: Command<Record<string, never>> = {
       useFea.setState({ busy: null, since: null, phase: null })
     }
   },
+}
+
+/** What the part weighs at, for its own weight: the Mass workspace's
+ *  weighing — walls, infill and calibration — as a density over the
+ *  whole solid, or the solid material's when asked, or when Mass is not
+ *  there or cannot weigh it (said in the note). */
+async function weightOf(s: FeaSetup, body: string): Promise<{ gravity: { direction: number[]; g: number; density: number }; from: 'mass' | 'material'; note?: string }> {
+  const gr = s.gravity!
+  const solid = { gravity: { direction: gr.direction, g: gr.g, density: densityOf(s.material) ?? 1.24 }, from: 'material' as const }
+  if (gr.from === 'material') return solid
+  let said = 'the Mass workspace is not here'
+  try {
+    const r = (await runCommand('mass.properties', { bodies: [body] })) as { bodies?: { body: string; mass: number; volume: number; closed?: boolean }[] }
+    const row = r.bodies?.[0]
+    if (row && row.mass > 0 && row.volume > 0 && row.closed !== false) {
+      // g over mm³, as g/cm³.
+      const density = (row.mass / row.volume) * 1000
+      const theirs = (readStateSections().mass as { setup?: { material?: string } } | undefined)?.setup?.material
+      const other = theirs && materialId(theirs) !== materialId(s.material) ? ` The Mass workspace has it in ${MATERIALS[materialId(theirs) ?? 'pla'].label}; this study in ${MATERIALS[materialId(s.material) ?? 'pla'].label}.` : ''
+      return { gravity: { direction: gr.direction, g: gr.g, density }, from: 'mass', ...(other ? { note: `Own weight from the Mass workspace's weighing.${other}` } : {}) }
+    }
+    said = row && row.closed === false ? 'its mesh is not closed' : 'it weighed nothing'
+  } catch (e) {
+    if (!(e instanceof CommandError && e.code === 'unknown_command')) said = e instanceof Error ? e.message : String(e)
+  }
+  return { ...solid, note: `Own weight from the solid ${MATERIALS[materialId(s.material) ?? 'pla'].label}: ${said}.` }
 }
 
 const cancel: Command<Record<string, never>> = {
