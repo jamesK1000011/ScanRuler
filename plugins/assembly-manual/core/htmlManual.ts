@@ -117,7 +117,7 @@ footer{text-align:center;color:var(--muted);font-size:.78rem}
   .sheet{box-shadow:none;border-radius:0;padding:0;break-after:page}
   .sheet:last-of-type{break-after:auto}
   .step{break-inside:avoid}
-  nav,footer,label.done{display:none}
+  nav,footer,.step label.done{display:none}
   .step:has(label.done input:checked){opacity:1}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
