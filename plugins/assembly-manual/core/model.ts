@@ -73,6 +73,8 @@ export interface AsmSettings {
   theme: string
   /** The person's own accent colour, '#rrggbb', over the theme's. */
   accent?: string
+  /** Themes imported from theme files (themeFile.ts), kept with the project. */
+  customThemes?: ThemeFile[]
   /** Steps on a page: one, two, a grid of four or six, or auto — each step
    *  the room it needs, simple ones sharing a page. */
   layout: Layout
@@ -92,6 +94,32 @@ export interface AsmSettings {
   intendedUse?: string
   safety?: string
   disposal?: string
+}
+
+/** A manual theme as a file to share: the look, the layout switches that
+ *  go with it, and CSS of its own for the HTML. */
+export interface ThemeFile {
+  scanrulerManualTheme: 1
+  id: string
+  name: string
+  about?: string
+  look: {
+    accent: string
+    ink: string
+    muted: string
+    paper: string
+    rule: string
+    wash: string
+    font: string
+    heading: string
+    mono: string
+    size: number
+    balloon: 'outline' | 'filled'
+    badge: 'box' | 'big' | 'plain'
+    sheetColour: boolean
+  }
+  layout?: Partial<Pick<AsmSettings, 'layout' | 'words' | 'partsBox' | 'hardwarePage'>>
+  css?: string
 }
 
 export const LAYOUTS = ['one', 'two', 'grid4', 'grid6', 'auto'] as const

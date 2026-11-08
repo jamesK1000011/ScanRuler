@@ -1,0 +1,31 @@
+{
+  "_notes": [
+    "A manual theme for ScanRuler's assembly-manual. Import it in the Assembly workspace (Import theme…) or with asm.theme { action: 'import', file }.",
+    "id: lowercase letters, digits and dashes, not one of the shipped themes (workshop, picture, technical, shopfloor, brick).",
+    "look: colours as #rrggbb; fonts as CSS font lists (the reader's own fonts: the saved HTML carries none); size 10-28 px; balloon outline|filled; badge box|big|plain; sheetColour: whether the PDF pages carry the accent.",
+    "layout (optional): layout one|two|grid4|grid6|auto, words show|hide, partsBox side|corner, hardwarePage true|false.",
+    "css (optional): added to the saved HTML after the theme. Classes to aim at: .sheet (a page), .step, .step header .num (the step number), .step header .what, figure, aside.side, ul.parts, .balloon, ol.do (the instructions), .z535 (safety messages), .note, .torque, .hardware, table (bill of materials). @import, url() to files or addresses and anything that runs are taken out.",
+    "These _notes are not kept."
+  ],
+  "scanrulerManualTheme": 1,
+  "id": "garage-green",
+  "name": "Garage green",
+  "about": "Dark green accent, condensed headings, a tinted page, steps two a page.",
+  "look": {
+    "accent": "#1f6f43",
+    "ink": "#1b1f1d",
+    "muted": "#5d6a63",
+    "paper": "#fbfdfb",
+    "rule": "#d2ddd6",
+    "wash": "#e6f2ea",
+    "font": "'Inter', 'Segoe UI', system-ui, sans-serif",
+    "heading": "'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif",
+    "mono": "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    "size": 16,
+    "balloon": "filled",
+    "badge": "box",
+    "sheetColour": true
+  },
+  "layout": { "layout": "two", "words": "show", "partsBox": "side", "hardwarePage": true },
+  "css": ".step header .num { border-radius: 50%; }\n.step header .what { text-transform: uppercase; letter-spacing: .04em; }\nol.do li { padding: .2rem 0; border-bottom: 1px dashed var(--rule); }"
+}

@@ -11,6 +11,8 @@ import { hardwareOutline, SIGNAL_STYLE } from '../core/extras'
 import { pack, sizeOf } from '../core/layout'
 import { cover, hardwarePage, manualPages, stepFigure, stepLabels, stepPage, wrap } from '../core/manual'
 import { review } from '../core/review'
+import { checkThemeFile, safeCss, toThemeFile } from '../core/themeFile'
+import example from '../themes/example.manual-theme.json'
 import { PRESETS, THEMES, themeOf } from '../core/themes'
 import { DEFAULT_SETTINGS, DEFAULT_STYLE, type Part, type Step } from '../core/model'
 
@@ -296,6 +298,33 @@ describe('layouts, sub-assemblies and the rest', () => {
     const c = toSvg(cover(parts, steps, { ...DEFAULT_SETTINGS, product: 'BK-1', intendedUse: 'For parts.', safety: 'Keep from small children.' }))
     expect(c).toContain('Intended use')
     expect(c).toContain('>WARNING<')
+  })
+})
+
+describe('theme files', () => {
+  it('reads the example, refuses a broken one, and cleans the CSS', () => {
+    expect(checkThemeFile(example)).toEqual([])
+    const s = { ...DEFAULT_SETTINGS, customThemes: [example as never], theme: 'garage-green' }
+    expect(themeOf(s).accent).toBe('#1f6f43')
+    expect(themeOf(s).custom).toBe(true)
+    const doc = html(s, parts, [{ id: 's1', place: [{ part: 'Box', move: down }], text: 'Put the box down.' }], [])
+    expect(doc).toContain('--accent:#1f6f43')
+    expect(doc).toContain("/* the theme file's own */")
+    expect(doc).toContain('text-transform: uppercase')
+    const bad = checkThemeFile({ scanrulerManualTheme: 1, id: 'workshop', name: '', look: { accent: 'green', font: "x; } body { display:none", size: 99, balloon: 'square' }, layout: { layout: 'three' } })
+    const said = bad.join('\n')
+    for (const word of ['shipped theme', 'name:', 'look.accent', 'look.font', 'look.size', 'look.balloon', 'look.badge', 'look.sheetColour', 'layout.layout']) expect(said).toContain(word)
+    const dirty = safeCss('@import url(https://evil.example/x.css);\nbody{background:url("https://evil.example/t.png")}\n.a{background:url(data:image/png;base64,AAAA)}\n</style><script>alert(1)</script>\n.b{width:expression(alert(1));color:red}\na{-moz-binding:url(x.xml#y)}')
+    expect(dirty.css).not.toMatch(/@import|evil\.example|<\/style|<script|expression\(|-moz-binding/i)
+    expect(dirty.css).toContain('url(data:image/png;base64,AAAA)')
+    expect(dirty.css).toContain('color:red')
+    expect(dirty.removed).toEqual(expect.arrayContaining(['@import', 'url() to a file or address', 'a style tag', 'markup', 'expression()', '-moz-binding']))
+    expect(safeCss('x'.repeat(30_000)).css.length).toBe(20_000)
+    const out = toThemeFile(THEMES[0], { ...DEFAULT_SETTINGS, accent: '#123456', layout: 'grid4' })
+    expect(out.id).toBe('my-workshop')
+    expect(out.look.accent).toBe('#123456')
+    expect(out.layout?.layout).toBe('grid4')
+    expect(checkThemeFile(out)).toEqual([])
   })
 })
 

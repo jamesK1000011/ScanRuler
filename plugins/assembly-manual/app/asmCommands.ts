@@ -9,7 +9,7 @@ import { toPdf, toSvg } from '../../_shared/lineart/sheet'
 import { VIEW_NAMES, type V3 } from '../../_shared/lineart/views'
 import { zip } from '../../_shared/zip'
 import { runCommand } from '../../../src/commands/registry'
-import { arr, bool, enumOf, int, num, obj, oneOf, str, vec3 } from '../../../src/commands/schema'
+import { anyObject, arr, bool, enumOf, int, num, obj, oneOf, str, vec3 } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { bom, direction, issues, stepCamera, type Issue } from '../core/assembly'
@@ -18,8 +18,9 @@ import { lint, limitsOf } from '../core/lint'
 import { html } from '../core/htmlManual'
 import { manualPages, stepFigure } from '../core/manual'
 import { review } from '../core/review'
-import { PRESETS, PRESET_IDS, THEMES, THEME_IDS, themeOf } from '../core/themes'
-import { DEFAULT_SETTINGS, DEFAULT_WORDS, ICONS, LAYOUTS, SIGNALS, type AsmSettings, type Part, type Step, type StyleName } from '../core/model'
+import { checkThemeFile, safeCss, toThemeFile } from '../core/themeFile'
+import { PRESETS, PRESET_IDS, THEMES, themeOf, themesOf } from '../core/themes'
+import { DEFAULT_SETTINGS, DEFAULT_WORDS, ICONS, LAYOUTS, SIGNALS, type AsmSettings, type Part, type Step, type StyleName, type ThemeFile } from '../core/model'
 import { useAsm } from '../state/asmStore'
 import { drawInWorker, sweepInWorker } from './asmClient'
 
@@ -95,7 +96,7 @@ With nothing, reads them, with the themes and presets. Defaults: ${JSON.stringif
     paper: enumOf(['letter', 'a4']),
     orientation: enumOf(['landscape', 'portrait']),
     explode: num(undefined, { minimum: 0.2, maximum: 5 }),
-    theme: enumOf(THEME_IDS),
+    theme: str(`${THEMES.map((t) => t.id).join(', ')}, or one imported from a theme file (asm.theme).`),
     accent: str('#rrggbb, or empty for the theme’s own.'),
     layout: enumOf([...LAYOUTS]),
     words: enumOf(['show', 'hide']),
@@ -109,6 +110,7 @@ With nothing, reads them, with the themes and presets. Defaults: ${JSON.stringif
     disposal: str('Taking it apart, recycling, disposal.'),
   }),
   run: async ({ preset, ...input }) => {
+    if (input.theme && !themesOf(useAsm.getState().settings).some((t) => t.id === input.theme)) throw new CommandError('invalid_input', `No theme "${input.theme}" — have ${themesOf(useAsm.getState().settings).map((t) => t.id).join(', ')}.`)
     if (input.accent && !/^#[0-9a-fA-F]{6}$/.test(input.accent)) throw new CommandError('invalid_input', `accent is a colour as '#rrggbb' — '#1877c0', say — or '' for the theme's own; not ${JSON.stringify(input.accent)}.`)
     if (preset || Object.keys(input).length) {
       const next: AsmSettings = { ...useAsm.getState().settings, ...(preset ? PRESETS.find((p) => p.id === preset)!.settings : {}), ...input }
@@ -121,7 +123,7 @@ With nothing, reads them, with the themes and presets. Defaults: ${JSON.stringif
     return {
       settings: now,
       theme: { id: t.id, name: t.name, accent: t.accent },
-      themes: THEMES.map(({ id, name, about }) => ({ id, name, about })),
+      themes: themesOf(now).map(({ id, name, about, custom }) => ({ id, name, about, ...(custom ? { custom } : {}) })),
       presets: PRESETS.map(({ id, name, about }) => ({ id, name, about, current: Object.entries(PRESETS.find((p) => p.id === id)!.settings).every(([k, v]) => now[k as keyof AsmSettings] === v) })),
     }
   },
@@ -370,6 +372,49 @@ const save: Command<{ format?: 'html' | 'pdf' | 'zip' }> = {
   },
 }
 
+const theme: Command<{ action?: 'list' | 'export' | 'import' | 'remove'; id?: string; file?: Record<string, unknown>; apply?: boolean }> = {
+  name: 'theme',
+  title: 'Theme files for the manual',
+  description: `A manual theme as a JSON file to share and edit: { scanrulerManualTheme: 1, id, name, about?, look: { accent, ink, muted, paper, rule, wash ('#rrggbb'), font, heading, mono (CSS font lists), size (10–28 px), balloon (outline|filled), badge (box|big|plain), sheetColour (whether PDF pages carry the accent) }, layout?: { layout, words, partsBox, hardwarePage }, css?: your own CSS for the HTML }.
+- list (the default): the themes, shipped and imported.
+- export: id (the one in use by default) as a file — for the one in use, with the accent and layout switches as set now. Returns the JSON and a .json file.
+- import: file, checked field by field; its CSS is cleaned so the HTML stays self-contained (no @import, no url() but data:, nothing that runs). Kept with the project; apply: true makes it the theme and sets its layout switches.
+- remove: id, an imported theme.`,
+  input: obj({ action: enumOf(['list', 'export', 'import', 'remove']), id: str(), file: anyObject('For import: the theme file, as JSON.'), apply: bool('For import: use it now.') }),
+  returnsFile: true,
+  run: async ({ action = 'list', id, file, apply }) => {
+    const s = { ...DEFAULT_SETTINGS, ...useAsm.getState().settings }
+    const all = themesOf(s)
+    if (action === 'list') return { themes: all.map(({ id: tid, name, about, custom }) => ({ id: tid, name, about, ...(custom ? { custom } : {}) })), current: themeOf(s).id }
+    if (action === 'export') {
+      const t = id ? all.find((x) => x.id === id) : themeOf(s)
+      if (!t) throw new CommandError('not_found', `No theme "${id}" — have ${all.map((x) => x.id).join(', ')}.`)
+      const json = toThemeFile(t, !id || id === themeOf(s).id ? s : undefined)
+      return { theme: json, file: { name: `${json.id}.manual-theme.json`, mimeType: 'application/json', bytes: new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n') } }
+    }
+    if (action === 'remove') {
+      if (!(s.customThemes ?? []).some((x) => x.id === id)) throw new CommandError('not_found', `No imported theme "${id}"; shipped themes stay.`)
+      const next = { ...s, customThemes: (s.customThemes ?? []).filter((x) => x.id !== id) }
+      if (next.theme === id) next.theme = 'workshop'
+      useAsm.getState().set({ settings: next })
+      return { removed: id, themes: themesOf(next).map((x) => x.id) }
+    }
+    const errors = checkThemeFile(file)
+    if (errors.length) throw new CommandError('invalid_input', `The theme file was not read:\n- ${errors.join('\n- ')}`)
+    const t = file as unknown as ThemeFile
+    const cleaned = t.css ? safeCss(t.css) : { css: '', removed: [] }
+    const kept: ThemeFile = { scanrulerManualTheme: 1, id: t.id, name: t.name.trim(), ...(t.about ? { about: t.about } : {}), look: { ...t.look }, ...(t.layout ? { layout: t.layout } : {}), ...(cleaned.css.trim() ? { css: cleaned.css } : {}) }
+    const next: AsmSettings = { ...s, customThemes: [...(s.customThemes ?? []).filter((x) => x.id !== t.id), kept] }
+    if (apply) {
+      next.theme = t.id
+      delete next.accent
+      Object.assign(next, t.layout ?? {})
+    }
+    useAsm.getState().set({ settings: next })
+    return { imported: t.id, applied: Boolean(apply), ...(cleaned.removed.length ? { cssRemoved: cleaned.removed } : {}), themes: themesOf(next).map((x) => x.id) }
+  },
+}
+
 const reviewCommand: Command<Record<string, never>> = {
   name: 'review',
   title: 'Review the manual against IEC/IEEE 82079-1',
@@ -383,4 +428,4 @@ const reviewCommand: Command<Record<string, never>> = {
   },
 }
 
-export const asmCommands = [settings, parts, step, steps, check, text, style, render, save, reviewCommand]
+export const asmCommands = [settings, parts, step, steps, check, text, style, render, save, reviewCommand, theme]

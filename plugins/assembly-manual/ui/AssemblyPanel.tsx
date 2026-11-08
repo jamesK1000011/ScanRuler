@@ -4,7 +4,7 @@
 // write them, the check that every part can get in, the pages (drawn onto
 // the stage) and the save. Every button runs the asm.* command an agent does.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { create } from 'zustand'
 import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
@@ -16,7 +16,7 @@ import { lint } from '../core/lint'
 import { subAssemblies } from '../core/assembly'
 import { stepLabels } from '../core/manual'
 import { DEFAULT_SETTINGS } from '../core/model'
-import { PRESETS, THEMES, themeOf } from '../core/themes'
+import { PRESETS, THEMES, themeOf, themesOf } from '../core/themes'
 import { TextField } from '../../_shared/ui/kit'
 import { useAsm } from '../state/asmStore'
 
@@ -83,6 +83,7 @@ export function AssemblyPanel() {
   const [texts, setTexts] = useState<Record<string, string>>({})
   const [accent, setAccent] = useState<string | null>(null)
   const [sub, setSub] = useState('')
+  const themeInput = useRef<HTMLInputElement>(null)
   const busy = v.busy !== null
   const set = { ...DEFAULT_SETTINGS, ...st.settings }
   const placed = new Set(st.steps.flatMap((s) => s.place.map((p) => p.part)))
@@ -130,9 +131,10 @@ export function AssemblyPanel() {
           </span>
           <span className="pl-inline" style={{ flex: '0 1 172px', minWidth: 108 }}>
             <select className="grow" data-test="asm-theme" value={themeOf(st.settings).id} disabled={busy} onChange={(e) => void run('settings', { theme: e.target.value })}>
-              {THEMES.map((t) => (
+              {themesOf(st.settings).map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
+                  {t.custom ? ' (file)' : ''}
                 </option>
               ))}
             </select>
@@ -154,6 +156,42 @@ export function AssemblyPanel() {
             />
           </span>
         </label>
+        <div className="toolrow">
+          <button
+            disabled={busy}
+            title="The theme in use, with your accent and layout, as a JSON file to edit or share"
+            onClick={async () => {
+              const r = await run('theme', { action: 'export' })
+              if (r) saveFile((r.file as FileOut).name, new Blob([(r.file as FileOut).bytes as BlobPart], { type: 'application/json' }))
+            }}
+          >
+            Export theme
+          </button>
+          <button disabled={busy} title="A theme file (.json): its look, layout and CSS" onClick={() => themeInput.current?.click()}>
+            Import theme…
+          </button>
+          <input
+            ref={themeInput}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            data-test="asm-theme-import"
+            onChange={async (e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              let file: unknown
+              try {
+                file = JSON.parse(await f.text())
+              } catch {
+                report(new Error(`${f.name} is not JSON.`))
+                return
+              }
+              const r = await run('theme', { action: 'import', file, apply: true })
+              if (r?.cssRemoved) report(new Error(`Imported; from its CSS, taken out: ${(r.cssRemoved as string[]).join(', ')}.`))
+            }}
+          />
+        </div>
         <label className="field">
           <span>
             Writing style

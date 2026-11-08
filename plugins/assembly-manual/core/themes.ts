@@ -28,6 +28,10 @@ export interface Theme {
   badge: 'box' | 'big' | 'plain'
   /** Whether the pages (PDF, PNG, SVG) carry the accent; black if not. */
   sheetColour: boolean
+  /** A theme file's own CSS, added to the saved HTML after the theme's. */
+  css?: string
+  /** From a theme file, not shipped. */
+  custom?: boolean
 }
 
 const SANS = "'Barlow', 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif"
@@ -149,9 +153,12 @@ function tint(hex: string, share = 0.1): string {
   return `#${c.map((v) => Math.round(255 - (255 - v) * share).toString(16).padStart(2, '0')).join('')}`
 }
 
+/** The themes there are: shipped, and the project's from theme files. */
+export const themesOf = (s: Pick<AsmSettings, 'customThemes'>): Theme[] => [...THEMES, ...(s.customThemes ?? []).map((t) => ({ ...t.look, id: t.id, name: t.name, about: t.about ?? 'From a theme file.', ...(t.css ? { css: t.css } : {}), custom: true }))]
+
 /** The settings' theme, with their own accent if they give one. */
-export function themeOf(s: Pick<AsmSettings, 'theme' | 'accent'>): Theme {
-  const base = THEMES.find((t) => t.id === s.theme) ?? THEMES[0]
+export function themeOf(s: Pick<AsmSettings, 'theme' | 'accent' | 'customThemes'>): Theme {
+  const base = themesOf(s).find((t) => t.id === s.theme) ?? THEMES[0]
   return s.accent && HEX.test(s.accent) ? { ...base, accent: s.accent, wash: tint(s.accent) } : base
 }
 
