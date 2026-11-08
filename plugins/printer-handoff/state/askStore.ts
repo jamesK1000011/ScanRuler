@@ -7,6 +7,8 @@ import { create } from 'zustand'
 
 export interface Ask {
   request: string
+  /** What is asked: to start a print (the default) or resume a paused one. */
+  verb?: 'start' | 'resume'
   printer: string
   file: string
   summary: { time?: string; filament?: string; size?: string }
@@ -18,6 +20,8 @@ export interface Ask {
 
 interface AskState {
   asks: Ask[]
+  inPrint: boolean
+  setInPrint(v: boolean): void
   add(a: Ask): void
   update(request: string, patch: Partial<Ask>): void
   dismiss(request: string): void
@@ -25,6 +29,8 @@ interface AskState {
 
 export const useAsks = create<AskState>((set, get) => ({
   asks: [],
+  inPrint: false,
+  setInPrint: (inPrint) => set({ inPrint }),
   add: (a) => set({ asks: [a, ...get().asks.filter((x) => x.request !== a.request)].slice(0, 20) }),
   update: (request, patch) => set({ asks: get().asks.map((x) => (x.request === request ? { ...x, ...patch } : x)) }),
   dismiss: (request) => set({ asks: get().asks.filter((x) => x.request !== request) }),

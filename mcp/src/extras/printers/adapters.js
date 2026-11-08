@@ -35,7 +35,7 @@ async function http(url, { method = 'GET', headers = {}, body, timeoutMs = 15_00
     const r = via ? await via.request(url, { method, headers, body, signal: ctl.signal }) : await fetch(url, { method, headers, body, signal: ctl.signal })
     const type = r.headers.get('content-type') ?? ''
     const data = type.includes('json') ? await r.json().catch(() => null) : type.startsWith('image/') ? new Uint8Array(await r.arrayBuffer()) : await r.text()
-    if (!r.ok) throw new Error(`${method} ${new URL(url).pathname} answered ${r.status}${r.status === 401 || r.status === 403 ? ' — the API key or password is missing or wrong' : ''}${typeof data === 'string' && data ? `: ${data.slice(0, 160)}` : ''}`)
+    if (!r.ok) throw new Error(`${method} ${new URL(url).pathname} answered ${r.status}${r.status === 401 || r.status === 403 ? ' — the API key or password is missing or wrong' : ''}}`)
     return { data, type }
   } catch (e) {
     if (e.name === 'AbortError') throw new Error(`${new URL(url).host} did not answer in ${timeoutMs / 1000} s.`)
@@ -330,6 +330,7 @@ function folder(p) {
       return { state: files ? 'ready' : 'missing', files: files?.slice(0, 20) ?? [] }
     },
     async upload(file) {
+      if (!dir || !existsSync(dir)) throw new Error(`There is no folder at ${dir} — is the card in? (It is not made here: a missing card would get a folder of its own.)`)
       const to = join(dir, basename(file))
       await copyFile(file, to)
       return { name: basename(file), path: to, bytes: (await stat(file)).size }

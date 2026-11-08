@@ -244,7 +244,7 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
     )
     tool('printer_requests', 'Start requests and their answers', 'The requests to start a print, newest first: waiting, started, cancelled, expired (after 15 minutes), withdrawn or failed, with what the printer said. withdraw takes back one still waiting.', obj({ withdraw: { type: 'string', description: 'A waiting request’s id.' } }), async ({ withdraw }) => (withdraw ? { withdrawn: printer.withdraw(withdraw), ...printer.requests() } : printer.requests()), false)
     tool('printer_pause', 'Pause a print', 'Pause the print running on the printer.', obj({ name }), async ({ name: n }) => printer.control(n, 'pause', env), false)
-    tool('printer_resume', 'Resume a print', 'Resume a paused print. Check the printer first: the person may have paused it for a reason.', obj({ name }), async ({ name: n }) => printer.control(n, 'resume', env), false)
+    tool('printer_resume', 'Resume a print', 'Ask the person to resume a paused print — they may have paused it for a reason, so it resumes only when they say so, like printer_start. printer_requests shows the answer.', obj({ name }), async ({ name: n }) => printer.control(n, 'resume', env, process.platform, page), false)
     tool('printer_stop', 'Stop a print', 'Stop (cancel) the print running on the printer. It cannot be resumed.', obj({ name }), async ({ name: n }) => printer.control(n, 'stop', env), false)
     tools.push({
       name: 'printer_camera',
