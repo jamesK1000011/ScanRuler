@@ -222,7 +222,7 @@ export function TopBar({
             role="tab"
             data-test={`workspace-${w.id}`}
             aria-selected={workspace === w.id}
-            className={[workspace === w.id ? 'on' : '', w.opens ? 'stage' : ''].filter(Boolean).join(' ') || undefined}
+            className={[workspace === w.id ? 'on' : '', w.opens ? 'tabgap' : ''].filter(Boolean).join(' ') || undefined}
             title={`${w.label}\n${w.title}`}
             aria-label={w.label}
             disabled={picking}
