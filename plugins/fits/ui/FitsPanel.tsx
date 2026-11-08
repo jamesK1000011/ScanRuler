@@ -297,7 +297,7 @@ function TestTool({ len }: { len: BoundLength }) {
   return (
     <>
       <NumberField label="Nominal" testId="fits-test-nominal" value={nominal} step={0.5} min={2} kind="length" onCommit={setNominal} />
-      <Row label="Clearances" tip="As printed, diametral, in the display units; negative for interference">
+      <Row label="Clearances" tip="Diametral clearances as printed; negative is interference">
         <input
           className="pl-input"
           aria-label="Clearances"
