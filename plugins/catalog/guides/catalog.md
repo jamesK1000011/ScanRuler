@@ -42,6 +42,31 @@ says the part is.
    `redistribute: true` only when that licence allows sharing.
 5. Record it with the project: `catalog.provenance { action: "record" }`.
 
+## Model libraries
+
+Use this for a part someone else designed and shared: a holder, a mount, an
+adapter. These tools need the server's catalog extras.
+
+- `catalog_models_search { query }` searches Sketchfab, Thingiverse,
+  Cults3D and Poly Haven at once. Search in the words a listing would use
+  ("608 bearing holder").
+  - `missing` names a library whose key isn't set, and how the person sets
+    it in a terminal.
+  - `errors` names a library that failed or ran out of time. The others
+    still answer.
+  - For the next page, pass the `cursors` the answer gave.
+- `catalog_models_files { source, id }` lists a model's files.
+  `catalog_models_take { source, id, file }` brings one into the imports
+  folder, with its licence recorded beside it.
+- Cults3D keeps its files on its own site: give the person the page.
+- **Licences:** Creative Commons and public domain may be shared on.
+  No-derivatives licences may not, since a part changed for a project is a
+  derivative, and neither may anything else. A non-commercial licence may be
+  shared, but not sold. Say which applies before the person builds on it.
+- **Poly Haven:** CC0, no account. Credit "Powered by Poly Haven" where its
+  models are shown. Its models come as glTF with their textures. Mostly
+  scenery and props: check one is solid before printing it.
+
 ## McMaster-Carr and TraceParts accounts
 
 With an account set up, a part comes in without the browser.
