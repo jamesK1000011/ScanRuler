@@ -123,7 +123,9 @@ const setup: Command<{ body?: string; build?: [number, number, number] | string;
       if (body !== fea().body) Object.assign(patch, { body, holds: [], loads: [] })
     }
     if (build !== undefined) {
-      const v = typeof build === 'string' ? ({ '+x': [1, 0, 0], '-x': [-1, 0, 0], '+y': [0, 1, 0], '-y': [0, -1, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] } as const)[build] : build
+      const NAMED: Record<string, readonly [number, number, number]> = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+y': [0, 1, 0], '-y': [0, -1, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] }
+      const v = typeof build === 'string' ? NAMED[build] : build
+      if (!v) throw new CommandError('invalid_input', 'build is a direction [x, y, z], or one of +x, -x, +y, -y, +z, -z.')
       const l = Math.hypot(v[0], v[1], v[2])
       if (!(l > 0)) throw new CommandError('invalid_input', 'build must be a direction, not zero.')
       patch.build = [v[0] / l, v[1] / l, v[2] / l]
