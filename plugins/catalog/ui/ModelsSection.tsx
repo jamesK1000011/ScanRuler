@@ -5,14 +5,14 @@
 // a model's files are listed and one brought into the imports folder with
 // its licence recorded, then opened as the reference or the scan.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAgentLink } from '../../../src/commands/agentLink'
 import { runCommand } from '../../../src/commands/registry'
 import { useStore } from '../../../src/state/store'
 import { CopyButton } from '../../../src/ui/CopyButton'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
-import { ask, useModels, type Library, type ModelFile, type ModelHit } from '../state/modelsStore'
+import { ask, Cancelled, useModels, type Library, type ModelFile, type ModelHit } from '../state/modelsStore'
 
 const LIBS: { id: Library; label: string; note: string; get: string; how: string; form: string }[] = [
   { id: 'sketchfab', label: 'Sketchfab', note: 'Searches with no account; downloads take your Sketchfab API token', get: 'https://sketchfab.com/settings/password', how: 'Sign in, open Settings → Password & API, copy the API token.', form: 'the token' },
@@ -64,40 +64,69 @@ function Keys() {
   )
 }
 
-const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
+const report = (e: unknown) => {
+  if (e instanceof Cancelled) return
+  useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
+}
+
+/** The one piece of work under way, for its Cancel. */
+let current: AbortController | null = null
+
+/** Begin a piece of work: shown with its seconds and a Cancel. */
+function begin(label: string, extra: Partial<ReturnType<typeof useModels.getState>> = {}): AbortSignal {
+  current?.abort()
+  current = new AbortController()
+  useModels.setState({ busy: label, since: Date.now(), ...extra })
+  return current.signal
+}
+
+function end(signal: AbortSignal) {
+  if (current?.signal !== signal) return
+  current = null
+  useModels.setState({ busy: null, since: null })
+}
+
+export const cancelWork = () => current?.abort()
+
+/** How long each kind of ask waits: the server answers a search within
+ *  about 26 s with what it has, so 40 s means it is not answering. */
+const WAIT = { search: 40_000, files: 30_000, take: 300_000, open: 300_000 }
 const mayShare = (l: string | null) => /creative commons|^cc[\s-]|cc0|public domain/i.test(l ?? '')
 const size = (b: number | null) => (b === null ? '' : b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`)
 
 async function search(more = false) {
   const s = useModels.getState()
   const page = more ? s.page + 1 : 1
-  useModels.setState({ busy: more ? 'More…' : 'Searching…', ...(more ? {} : { open: null, taken: null }) })
+  const names = s.libraries.map((id) => LIBS.find((l) => l.id === id)?.label).join(', ')
+  const signal = begin(`${more ? 'More from' : 'Searching'} ${names}…`, more ? {} : { open: null, taken: null, errors: {} })
   try {
-    const r = await ask<{ results: ModelHit[]; missing?: Record<string, string>; errors?: Record<string, string> }>('search', { query: s.query.trim(), sources: s.libraries, page })
-    useModels.setState({ hits: more ? [...(s.hits ?? []), ...r.results] : r.results, page, missing: r.missing ?? {}, errors: r.errors ?? {} })
+    const r = await ask<{ results: ModelHit[]; missing?: Record<string, string>; errors?: Record<string, string> }>('search', { query: s.query.trim(), sources: s.libraries, page }, WAIT.search, signal)
+    const seen = new Set((more ? (s.hits ?? []) : []).map((h) => `${h.source}:${h.id}`))
+    const fresh = r.results.filter((h) => !seen.has(`${h.source}:${h.id}`))
+    useModels.setState({ hits: more ? [...(s.hits ?? []), ...fresh] : r.results, page, missing: r.missing ?? {}, errors: r.errors ?? {}, ...(more && fresh.length === 0 ? { noMore: true } : more ? {} : { noMore: false }) })
   } catch (e) {
     report(e)
   } finally {
-    useModels.setState({ busy: null })
+    end(signal)
   }
 }
 
 async function openFiles(hit: ModelHit) {
-  useModels.setState({ busy: 'Reading its files…', taken: null })
+  const signal = begin(`Reading the files of ${hit.name}…`, { taken: null })
   try {
-    const r = await ask<{ files: ModelFile[]; licence: string | null }>('files', { source: hit.source, id: hit.id })
+    const r = await ask<{ files: ModelFile[]; licence: string | null }>('files', { source: hit.source, id: hit.id }, WAIT.files, signal)
     useModels.setState({ open: { hit, files: r.files, licence: r.licence ?? hit.licence } })
   } catch (e) {
     report(e)
   } finally {
-    useModels.setState({ busy: null })
+    end(signal)
   }
 }
 
 async function bringIn(hit: ModelHit, file: ModelFile, licence: string | null) {
-  useModels.setState({ busy: `Bringing in ${file.name}…` })
+  const signal = begin(`Bringing in ${file.name}…`)
   try {
-    const r = await ask<{ taken: string[]; url: string | null; licence: string | null; redistribute: boolean }>('take', { source: hit.source, id: hit.id, file: file.id }, 300_000)
+    const r = await ask<{ taken: string[]; url: string | null; licence: string | null; redistribute: boolean }>('take', { source: hit.source, id: hit.id, file: file.id }, WAIT.take, signal)
     for (const p of r.taken) {
       const name = p.split(/[\\/]/).pop()!
       await runCommand('catalog.provenance', { action: 'record', file: name, source: hit.source, ...(r.url ?? hit.url ? { url: r.url ?? hit.url } : {}), ...(r.licence ?? licence ? { licence: r.licence ?? licence } : {}), redistribute: r.redistribute, note: `${hit.name}${hit.author ? ` by ${hit.author}` : ''}` })
@@ -106,20 +135,20 @@ async function bringIn(hit: ModelHit, file: ModelFile, licence: string | null) {
   } catch (e) {
     report(e)
   } finally {
-    useModels.setState({ busy: null })
+    end(signal)
   }
 }
 
 async function openAs(path: string, as: 'reference' | 'scan') {
   const discard = as === 'scan' && Boolean(useStore.getState().fileName) && window.confirm('Open it as the scan in place of the one open now? Unsaved work on that scan is lost.')
   if (as === 'scan' && useStore.getState().fileName && !discard) return
-  useModels.setState({ busy: 'Opening…' })
+  const signal = begin('Opening…')
   try {
-    await ask('open', { path, as, ...(discard ? { discard: true } : {}) }, 300_000)
+    await ask('open', { path, as, ...(discard ? { discard: true } : {}) }, WAIT.open, signal)
   } catch (e) {
     report(e)
   } finally {
-    useModels.setState({ busy: null })
+    end(signal)
   }
 }
 
@@ -205,6 +234,28 @@ function Opened() {
   )
 }
 
+/** What is under way, the seconds it has taken, and its Cancel. */
+function Busy({ label, since }: { label: string; since: number | null }) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => tick((x) => x + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const secs = since ? Math.floor((Date.now() - since) / 1000) : 0
+  return (
+    <div className="toolrow" data-test="catalog-model-busy">
+      <p className="hint" style={{ flex: 1 }}>
+        <span className="spinner" /> {label}
+        {secs >= 3 ? ` ${secs} s` : ''}
+        {secs >= 15 ? ' — a slow library is given up at 20 s' : ''}
+      </p>
+      <button style={{ flex: 'none' }} data-test="catalog-model-cancel" title="Stop waiting; the server stops asking the library" onClick={cancelWork}>
+        Cancel
+      </button>
+    </div>
+  )
+}
+
 export function ModelsSection() {
   const st = useModels()
   const link = useAgentLink((s) => s.status)
@@ -253,11 +304,7 @@ export function ModelsSection() {
           </Status>
         </div>
       ))}
-      {st.busy && (
-        <p className="hint" data-test="catalog-model-busy">
-          <span className="spinner" /> {st.busy}
-        </p>
-      )}
+      {st.busy && <Busy label={st.busy} since={st.since} />}
       <Keys />
       <Opened />
       {st.hits && st.hits.length === 0 && <p className="hint">Nothing found. Try the words a listing would use — what it is, what it fits.</p>}
@@ -268,9 +315,13 @@ export function ModelsSection() {
               <Card key={`${h.source}:${h.id}`} hit={h} />
             ))}
           </div>
-          <button className="block" disabled={busy} onClick={() => void search(true)}>
-            More results
-          </button>
+          {st.noMore ? (
+            <p className="hint">No more results.</p>
+          ) : (
+            <button className="block" disabled={busy} onClick={() => void search(true)}>
+              More results
+            </button>
+          )}
         </>
       )}
     </div>

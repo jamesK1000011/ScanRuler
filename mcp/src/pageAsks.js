@@ -12,7 +12,10 @@ import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { librariesStatus, modelFiles, searchModels, takeModel } from './extras/models.js'
 
-const ACTIONS = new Set(['search', 'files', 'take', 'open', 'status'])
+const ACTIONS = new Set(['search', 'files', 'take', 'open', 'status', 'cancel'])
+
+/** What is being asked now, by request, to cancel. */
+const running = new Map()
 
 /** The files a take may open: those it just brought in, by path. */
 const taken = new Set()
@@ -26,13 +29,23 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
     if (kind !== 'catalog.models' || !holds()) return
     const req = typeof data?.req === 'string' ? data.req.slice(0, 40) : null
     if (!req || !ACTIONS.has(data.action)) return
+    // The page's Cancel: stops the ask it names; the page has stopped
+    // waiting already, so nothing is answered.
+    if (data.action === 'cancel') {
+      running.get(String(data.of ?? '').slice(0, 40))?.abort()
+      return
+    }
+    if (running.has(req)) return
+    const ctl = new AbortController()
+    running.set(req, ctl)
+    const signal = ctl.signal
     let answer
     try {
       let result
-      if (data.action === 'search') result = await searchModels({ query: String(data.query ?? ''), sources: Array.isArray(data.sources) ? data.sources.map(String) : undefined, page: Number(data.page) || 1, thumbnails: true }, env)
-      else if (data.action === 'files') result = await modelFiles({ source: String(data.source), id: String(data.id) }, env)
+      if (data.action === 'search') result = await searchModels({ query: String(data.query ?? ''), sources: Array.isArray(data.sources) ? data.sources.map(String) : undefined, page: Number(data.page) || 1, thumbnails: true, signal }, env)
+      else if (data.action === 'files') result = await modelFiles({ source: String(data.source), id: String(data.id), signal }, env)
       else if (data.action === 'take') {
-        result = await takeModel({ source: String(data.source), id: String(data.id), ...(data.file ? { file: String(data.file) } : {}) }, env)
+        result = await takeModel({ source: String(data.source), id: String(data.id), ...(data.file ? { file: String(data.file) } : {}), signal }, env)
         for (const p of result.taken ?? []) taken.add(p)
       } else if (data.action === 'open') {
         const path = String(data.path ?? '')
@@ -45,7 +58,10 @@ export function attachPageAsks({ link, holds = () => true, env = process.env, lo
       answer = { req, ok: true, result }
     } catch (e) {
       answer = { req, ok: false, error: String(e?.message ?? e).slice(0, 300) }
+    } finally {
+      running.delete(req)
     }
+    if (signal.aborted) return
     await link.run('catalog.answer', answer).catch((e) => log(`The catalog's answer did not reach the page: ${e.message}`))
   })
 }

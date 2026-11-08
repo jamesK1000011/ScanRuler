@@ -117,3 +117,69 @@ test('the page asks: answered once, by the holding copy; open takes only what wa
   assert.match(opened.input.name, /^holder(-\d+)?\.stl$/)
   assert.ok(opened.input.bytes.length > 0)
 })
+
+test('a library that never answers is given up at the deadline; the others still come back', async () => {
+  const before = globalThis.fetch
+  globalThis.fetch = async (url, init = {}) => {
+    if (new URL(url).host === 'api.thingiverse.com') return new Promise((_, no) => init.signal?.addEventListener('abort', () => no(Object.assign(new Error('aborted'), { name: 'AbortError' }))))
+    return before(url, init)
+  }
+  try {
+    const t0 = Date.now()
+    const r = await searchModels({ query: '608 bearing', deadlineMs: 300, thumbsMs: 300 }, env)
+    assert.ok(Date.now() - t0 < 2000)
+    assert.ok(r.results.some((x) => x.source === 'sketchfab'))
+    assert.match(r.errors.thingiverse, /did not answer in/)
+  } finally {
+    globalThis.fetch = before
+  }
+})
+
+test('the page cancels a search: the server stops and sends no answer', async () => {
+  const before = globalThis.fetch
+  let aborted = 0
+  globalThis.fetch = (url, init = {}) => new Promise((_, no) => init.signal?.addEventListener('abort', () => (aborted++, no(Object.assign(new Error('aborted'), { name: 'AbortError' })))))
+  const runs = []
+  const link = Object.assign(new EventEmitter(), { run: async (name, input) => (runs.push({ name, input }), { ok: true }) })
+  attachPageAsks({ link, holds: () => true, env })
+  try {
+    link.emit('notice', { kind: 'catalog.models', data: { req: 'c1', action: 'search', query: '608' } })
+    await new Promise((s) => setTimeout(s, 50))
+    link.emit('notice', { kind: 'catalog.models', data: { req: 'c1x', action: 'cancel', of: 'c1' } })
+    await new Promise((s) => setTimeout(s, 100))
+    assert.ok(aborted >= 1)
+    assert.equal(runs.filter((r) => r.name === 'catalog.answer' && r.input.req === 'c1').length, 0)
+  } finally {
+    globalThis.fetch = before
+  }
+})
+
+test('a site that cannot be reached is said plainly', async () => {
+  const before = globalThis.fetch
+  globalThis.fetch = async () => {
+    throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } })
+  }
+  try {
+    const r = await searchModels({ query: 'x', sources: ['sketchfab'] }, env)
+    assert.match(r.errors.sketchfab, /could not be reached.*ENOTFOUND/)
+  } finally {
+    globalThis.fetch = before
+  }
+})
+
+test('a Keychain read that waits on a prompt is given up, and says where to look', async () => {
+  const { getSecret } = await import('../src/extras/secrets.js')
+  const { mkdtemp, writeFile, chmod } = await import('node:fs/promises')
+  const bin = await mkdtemp(join(tmpdir(), 'fakesec-'))
+  await writeFile(join(bin, 'security'), '#!/bin/sh\nsleep 5\n')
+  await chmod(join(bin, 'security'), 0o755)
+  const path = process.env.PATH
+  process.env.PATH = `${bin}:${path}`
+  try {
+    const t0 = Date.now()
+    await assert.rejects(getSecret('catalog:sketchfab', { SCANRULER_KEYCHAIN_TIMEOUT_MS: '200' }, 'darwin'), /Keychain did not hand over.*Always Allow/)
+    assert.ok(Date.now() - t0 < 2000)
+  } finally {
+    process.env.PATH = path
+  }
+})

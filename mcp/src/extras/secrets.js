@@ -19,15 +19,27 @@ const SERVICE = 'scanruler'
 const home = (env) => env.SCANRULER_HOME ?? join(homedir(), '.scanruler')
 const useFile = (env, platform) => env.SCANRULER_SECRETS === 'file' || platform !== 'darwin'
 
-function run(cmd, args) {
+/** A command's exit code and output. Killed after timeoutMs with code -2:
+ *  `security` waits, unseen, when macOS asks the person to allow access to
+ *  a Keychain item — a search that read a key then never came back. */
+function run(cmd, args, timeoutMs = 0) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let out = ''
+    let timer = null
+    if (timeoutMs > 0)
+      timer = setTimeout(() => {
+        child.kill('SIGKILL')
+        resolve({ code: -2, out: '' })
+      }, timeoutMs)
     child.stdout.on('data', (d) => (out += d))
-    child.on('error', () => resolve({ code: -1, out: '' }))
-    child.on('close', (code) => resolve({ code, out }))
+    child.on('error', () => (clearTimeout(timer), resolve({ code: -1, out: '' })))
+    child.on('close', (code) => (clearTimeout(timer), resolve({ code, out })))
   })
 }
+
+/** How long a Keychain read may take before it is given up. */
+export const KEYCHAIN_TIMEOUT_MS = 8_000
 
 async function fileStore(env) {
   const f = join(home(env), 'secrets.json')
@@ -36,7 +48,8 @@ async function fileStore(env) {
 
 export async function getSecret(account, env = process.env, platform = process.platform) {
   if (useFile(env, platform)) return (await fileStore(env)).all[account] ?? null
-  const r = await run('security', ['find-generic-password', '-s', SERVICE, '-a', account, '-w'])
+  const r = await run('security', ['find-generic-password', '-s', SERVICE, '-a', account, '-w'], Number(env.SCANRULER_KEYCHAIN_TIMEOUT_MS) || KEYCHAIN_TIMEOUT_MS)
+  if (r.code === -2) throw new Error(`The Keychain did not hand over "${account}" in time — macOS may be asking you to allow it: look for a Keychain window and choose Always Allow, then try again.`)
   return r.code === 0 ? r.out.replace(/\n$/, '') : null
 }
 
