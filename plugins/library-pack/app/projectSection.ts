@@ -23,4 +23,11 @@ export const packSection: ProjectSection<Saved> = {
     return () => usePack.getState().replace({ settings: { ...DEFAULT_PACK, ...v.settings }, upstream: v.upstream, presets: v.presets ?? [] })
   },
   hasContent: (v) => v.upstream.length > 0 || Boolean(v.settings.licence),
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['settings', 'upstream', 'presets'] as const
+    return usePack.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }
