@@ -13,7 +13,7 @@ import { InfoDot } from '../../../src/ui/InfoDot'
 import { Busy, Notes, Status, TextField } from '../../_shared/ui/kit'
 import { LICENCES, PACK_LICENCES, readLicence } from '../core/licence'
 import { plan } from '../core/plan'
-import { usePack } from '../state/packStore'
+import { usePack, type Preset } from '../state/packStore'
 
 type Json = Record<string, any>
 type FileOut = { name: string; mimeType: string; bytes: Uint8Array }
@@ -61,6 +61,91 @@ async function addFile(f: File) {
 }
 
 const PLATFORM_NAMES: Record<string, string> = { printables: 'Printables', thangs: 'Thangs', makerworld: 'MakerWorld', thingiverse: 'Thingiverse' }
+
+/** A whole number from a box, or the one it had. */
+const whole = (t: string, was: number) => (/^\d+$/.test(t.trim()) ? Number(t) : was)
+
+/** An upload form's preset, yours or a built-in one changed: started from
+ *  the one chosen, saved with pack.presets — the same id replaces it. */
+function PresetEditor({ busy, platform }: { busy: boolean; platform: string }) {
+  const own = usePack((s) => s.presets)
+  const [draft, setDraft] = useState<Preset | null>(null)
+  const start = async (copy: boolean) => {
+    const r = await run('presets')
+    const base = (r?.presets as Preset[] | undefined)?.find((x) => x.id === platform)
+    if (base) setDraft(copy ? { ...base, id: `${base.id}-mine`, name: `${base.name} (mine)` } : { ...base })
+  }
+  const save = async () => {
+    if (!draft) return
+    const add = { ...draft, ...(draft.note?.trim() ? { note: draft.note.trim() } : { note: undefined }) }
+    if (!(await run('presets', { add: JSON.parse(JSON.stringify(add)) }))) return
+    await run('settings', { platform: draft.id })
+    setDraft(null)
+  }
+  const num = (label: string, value: number, put: (n: number) => Preset, hint?: string) => (
+    <label className="field" key={label}>
+      <span title={hint}>{label}</span>
+      <input className="pl-input" type="text" inputMode="numeric" value={String(value)} disabled={busy} onChange={(e) => setDraft(put(whole(e.target.value, value)))} />
+    </label>
+  )
+  const text = (label: string, value: string, put: (t: string) => Preset, hint?: string) => (
+    <label className="field" key={label}>
+      <span>{label}</span>
+      <input className="pl-input" type="text" value={value} placeholder={hint} disabled={busy} onChange={(e) => setDraft(put(e.target.value))} />
+    </label>
+  )
+  return (
+    <details className="pl-fold" data-test="pack-presets">
+      <summary>Upload form presets</summary>
+      <p className="hint">
+        Folder names, renders and field lengths for an upload form.
+        <InfoDot title="Presets">
+          <p>Built-in presets are defaults, not the sites’ rules: check each upload form. Edit the chosen one to change it, or copy it as a new one for another site. Kept with the project.</p>
+        </InfoDot>
+      </p>
+      {own.map((x) => (
+        <div className="kv" key={x.id} data-test="pack-preset">
+          <span className="name">{x.name}</span>
+          <span className="pl-aside">{x.id}</span>
+          <button className="x" disabled={busy} title={`Remove ${x.name}`} onClick={() => void run('presets', { remove: x.id })}>
+            ×
+          </button>
+        </div>
+      ))}
+      {!draft ? (
+        <div className="toolrow">
+          <button disabled={busy} title="Change the chosen preset" data-test="pack-preset-edit" onClick={() => void start(false)}>
+            Edit
+          </button>
+          <button disabled={busy} title="A new preset from the chosen one" data-test="pack-preset-copy" onClick={() => void start(true)}>
+            Copy as new
+          </button>
+        </div>
+      ) : (
+        <>
+          {text('Id', draft.id, (t) => ({ ...draft, id: t.trim() }), 'letters, digits, dashes')}
+          {text('Name', draft.name, (t) => ({ ...draft, name: t }))}
+          {num('Images', draft.images.count, (n) => ({ ...draft, images: { ...draft.images, count: n } }), 'Renders the form takes, 0 to 12')}
+          {num('Image width, px', draft.images.width, (n) => ({ ...draft, images: { ...draft.images, width: n } }))}
+          {num('Image height, px', draft.images.height, (n) => ({ ...draft, images: { ...draft.images, height: n } }))}
+          {text('Models folder', draft.folders.models, (t) => ({ ...draft, folders: { ...draft.folders, models: t } }))}
+          {text('Images folder', draft.folders.images, (t) => ({ ...draft, folders: { ...draft.folders, images: t } }))}
+          {num('Title length', draft.fields.title, (n) => ({ ...draft, fields: { ...draft.fields, title: n } }), 'Characters, 10 to 500')}
+          {num('Summary length', draft.fields.summary, (n) => ({ ...draft, fields: { ...draft.fields, summary: n } }), 'Characters, 10 to 5000')}
+          {text('Note', draft.note ?? '', (t) => ({ ...draft, note: t }))}
+          <div className="toolrow">
+            <button className="primary" disabled={busy || !draft.id || !draft.name.trim()} title="Save and use this preset" data-test="pack-preset-save" onClick={() => void save()}>
+              Save
+            </button>
+            <button disabled={busy} title="Keep the presets as they are" onClick={() => setDraft(null)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </details>
+  )
+}
 
 export function PackPanel() {
   const st = usePack()
@@ -126,11 +211,12 @@ export function PackPanel() {
               .filter((x, i, a) => a.indexOf(x) === i)
               .map((id) => (
                 <option key={id} value={id}>
-                  {PLATFORM_NAMES[id] ?? id}
+                  {st.presets.find((x) => x.id === id)?.name ?? PLATFORM_NAMES[id] ?? id}
                 </option>
               ))}
           </select>
         </label>
+        <PresetEditor busy={busy} platform={s.platform} />
         <div className="field">
           <span>Other files {st.added.length ? <b>{st.added.length}</b> : null}</span>
           <button disabled={busy} title="Add a 3MF, photo or drawing; kept this session only" onClick={() => fileInput.current?.click()} data-test="pack-add-file">
