@@ -23,6 +23,15 @@ saves carry the same number as `appVersion`. How a release is cut is in
   standard); the families tried and the pitch floor are under Families and
   settings. The section runs the same `thread.*` commands. Plugins add such
   sections with `registerPanelSection` (`src/plugins/api.ts`).
+- **Wear repair gets a panel** (2026-11-08). Until now only an agent could
+  repair a worn part or pre-warp a print; the new Wear repair tab (Model,
+  after Mesh Tools) runs the same `wear.*` commands: choose the reference
+  (the part's mirrored other half, with Align on symmetry, or a part aligned
+  in Surface Deviation), tag worn and keep regions as balls or boxes with
+  their centre picked on the part, read the wear per region (lost, added,
+  RMS, points past the tolerance, the scan's scatter), save the repaired
+  STL with the wear before and after, and pre-warp a print run by run with
+  the verdict on when to stop.
 - **Fewer, fuller tabs** (2026-11-08). Three merges, each plugin keeping its
   id, commands, state section, project section, guide and undo steps:
   - **Electronics** takes the place of Boards, Circuit and Circuits, as
