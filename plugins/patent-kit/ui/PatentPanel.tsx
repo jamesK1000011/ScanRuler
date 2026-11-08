@@ -10,6 +10,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
+import { NumberField } from '../../../src/ui/NumberField'
 import { useLength, type BoundLength } from '../../../src/app/useUnits'
 import { Busy, Notes, Pager, Paper, Status } from '../../_shared/ui/kit'
 import { VIEW_NAMES } from '../../_shared/lineart/views'
@@ -162,17 +163,17 @@ export function PatentPanel() {
             ))}
           </select>
         </div>
-        <div className="pl-inline">
-          <span className="grow">Section on the plane</span>
+        <label className="field">
+          <span>Section across</span>
           <select value={cut.axis} onChange={(e) => setCut({ ...cut, axis: e.target.value })}>
             {['x', 'y', 'z'].map((a) => (
-              <option key={a}>{a}</option>
+              <option key={a} value={a}>
+                {a.toUpperCase()} axis
+              </option>
             ))}
           </select>
-          <span>=</span>
-          <input type="number" value={+len.toDisplay(cut.offset).toPrecision(6)} step={len.step(1)} onChange={(e) => setCut({ ...cut, offset: len.fromDisplay(Number(e.target.value)) })} />
-          <span>{len.word()}</span>
-        </div>
+        </label>
+        <NumberField label={`At ${cut.axis.toUpperCase()} =`} value={cut.offset} step={1} min={-100_000} kind="length" onCommit={(offset) => setCut({ ...cut, offset })} />
         <div className="toolrow">
           <select value={cut.from} title="The figure the section is marked on" onChange={(e) => setCut({ ...cut, from: e.target.value })}>
             <option value="">Marked on no figure</option>
@@ -279,6 +280,7 @@ export function PatentPanel() {
           <span>Section</span>
           <select
             value={section}
+            title="The sections with ✓ have text"
             onChange={(e) => {
               setSection(e.target.value as Section)
               setText(null)
@@ -286,8 +288,8 @@ export function PatentPanel() {
           >
             {SECTIONS.map((s) => (
               <option key={s} value={s}>
+                {st.draft[s] ? '✓ ' : ''}
                 {SECTION_NAMES[s]}
-                {st.draft[s] ? '' : ' (empty)'}
               </option>
             ))}
           </select>
