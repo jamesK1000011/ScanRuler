@@ -31,6 +31,29 @@ process.env.SCANRULER_MCP_EXTRAS = 'catalog'
 process.env.SCANRULER_HOME = home
 process.env.SCANRULER_DOWNLOADS = downloads
 process.env.SCANRULER_OPENER = opener
+process.env.SCANRULER_SECRETS = 'file'
+
+// Stand-ins for the libraries' APIs: Sketchfab, Thingiverse and Cults3D, each
+// answering in its own shape, with a picture and a file to bring in.
+const { createServer } = await import('node:http')
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+const libs = createServer((req, res) => {
+  const u = new URL(req.url, 'http://x')
+  const send = (body, type = 'application/json') => res.writeHead(200, { 'content-type': type }).end(type === 'application/json' ? JSON.stringify(body) : body)
+  const base = `http://127.0.0.1:${libs.address().port}`
+  if (u.pathname === '/pic.png') return send(PNG, 'image/png')
+  if (u.pathname === '/file.stl') return send(boxStl(30, 20, 10), 'application/octet-stream')
+  if (u.pathname === '/sf/v3/search') return send({ results: [{ uid: 'sf1', name: 'Bearing holder', user: { displayName: 'Ann' }, license: { label: 'CC Attribution' }, viewerUrl: 'https://sketchfab.com/3d-models/sf1', thumbnails: { images: [{ url: `${base}/pic.png`, width: 256 }] }, isDownloadable: true }] })
+  if (u.pathname === '/tv/search/608%20bearing%20holder/') return send({ total: 1, hits: [{ id: 101, name: '608 holder bracket', creator: { name: 'Bo' }, public_url: 'https://www.thingiverse.com/thing:101', preview_image: `${base}/pic.png` }] })
+  if (u.pathname === '/tv/things/101') return send({ license: 'Creative Commons - Attribution', public_url: 'https://www.thingiverse.com/thing:101' })
+  if (u.pathname === '/tv/things/101/files') return send([{ id: 9, name: 'holder.stl', size: 684, download_url: `${base}/file.stl` }])
+  res.writeHead(404).end()
+})
+await new Promise((r) => libs.listen(0, '127.0.0.1', r))
+process.env.SCANRULER_SKETCHFAB_API = `http://127.0.0.1:${libs.address().port}/sf`
+process.env.SCANRULER_THINGIVERSE_API = `http://127.0.0.1:${libs.address().port}/tv`
+const { setSecret } = await import('../../../mcp/src/extras/secrets.js')
+await setSecret('catalog:thingiverse', 'tv-token', process.env)
 
 // A block the person "scanned", and a bracket model they "downloaded".
 function boxStl(x, y, z) {
@@ -125,7 +148,31 @@ try {
   await page.waitForSelector('[data-test=catalog-found] .cat-part', { timeout: 30_000 })
   check(/M5/.test(await page.$eval('[data-test=catalog-found]', (e) => e.textContent)), 'Look up a size shows an M5 socket head’s dimensions')
   await page.screenshot({ path: join(OUT_DIR, 'catalog-panel.png') })
+
+  const libsSet = await ok('catalog_libraries', {})
+  check(libsSet.json?.thingiverse?.key === 'set' && libsSet.json?.cults3d?.key === 'not set' && !libsSet.text.includes('tv-token'), 'catalog_libraries says which keys are set, never a key')
+  await page.click('[data-test=catalog-model-query]', { clickCount: 3 })
+  await page.type('[data-test=catalog-model-query]', '608 bearing holder')
+  await page.click('[data-test=catalog-model-search]')
+  await page.waitForSelector('[data-test=catalog-model-grid] [data-test=catalog-model]', { timeout: 30_000 })
+  const cards = await page.$$eval('[data-test=catalog-model]', (l) => l.map((c) => ({ source: c.dataset.source, img: c.querySelector('img')?.src.slice(0, 22) ?? null, name: c.querySelector('.cat-card-name')?.textContent })))
+  check(cards.length === 2 && cards.every((c) => c.img === 'data:image/png;base64') && cards.some((c) => c.source === 'sketchfab') && cards.some((c) => c.source === 'thingiverse'), `Find a model shows the libraries' hits as cards with their pictures, fetched by the server: ${JSON.stringify(cards)}`)
+  check((await page.$$('[data-test=catalog-model-missing]')).length === 1 && /cults3d/.test(await page.$eval('[data-test=catalog-model-missing]', (e) => e.textContent)), 'a library without its key says how to set it')
+  await page.screenshot({ path: join(OUT_DIR, 'catalog-models.png') })
+  await page.click('[data-test=catalog-model][data-source=thingiverse] [data-test=catalog-model-files]')
+  await page.waitForSelector('[data-test=catalog-model-open] [data-test=catalog-model-take]', { timeout: 30_000 })
+  await page.click('[data-test=catalog-model-open] [data-test=catalog-model-take]')
+  await page.waitForSelector('[data-test=catalog-model-taken]', { timeout: 60_000 })
+  check(existsSync(join(home, 'imports', 'holder.stl')), 'Bring in downloads the file into the imports folder')
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-test=catalog-record]')].some((c) => /holder\.stl/.test(c.textContent) && /Creative Commons/.test(c.textContent)), { timeout: 30_000 })
+  check(true, 'the file and its licence are recorded with the project')
+  await page.screenshot({ path: join(OUT_DIR, 'catalog-taken.png') })
+  await page.$$eval('[data-test=catalog-model-taken] button', (b) => b.find((x) => /reference/.test(x.textContent))?.click())
+  await page.waitForFunction(() => !document.querySelector('[data-test=catalog-model-busy]'), { timeout: 60_000 })
+  const st2 = await ok('session_state', {})
+  check(JSON.stringify(st2.json?.deviation ?? st2.json ?? {}).includes('holder'), 'Open as reference opens the model as the reference part')
 } finally {
+  libs.close()
   await agent.close?.()
   await finish(browser, consoleErrors)
 }

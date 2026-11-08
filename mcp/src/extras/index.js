@@ -6,6 +6,7 @@
 // everyone who does not ask.
 
 import { downloads, openUrl, stopWatch, take, watch, watchStatus } from './catalog.js'
+import { librariesStatus, LIBRARIES, modelFiles, searchModels, takeModel } from './models.js'
 import { mcmaster, saveSources, loadSources, sourcesStatus, traceparts } from './sources.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
 
@@ -153,6 +154,29 @@ export function extraTools({ text, failure }, env = process.env) {
       async ({ action, ...a }) => (action === 'start' ? watch(a, env) : action === 'stop' ? stopWatch() : watchStatus()),
       false,
     )
+    tool(
+      'catalog_models_search',
+      'Search the model libraries',
+      'Search 3D model libraries through their official APIs — Sketchfab (no account needed to search), Thingiverse (an app token) and Cults3D (the person’s user name and API key) — at once. Each hit: source, id, name, author, licence, page url, downloadable (Cults3D keeps its files on its site), and with thumbnails: true a small picture. missing names a library whose key is not set and how the person sets it; errors one that failed. Search in the words a listing would use ("608 bearing holder", "M18 battery mount"). catalog_models_files lists a hit’s files; catalog_models_take brings one in. Changes nothing.',
+      obj({ query: { type: 'string', description: 'What to look for.' }, sources: { type: 'array', items: { type: 'string', enum: Object.keys(LIBRARIES) }, description: 'Only these libraries.' }, page: { type: 'number', description: 'Page of results, 1 by default.' }, thumbnails: { type: 'boolean', description: 'Include each hit’s picture as data (false by default here).' } }, ['query']),
+      async ({ query, sources, page, thumbnails = false }) => searchModels({ query, sources, page, thumbnails }, env),
+    )
+    tool(
+      'catalog_models_files',
+      'A model’s files',
+      'The files a library model offers — Thingiverse: each file the designer uploaded; Sketchfab: glb, gltf or the source upload (needs the person’s Sketchfab token) — with the model’s licence and page. Changes nothing.',
+      obj({ source: { type: 'string', enum: Object.keys(LIBRARIES) }, id: { type: 'string' } }, ['source', 'id']),
+      async (a) => modelFiles(a, env),
+    )
+    tool(
+      'catalog_models_take',
+      'Bring a library model in',
+      'Download one of a model’s files (file: its id from catalog_models_files; the first by default) through the library’s API and take it into the imports folder (to), unpacked if a zip, with its source, page and licence in provenance.json beside it — redistribute true only for Creative Commons and public domain. Then open it (scan_open, import_open or reverse_import_step) and record it with catalog_provenance so it stays with the project.',
+      obj({ source: { type: 'string', enum: Object.keys(LIBRARIES) }, id: { type: 'string' }, file: { type: 'string' }, to: { type: 'string' } }, ['source', 'id']),
+      async (a) => takeModel(a, env),
+      false,
+    )
+    tool('catalog_libraries', 'The model libraries set up', 'Which model libraries are set up — Sketchfab, Thingiverse, Cults3D — whether each key is set (never the key), whether it can search and download, and for one not set up, how the person sets its key in a terminal. Changes nothing.', obj({}), async () => librariesStatus(env))
     tool('catalog_sources', 'The catalogue accounts set up', 'Which catalogue connections that need an account are on — McMaster-Carr (client certificate, user, password) and TraceParts (tenant id, API key) — and whether each credential is set, never the credential itself; for one that is off, how to set it up. Changes nothing.', obj({}), async () => sourcesStatus(env))
     tool(
       'catalog_source',
