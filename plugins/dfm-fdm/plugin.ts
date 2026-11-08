@@ -21,7 +21,8 @@ const plugin: ScanRulerPlugin = {
     label: 'Printability',
     title: 'Check a part for FDM printing against rules set for the nozzle, material, printer — or a published guide',
     icon: 'slice',
-    order: 38,
+    order: 30,
+    group: 'make',
   },
   usePlugin: useDfmPlugin,
   install() {
