@@ -649,6 +649,30 @@ button.block {
   display: none;
 }
 
+/* 6. With many workspaces (plugins add theirs) the tabs scroll on their
+   own, in the room the row has, so New, Save, Load and Settings stay in
+   reach; the open tab is kept in view (TopBar). */
+.top[data-fold~='6'] .modeswitch {
+  flex: 0 1 auto;
+  min-width: 96px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.top[data-fold~='6'] .modeswitch::-webkit-scrollbar {
+  display: none;
+}
+
+.top[data-fold~='6'] .modeswitch button {
+  flex: none;
+}
+
+/* …and the part chip keeps enough to show the start of the part's name. */
+.top[data-fold~='6'] .partchip {
+  flex: 0 0 auto;
+  max-width: 140px;
+}
+
 /* Narrower still the row scrolls (see .top), and an end with keys out of
    sight fades out, so they read as there rather than missing. */
 .top[data-hidden='end'] {
