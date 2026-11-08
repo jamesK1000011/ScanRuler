@@ -117,9 +117,12 @@ try {
   const sharpEdge = edgeAt(-20, 20)
   check(made?.faces?.length === 6 && made.edges.length === 12 && roundEdge && sharpEdge, `the extrude's answer names what it made: ${made?.faces?.length} faces, ${made?.edges?.length} edges (the top +X edge is ${roundEdge?.index})`)
   const read = await ok('reverse_body_fillet_read', { body, edges: [roundEdge?.index ?? 0, sharpEdge?.index ?? 0] })
-  const [rounded, sharp] = read.json?.edges ?? []
+  // A sharp edge comes back among the gathered ones (sharp: { edges, why }),
+  // not as a row of its own.
+  const [rounded] = read.json?.edges ?? []
+  const sharp = read.json?.sharp
   check(rounded?.round === true && Math.abs(rounded.radius - 2.5) < 0.05 && rounded.nominal === 2.5 && rounded.sigma > 0, `reverse_body_fillet_read: the rounded edge reads R${rounded?.radius} ± ${rounded?.sigma} (nominal ${rounded?.nominal}, ${rounded?.sigmas} sigmas off)`)
-  check(sharp?.round === false && /^no round/.test(sharp.why), `and the sharp one: ${sharp?.why}`)
+  check(sharp?.edges?.includes(sharpEdge?.index) && /^no round/.test(sharp.why), `and the sharp one: ${sharp?.why}`)
 
   // ---- rounded to it, and written out checked -------------------------------------
   // Queued, timed: answered at once, said finished by the idle wait.
