@@ -113,6 +113,9 @@ export interface WorkspaceHost {
   group?: WorkspaceTab['group']
   /** The pages are steps of one job, in order: the strip numbers them. */
   steps?: boolean
+  /** Every page's workspace id, its plugin in the build or not: work saved
+   *  on a page whose plugin is missing opens on the tab's other pages. */
+  pages?: readonly string[]
 }
 
 /** The large buffers the app keeps per scan vertex, outside every store: the

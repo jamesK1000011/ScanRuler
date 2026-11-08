@@ -21,6 +21,7 @@ export const ELECTRONICS: WorkspaceHost = {
   icon: 'board',
   order: 17,
   group: 'model',
+  pages: ['pcb', 'circuit', 'printed'],
 }
 
 export const FITS: WorkspaceHost = {
@@ -30,6 +31,7 @@ export const FITS: WorkspaceHost = {
   icon: 'concentric',
   order: 15,
   group: 'model',
+  pages: ['fits', 'fit-scan'],
 }
 
 export const PRINT: WorkspaceHost = {
@@ -40,4 +42,5 @@ export const PRINT: WorkspaceHost = {
   order: 22,
   group: 'make',
   steps: true,
+  pages: ['dfm', 'slice', 'print'],
 }

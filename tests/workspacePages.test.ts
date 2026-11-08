@@ -38,4 +38,14 @@ describe('workspace pages', () => {
     expect(resolveIn(left, 'send')).toBe('check')
     expect(barTabsIn(left.filter((t) => t.host?.id !== 'bench')).map((t) => t.id)).toEqual(['solo', 'send'])
   })
+
+  it('work saved on a page whose plugin is missing opens on its tab', () => {
+    const LISTED: WorkspaceHost = { ...HOST, pages: ['a', 'b', 'c', 'gone'] }
+    const listed = [tab('solo', 10), tab('a', 1, LISTED), tab('b', 2, LISTED)]
+    expect(resolveIn(listed, 'gone')).toBe('a')
+    expect(resolveIn(listed, 'c', 'b')).toBe('b')
+    expect(resolveIn(listed, 'elsewhere')).toBeNull()
+    // Without the list, as before: nothing to go on.
+    expect(resolveIn(TABS, 'gone')).toBeNull()
+  })
 })

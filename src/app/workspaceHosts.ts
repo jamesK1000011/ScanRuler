@@ -40,11 +40,13 @@ export function barTabsIn(tabs: readonly WorkspaceTab[]): BarTab[] {
 }
 
 /** The workspace a name opens: a workspace's own id as it is; a host's id
- *  its page `last` names when that is one of its pages, else its first;
- *  anything else null. */
+ *  its page `last` names when that is one of its pages, else its first; the
+ *  id of a page whose plugin is missing (WorkspaceHost.pages) what its
+ *  host's id opens; anything else null. */
 export function resolveIn(tabs: readonly WorkspaceTab[], name: string, last?: string): string | null {
   if (tabs.some((t) => t.id === name)) return name
   const pages = pagesIn(tabs, name)
-  if (!pages.length) return null
-  return pages.some((p) => p.id === last) ? last! : pages[0].id
+  if (pages.length) return pages.some((p) => p.id === last) ? last! : pages[0].id
+  const host = tabs.find((t) => t.host?.pages?.includes(name))?.host
+  return host ? resolveIn(tabs, host.id, last) : null
 }
