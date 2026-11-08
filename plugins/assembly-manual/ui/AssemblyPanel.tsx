@@ -297,6 +297,7 @@ export function AssemblyPanel() {
         <div className="sec-head">
           Steps <b>{st.steps.length || ''}</b>
         </div>
+        {st.steps.length === 0 && <p className="hint">{st.parts.length ? 'Add the first step below: which parts go in, and how they move into place.' : 'Steps come once the parts are in: each places parts and says how they go together.'}</p>}
         {st.steps.map((s, i) => {
           const t = texts[s.id] ?? s.text ?? ''
           const found = t ? lint(t, st.style) : []
