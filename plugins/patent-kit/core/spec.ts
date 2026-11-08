@@ -89,7 +89,7 @@ export function specification(draft: Partial<Record<Section, string>>, numerals:
   }
   const para = (text: string, numbered: boolean) => {
     const tag = numbered ? `[${String(++n).padStart(4, '0')}]` : ''
-    const lead = numbered ? textWidth(tag + GAP, CAP) : 0
+    const lead = numbered ? textWidth(tag, CAP, true) + textWidth(GAP, CAP) : 0
     const lines = wrap(text, width, lead)
     room(Math.min(2, lines.length))
     lines.forEach((line, i) => {

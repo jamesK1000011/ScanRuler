@@ -22,7 +22,7 @@ export async function toPng(s: Sheet, pxPerMm = 4): Promise<Uint8Array> {
     if (m.k === 'text') {
       g.fillStyle = own ?? '#000000'
       g.font = `${m.bold ? 'bold ' : ''}${m.h / CAP}px Helvetica, Arial, sans-serif`
-      const w = textWidth(m.text, m.h)
+      const w = textWidth(m.text, m.h, m.bold)
       g.fillText(m.text, m.anchor === 'middle' ? m.x - w / 2 : m.anchor === 'end' ? m.x - w : m.x, m.y)
       continue
     }
