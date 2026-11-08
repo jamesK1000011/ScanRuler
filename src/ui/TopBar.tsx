@@ -148,7 +148,7 @@ function ProjectName() {
 
 /** How many of its folds the bar takes — see the top bar in styles.css —
  *  when everything spelled out does not fit its row. */
-const FOLDS = 6
+const FOLDS = 8
 
 /** Folds the bar just as far as its row needs, and marks the ends with keys
  *  scrolled out of sight ('start', 'end' or both) for the fade that says
@@ -171,7 +171,7 @@ function useFit(ref: RefObject<HTMLElement | null>) {
     }
     el.classList.remove('measuring')
     // Folded to the last, the tabs scroll on their own: keep the open one in view.
-    if (el.dataset.fold?.includes('6')) el.querySelector<HTMLElement>('.modeswitch button.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    if (el.dataset.fold?.split(' ').includes('8')) el.querySelector<HTMLElement>('.modeswitch button.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     markEnds(el)
   }
   useLayoutEffect(() => fit.current())
