@@ -71,9 +71,13 @@ export interface WorkspaceTab {
   /** The tab's tooltip under its label: what the workspace is for, in a sentence. */
   title: string
   icon: IconName
-  /** Where the tab stands among the plugins' tabs, which follow the app's
-   *  own; lower comes first. */
+  /** Where the tab stands among all the tabs, lower first. The app's own
+   *  are 1–4 (3D Measure, Surface Deviation, Wall Thickness, 2D Measure). */
   order: number
+  /** The stage of the work the tab is for, by which the tabs are set apart:
+   *  measure, model (the part made or changed), make (printed), share
+   *  (written up or passed on). A gap in the bar comes between two. */
+  group?: 'measure' | 'model' | 'make' | 'share'
   /**
    * The workspace's guided hint, as a React hook: the step to ring once a
    * scan is open (opening one is the app's own first step), or 'done' when
