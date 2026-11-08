@@ -153,4 +153,44 @@ describe('board enclosure', () => {
     expect(setupIn({ generator: 'board_box', board: BOARD }).board).toEqual(BOARD)
     expect(setupIn({ generator: 'board_box', board: { outline: 'x' } }).board).toBe(null)
   })
+  it('red team: an L-shaped board off the origin, openings on the -y wall and under the board, standoffs under each hole', () => {
+    // KiCad's frame need not be centred: an L 60 × 50 from (100, 20).
+    const L: BoardSpec = {
+      name: 'ell',
+      outline: [[100, 20], [160, 20], [160, 40], [130, 40], [130, 70], [100, 70]],
+      thickness: T,
+      above: 8,
+      below: 4,
+      holes: [{ x: 104, y: 24, d: 3.2 }, { x: 156, y: 36, d: 2.7 }, { x: 104, y: 66, d: 2.2 }],
+      openings: [
+        { side: '-y', centre: 140, width: 8.94, z0: T, z1: T + 3.26, label: 'J1 USB-C' },
+        // On the bottom face: below the board, above the floor.
+        { side: '+x', centre: 30, width: 7.5, z0: -2.6, z1: 0, label: 'J2 micro-USB under' },
+      ],
+    }
+    const [box] = build({ standoff: 5 }, L)
+    expect(k.isValid(box.shape)).toBe(true)
+    const q = boardBoxPlan(P, L)
+    expect([q.cx, q.cy]).toEqual([130, 45])
+    // Each standoff under its hole, the screw the hole takes, its hole open.
+    for (const h of L.holes) {
+      const s = screwFor(h.d)!
+      expect(at(box.shape, h.x + s.insert.hole / 2 + 0.5, h.y, -0.3)).toBeGreaterThan(0)
+      expect(at(box.shape, h.x, h.y, -0.5)).toBe(0)
+      expect(at(box.shape, h.x, h.y, 0.3)).toBe(0)
+    }
+    // The -y opening at x 140, through the wall.
+    const yWall = q.cy - (q.D / 2 - P.wall / 2)
+    expect(at(box.shape, 140, yWall, T + 1.63)).toBe(0)
+    expect(at(box.shape, 140 + 8.94 / 2 + P.margin + 0.3, yWall, T + 1.63)).toBeGreaterThan(0)
+    // The one under the board: open at z -1.3, the floor still whole under it.
+    const xWall = q.cx + (q.W / 2 - P.wall / 2)
+    expect(at(box.shape, xWall, 30, -1.3)).toBe(0)
+    expect(at(box.shape, xWall, 30, q.bottom + P.floor / 2)).toBeGreaterThan(0)
+    // The board (as its outline) clears the box.
+    const a = prism(k, 115, 30, 30, 20, 0, 0, T)
+    const b2 = prism(k, 145, 30, 30, 20, 0, 0, T)
+    const c = prism(k, 115, 55, 30, 30, 0, 0, T)
+    for (const part of [a, b2, c]) expect(vol(k.common(box.shape, part))).toBeLessThan(0.001)
+  })
 })
