@@ -26,13 +26,16 @@ export function check(l: Layout, figures: Figure[], numerals: Numeral[], draft: 
   push({ rule: '1.84(f)', level: 'error', ok: true, message: `Sheets are ${s.paper === 'letter' ? '21.6 × 27.9 cm (letter)' : '21.0 × 29.7 cm (A4)'}, one of the two sizes allowed.` })
   l.extents.forEach((e, i) => {
     const inside = e.minX >= MARGIN.left - 0.01 && e.minY >= MARGIN.top - 0.01 && e.maxX <= paper.w - MARGIN.right + 0.01 && e.maxY <= paper.h - MARGIN.bottom + 0.01
+    // units-ok: 37 CFR 1.84 states its limits in centimetres and millimetres
     push({ rule: '1.84(g)', level: 'error', ok: inside, sheet: i + 1, message: inside ? `Sheet ${i + 1}: everything is inside the margins (top and left 2.5 cm, right 1.5 cm, bottom 1.0 cm).` : `Sheet ${i + 1}: something crosses a margin (marks span ${e.minX.toFixed(1)}–${e.maxX.toFixed(1)} × ${e.minY.toFixed(1)}–${e.maxY.toFixed(1)} mm).` })
   })
   const tinted = l.sheets.flatMap((sh, i) => (sh.marks.some((m) => (m.rgb && m.rgb.toLowerCase() !== '#000000') || ('grey' in m && m.grey)) ? [i + 1] : []))
   push({ rule: '1.84(a),(m)', level: 'error', ok: !tinted.length, message: tinted.length ? `Sheet ${tinted.join(', ')}: something is in colour or grey; the drawings must be black on white.` : 'Black lines on white only: no colour, grey or shading.' })
   const numOk = s.numeralMm >= 3.2
+  // units-ok: 37 CFR 1.84 states its limits in centimetres and millimetres
   push({ rule: '1.84(p)(3)', level: 'error', ok: numOk, message: numOk ? `Reference numerals are ${s.numeralMm} mm high (3.2 mm, 1/8 inch, or more).` : `Reference numerals are ${s.numeralMm} mm high; they must be at least 3.2 mm (1/8 inch). patent.settings { numeralMm: 3.5 }.` })
   const figOk = s.figLabelMm > s.numeralMm
+  // units-ok: 37 CFR 1.84 states its limits in centimetres and millimetres
   push({ rule: '1.84(u)(2)', level: 'error', ok: figOk, message: figOk ? `"FIG." labels (${s.figLabelMm} mm) are larger than the numerals.` : `"FIG." labels (${s.figLabelMm} mm) must be larger than the numerals (${s.numeralMm} mm).` })
   push({ rule: '1.84(u)(1)', level: 'error', ok: true, message: `Figures are numbered FIG. 1 to FIG. ${figures.length} in order.` })
   if (l.sheets.length > 1) push({ rule: '1.84(t)', level: 'error', ok: figOk, message: `Sheets are numbered 1/${l.sheets.length} to ${l.sheets.length}/${l.sheets.length} at the top centre, larger than the numerals.` })
@@ -61,6 +64,7 @@ export function check(l: Layout, figures: Figure[], numerals: Numeral[], draft: 
   if (crossings === 0 && l.leaders.length) push({ rule: '1.84(q)', level: 'warn', ok: true, message: 'No lead lines cross.' })
   for (const a of l.leaders) {
     const len = Math.hypot(a.line[2] - a.line[0], a.line[3] - a.line[1])
+    // units-ok: 37 CFR 1.84 states its limits in centimetres and millimetres
     if (len > 60) push({ rule: '1.84(q)', level: 'note', ok: false, figure: a.figure, message: `FIG. ${a.figure}: the lead line of ${a.n} is ${len.toFixed(0)} mm; lead lines should be as short as possible. A point target (patent.numerals at) nearer the edge shortens it.` })
     const p = l.placements.find((x) => x.figure === a.figure)
     const near = p ? nearestOn(p.lines, [a.line[2], a.line[3]]) : null
@@ -72,6 +76,7 @@ export function check(l: Layout, figures: Figure[], numerals: Numeral[], draft: 
       continue
     }
     const at23 = p.shortestEdge * (2 / 3)
+    // units-ok: 37 CFR 1.84 states its limits in centimetres and millimetres
     if (at23 < 0.8) push({ rule: '1.84(k)(1)', level: 'warn', ok: false, figure: p.figure, message: `FIG. ${p.figure}: its shortest edge comes to ${at23.toFixed(2)} mm at a 2/3 reduction; add an enlarged partial view (a figure of the detail alone) if it matters.` })
     const f = figures[p.figure - 1]
     if (f.kind === 'section') {
