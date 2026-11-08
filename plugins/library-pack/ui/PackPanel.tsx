@@ -133,7 +133,7 @@ export function PackPanel() {
         </label>
         <div className="field">
           <span>Other files {st.added.length ? <b>{st.added.length}</b> : null}</span>
-          <button disabled={busy} title="A sliced 3MF, a photo of the print, a drawing — scrubbed with the rest; kept for this session only" onClick={() => fileInput.current?.click()} data-test="pack-add-file">
+          <button disabled={busy} title="Add a 3MF, photo or drawing; kept this session only" onClick={() => fileInput.current?.click()} data-test="pack-add-file">
             Add file…
           </button>
           <input ref={fileInput} type="file" hidden accept={ADD_ACCEPT} onChange={(e) => { const f = e.target.files?.[0]; if (f) void addFile(f); e.target.value = '' }} />
