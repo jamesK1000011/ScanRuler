@@ -405,6 +405,7 @@ export function hardwarePage(parts: Part[], s: AsmSettings): Sheet | null {
   const bx = w - M - 50
   marks.push({ k: 'line', pts: [bx, M + 6, bx + 50, M + 6], w: 0.5 })
   for (let i = 0; i <= 5; i++) marks.push({ k: 'line', pts: [bx + i * 10, M + 4.5, bx + i * 10, M + 7.5], w: 0.3 })
+  // units-ok: a printed length on purpose: the check bar is 50 mm on paper
   marks.push({ k: 'text', x: bx + 25, y: M + 12, h: 2.6, text: 'This bar is 50 mm', anchor: 'middle' })
   let x = M
   let y = M + 26
