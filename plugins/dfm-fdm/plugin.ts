@@ -5,6 +5,7 @@
 // workspace is its panel; its commands (dfm.*) work on the scan or the
 // reference part from any workspace.
 
+import { pick, registerHistory } from '../../src/state/historyStore'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { dfmCommands } from './app/dfmCommands'
@@ -25,6 +26,12 @@ const plugin: ScanRulerPlugin = {
   usePlugin: useDfmPlugin,
   install() {
     registerProjectSection(dfmSection)
+    // The panel's edits and the agent's are steps of the app's undo, like
+    // any other: Ctrl+Z takes back the last of them, not a body elsewhere.
+    registerHistory({
+      sections: [{ key: 'dfm-fdm', capture: () => pick(useDfm.getState(), ['settings', 'overrides', 'waivers', 'guides']), apply: (v) => useDfm.setState(v as Partial<ReturnType<typeof useDfm.getState>>) }],
+      actions: [{ store: useDfm, label: 'Printability', names: ['set', 'setOverride', 'addGuide', 'removeGuide', 'waive', 'unwaive'] }],
+    })
     registerCommands('dfm', dfmCommands)
     registerStateSection('dfm', () => {
       const s = useDfm.getState()

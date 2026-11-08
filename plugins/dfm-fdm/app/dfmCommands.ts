@@ -13,7 +13,7 @@ import { useThickness } from '../../../src/state/thicknessStore'
 import { runChecks } from '../core/checks'
 import { arrayToBuild, buildFrame, fromBuild, UPS, type Up } from '../core/frame'
 import { CONSIDERATIONS, CONSIDERATIONS_CITE } from '../core/considerations'
-import { stack, validateGuide, type Guide, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
+import { paramProblem, stack, validateGuide, type Guide, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
 import { atKey, useDfm, type DfmSettings, type NumberedFinding } from '../state/dfmStore'
 
@@ -121,7 +121,8 @@ export const rules: Command<{ action?: 'list' | 'set' | 'clear'; rule?: string; 
       else {
         for (const [k, v] of Object.entries(params ?? {})) {
           if (!(k in base.params)) throw new CommandError('invalid_input', `${base.id} has no parameter ${k} — it has ${Object.keys(base.params).join(', ') || 'none'}.`)
-          if (typeof v !== 'number' || !Number.isFinite(v)) throw new CommandError('invalid_input', `${base.id}.${k} must be a number.`)
+          const bad = paramProblem(base.id, k, v)
+          if (bad) throw new CommandError('invalid_input', `${base.id}.${k} is ${bad}.`)
         }
         const prev: Override = useDfm.getState().overrides[base.id] ?? {}
         useDfm.getState().setOverride(base.id, { ...prev, ...(params ? { params: { ...(prev.params ?? {}), ...params } } : {}), ...(severity ? { severity } : {}), ...(disabled !== undefined ? { disabled } : {}) })
@@ -162,6 +163,9 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
           else skippedExtra.push({ rule: 'thin-wall', why: `the thickness map has ${res.values.length} values for ${sm.positions.length / 3} vertices` })
         } catch (e) {
           skippedExtra.push({ rule: 'thin-wall', why: `the wall thickness could not be measured: ${e instanceof Error ? e.message : String(e)}` })
+        } finally {
+          // The worker's progress line is the status bar's: put it away once done.
+          if (/^Measuring wall thickness/.test(useStore.getState().statusText ?? '')) useStore.getState().setStatus('')
         }
       }
     } else {
