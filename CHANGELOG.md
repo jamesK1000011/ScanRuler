@@ -32,6 +32,28 @@ saves carry the same number as `appVersion`. How a release is cut is in
   RMS, points past the tolerance, the scan's scatter), save the repaired
   STL with the wear before and after, and pre-warp a print run by run with
   the verdict on when to stop.
+
+- **Panels catch up with the commands** (2026-11-08). What only the commands
+  could do, now in the panels too, each running the same command:
+  - **Calibrate from a scan**: *Features read* lists the CAD's walls,
+    floors, holes and bosses, each readable as an outer wall, a pocket wall
+    or left out (`fit.tag`); *Key maps of your own* adds, replaces and
+    removes a slicer key map (`fit.keymaps`).
+  - **Texture**: *Estimate* gives the triangles before a long build and
+    whether the budget squeezes them (`texture.estimate`); after an export,
+    *Check plain surfaces* says whether every plain vertex stayed put
+    (`texture.check`). *Clear marking* now runs the new
+    `texture.clear_marking`.
+  - **Share**: upload form presets edited, copied as new and removed
+    (`pack.presets`).
+  - **Electronics › KiCad**: *Preview* the enclosure — size, standoffs,
+    openings — before making it (`pcb.plan`).
+  - **Reverse engineer**: the plan's *Accuracy target* set by the person
+    (`reverse.plan.set`).
+  - The **Open** pickers offer GLB, glTF, FBX, 3DS, Collada, AMF and VRML
+    when More model formats is in the build (a new extension point,
+    `registerModelFormat`); they opened only when dropped.
+
 - **Fewer, fuller tabs** (2026-11-08). Three merges, each plugin keeping its
   id, commands, state section, project section, guide and undo steps:
   - **Electronics** takes the place of Boards, Circuit and Circuits, as
