@@ -1,18 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // dfm-fdm: a part checked for FDM printing against a rule pack you can read
 // and change, stacked from nozzle, material and printer profiles and the
-// project's own changes. No workspace of its own: its commands (dfm.*) work
-// on the scan or the reference part.
+// project's own changes, or a published guide's. The Printability
+// workspace is its panel; its commands (dfm.*) work on the scan or the
+// reference part from any workspace.
 
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { dfmCommands } from './app/dfmCommands'
 import { dfmSection } from './app/projectSection'
+import { useDfmPlugin } from './app/useDfmPlugin'
 import { useDfm } from './state/dfmStore'
 
 const plugin: ScanRulerPlugin = {
   id: 'dfm-fdm',
   name: 'Printability check',
+  workspace: {
+    id: 'dfm',
+    label: 'Printability',
+    title: 'Check a part for FDM printing against rules set for the nozzle, material, printer — or a published guide',
+    icon: 'slice',
+    order: 38,
+  },
+  usePlugin: useDfmPlugin,
   install() {
     registerProjectSection(dfmSection)
     registerCommands('dfm', dfmCommands)
