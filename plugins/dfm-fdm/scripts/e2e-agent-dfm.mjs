@@ -109,8 +109,8 @@ try {
   const wallRule = strict.json?.rules?.find((r) => r.id === 'thin-wall')
   check(wallRule?.params?.minMm === 1.2 && wallRule.setBy.minMm === 'guide hlh-rapid', 'choosing a guide stacks its numbers, and the rule says the guide set them')
   const mine = { id: 'my-shop', label: 'My H2D, tuned', publisher: 'A. Example', read: '2026-11-07', overrides: { 'thin-wall': { params: { minMm: 0.6 } }, bridge: { params: { maxMm: 25 } } }, figures: [{ topic: 'bridge span', value: 25, unit: 'mm' }] }
-  const bad = await call('dfm_guides', { action: 'import', guide: { ...mine, id: 'Bad', overrides: { overhang: { params: { maxAngle: 40 } } } } })
-  check(bad.error && /maxDeg/.test(bad.text) && /id:/.test(bad.text), 'a guide naming a parameter the rule lacks is refused, saying which')
+  const refused = await call('dfm_guides', { action: 'import', guide: { ...mine, id: 'Bad', overrides: { overhang: { params: { maxAngle: 40 } } } } })
+  check(refused.error && /maxDeg/.test(refused.text) && /id:/.test(refused.text), 'a guide naming a parameter the rule lacks is refused, saying which')
   await ok('dfm_guides', { action: 'import', guide: mine })
   await ok('dfm_settings', { guide: 'my-shop' })
   const tuned = await ok('dfm_rules', {})
