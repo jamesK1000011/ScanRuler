@@ -10,12 +10,31 @@
 import { useEffect, useRef, useState } from 'react'
 
 const DELAY_MS = 350
+/** Held this much longer on the same key, the brief tip gives the whole. */
+const MORE_MS = 1200
+
+/** The tip first shown: the name on its first line, and of what follows its
+ *  first phrase — to the first full stop, dash, colon or semicolon after a
+ *  few words, cut at about 90 characters. The whole comes on a longer hover. */
+export function brief(text: string): string {
+  const [head, ...rest] = text.split('\n')
+  const body = rest.join(' ').trim()
+  const cut = (t: string) => {
+    const m = /^(.{12,}?)(?:\.\s|\s—\s|:\s|;\s|\s\()/.exec(t)
+    let out = (m ? m[1] : t).trim()
+    if (out.length > 90) out = `${out.slice(0, 88).replace(/\s+\S*$/, '')}…`
+    return out
+  }
+  if (!rest.length) return cut(head)
+  return body ? `${head}\n${cut(body)}` : head
+}
 /** After a tip was shown, the next one comes at once within this long. */
 const WARM_MS = 600
 const GAP = 6
 
 interface Tip {
   text: string
+  full: boolean
   x: number
   y: number
   above: boolean
@@ -39,28 +58,36 @@ export function HoverTips() {
     }
     const leave = () => {
       clearTimeout(timer)
+      clearTimeout(more)
       put()
       if (el) warmUntil = Date.now() + WARM_MS
       el = null
       held = ''
       setTip(null)
     }
+    let more: ReturnType<typeof setTimeout> | undefined
     const show = (target: HTMLElement, text: string) => {
       const r = target.getBoundingClientRect()
-      const above = r.bottom + 40 > window.innerHeight
-      setTip({ text, x: r.left + r.width / 2, y: above ? r.top - GAP : r.bottom + GAP, above })
+      const above = r.bottom + 120 > window.innerHeight
+      const at = { x: r.left + r.width / 2, y: above ? r.top - GAP : r.bottom + GAP, above }
+      const short = brief(text)
+      setTip({ text: short, full: short === text, ...at })
+      clearTimeout(more)
+      if (short !== text) more = setTimeout(() => el === target && setTip({ text, full: true, ...at }), MORE_MS)
     }
     const over = (e: PointerEvent) => {
       if (e.pointerType === 'touch' || pressed) return
-      const target = (e.target as Element | null)?.closest?.('[title]') as HTMLElement | null
+      const target = (e.target as Element | null)?.closest?.('[title], button[aria-label], [role=button][aria-label], [role=tab][aria-label]') as HTMLElement | null
       if (target === el) return
       leave()
       if (!target || !(target instanceof HTMLElement)) return
-      const text = target.getAttribute('title')?.trim()
+      const titled = target.hasAttribute('title')
+      // A key's accessible name, when it has no title and shows no words.
+      const text = (titled ? target.getAttribute('title') : target.textContent?.trim() ? null : target.getAttribute('aria-label'))?.trim()
       if (!text) return
       el = target
-      held = target.getAttribute('title')!
-      target.removeAttribute('title')
+      held = titled ? target.getAttribute('title')! : ''
+      if (titled) target.removeAttribute('title')
       clearTimeout(timer)
       if (Date.now() < warmUntil) show(target, text)
       else timer = setTimeout(() => el === target && show(target, text), DELAY_MS)
@@ -115,7 +142,7 @@ export function HoverTips() {
   return (
     <div
       ref={box}
-      className={`hovertip${tip.above ? ' above' : ''}${tip.text.includes('\n') ? ' multi' : ''}`}
+      className={`hovertip${tip.above ? ' above' : ''}${tip.text.includes('\n') ? ' multi' : ''}${tip.full ? '' : ' brief'}`}
       role="tooltip"
       data-test="hover-tip"
       style={{ left: tip.x + nudge, top: tip.y }}
