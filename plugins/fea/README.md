@@ -76,7 +76,7 @@ for thin walls and sparse infill.
 
 Ids, labels and densities are the table Mass uses too
 (`plugins/_shared/materials.ts`); the server's copy in `mcp/src/extras/fea.js`
-is held to it by a test. `tpu` is still taken for `tpu-95a`.
+is held to it by `plugins/fea/tests/fea.test.ts`. `tpu` is still taken for `tpu-95a`.
 
 ## Own weight
 
@@ -107,5 +107,7 @@ under its own weight matches wL⁴/8EI within 0.3 %.
   theory within 0.5 %, and printed on end it fails by the layers pulling
   apart. The same beam under its own weight against wL⁴/8EI, and as a STEP in
   inches (a `CONVERSION_BASED_UNIT`) and in metres against one in mm. The
-  materials are checked against the page's shared table.
-- `plugins/fea/tests/fea.test.ts`: the project section and the colour range.
+  materials' densities and the old `tpu` name.
+- `plugins/fea/tests/fea.test.ts`: the project section (own weight
+  included), the colour range, and the server's materials against the shared
+  table.

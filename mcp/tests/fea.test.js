@@ -5,7 +5,7 @@
 // computer (SCANRULER_GMSH / SCANRULER_CCX, or FreeCAD's), a cantilever
 // solved and held to beam theory, layers along it and across it.
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { decodeSurface, facesOn, feaTools, G, gravityOf, judge, layerAxes, MATERIAL_ALIASES, MATERIALS, materialOf, nodalForces, readFrd, readMsh, solve, surfaceOf, writeInp } from '../src/extras/fea.js'
 
@@ -339,25 +339,13 @@ test('a cancel between the mesh and the solve stops it before CalculiX', { skip,
   await assert.rejects(solve(axial(beam()), process.env, { signal: pre.signal }), (e) => e.cancelled === true)
 })
 
-// The page's shared table (plugins/_shared/materials.ts), read as text: the
-// server is plain JS and ships on its own, so it keeps its own copy.
-const SHARED = new URL('../../plugins/_shared/materials.ts', import.meta.url)
-
-test('the materials are the page’s: the same ids, labels, densities and aliases', { skip: existsSync(SHARED) ? false : 'not in the app’s repository' }, () => {
-  const text = readFileSync(SHARED, 'utf8')
-  const table = text.slice(text.indexOf('export const MATERIALS'), text.indexOf('} as const'))
-  const page = {}
-  for (const m of table.matchAll(/^\s*'?([a-z0-9-]+)'?: \{ label: '([^']+)', density: ([0-9.]+) \},?$/gm)) page[m[1]] = { label: m[2], density: Number(m[3]) }
-  assert.ok(Object.keys(page).length >= 7, 'the page’s table read')
-  assert.deepEqual(Object.keys(MATERIALS), Object.keys(page))
-  for (const [id, m] of Object.entries(page)) {
-    assert.equal(MATERIALS[id].label, m.label, id)
-    assert.equal(MATERIALS[id].density, m.density, id)
-  }
-  const aliases = text.slice(text.indexOf('export const MATERIAL_ALIASES'))
-  const pageAliases = Object.fromEntries([...aliases.slice(0, aliases.indexOf('}')).matchAll(/^\s*'?([a-z0-9-]+)'?: '([a-z0-9-]+)',?$/gm)].map((m) => [m[1], m[2]]))
-  assert.deepEqual(MATERIAL_ALIASES, pageAliases)
+test('the materials: densities and the old tpu name', () => {
+  // Held to the page's table (plugins/_shared/materials.ts) by
+  // plugins/fea/tests/fea.test.ts; the server ships on its own.
+  for (const m of Object.values(MATERIALS)) assert.ok(m.density > 0.5 && m.density < 2.5 && m.label)
+  assert.deepEqual(MATERIAL_ALIASES, { tpu: 'tpu-95a' })
   assert.equal(materialOf('tpu').id, 'tpu-95a')
+  assert.equal(materialOf('tpu').Exy, MATERIALS['tpu-95a'].Exy)
 })
 
 test('own weight: checked, and written as a density and a GRAV load in N, mm, s', () => {

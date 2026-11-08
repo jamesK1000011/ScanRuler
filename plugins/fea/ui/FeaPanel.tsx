@@ -10,6 +10,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { useAgentLink } from '../../../src/commands/agentLink'
 import { colormapById, rampColor } from '../../../src/core/field/colormap'
 import { usePrefs } from '../../../src/state/prefsStore'
+import { fmtLen, toDisplay, unitWord, type DisplayUnits } from '../../../src/core/units'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
@@ -49,7 +50,11 @@ const GRAVITY: { id: string; label: string; v: [number, number, number] }[] = [
   { id: '-y', label: 'Pulling −Y', v: [0, -1, 0] },
   { id: '+y', label: 'Pulling +Y', v: [0, 1, 0] },
 ]
-const FIELD_WORDS: Record<Field, string> = { safety: 'Safety factor', vonMises: 'Stress (von Mises), MPa', displacement: 'Displacement, mm', across: 'Across the layers, MPa', shear: 'Between-layer shear, MPa' }
+const FIELD_WORDS: Record<Field, string> = { safety: 'Safety factor', vonMises: 'Stress (von Mises), MPa', displacement: 'Displacement', across: 'Across the layers, MPa', shear: 'Between-layer shear, MPa' }
+/** A field's name, with the length unit shown for displacement. */
+const fieldWords = (f: Field, units: DisplayUnits) => (f === 'displacement' ? `${FIELD_WORDS[f]}, ${unitWord(units)}` : FIELD_WORDS[f])
+/** A movement in the units shown; a tiny one in powers of ten. */
+const moveText = (mm: number, units: DisplayUnits) => (mm !== 0 && Math.abs(mm) < 0.01 ? `${toDisplay(mm, units).toExponential(2)} ${unitWord(units)}` : fmtLen(mm, units, 3))
 
 const buildId = (v: number[]) => BUILD.find((b) => b.v.every((x, i) => Math.abs(x - v[i]) < 1e-6))?.id ?? 'custom'
 const pickWords = (p: { faces?: number[]; where?: Record<string, unknown> }) => {
@@ -133,8 +138,14 @@ function FacesAdder({ kind }: { kind: 'hold' | 'load' }) {
 function Legend({ field, target }: { field: Field; target: number }) {
   const r = useFea((s) => s.result)
   const colormap = usePrefs((s) => s.colormap)
+  const units = usePrefs((s) => s.units)
   if (!r) return null
-  const { lo, hi, flip } = rangeOf(field, r.surface.fields[field], target)
+  const range = rangeOf(field, r.surface.fields[field], target)
+  // Displacement in the units shown; the other fields are not lengths.
+  const shown = (v: number) => (field === 'displacement' ? toDisplay(v, units) : v)
+  const { flip } = range
+  const lo = shown(range.lo)
+  const hi = shown(range.hi)
   const map = colormapById(colormap)
   const c: [number, number, number] = [0, 0, 0]
   const stops = Array.from({ length: 9 }, (_, i) => {
@@ -172,6 +183,7 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
   const field = useFea((s) => s.field)
   const shown = useFea((s) => s.shown)
   const target = useFea((s) => s.target)
+  const units = usePrefs((s) => s.units)
   if (!r) return null
   const w = r.worst
   const sf = w.safety
@@ -204,7 +216,7 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
       </div>
       <div className="kv">
         <span className="name">Largest movement</span>
-        <span>{w.displacement < 0.01 ? w.displacement.toExponential(2) : w.displacement.toFixed(3)} mm</span>
+        <span>{moveText(w.displacement, units)}</span>
       </div>
       {r.gravity && (
         <div className="kv" title={r.gravity.from === 'mass' ? 'Weighed by the Mass workspace' : 'Weighed as solid material'}>
@@ -215,13 +227,13 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
         </div>
       )}
       <p className="pl-aside">
-        {r.mesh.elements.toLocaleString()} elements · {r.mesh.size} mm · Gmsh {r.solver.gmsh ?? '?'} · CalculiX {r.solver.calculix ?? '?'}
+        {r.mesh.elements.toLocaleString()} elements · {fmtLen(r.mesh.size, units, 2)} · Gmsh {r.solver.gmsh ?? '?'} · CalculiX {r.solver.calculix ?? '?'}
       </p>
       <div className="toolrow">
         <select value={field} aria-label="Colour the part by" onChange={(e) => void run('show', { field: e.target.value })}>
           {FIELDS.map((f) => (
             <option key={f} value={f}>
-              {FIELD_WORDS[f]}
+              {fieldWords(f, units)}
             </option>
           ))}
         </select>
@@ -240,6 +252,7 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
 export function FeaPanel() {
   const s = useFea()
   const link = useAgentLink((x) => x.status)
+  const units = usePrefs((s) => s.units)
   const busy = s.busy !== null
   const [tools, setTools] = useState<{ ready: boolean; howTo?: string; error?: string } | null>(null)
   const [bodies, setBodies] = useState<{ name: string; key: string }[]>([])
@@ -346,7 +359,7 @@ export function FeaPanel() {
           <option value="coarse">Coarse — quick</option>
           <option value="medium">Medium</option>
           <option value="fine">Fine — slow</option>
-          {s.size && <option value="size">Elements {s.size} mm</option>}
+          {s.size && <option value="size">Elements {fmtLen(s.size, units, 2)}</option>}
         </select>
       </label>
       <label className="fea-row">

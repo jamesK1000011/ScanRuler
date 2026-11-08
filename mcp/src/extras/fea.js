@@ -153,7 +153,8 @@ export async function feaTools(env = process.env) {
  *  0.6 × the across-layer tensile strength). A start, not a datasheet:
  *  the person's own figures go in overrides. Ids, labels and densities
  *  (g/cm³, solid) are the page's shared table's (plugins/_shared/
- *  materials.ts); tests/fea.test.js holds the two to each other. */
+ *  materials.ts); plugins/fea/tests/fea.test.ts holds the two to each
+ *  other. */
 export const MATERIALS = {
   pla: { label: 'PLA', density: 1.24, Exy: 2680, Ez: 2160, nuXY: 0.35, nuZ: 0.33, Xt: 39, Xc: 60, Zt: 35, Zc: 55, S: 25 },
   petg: { label: 'PETG', density: 1.27, Exy: 2000, Ez: 1700, nuXY: 0.38, nuZ: 0.36, Xt: 42, Xc: 55, Zt: 30, Zc: 50, S: 26 },

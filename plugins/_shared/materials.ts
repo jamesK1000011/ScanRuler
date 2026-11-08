@@ -3,8 +3,8 @@
 // density each, so Mass and Strength name and weigh a part alike. Densities
 // are g/cm³, solid, typical figures from makers' datasheets. The agent's
 // server keeps its own copy, with the stiffness and strength (mcp/src/
-// extras/fea.js MATERIALS); a test there holds it to this one. Keep each
-// entry on one line, as written: that test reads this file as text.
+// extras/fea.js MATERIALS); plugins/fea/tests/fea.test.ts holds it to this
+// one, reading the server's file as text.
 
 export const MATERIALS = {
   pla: { label: 'PLA', density: 1.24 },

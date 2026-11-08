@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The FEA study kept with a project — cleaned on the way in — and the
 // range a field is coloured over.
+import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import { feaSection } from '../app/projectSection'
 import { DEFAULT_SETUP, setupOf, useFea } from '../state/feaStore'
 import { rangeOf } from '../viewer/resultLayer'
-import { densityOf, MATERIAL_IDS, materialId } from '../../_shared/materials'
+import { densityOf, MATERIAL_ALIASES, MATERIAL_IDS, materialId, MATERIALS } from '../../_shared/materials'
 
 describe('the study in a project', () => {
   test('round trip, and a hostile file cleaned', () => {
@@ -48,6 +49,16 @@ describe('the shared materials', () => {
     expect(materialId('tpu')).toBe('tpu-95a')
     expect(materialId('toString')).toBeUndefined()
     expect(densityOf('pla')).toBe(1.24)
+  })
+  test('the agent server’s copy matches: ids, labels, densities, aliases', () => {
+    // mcp/src/extras/fea.js is plain JS and ships on its own: read as text.
+    const js = readFileSync(new URL('../../../mcp/src/extras/fea.js', import.meta.url), 'utf8')
+    const block = js.slice(js.indexOf('export const MATERIALS = {'), js.indexOf('\n}\n', js.indexOf('export const MATERIALS = {')))
+    const server: Record<string, { label: string; density: number }> = {}
+    for (const m of block.matchAll(/^\s*'?([a-z0-9-]+)'?: \{ label: '([^']+)', density: ([0-9.]+),/gm)) server[m[1]] = { label: m[2], density: Number(m[3]) }
+    expect(server).toEqual(MATERIALS)
+    const aliases = /export const MATERIAL_ALIASES = (\{[^}]*\})/.exec(js)?.[1]
+    expect(aliases && Object.fromEntries([...aliases.matchAll(/'?([a-z0-9-]+)'?: '([a-z0-9-]+)'/g)].map((m) => [m[1], m[2]]))).toEqual(MATERIAL_ALIASES)
   })
 })
 
