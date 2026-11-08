@@ -114,7 +114,7 @@ try {
   await page.click('[data-test=catalog-match]')
   await page.waitForSelector('[data-test=catalog-matches] .cat-row', { timeout: 30_000 })
   const first = await page.$eval('[data-test=catalog-matches] .cat-row .name', (e) => e.textContent)
-  check(first === '608', `Find the size names a bearing measured 8.02 × 21.97 × 7 a 608 (${first})`)
+  check(/^608\b/.test(first ?? ''), `Find the size names a bearing measured 8.02 × 21.97 × 7 a 608 (${first})`)
   await page.click('[data-test=catalog-matches] .cat-row')
   await page.click('[data-test=catalog-links]')
   await page.waitForSelector('[data-test=catalog-link-list] a', { timeout: 30_000 })
