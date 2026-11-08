@@ -1,0 +1,58 @@
+{
+  "id": "hlh-rapid",
+  "label": "HLH Rapid: design guide for FDM 3D printing",
+  "publisher": "HLH Rapid",
+  "kind": "service bureau",
+  "url": "https://hlhrapid.com/knowledge/design-guide-fdm-3d-printing/",
+  "read": "2026-11-07",
+  "note": "Supported walls 1.0 mm, unsupported 1.2 mm: the check takes the unsupported figure.",
+  "overrides": {
+    "thin-wall": {
+      "params": {
+        "minMm": 1.2
+      }
+    },
+    "overhang": {
+      "params": {
+        "maxDeg": 45
+      }
+    }
+  },
+  "figures": [
+    {
+      "topic": "supported wall",
+      "value": 1.0,
+      "unit": "mm"
+    },
+    {
+      "topic": "unsupported wall",
+      "value": 1.2,
+      "unit": "mm"
+    },
+    {
+      "topic": "overhang angle",
+      "value": 45,
+      "unit": "°"
+    },
+    {
+      "topic": "overhang length",
+      "value": 1.2,
+      "unit": "mm"
+    },
+    {
+      "topic": "pin diameter",
+      "value": 1.0,
+      "unit": "mm"
+    },
+    {
+      "topic": "clearance, connecting or moving parts",
+      "value": 0.5,
+      "unit": "mm"
+    },
+    {
+      "topic": "accuracy",
+      "value": "±0.3% (at least ±0.3 mm)",
+      "unit": ""
+    }
+  ]
+}

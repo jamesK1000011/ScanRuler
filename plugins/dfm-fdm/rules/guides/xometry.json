@@ -1,0 +1,78 @@
+{
+  "id": "xometry",
+  "label": "Xometry quick design guide for FDM",
+  "publisher": "Xometry",
+  "kind": "service bureau",
+  "url": "https://xometry.pro/en/?p=154421",
+  "read": "2026-11-07",
+  "note": "Supported walls 0.75 mm, unsupported 1 mm: the check takes the unsupported figure, as it cannot tell which a wall is. Another Xometry article (xometry.pro/en/?p=22061) says bridges over 5 mm may need support.",
+  "overrides": {
+    "thin-wall": {
+      "params": {
+        "minMm": 1.0
+      }
+    },
+    "overhang": {
+      "params": {
+        "maxDeg": 45
+      }
+    },
+    "bridge": {
+      "params": {
+        "maxMm": 10
+      }
+    }
+  },
+  "figures": [
+    {
+      "topic": "supported wall",
+      "value": 0.75,
+      "unit": "mm"
+    },
+    {
+      "topic": "unsupported wall",
+      "value": 1.0,
+      "unit": "mm"
+    },
+    {
+      "topic": "overhang angle",
+      "value": 45,
+      "unit": "°"
+    },
+    {
+      "topic": "overhang length",
+      "value": 2,
+      "unit": "mm"
+    },
+    {
+      "topic": "bridge span",
+      "value": 10,
+      "unit": "mm"
+    },
+    {
+      "topic": "minimum feature",
+      "value": 1.2,
+      "unit": "mm"
+    },
+    {
+      "topic": "gap between walls",
+      "value": 0.5,
+      "unit": "mm"
+    },
+    {
+      "topic": "clearance, connecting or moving parts",
+      "value": 0.5,
+      "unit": "mm"
+    },
+    {
+      "topic": "tolerance",
+      "value": "±0.5%",
+      "unit": ""
+    },
+    {
+      "topic": "layer height",
+      "value": "0.25–0.33",
+      "unit": "mm"
+    }
+  ]
+}

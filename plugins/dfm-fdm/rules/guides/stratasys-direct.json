@@ -1,0 +1,48 @@
+{
+  "id": "stratasys-direct",
+  "label": "Stratasys Direct FDM design guide",
+  "publisher": "Stratasys Direct Manufacturing",
+  "kind": "service bureau (industrial FDM)",
+  "url": "https://info.stratasysdirect.com/rs/626-SBR-192/images/FDM_Design_Guide_Stratasys_Direct.pdf",
+  "read": "2026-11-07",
+  "note": "Industrial FDM: the minimum wall is about four layer heights — 1.00 mm at 0.25 mm layers, the figure taken here. No overhang angle or bridge length is given, so those stay as stacked.",
+  "overrides": {
+    "thin-wall": {
+      "params": {
+        "minMm": 1.0
+      }
+    }
+  },
+  "figures": [
+    {
+      "topic": "minimum wall",
+      "value": "4 × layer height (1.00 mm at 0.25 mm layers)",
+      "unit": ""
+    },
+    {
+      "topic": "clearance in XY",
+      "value": 0.38,
+      "unit": "mm"
+    },
+    {
+      "topic": "clearance in Z",
+      "value": "one layer height",
+      "unit": ""
+    },
+    {
+      "topic": "posts and columns",
+      "value": 2.03,
+      "unit": "mm"
+    },
+    {
+      "topic": "threaded holes",
+      "value": 3.81,
+      "unit": "mm"
+    },
+    {
+      "topic": "wall round heat-set inserts",
+      "value": "2.03 mm beyond the insert",
+      "unit": ""
+    }
+  ]
+}

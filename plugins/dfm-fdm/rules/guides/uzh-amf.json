@@ -1,0 +1,73 @@
+{
+  "id": "uzh-amf",
+  "label": "University of Zurich AMF: FDM design guideline",
+  "publisher": "University of Zurich, Additive Manufacturing Facility (from the document’s address)",
+  "kind": "university",
+  "url": "https://www.amf.uzh.ch/dam/jcr:fd1ee024-1a98-488b-89ec-ffd85befa786/Design-Guideline-FDM.pdf",
+  "read": "2026-11-07",
+  "note": "The smallest hole depends on its length and the wall round it.",
+  "overrides": {
+    "thin-wall": {
+      "params": {
+        "minMm": 1.0
+      }
+    },
+    "overhang": {
+      "params": {
+        "maxDeg": 45
+      }
+    },
+    "small-hole": {
+      "params": {
+        "minDiameterMm": 2
+      }
+    }
+  },
+  "figures": [
+    {
+      "topic": "supported wall",
+      "value": 1.0,
+      "unit": "mm"
+    },
+    {
+      "topic": "unsupported wall",
+      "value": 1.0,
+      "unit": "mm"
+    },
+    {
+      "topic": "overhang angle",
+      "value": 45,
+      "unit": "°"
+    },
+    {
+      "topic": "hole diameter",
+      "value": 2,
+      "unit": "mm"
+    },
+    {
+      "topic": "pin diameter",
+      "value": 3,
+      "unit": "mm"
+    },
+    {
+      "topic": "minimum feature",
+      "value": 2,
+      "unit": "mm"
+    },
+    {
+      "topic": "embossed detail height",
+      "value": 1.0,
+      "unit": "mm"
+    },
+    {
+      "topic": "text size",
+      "value": "14",
+      "unit": "pt"
+    },
+    {
+      "topic": "clearance, connecting or moving parts",
+      "value": 0.5,
+      "unit": "mm"
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 // rule changes and the waivers, as JSON.
 
 import type { ProjectSection } from '../../../src/app/projectSections'
-import type { Override } from '../core/rules'
+import type { Guide, Override } from '../core/rules'
 import { DEFAULT_DFM, useDfm, type DfmSettings, type Waiver } from '../state/dfmStore'
 
 interface SavedDfm {
@@ -11,14 +11,16 @@ interface SavedDfm {
   settings: DfmSettings
   overrides: Record<string, Override>
   waivers: Waiver[]
+  /** Imported guides; absent in older projects. */
+  guides?: Guide[]
 }
 
 export const dfmSection: ProjectSection<SavedDfm> = {
   key: 'dfm-fdm',
   collect() {
     const s = useDfm.getState()
-    if (JSON.stringify(s.settings) === JSON.stringify(DEFAULT_DFM) && Object.keys(s.overrides).length === 0 && s.waivers.length === 0) return undefined
-    return { version: 1, settings: s.settings, overrides: s.overrides, waivers: s.waivers }
+    if (JSON.stringify(s.settings) === JSON.stringify(DEFAULT_DFM) && Object.keys(s.overrides).length === 0 && s.waivers.length === 0 && s.guides.length === 0) return undefined
+    return { version: 1, settings: s.settings, overrides: s.overrides, waivers: s.waivers, ...(s.guides.length ? { guides: s.guides } : {}) }
   },
   prepare(value) {
     if (value === undefined) return () => useDfm.getState().reset()
@@ -26,8 +28,8 @@ export const dfmSection: ProjectSection<SavedDfm> = {
     if (!v || v.version !== 1 || typeof v.settings !== 'object' || typeof v.overrides !== 'object' || !Array.isArray(v.waivers)) throw new Error('The printability part of the project is not one this ScanRuler reads.')
     return () => {
       useDfm.getState().reset()
-      useDfm.getState().replace({ settings: { ...DEFAULT_DFM, ...v.settings }, overrides: v.overrides, waivers: v.waivers })
+      useDfm.getState().replace({ settings: { ...DEFAULT_DFM, ...v.settings }, overrides: v.overrides, waivers: v.waivers, guides: Array.isArray(v.guides) ? v.guides : [] })
     }
   },
-  hasContent: (v) => v.waivers.length > 0 || Object.keys(v.overrides).length > 0,
+  hasContent: (v) => v.waivers.length > 0 || Object.keys(v.overrides).length > 0 || (v.guides?.length ?? 0) > 0,
 }

@@ -1,0 +1,88 @@
+{
+  "id": "hubs-poster",
+  "label": "3D Hubs design rules poster",
+  "publisher": "3D Hubs (now Protolabs Network)",
+  "kind": "service bureau",
+  "url": "https://storytelling.robotics.umich.edu/assets/images/designrulesfor3dprinting.pdf",
+  "read": "2026-11-07",
+  "note": "A copy of the 3D Hubs one-page poster; the original hubs.com page could not be read here.",
+  "overrides": {
+    "thin-wall": {
+      "params": {
+        "minMm": 0.8
+      }
+    },
+    "overhang": {
+      "params": {
+        "maxDeg": 45
+      }
+    },
+    "bridge": {
+      "params": {
+        "maxMm": 10
+      }
+    },
+    "small-hole": {
+      "params": {
+        "minDiameterMm": 2
+      }
+    }
+  },
+  "figures": [
+    {
+      "topic": "supported wall",
+      "value": 0.8,
+      "unit": "mm"
+    },
+    {
+      "topic": "unsupported wall",
+      "value": 0.8,
+      "unit": "mm"
+    },
+    {
+      "topic": "overhang angle",
+      "value": 45,
+      "unit": "°"
+    },
+    {
+      "topic": "bridge span",
+      "value": 10,
+      "unit": "mm"
+    },
+    {
+      "topic": "hole diameter",
+      "value": 2,
+      "unit": "mm"
+    },
+    {
+      "topic": "embossed detail width",
+      "value": 0.6,
+      "unit": "mm"
+    },
+    {
+      "topic": "embossed detail height",
+      "value": 2,
+      "unit": "mm"
+    },
+    {
+      "topic": "clearance, connecting or moving parts",
+      "value": 0.5,
+      "unit": "mm"
+    },
+    {
+      "topic": "minimum feature",
+      "value": 2,
+      "unit": "mm"
+    },
+    {
+      "topic": "pin diameter",
+      "value": 3,
+      "unit": "mm"
+    },
+    {
+      "topic": "tolerance",
+      "value": "±0.5% (at least ±0.5 mm)",
+      "unit": ""
+    }
+  ]
+}
