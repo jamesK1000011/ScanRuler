@@ -32,7 +32,7 @@ export const PRINT_FILES = /\.(gcode|gco|g|bgcode|3mf|ufp)$/i
  *  http(s):// in front at most; never a path, a query or a login. */
 export function hostOf(h) {
   const m = /^(?:(https?):\/\/)?(\[[0-9a-f:.]+\]|[a-z0-9.-]+|[0-9a-f:]+)(?::(\d{1,5}))?\/?$/i.exec(String(h ?? '').trim())
-  if (!m) throw new Error(`"${String(h).slice(0, 60)}" is not a printer address: give its name or IP, with a port if it needs one (192.168.1.40, voron.local, http://octopi:5000) — no path or query.`)
+  if (!m) throw new Error(`"${String(h).slice(0, 60)}" is not a printer address: give its name or IP, with a port if it needs one (voron.local, http://octopi:5000, or the IP the printer’s screen shows) — no path or query.`)
   return m[2].replace(/^\[|\]$/g, '')
 }
 
