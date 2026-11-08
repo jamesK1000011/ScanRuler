@@ -34,7 +34,7 @@ export function SectionViewKeys({ viewDirection }: { viewDirection: () => Vec3 }
 
   return (
     <div className="keys sectionkeys" data-test="section-view-keys">
-      <label title="What the plane is laid across: a coordinate plane through the part’s middle, or an element with a direction — a plane’s normal, the axis of a cylinder, cone or line, a circle’s normal. The half toward you is taken away.">
+      <label title="What the cutting plane is square to">
         <span>Across</span>
         <select
           data-test="section-view-ref"
@@ -50,7 +50,7 @@ export function SectionViewKeys({ viewDirection }: { viewDirection: () => Vec3 }
       </label>
       {/* A plane still square to a coordinate axis has a coordinate, not an
           offset: its Z is what the field holds. */}
-      <label title="Where along its direction the plane lies — drag the arrow on the part, or type it here">
+      <label title="Plane position; drag the arrow or type it">
         <span>{isWorldAxis(ref) && tilt === 0 ? ref.toUpperCase() : 'Offset'}</span>
         <input
           type="number"
@@ -77,7 +77,7 @@ export function SectionViewKeys({ viewDirection }: { viewDirection: () => Vec3 }
         <button
           data-test="section-view-square"
           onClick={() => setRef(ref)}
-          title="The rings have tilted the plane off what it was laid across — turn it square again"
+          title="Square the tilted plane up again"
         >
           Square
           <span className="tilt">{tilt.toFixed(1)}°</span>

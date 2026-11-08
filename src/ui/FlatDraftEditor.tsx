@@ -225,7 +225,7 @@ export function FlatDraftEditor() {
           <button
             data-test="flat-draft-free-tangents"
             disabled={tangentsSet === 0}
-            title="Every tangent automatic again — the curve as smooth as it can be through the points"
+            title="Reset every tangent to automatic"
             onClick={freeDraftTangents}
           >
             Free tangents

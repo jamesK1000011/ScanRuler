@@ -31,8 +31,8 @@ export function ProjectionButton() {
       className="viewfit viewprojection"
       data-test="view-projection"
       title={perspective
-        ? 'Perspective view — click to draw the view in parallel (orthographic), as measuring wants it'
-        : 'Parallel (orthographic) view — click to draw the view in perspective'}
+        ? 'Perspective view; click for orthographic'
+        : 'Orthographic view; click for perspective'}
       aria-label={perspective ? 'Perspective view' : 'Orthographic view'}
       aria-pressed={perspective}
       onClick={() => setProjection(perspective ? 'orthographic' : 'perspective')}

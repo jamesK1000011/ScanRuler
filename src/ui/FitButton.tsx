@@ -30,7 +30,7 @@ export function FitButton({ onFit }: { onFit: () => void }) {
       type="button"
       className="viewfit"
       data-test="fit-view"
-      title="Fit to view — bring the whole model back on screen, without turning it"
+      title="Fit the whole model in view"
       aria-label="Fit to view"
       onClick={onFit}
     >

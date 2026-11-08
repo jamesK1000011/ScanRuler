@@ -40,7 +40,7 @@ const GESTURES: { id: MarkGesture | null; icon: IconName; label: string; title: 
     id: null,
     icon: 'pickPoints',
     label: 'Pick points',
-    title: 'Click to place the next point, and orbit, pan and zoom as usual',
+    title: 'Click to place points; orbit, pan and zoom as usual',
   },
   { id: 'window', icon: 'markWindow', label: 'Window', title: 'Drag a rectangle: every triangle inside it is selected' },
   { id: 'brush', icon: 'markBrush', label: 'Brush', title: 'Drag over the surface with a round brush' },
@@ -217,7 +217,7 @@ function PickTools({ onClear }: { onClear: () => void }) {
           className={m.straight ? 'on' : ''}
           data-test="pick-straight"
           aria-pressed={m.straight}
-          title={`Each drag is a straight line from press to release — ${modLabel}-drag inverts this for one drag`}
+          title={`Straight-line drags (${modLabel}-drag for one freehand)`}
           onClick={() => m.setStraight(!m.straight)}
         >
           Straight
@@ -229,7 +229,7 @@ function PickTools({ onClear }: { onClear: () => void }) {
             className={m.erase ? 'withicon on' : 'withicon'}
             data-test="pick-erase"
             aria-pressed={m.erase}
-            title="The gesture takes surface out of the selection instead of adding it — the right button always does, and Alt inverts either way"
+            title="Remove from the selection (or right button, or Alt)"
             onClick={() => m.setErase(!m.erase)}
           >
             <Icon name="erase" size={16} />
@@ -239,7 +239,7 @@ function PickTools({ onClear }: { onClear: () => void }) {
             className={m.backfaces ? 'on' : ''}
             data-test="pick-backfaces"
             aria-pressed={m.backfaces}
-            title="Go through the part: take surface facing away from you and surface hidden behind nearer surface as well — off, a window or lasso takes only what you can see"
+            title="Also select hidden and back-facing surface"
             onClick={() => m.setBackfaces(!m.backfaces)}
           >
             ⧉ Through
@@ -249,7 +249,7 @@ function PickTools({ onClear }: { onClear: () => void }) {
       <button
         data-test="pick-invert"
         disabled={m.count === 0}
-        title="Select everything that is not selected and drop what is — to fit on all but a fixture or a riser, select it and invert"
+        title="Invert the selection"
         onClick={m.invert}
       >
         Invert selection

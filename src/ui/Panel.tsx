@@ -288,7 +288,7 @@ export function Panel({
             <button
               data-test="fit-section"
               disabled={!fileName || busy || dimDraft !== null}
-              title="Cut the scan with a plane, to measure the cut in the 2D Measure workspace"
+              title="Cut the scan with a plane to measure in 2D"
               onClick={onStartSection}
             >
               <Icon name="section" />
@@ -533,7 +533,7 @@ export function Panel({
               data-test="export-step"
               disabled={elements.every((e) => !e.fit) && !anyMeasuredOnSections && !anyBlock}
               onClick={onExportStep}
-              title="Export the created elements — and what was measured on the sections, and the extruded shadows — as analytic geometry in a STEP file"
+              title="Export the elements as STEP geometry"
             >
               Export STEP
             </button>
@@ -541,13 +541,13 @@ export function Panel({
               testId="export-mesh"
               disabled={busy}
               onExport={onExportMesh}
-              title="Save the scan as an STL or a 3MF where it now stands — any alignment or move you applied comes with it"
+              title="Save the scan as STL or 3MF, alignment included"
             />
             <button
               data-test="export-cloud"
               disabled={busy}
               onClick={onExportCloud}
-              title="Save the scan as a point cloud where it now stands — every vertex with its normal, any alignment or move you applied included"
+              title="Save the scan as a point cloud with normals"
             >
               Export cloud
             </button>

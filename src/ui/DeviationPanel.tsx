@@ -343,7 +343,7 @@ export function DeviationPanel({
             className="block"
             data-test="align-stop"
             disabled={d.alignStopping}
-            title="Stop the fit where it is — the alignment in hand is kept and nothing is measured. Esc does the same."
+            title="Stop the fit and keep the alignment so far (Esc)"
             onClick={onStopAlign}
           >
             {d.alignStopping ? 'Stopping…' : 'Stop aligning'}
@@ -495,7 +495,7 @@ export function DeviationPanel({
                   className="block"
                   data-test="local-stop"
                   disabled={d.alignStopping}
-                  title="Stop the fit where it is — the alignment in hand is kept, the marking stays as it is, and nothing is measured. Esc does the same."
+                  title="Stop the fit and keep the alignment so far (Esc)"
                   onClick={onStopAlign}
                 >
                   {d.alignStopping ? 'Stopping…' : 'Stop fitting'}
@@ -510,7 +510,7 @@ export function DeviationPanel({
               <button
                 className="block"
                 data-test="mark-done"
-                title="Closes this step and clears the marking — Esc does the same, once the camera has its buttons back"
+                title="Close this step and clear the marking (Esc)"
                 onClick={onStopMarking}
               >
                 Put the marking tools away
@@ -844,7 +844,7 @@ export function DeviationPanel({
             title={
               onElement
                 ? 'Save the scan as an STL or a 3MF where it now stands'
-                : 'Save the scan as an STL or a 3MF where it now stands — the best fit onto the reference is baked in'
+                : 'Save the scan as STL or 3MF, best fit included'
             }
           />
         </div>

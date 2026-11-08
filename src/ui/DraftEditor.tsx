@@ -145,7 +145,7 @@ export function DraftEditor({
                 type="button"
                 className="block"
                 data-test="unlink-element"
-                title="Keep it where it stands now, as coordinates of its own: it no longer moves when its sources do, and stays if they are deleted"
+                title="Pin it in place, independent of its sources"
                 onClick={() => unlinkElement(edited.id)}
               >
                 Unlink from its sources
@@ -259,7 +259,7 @@ export function DraftEditor({
                     data-test="find-symmetry"
                     disabled={busy || draft.status === 'fitting'}
                     onClick={onFindSymmetry}
-                    title="Reflect the scan through the seed — a coordinate plane, a plane element or a section; with none, through each of its principal planes — fit the reflection back onto the scan, and read the mirror plane off the fit"
+                    title="Find the mirror plane by fitting the scan’s reflection"
                   >
                     {draft.status === 'ready' ? 'Find again' : 'Find symmetry plane'}
                   </button>

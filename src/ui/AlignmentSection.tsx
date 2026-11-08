@@ -490,7 +490,7 @@ export function AlignmentSection({
             className="block"
             data-test="align-symmetry"
             disabled={busy || alignDraft.pickSlot !== null}
-            title="Find the part’s mirror plane on the scan — or use a symmetry plane already measured — and settle this pose on it: the axis nearest its normal turned onto it, the zero point put on it. With nothing set up yet, Auto-align’s pose is the start. Nothing is applied until Confirm alignment is pressed"
+            title="Align the part on its mirror plane"
             onClick={onAlignSymmetry}
           >
             Use symmetry

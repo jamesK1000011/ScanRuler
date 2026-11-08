@@ -677,7 +677,7 @@ export function FlatPanel({
               data-test="flat-export-svg"
               disabled={!drawable}
               onClick={onExportSvg}
-              title="Save the sheet as an SVG at true scale — the edges while they are shown and the visible elements, aligned and turned as shown — for a vector editor, a laser or a print at 1:1"
+              title="Save the sheet as a 1:1 SVG"
             >
               Export SVG
             </button>
@@ -685,9 +685,7 @@ export function FlatPanel({
               data-test="flat-export-dxf"
               disabled={!drawable}
               onClick={onExportDxf}
-              title={`Save the sheet as a DXF for CAD — ${
-                inches ? 'inches' : 'millimetres'
-              } on a sheet with a scale, y up, the origin on the alignment; every fit as its own entity, the edges while they are shown as polylines thinned to a sketch's worth`}
+              title={`Save the sheet as a DXF for CAD, in ${inches ? 'inches' : 'millimetres'}`}
             >
               Export DXF
             </button>
@@ -801,7 +799,7 @@ export function FlatPanel({
             <button
               className="withicon"
               data-test="flat-mirror-lr"
-              title="Mirror the sheet left-to-right (horizontally), as it is shown — a scan seen through the glass, shown as from above"
+              title="Mirror the sheet left to right"
               onClick={() => flat.getState().mirrorSheet('left-right')}
             >
               <Icon name="mirror" size={18} />

@@ -296,7 +296,7 @@ export function SettingsModal() {
             Whether an edge of the scan is shaded as a crease, each face with its own normal, or
             smoothed across so a box looks pillowed — and from what angle between its two faces an
             edge counts as sharp. <b>Always sharp</b> draws a CAD mesh's faces flat and a scan's
-            real edges — the rim of a bore, a step — as edges; noise seldom tips a scan's triangles
+            real edges — the rim of a bore, a step — as edges; noise seldom tips a scan’s triangles
             that far, and if it still shows, a larger angle, 50° or 60°, leaves it smooth.{' '}
             <b>Auto</b> draws the creases only on a mesh that reads as a tessellation of CAD, a scan
             smooth all over. A reference part is always drawn sharp, from {CREASE_ANGLE_DEG}°.

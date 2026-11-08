@@ -34,7 +34,7 @@ const sourceTitle = () =>
 const CORE_TABS: { id: Workspace; icon: IconName; label: string; title: string; order: number; group: 'measure' }[] = [
   { id: 'elements', icon: 'wsMeasure', label: '3D Measure', title: 'Fit spheres, cylinders and planes, and measure between them', order: 1, group: 'measure' },
   { id: 'deviation', icon: 'compare', label: 'Surface Deviation', title: 'Best-fit the scan to a nominal part and map the difference', order: 2, group: 'measure' },
-  { id: 'thickness', icon: 'wsThickness', label: 'Wall Thickness', title: 'Map the wall thickness of the part itself — no reference needed', order: 3, group: 'measure' },
+  { id: 'thickness', icon: 'wsThickness', label: 'Wall Thickness', title: 'Map the part’s wall thickness', order: 3, group: 'measure' },
   { id: 'flat', icon: 'wsFlat', label: '2D Measure', title: 'Measure a flatbed scan the way a measuring microscope would', order: 4, group: 'measure' },
 ]
 
@@ -128,7 +128,7 @@ function ProjectName() {
       value={shown}
       placeholder={placeholder}
       size={Math.max(14, Math.min(32, (shown || placeholder).length + 1))}
-      title={`The project's name — what Save Project saves it under and every export is named on.${name ? '' : ` Unnamed, they go by ${fallback === 'project' ? 'the scan or the image it holds' : `“${fallback}”`}.`}`}
+      title={name || fallback === 'project' ? 'Project name, used for saves and exports' : `Project name; until set, exports use “${fallback}”`}
       onFocus={() => setTyped(name ?? '')}
       onChange={(e) => setTyped(e.target.value)}
       onBlur={() => {
@@ -344,7 +344,7 @@ export function TopBar({
         </button>
       )}
       <span className="project-save-status" data-test="project-save-status"
-        title={`${recovery.status || 'Checkpoints are stored only in this browser.'} Checkpoints and project files include completed work; finish active drawings before leaving. Save Project downloads a portable copy.`}>
+        title={`${recovery.status || 'Checkpoints stay in this browser.'} Save Project for a portable copy.`}>
         {recovery.dirty ? 'Unsaved changes' : 'No unsaved changes'}
         {recovery.status && <small role="status">{recovery.status}</small>}
       </span>
@@ -363,7 +363,7 @@ export function TopBar({
         data-test="new-project"
         onClick={onNewProject}
         disabled={busy}
-        title="Start a new project: the scan, the reference and the image closed, every measurement and every workspace's work let go, the name taken off — after asking, when there are changes not saved"
+        title="Start a new project (asks if there are unsaved changes)"
       >
         <Icon name="newProject" size={16} />
         <span className="btxt">New<span className="ptxt"> Project</span></span>
@@ -373,7 +373,7 @@ export function TopBar({
         data-test="save-project"
         onClick={onSaveProject}
         disabled={busy || !savable}
-        title={`Save the scan, the reference, the image and every measurement as one .${PROJECT_EXTENSION} file`}
+        title={`Save everything as one .${PROJECT_EXTENSION} file`}
       >
         <Icon name="save" size={16} />
         <span className="btxt">Save<span className="ptxt"> Project</span></span>
@@ -383,7 +383,7 @@ export function TopBar({
         data-test="load-project"
         onClick={() => openRef.current?.click()}
         disabled={busy}
-        title={`Open a .${PROJECT_EXTENSION} project — or a plain scan or image to start fresh`}
+        title={`Open a project, scan or image`}
       >
         <Icon name="load" size={16} />
         <span className="btxt">Load<span className="ptxt"> Project</span></span>
@@ -395,7 +395,7 @@ export function TopBar({
         className="ghost withicon"
         data-test="open-settings"
         onClick={() => openSettings(true)}
-        title="Interface theme, colour mode, mouse controls, line widths and guided hints"
+        title="Theme, mouse controls and other settings"
       >
         <Icon name="settings" size={16} />
         <span className="btxt"> Settings</span>

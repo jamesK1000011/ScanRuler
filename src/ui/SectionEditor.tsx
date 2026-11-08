@@ -165,7 +165,7 @@ export function SectionEditor({
               title={
                 k === 'cut'
                   ? 'The scan where the plane passes through it'
-                  : 'The whole scan projected along the plane’s normal onto it — its outline'
+                  : 'The scan’s outline, projected onto the plane'
               }
               onClick={() => setKind(k)}
             >
@@ -226,7 +226,7 @@ export function SectionEditor({
             step="any"
             data-test="section-offset"
             disabled={!draft.axis}
-            title="Where the plane lies along its normal, which is where it cuts the part"
+            title="Where the plane cuts the part"
             // Re-keyed on the value, so a grip dragged in the viewport types
             // itself into the field.
             key={shownOffset}
@@ -253,7 +253,7 @@ export function SectionEditor({
               type="number"
               step="any"
               data-test="section-play"
-              title="How far outside the part the outline lies: positive is clearance, negative a press fit"
+              title="Outline offset: + for clearance, − for a press fit"
               key={`play-${shownLen(params.play)}`}
               defaultValue={shownLen(params.play)}
               onBlur={(e) => {
@@ -273,7 +273,7 @@ export function SectionEditor({
               step="any"
               min="0"
               data-test="section-tolerance"
-              title="How closely the lines and arcs follow the outline; it is traced on cells of half of it"
+              title="How closely the lines and arcs follow the outline"
               key={`tol-${shownLen(params.tolerance)}`}
               defaultValue={shownLen(params.tolerance)}
               onBlur={(e) => {
@@ -294,7 +294,7 @@ export function SectionEditor({
               min="0"
               max="180"
               data-test="section-smooth"
-              title="Corners where the outline turns by less than this are rounded; sharper ones stay sharp. 0 keeps every corner sharp."
+              title="Round corners gentler than this angle (0: none)"
               key={`smooth-${params.smoothDeg}`}
               defaultValue={params.smoothDeg}
               onBlur={(e) => {
@@ -314,7 +314,7 @@ export function SectionEditor({
               checked={params.extrude}
               onChange={(e) => setShadow({ extrude: e.target.checked })}
             />
-            <span title="A block through the part along the plane’s normal, drawn here and written to the STEP file as a solid">
+            <span title="Extrude the outline through the part as a solid">
               Extrude to the part’s thickness
             </span>
           </label>

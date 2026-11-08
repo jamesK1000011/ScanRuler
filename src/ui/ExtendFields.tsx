@@ -117,7 +117,7 @@ export function ExtendFields({ fit }: { fit: ExtendableFit }) {
         {plane && (
           <button
             data-test="extend-square"
-            title="Grow the shorter axis out to the longer one, so the patch is square"
+            title="Make the patch square"
             onClick={squareDraftExtend}
           >
             Make square

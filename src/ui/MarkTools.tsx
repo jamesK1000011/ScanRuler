@@ -27,7 +27,7 @@ const GESTURES: { id: MarkGesture | null; icon: IconName; label: string; title: 
     id: null,
     icon: 'navigate',
     label: 'Navigate',
-    title: 'Marking off — orbit, pan and zoom as usual. What is marked stays marked.',
+    title: 'Marking off: orbit, pan and zoom',
   },
   {
     id: 'window',
@@ -208,7 +208,7 @@ export function MarkTools({
           data-test="mark-erase"
           aria-pressed={m.erase}
           onClick={() => m.setErase(!m.erase)}
-          title="The gesture takes marking away instead of laying it down — the right button always does, and Alt inverts either way"
+          title="Erase marking instead (or right button, or Alt)"
         >
           <Icon name="erase" size={16} />
           {m.erase ? 'Erasing' : 'Erase'}
@@ -218,7 +218,7 @@ export function MarkTools({
           data-test="mark-invert"
           disabled={m.count === 0}
           onClick={m.invert}
-          title="Mark everything that is not marked and rub out what is — to take all but a small piece, mark the piece and invert"
+          title="Invert the marking"
         >
           <Icon name="markInvert" size={16} />
           Invert
