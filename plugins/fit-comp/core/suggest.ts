@@ -63,6 +63,7 @@ export function corrections(sol: Solution): Correction[] {
       read: r(e.value, 4),
       se: r(e.se, 4),
       change: big,
+      // units-ok: slicer settings, which slicers take in millimetres
       why: big ? `${r(Math.abs(off) / e.se, 1)} standard errors from ${base === 1 ? 'true scale' : 'zero'}` : Math.abs(off) < step ? `under the ${base === 1 ? '0.1 %' : '0.02 mm'} worth changing` : `within what this scan resolves (±${r(3 * e.se, 4)})`,
     })
   }
@@ -98,6 +99,7 @@ export function slicerChanges(cs: Correction[], map: Keymap, current: Record<str
     if (spec.kind === 'add') {
       from = current[spec.key] ?? 0
       to = r(from + sign * c.read, 3)
+      // units-ok: slicer settings, which slicers take in millimetres
       unit = 'mm'
     } else if (spec.kind === 'percentMeasured') {
       from = current[spec.key] ?? 100
