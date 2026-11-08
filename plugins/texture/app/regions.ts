@@ -26,6 +26,10 @@ export type RegionShape = {
 
 export const DEFAULT_FACING_DEG = 30
 export const DEFAULT_SPREAD_DEG = 20
+/** How far a scan face may lie off a CAD face and still be on it, mm: scan
+ *  noise; an STL exported from the body sits on it exactly. */
+export const DEFAULT_ON_FACE_MM = 0.25
+export const DEFAULT_ON_FACE_DEG = 30
 
 /** Vertex numbers a shape holds, sorted. */
 export function shapeVertices(mesh: ScanSurface, shape: RegionShape): Uint32Array {
@@ -223,4 +227,73 @@ export function triArea(p: ArrayLike<number>, a: number, b: number, c: number): 
   const ux = p[b * 3] - p[a * 3], uy = p[b * 3 + 1] - p[a * 3 + 1], uz = p[b * 3 + 2] - p[a * 3 + 2]
   const vx = p[c * 3] - p[a * 3], vy = p[c * 3 + 1] - p[a * 3 + 1], vz = p[c * 3 + 2] - p[a * 3 + 2]
   return 0.5 * Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
+}
+
+/** The vertices of the scan's faces that lie on the given CAD faces'
+ *  triangles (xyz, nine numbers a triangle): a scan face is on them when
+ *  its centre is within `tolMm` of one and it faces within `angleDeg` of
+ *  that one's normal — so a face across an edge, or the floor of a pocket
+ *  behind a wall, is not. Sorted. */
+export function onFaces(mesh: ScanSurface, tris: Float32Array, tolMm = DEFAULT_ON_FACE_MM, angleDeg = DEFAULT_ON_FACE_DEG): Uint32Array {
+  const n = tris.length / 9
+  const picked = new Uint8Array(mesh.positions.length / 3)
+  if (!n) return listOf(picked)
+  const cos = Math.cos((angleDeg * Math.PI) / 180)
+  // The CAD triangles' normals and a grid over them, a cell a side.
+  const nrm = new Float32Array(n * 3)
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity]
+  for (let t = 0; t < n; t++) {
+    const o = t * 9
+    const ux = tris[o + 3] - tris[o], uy = tris[o + 4] - tris[o + 1], uz = tris[o + 5] - tris[o + 2]
+    const vx = tris[o + 6] - tris[o], vy = tris[o + 7] - tris[o + 1], vz = tris[o + 8] - tris[o + 2]
+    const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx
+    const l = Math.hypot(cx, cy, cz) || 1
+    nrm[t * 3] = cx / l; nrm[t * 3 + 1] = cy / l; nrm[t * 3 + 2] = cz / l
+    for (let k = 0; k < 9; k++) {
+      const a = k % 3
+      if (tris[o + k] < min[a]) min[a] = tris[o + k]
+      if (tris[o + k] > max[a]) max[a] = tris[o + k]
+    }
+  }
+  const diag = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2])
+  const cell = Math.max(tolMm * 2, diag / 128, 1e-3)
+  const dims = [0, 1, 2].map((a) => Math.max(1, Math.ceil((max[a] - min[a] + 2 * tolMm) / cell)))
+  const lo = [min[0] - tolMm, min[1] - tolMm, min[2] - tolMm]
+  const grid = new Map<number, number[]>()
+  const key = (i: number, j: number, k: number) => (i * dims[1] + j) * dims[2] + k
+  const at = (x: number, a: number) => Math.min(dims[a] - 1, Math.max(0, Math.floor((x - lo[a]) / cell)))
+  for (let t = 0; t < n; t++) {
+    const o = t * 9
+    const b0 = [0, 1, 2].map((a) => at(Math.min(tris[o + a], tris[o + 3 + a], tris[o + 6 + a]) - tolMm, a))
+    const b1 = [0, 1, 2].map((a) => at(Math.max(tris[o + a], tris[o + 3 + a], tris[o + 6 + a]) + tolMm, a))
+    for (let i = b0[0]; i <= b1[0]; i++)
+      for (let j = b0[1]; j <= b1[1]; j++)
+        for (let k = b0[2]; k <= b1[2]; k++) {
+          const c = key(i, j, k)
+          const list = grid.get(c)
+          if (list) list.push(t)
+          else grid.set(c, [t])
+        }
+  }
+  const { positions: p, indices: ix } = mesh
+  const tol2 = tolMm * tolMm
+  for (let f = 0; f < ix.length / 3; f++) {
+    const a = ix[f * 3], b = ix[f * 3 + 1], c = ix[f * 3 + 2]
+    const q: Vec3 = [(p[a * 3] + p[b * 3] + p[c * 3]) / 3, (p[a * 3 + 1] + p[b * 3 + 1] + p[c * 3 + 1]) / 3, (p[a * 3 + 2] + p[b * 3 + 2] + p[c * 3 + 2]) / 3]
+    if (q.some((x, k) => x < lo[k] || x > max[k] + tolMm)) continue
+    const list = grid.get(key(at(q[0], 0), at(q[1], 1), at(q[2], 2)))
+    if (!list) continue
+    const ux = p[b * 3] - p[a * 3], uy = p[b * 3 + 1] - p[a * 3 + 1], uz = p[b * 3 + 2] - p[a * 3 + 2]
+    const vx = p[c * 3] - p[a * 3], vy = p[c * 3 + 1] - p[a * 3 + 1], vz = p[c * 3 + 2] - p[a * 3 + 2]
+    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx
+    const fl = Math.hypot(fx, fy, fz)
+    if (!(fl > 0)) continue
+    for (const t of list) {
+      if ((fx * nrm[t * 3] + fy * nrm[t * 3 + 1] + fz * nrm[t * 3 + 2]) / fl < cos) continue
+      if (distanceToTriangle(tris, t * 3, t * 3 + 1, t * 3 + 2, q) > tol2) continue
+      picked[a] = picked[b] = picked[c] = 1
+      break
+    }
+  }
+  return listOf(picked)
 }

@@ -65,6 +65,16 @@ Then:
 
 `texture.mask` takes `region` as ScanRuler's region shapes, or `"marked"`:
 
+- **CAD faces, first choice for a part built in Reverse Engineer**:
+  `{ faces: { body: "Base", where: { … } } }` or `{ faces: { body: "Base", faces: [3, 4, 5, 6] } }`
+  paints the part's surface that lies on those faces of the body. The faces
+  are known exactly, so the mask never leaks into a pocket or over an edge
+  the way a point fill can on a coarse mesh. Find the indices with
+  `reverse.body.describe { body, where }`. Open the body's STL, or the scan it
+  was fitted to, in the same frame. `tolerance` (0.25 mm by default) is how
+  far the surface may lie off the face: use 0.05 for the body's own STL and
+  more for a noisy scan.
+
 - **A smooth surface by a point**: `{ near: [x, y, z], spreadDeg: 20 }` grows
   from the face nearest the point across every edge gentler than spreadDeg —
   one face or one fillet-joined panel, stopping at creases. Lower spreadDeg

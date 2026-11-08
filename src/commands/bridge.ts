@@ -142,8 +142,9 @@ export function startBridge({ port, token, socket = (url) => new WebSocket(url),
       refusal = null
       // The server's version, for the page to tell an out of date one: a
       // scanruler-mcp before 0.4.0 says what it is, but not its version.
-      const welcome = message.welcome as { server?: unknown; version?: unknown }
-      const server = typeof welcome.version === 'string' ? { version: welcome.version } : welcome.server === 'scanruler-mcp' ? { version: null } : null
+      const welcome = message.welcome as { server?: unknown; version?: unknown; features?: unknown }
+      const features = Array.isArray(welcome.features) ? welcome.features.filter((f): f is string => typeof f === 'string') : undefined
+      const server = typeof welcome.version === 'string' ? { version: welcome.version, ...(features ? { features } : {}) } : welcome.server === 'scanruler-mcp' ? { version: null, ...(features ? { features } : {}) } : null
       useAgentLink.setState({ status: 'connected', detail: null, server })
     } else if (typeof message.refused === 'string') {
       refusal = message.refused

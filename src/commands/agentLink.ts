@@ -17,6 +17,9 @@ export type AgentLinkStatus = 'off' | 'waiting' | 'connected' | 'refused'
  *  null before a welcome (or from a server that does not say it is one). */
 export interface AgentServer {
   version: string | null
+  /** What it answers beyond the page's commands, as its welcome said
+   *  (['catalog.models']); absent from a server before they were named. */
+  features?: string[]
 }
 
 export const useAgentLink = create<{ status: AgentLinkStatus; detail: string | null; server: AgentServer | null }>(() => ({

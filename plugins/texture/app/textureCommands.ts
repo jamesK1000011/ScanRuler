@@ -6,7 +6,8 @@
 // history ("Agent: …"), and what the stores hold afterwards comes back.
 
 import { CommandError, type Command } from '../../../src/plugins/api'
-import { arr, bool, bytes, enumOf, int, num, obj, oneOf, str, vec3, type JsonSchema } from '../../../src/commands/schema'
+import { anyObject, arr, bool, bytes, enumOf, int, num, obj, oneOf, str, vec3, type JsonSchema } from '../../../src/commands/schema'
+import { runCommand } from '../../../src/commands/registry'
 import { requireScan } from '../../../src/commands/refs'
 import { requireScene } from '../../../src/commands/host'
 import { useShell } from '../../../src/state/shellStore'
@@ -21,7 +22,7 @@ import {
   type OutputSettings,
   type TextureResult,
 } from '../state/textureStore'
-import { combine, DEFAULT_FACING_DEG, DEFAULT_SPREAD_DEG, regionStats, shapeVertices, triArea, type RegionShape } from './regions'
+import { combine, DEFAULT_FACING_DEG, DEFAULT_ON_FACE_DEG, DEFAULT_ON_FACE_MM, DEFAULT_SPREAD_DEG, onFaces, regionStats, shapeVertices, triArea, type RegionShape } from './regions'
 import {
   addImage,
   buildFile,
@@ -237,7 +238,9 @@ const image: Command<{ bytes: Uint8Array; name?: string; layer?: number; keepSca
   },
 }
 
-type RegionIn = 'marked' | RegionShape
+/** CAD faces of a Reverse Engineer body, by index or by a query. */
+type FacesIn = { body: string | number; faces?: number[]; where?: Record<string, unknown>; tolerance?: number; angleDeg?: number }
+type RegionIn = 'marked' | (RegionShape & { faces?: FacesIn })
 
 const regionSchema: JsonSchema = oneOf(
   [
@@ -251,9 +254,20 @@ const regionSchema: JsonSchema = oneOf(
         spreadDeg: num(`With near: the sharpest edge the fill crosses, degrees (${DEFAULT_SPREAD_DEG} to start; lower keeps to flatter ground).`, { exclusiveMinimum: 0, maximum: 180 }),
         facing: vec3('Of those, only vertices whose normal is within angleDeg of this direction — [0, 0, 1] up.'),
         angleDeg: num(`With facing: degrees (${DEFAULT_FACING_DEG} to start).`, { exclusiveMinimum: 0, maximum: 180 }),
+        faces: obj(
+          {
+            body: oneOf([str(), int()], 'The Reverse Engineer body, by name or id.'),
+            faces: arr(int(undefined, { minimum: 0 }), 'Its faces by index, as reverse.body.describe lists them.', { minItems: 1 }),
+            where: anyObject('Or a query for its faces, as reverse.body.describe takes it — { kind: "plane", normal: … }, { madeBy: "Base" }, { box: … }.'),
+            tolerance: num(`How far the part's surface may lie off a face and still be on it, mm (${DEFAULT_ON_FACE_MM}; 0.05 for an STL exported from the body, more for a noisy scan).`, { exclusiveMinimum: 0, maximum: 10 }),
+            angleDeg: num(`How far a scan face may turn from the CAD face, degrees (${DEFAULT_ON_FACE_DEG}).`, { exclusiveMinimum: 0, maximum: 90 }),
+          },
+          ['body'],
+          'CAD faces: the part\'s surface that lies on these faces of a body built in Reverse Engineer — "the four outer walls" picked exactly, never leaking into a pocket or across an edge. Best when the part open is that body\'s STL, or a scan the body was fitted to, in the same frame.',
+        ),
       },
       [],
-      'Exactly one of box, sphere, vertices or near; facing and angleDeg narrow it. mm, in the frame the part is measured in now.',
+      'Exactly one of box, sphere, vertices, near or faces; facing and angleDeg narrow it. mm, in the frame the part is measured in now.',
     ),
   ],
   'The surface.',
@@ -281,18 +295,27 @@ const mask: Command<{ layer?: number; mode?: 'exclude' | 'include'; op?: 'set' |
     if (op === 'clear') {
       t().setMask(i, null)
     } else {
-      if (region === undefined) throw new CommandError('invalid_input', 'Name the region — "marked", or a box, sphere, vertices or near.')
+      if (region === undefined) throw new CommandError('invalid_input', 'Name the region — "marked", or a box, sphere, vertices, near or faces.')
       let vertices: Uint32Array
       if (region === 'marked') {
         vertices = requireScene('A region marked on the part').paintedVertices()
         if (!vertices.length) throw new CommandError('invalid_state', 'Nothing is marked on the part — mark it (scan.segment { mark }, the brush), or name the region with a shape.')
       } else {
-        try {
-          vertices = shapeVertices(s, region)
-        } catch (e) {
-          throw new CommandError('invalid_input', e instanceof Error ? e.message : String(e))
+        if (region.faces) {
+          const { faces: fz, ...rest } = region
+          if (Object.keys(rest).some((k) => ['box', 'sphere', 'vertices', 'near'].includes(k))) throw new CommandError('invalid_input', 'Name the region one way: faces, or one of box, sphere, vertices or near.')
+          const got = (await runCommand('reverse.body.face_triangles', { body: fz.body, ...(fz.faces ? { faces: fz.faces } : {}), ...(fz.where ? { where: fz.where } : {}) })) as { body: string; faces: number[]; triangles: Float32Array }
+          vertices = onFaces(s, got.triangles, fz.tolerance, fz.angleDeg)
+          if (rest.facing) vertices = shapeVertices(s, { vertices: [...vertices], facing: rest.facing, angleDeg: rest.angleDeg })
+          if (!vertices.length) throw new CommandError('not_found', `None of the part's surface lies on ${got.body}'s face${got.faces.length === 1 ? '' : 's'} ${got.faces.join(', ')} within ${fz.tolerance ?? DEFAULT_ON_FACE_MM} mm — is the part open that body (its STL, or the scan it was fitted to) in the same frame? A larger tolerance takes a noisier scan.`)
+        } else {
+          try {
+            vertices = shapeVertices(s, region)
+          } catch (e) {
+            throw new CommandError('invalid_input', e instanceof Error ? e.message : String(e))
+          }
+          if (!vertices.length) throw new CommandError('invalid_input', 'The region holds no vertex of the part — session.state gives its bounds.')
         }
-        if (!vertices.length) throw new CommandError('invalid_input', 'The region holds no vertex of the part — session.state gives its bounds.')
       }
       const current = t().layers[i].mask
       const next = op === 'set' ? vertices : combine(current, vertices, op === 'add' ? 'add' : 'remove', count)

@@ -39,6 +39,9 @@ export const CLOSE = { badToken: 4001, origin: 4003, taken: 4009, noHello: 4008 
 
 /** Scans run to hundreds of megabytes. */
 export const MAX_PAYLOAD = 1024 ** 3
+
+/** What this server answers for the page beyond its commands (pageAsks.js). */
+export const SERVER_FEATURES = ['catalog.models']
 /** Before its hello is taken a connection is nobody in particular: what it
  *  may send is a hello — the page's command list, a few hundred KB — and
  *  only a few may be waiting to say it at once. */
@@ -266,7 +269,10 @@ export class PageLink extends Asker {
     this.socket = ws
     const { token: _token, ...page } = hello
     this.page = { ...page, origin: origin ?? null, commands: Array.isArray(hello.commands) ? hello.commands : [] }
-    ws.send(JSON.stringify({ welcome: { server: 'scanruler-mcp', ...(this.version ? { version: this.version } : {}) } }))
+    // features: what this copy answers beyond the page's commands — the
+    // page asks it of a server only when the welcome says so, rather than
+    // waiting on one started before the code was there.
+    ws.send(JSON.stringify({ welcome: { server: 'scanruler-mcp', ...(this.version ? { version: this.version } : {}), features: SERVER_FEATURES } }))
     this.log(`ScanRuler ${page.version ?? ''} connected${origin ? ` from ${origin}` : ''}, with ${this.page.commands.length} commands.`)
     this.#tellPeers()
     this.emit('connected', this.page)

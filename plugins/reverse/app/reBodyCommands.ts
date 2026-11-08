@@ -1018,3 +1018,47 @@ export const stl: Command<{ bodies?: Ref[]; chord?: number; format?: MeshFormat 
     }
   },
 }
+
+/** The triangles of a body's faces, picked by index or by a query — what
+ *  the Texture workspace paints a scan by ("the four outer walls"), the
+ *  faces known exactly rather than painted. For the page: not offered to
+ *  an agent, who names the faces in texture.mask { region: { faces } }. */
+export const faceTriangles: Command<{ body: Ref; faces?: number[]; where?: Where }> = {
+  name: 'face_triangles',
+  title: 'A body’s faces as triangles',
+  description: 'Used by the Texture workspace: the triangles of a body’s faces, by index (faces) or by a query (where, as reverse.body.describe takes it). Not for an agent — texture.mask { region: { faces } } names them.',
+  input: obj({ body: bodyRef, faces: arr(int(undefined, { minimum: 0 }), 'Face indices.', { minItems: 1 }), where: whereIn }, ['body']),
+  readOnly: true,
+  history: false,
+  internal: true,
+  run: async ({ body, faces, where }) => {
+    const s = await ready()
+    const b = typeof body === 'number' ? bodyAt(body) : bodyNamed(body)
+    if (b.surface) invalid(`${b.name} is a surface, not a solid body.`)
+    if ((faces === undefined) === (where === undefined)) invalid('Name the faces one way: faces (their indices, from reverse.body.describe) or where (a query).')
+    const t = topologyOf(s, b)
+    const mesh = s.meshes.get(b.id)
+    if (!mesh?.faceHash) throw new CommandError('failed', `${b.name} has no mesh with its faces on it — build again (reverse.build).`)
+    let picked: number[]
+    if (faces) {
+      const bad = faces.find((i) => i >= t.faces.length)
+      if (bad !== undefined) invalid(`${b.name} has faces 0–${t.faces.length - 1}; there is no face ${bad}.`)
+      picked = [...new Set(faces)]
+    } else {
+      picked = whereIndices(where!, t, b, 'face')
+      if (!picked.length) throw new CommandError('not_found', `No face of ${b.name} answers ${JSON.stringify(where)} — reverse.body.describe { body: ${JSON.stringify(b.name)}, where } shows what there is.`)
+    }
+    const hashes = new Set(picked.map((i) => t.faces[i].hash))
+    const { positions: p, indices: ix, faceHash } = mesh
+    const tris: number[] = []
+    for (let f = 0; f < ix.length / 3; f++) {
+      if (!hashes.has(faceHash[f])) continue
+      for (let k = 0; k < 3; k++) {
+        const v = ix[f * 3 + k] * 3
+        tris.push(p[v], p[v + 1], p[v + 2])
+      }
+    }
+    if (!tris.length) throw new CommandError('failed', `The faces picked on ${b.name} have no triangles in its mesh.`)
+    return { body: b.name, faces: picked, triangles: new Float32Array(tris) }
+  },
+}
