@@ -10,6 +10,13 @@ import { create } from 'zustand'
 export interface FacePick {
   faces?: number[]
   where?: Record<string, unknown>
+  /** The faces' triangles as picked (xyz × 9 each), and the body's key then:
+   *  a pick by index is held by where it was, not by a number the body's
+   *  next rebuild may give another face. */
+  triangles?: number[]
+  bodyKey?: string
+  /** How many faces it came to when picked. */
+  count?: number
 }
 
 export interface Hold extends FacePick {
@@ -67,7 +74,9 @@ export interface FeaState extends FeaSetup {
   busy: string | null
   since: number | null
   phase: string | null
-  result: (FeaAnswer & { at: string; setup: FeaSetup }) | null
+  result: (FeaAnswer & { at: string; setup: FeaSetup; bodyKey: string | null }) | null
+  /** Bumped by reset: an answer for an older study is dropped. */
+  gen: number
   field: Field
   shown: boolean
   set(patch: Partial<FeaSetup>): void
@@ -84,8 +93,9 @@ export const useFea = create<FeaState>((set) => ({
   since: null,
   phase: null,
   result: null,
+  gen: 0,
   field: 'safety',
   shown: false,
   set: (patch) => set(patch),
-  reset: () => set({ ...DEFAULT_SETUP, result: null, shown: false, field: 'safety' }),
+  reset: () => set((s) => ({ ...DEFAULT_SETUP, size: undefined, result: null, shown: false, field: 'safety', gen: s.gen + 1 })),
 }))

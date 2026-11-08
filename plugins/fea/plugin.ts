@@ -4,9 +4,11 @@
 // computer through the agent's server, the material weaker across its
 // layers than in them, and the answer on the part. See README.md.
 
-import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerBusy, registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerHistory } from '../../src/state/historyStore'
 import { registerProjectSection } from '../../src/app/projectSections'
-import { describeFea, feaCommands } from './app/feaCommands'
+import { cancelSolve, describeFea, feaCommands } from './app/feaCommands'
+import { setupOf, useFea } from './state/feaStore'
 import { feaSection } from './app/projectSection'
 import { useFeaPlugin } from './app/useFeaPlugin'
 
@@ -26,6 +28,18 @@ const plugin: ScanRulerPlugin = {
     registerProjectSection(feaSection)
     registerCommands('fea', feaCommands)
     registerStateSection('fea', describeFea)
+    // A solve holds the part as it was: other changes wait, and a change
+    // that throws the session away stops it first.
+    registerBusy('fea', () => useFea.getState().busy, [useFea], async (done) => {
+      cancelSolve()
+      await done.catch(() => {})
+    })
+    // The study's changes are steps of the app's undo, like any other.
+    registerHistory({
+      sections: [{ key: 'fea', capture: () => setupOf(useFea.getState()), apply: (v) => useFea.setState(v as Partial<ReturnType<typeof useFea.getState>>) }],
+      actions: [{ store: useFea, label: 'Strength', names: ['set'] }],
+      blocked: () => useFea.getState().busy !== null,
+    })
     registerGuide({
       id: 'fea',
       title: 'Checking a printed part’s strength',

@@ -1093,3 +1093,26 @@ export const selectedFaces: Command<Record<string, never>> = {
     return { bodies: out }
   },
 }
+
+/** The solid bodies in brief — id, name, face count, volume and box — for
+ *  other workspaces to list and to tell a body changed by. Cheap: no mesh
+ *  is read. Not for an agent: reverse.body.describe is theirs. */
+export const bodyNames: Command<Record<string, never>> = {
+  name: 'names',
+  title: 'The bodies in brief',
+  description: 'Used by other workspaces: each body’s id, name, whether a sheet, face count, volume and box — a key that changes when the body does. Not for an agent.',
+  input: obj({}),
+  readOnly: true,
+  history: false,
+  internal: true,
+  run: async () => ({
+    bodies: re().bodies.map((b) => ({
+      id: b.id,
+      name: b.name,
+      ...(b.surface ? { surface: true } : {}),
+      faces: b.faces,
+      volume: b.volume,
+      key: `${b.faces}|${Math.round(b.volume * 1000)}|${b.box ? [...b.box.min, ...b.box.max].map((x) => Math.round(x * 1000)).join(',') : ''}|${b.triangles}`,
+    })),
+  }),
+}

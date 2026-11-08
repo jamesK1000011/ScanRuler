@@ -50,14 +50,39 @@ export class FeaResultLayer {
         }
       },
       navTargets: () => (this.mesh ? [this.mesh] : []),
+      frameBox: () => this.mesh?.geometry.boundingBox ?? null,
       dispose: () => this.clear(),
     }
   }
 
+  private drawn: ArrayLike<number> | null = null
+
   show(positions: ArrayLike<number>, values: ArrayLike<number>, field: Field, colormap: string, target: number): void {
+    // The same part: only its colours change.
+    if (this.mesh && this.drawn === positions) {
+      this.mesh.geometry.setAttribute('color', new THREE.BufferAttribute(this.colours(values, field, colormap, target), 3))
+      this.host.invalidate()
+      return
+    }
     this.clear()
+    this.drawn = positions
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(positions), 3))
+    g.setAttribute('color', new THREE.BufferAttribute(this.colours(values, field, colormap, target), 3))
+    g.computeVertexNormals()
+    g.computeBoundingSphere()
+    g.computeBoundingBox()
+    // A slice already cutting the part cuts this too.
+    this.planes = this.host.clipPlanes()
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide, flatShading: true })
+    m.clippingPlanes = this.planes
+    this.mesh = new THREE.Mesh(g, m)
+    this.mesh.name = 'fea-result'
+    this.host.partGroup.add(this.mesh)
+    this.host.invalidate()
+  }
+
+  private colours(values: ArrayLike<number>, field: Field, colormap: string, target: number): Float32Array {
     const map = colormapById(colormap)
     const { lo, hi, flip } = rangeOf(field, values, target)
     const rgb = new Float32Array(values.length * 3)
@@ -70,18 +95,11 @@ export class FeaResultLayer {
       rgb[i * 3 + 1] = c[1] / 255
       rgb[i * 3 + 2] = c[2] / 255
     }
-    g.setAttribute('color', new THREE.BufferAttribute(rgb, 3))
-    g.computeVertexNormals()
-    g.computeBoundingSphere()
-    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide, flatShading: true })
-    m.clippingPlanes = this.planes
-    this.mesh = new THREE.Mesh(g, m)
-    this.mesh.name = 'fea-result'
-    this.host.partGroup.add(this.mesh)
-    this.host.invalidate()
+    return rgb
   }
 
   clear(): void {
+    this.drawn = null
     if (!this.mesh) return
     this.host.partGroup.remove(this.mesh)
     this.mesh.geometry.dispose()

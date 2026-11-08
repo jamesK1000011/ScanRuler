@@ -7,19 +7,22 @@
 
 import { useEffect, useState } from 'react'
 import { runCommand } from '../../../src/commands/registry'
-import { readStateSections } from '../../../src/commands/stateSections'
 import { useAgentLink } from '../../../src/commands/agentLink'
 import { colormapById, rampColor } from '../../../src/core/field/colormap'
 import { usePrefs } from '../../../src/state/prefsStore'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
-import { FIELDS, MATERIAL_IDS } from '../app/feaCommands'
+import { bodies as listBodies, FIELDS, MATERIAL_IDS, staleness, wasCancelled } from '../app/feaCommands'
 import { useFea, type Field, type Load } from '../state/feaStore'
 import { rangeOf } from '../viewer/resultLayer'
 import './fea.css'
 
-const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
+const report = (e: unknown) => {
+  // A solve the person stopped is not an error.
+  if (wasCancelled(e)) return
+  useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
+}
 const run = (name: string, input: Record<string, unknown> = {}) => runCommand(`fea.${name}`, input).catch(report)
 
 const MATERIAL_WORDS: Record<string, string> = { pla: 'PLA', petg: 'PETG', abs: 'ABS', asa: 'ASA', 'petg-cf': 'PETG-CF', 'pa6-cf': 'PA6-CF', 'tpu-95a': 'TPU 95A' }
@@ -102,17 +105,17 @@ function FacesAdder({ kind }: { kind: 'hold' | 'load' }) {
         </div>
       )}
       <div className="toolrow">
-        <button disabled={busy} title="The faces selected on the body in Reverse Engineer" onClick={() => void run(kind, { selected: true, ...extra() })}>
+        <button disabled={busy} aria-label={`${kind === 'hold' ? 'Hold' : 'Load'} the faces selected in Reverse Engineer`} title="The faces selected on the body in Reverse Engineer" onClick={() => void run(kind, { selected: true, ...extra() })}>
           Selected faces
         </button>
-        <select value={facing} aria-label="Faces facing" onChange={(e) => setFacing(e.target.value)}>
+        <select value={facing} aria-label={`${kind === 'hold' ? 'Hold' : 'Load'}: faces facing`} onChange={(e) => setFacing(e.target.value)}>
           {FACING.map((f) => (
             <option key={f.id} value={f.id}>
               {f.label}
             </option>
           ))}
         </select>
-        <button disabled={busy} title="Every flat face facing that way" onClick={() => void run(kind, { where: { kind: 'plane', between: [FACING.find((f) => f.id === facing)!.n], withinDeg: 5 }, ...extra() })}>
+        <button disabled={busy} aria-label={`${kind === 'hold' ? 'Hold' : 'Load'} the flat faces facing that way`} title="Every flat face facing that way" onClick={() => void run(kind, { where: { kind: 'plane', between: [FACING.find((f) => f.id === facing)!.n], withinDeg: 5 }, ...extra() })}>
           Add
         </button>
       </div>
@@ -147,8 +150,11 @@ function Legend({ field, target }: { field: Field; target: number }) {
   )
 }
 
-function Answer() {
+function Answer({ bodyKey }: { bodyKey: string | null }) {
   const r = useFea((s) => s.result)
+  useFea((s) => s.holds)
+  useFea((s) => s.loads)
+  const stale = staleness(bodyKey)
   const field = useFea((s) => s.field)
   const shown = useFea((s) => s.shown)
   const target = useFea((s) => s.target)
@@ -161,7 +167,12 @@ function Answer() {
       <Status tone={tone}>
         {sf === null ? 'No stress found' : sf < 1 ? `Breaks: safety factor ${sf}` : `Safety factor ${sf}${sf < target ? `, under the ${target} wanted` : ''}`}
       </Status>
-      {w.mode && <p className="hint">Weakest {w.mode === 'in the layers' ? 'in the layers' : `where the ${w.mode}`}, at ({w.at?.join(', ')}).</p>}
+      {stale && <Status tone="warn">Out of date: {stale}. Solve again.</Status>}
+      {w.mode && (
+        <p className="hint">
+          Weakest {w.mode === 'in the layers' ? 'in the layers' : w.mode === 'layers pulled apart' ? 'where the layers pull apart' : 'where the layers shear'}, at ({w.at?.join(', ')}).
+        </p>
+      )}
       {w.atAHold && w.awayFromHolds && (
         <p className="hint" title="A perfectly rigid hold makes stress no real mount does">
           That spot is on a hold; away from the holds: {w.awayFromHolds.safety} ({w.awayFromHolds.mode}).
@@ -176,7 +187,7 @@ function Answer() {
         <span>{w.displacement < 0.01 ? w.displacement.toExponential(2) : w.displacement.toFixed(3)} mm</span>
       </div>
       <p className="pl-aside">
-        {r.mesh.elements.toLocaleString()} elements · Gmsh {r.solver.gmsh} · CalculiX {r.solver.calculix}
+        {r.mesh.elements.toLocaleString()} elements · {r.mesh.size} mm · Gmsh {r.solver.gmsh ?? '?'} · CalculiX {r.solver.calculix ?? '?'}
       </p>
       <div className="toolrow">
         <select value={field} aria-label="Colour the part by" onChange={(e) => void run('show', { field: e.target.value })}>
@@ -189,6 +200,9 @@ function Answer() {
         <button title={shown ? 'Take the colours off' : 'Colour the part by the answer'} onClick={() => void run('show', { shown: !shown })}>
           {shown ? 'Hide' : 'Show'}
         </button>
+        <button title="Take the result away" onClick={() => void run('clear', { what: 'result' })}>
+          Clear
+        </button>
       </div>
       {shown && <Legend field={field} target={target} />}
     </div>
@@ -199,12 +213,35 @@ export function FeaPanel() {
   const s = useFea()
   const link = useAgentLink((x) => x.status)
   const busy = s.busy !== null
-  const [tools, setTools] = useState<{ ready: boolean; howTo?: string } | null>(null)
-  const bodies = ((readStateSections().reverse as { bodies?: { name: string; surface?: boolean }[] } | undefined)?.bodies ?? []).filter((b) => !b.surface)
+  const [tools, setTools] = useState<{ ready: boolean; howTo?: string; error?: string } | null>(null)
+  const [bodies, setBodies] = useState<{ name: string; key: string }[]>([])
+  const [target, setTarget] = useState<string | null>(null)
+  // Reverse Engineer's bodies, looked at every second or two while here.
+  useEffect(() => {
+    let on = true
+    const look = () => void listBodies().then((b) => on && setBodies(b))
+    look()
+    const t = setInterval(look, 1500)
+    return () => {
+      on = false
+      clearInterval(t)
+    }
+  }, [])
   useEffect(() => {
     if (link !== 'connected') return
-    void runCommand('fea.tools', {}).then((t) => setTools(t as { ready: boolean; howTo?: string }), () => setTools(null))
+    void runCommand('fea.tools', {}).then(
+      (t) => setTools(t as { ready: boolean; howTo?: string }),
+      (e) => setTools({ ready: false, error: e instanceof Error ? e.message : String(e) }),
+    )
   }, [link])
+  const current = bodies.find((b) => s.body !== null && b.name.toLowerCase() === s.body.toLowerCase())
+  const gone = s.body !== null && !current
+  const commitTarget = () => {
+    if (target === null) return
+    const v = Number(target)
+    setTarget(null)
+    if (v > 0 && v !== s.target) void run('setup', { target: v })
+  }
   return (
     <div className="group" data-test="fea-panel">
       <div className="sec-head">
@@ -215,13 +252,18 @@ export function FeaPanel() {
         </InfoDot>
       </div>
       {link !== 'connected' && <p className="hint">Needs the agent connection (Settings → Agents): the solver runs on your computer.</p>}
-      {tools && !tools.ready && <Status tone="warn">{tools.howTo}</Status>}
+      {tools && !tools.ready && <Status tone="warn">{tools.error ?? tools.howTo}</Status>}
       <label className="fea-row">
         <span>Body</span>
         <select value={s.body ?? ''} disabled={busy} aria-label="Body" onChange={(e) => void run('setup', { body: e.target.value })}>
           <option value="" disabled>
             {bodies.length ? 'Choose…' : 'Build one in Reverse Engineer'}
           </option>
+          {gone && (
+            <option value={s.body!} disabled>
+              {s.body} (not there now)
+            </option>
+          )}
           {bodies.map((b) => (
             <option key={b.name} value={b.name}>
               {b.name}
@@ -250,18 +292,26 @@ export function FeaPanel() {
           ))}
         </select>
       </label>
-      {Object.keys(s.overrides).length > 0 && <p className="pl-aside">Your figures: {Object.entries(s.overrides).map(([k, v]) => `${k} ${v}`).join(', ')}</p>}
+      {Object.keys(s.overrides).length > 0 && (
+        <p className="pl-aside">
+          Your figures (MPa): {Object.entries(s.overrides).map(([k, v]) => `${k} ${v}`).join(', ')}{' '}
+          <button className="x" aria-label="Back to the material’s figures" title="Back to the material’s figures" disabled={busy} onClick={() => void run('setup', { overrides: {} })}>
+            ×
+          </button>
+        </p>
+      )}
       <label className="fea-row">
         <span>Mesh</span>
-        <select value={s.fineness} disabled={busy} aria-label="Mesh" onChange={(e) => void run('setup', { fineness: e.target.value })}>
+        <select value={s.size ? 'size' : s.fineness} disabled={busy} aria-label="Mesh" onChange={(e) => void run('setup', { fineness: e.target.value, size: null })}>
           <option value="coarse">Coarse — quick</option>
           <option value="medium">Medium</option>
           <option value="fine">Fine — slow</option>
+          {s.size && <option value="size">Elements {s.size} mm</option>}
         </select>
       </label>
       <label className="fea-row">
         <span>Safety wanted</span>
-        <input className="pl-input fea-num" type="number" min={1} step={0.5} value={s.target} disabled={busy} aria-label="Safety factor wanted" onChange={(e) => Number(e.target.value) > 0 && void run('setup', { target: Number(e.target.value) })} />
+        <input className="pl-input fea-num" type="number" min={0.1} step={0.5} value={target ?? s.target} disabled={busy} aria-label="Safety factor wanted" onChange={(e) => setTarget(e.target.value)} onBlur={commitTarget} onKeyDown={(e) => e.key === 'Enter' && commitTarget()} />
       </label>
 
       <div className="sec-head">Held by</div>
@@ -269,7 +319,7 @@ export function FeaPanel() {
         <div key={h.name} className="kv" data-test="fea-hold">
           <span className="name">{h.name}</span>
           <span className="pl-aside">{pickWords(h)}</span>
-          <button className="x" title="Take it away" disabled={busy} onClick={() => void run('hold', { remove: h.name })}>
+          <button className="x" aria-label={`Remove ${h.name}`} title="Take it away" disabled={busy} onClick={() => void run('hold', { remove: h.name })}>
             ×
           </button>
         </div>
@@ -283,18 +333,18 @@ export function FeaPanel() {
           <span className="pl-aside">
             {pickWords(l)} · {loadWords(l)}
           </span>
-          <button className="x" title="Take it away" disabled={busy} onClick={() => void run('load', { remove: l.name })}>
+          <button className="x" aria-label={`Remove ${l.name}`} title="Take it away" disabled={busy} onClick={() => void run('load', { remove: l.name })}>
             ×
           </button>
         </div>
       ))}
       <FacesAdder kind="load" />
 
-      <button className="primary block" disabled={busy || link !== 'connected' || !s.holds.length || !s.loads.length} data-test="fea-solve" title="Mesh and solve on your computer" onClick={() => void run('solve')}>
+      <button className="primary block" disabled={busy || link !== 'connected' || (tools !== null && !tools.ready) || !s.holds.length || !s.loads.length} data-test="fea-solve" title="Mesh and solve on your computer" onClick={() => void run('solve')}>
         Solve
       </button>
       <Busy />
-      <Answer />
+      <Answer bodyKey={current?.key ?? null} />
     </div>
   )
 }
