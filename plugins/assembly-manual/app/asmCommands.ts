@@ -5,7 +5,7 @@
 // anywhere: the only file that leaves is the one the caller saves.
 
 import { toPng } from '../../_shared/lineart/raster'
-import { toPdf, toSvg, type Sheet } from '../../_shared/lineart/sheet'
+import { toPdf, toSvg } from '../../_shared/lineart/sheet'
 import { VIEW_NAMES, type V3 } from '../../_shared/lineart/views'
 import { zip } from '../../_shared/zip'
 import { runCommand } from '../../../src/commands/registry'
@@ -16,9 +16,10 @@ import { bom, direction, issues, stepCamera, type Issue } from '../core/assembly
 import type { Hit, PartIn } from '../core/geometry'
 import { lint, limitsOf } from '../core/lint'
 import { html } from '../core/htmlManual'
-import { cover, stepFigure, stepPage } from '../core/manual'
-import { THEMES, THEME_IDS, themeOf } from '../core/themes'
-import { DEFAULT_SETTINGS, DEFAULT_WORDS, type AsmSettings, type Part, type Step, type StyleName } from '../core/model'
+import { manualPages, stepFigure } from '../core/manual'
+import { review } from '../core/review'
+import { PRESETS, PRESET_IDS, THEMES, THEME_IDS, themeOf } from '../core/themes'
+import { DEFAULT_SETTINGS, DEFAULT_WORDS, ICONS, LAYOUTS, SIGNALS, type AsmSettings, type Part, type Step, type StyleName } from '../core/model'
 import { useAsm } from '../state/asmStore'
 import { drawInWorker, sweepInWorker } from './asmClient'
 
@@ -76,28 +77,53 @@ const stepIndex = (ref: string | number): number => {
 
 const hitWords = (h: Hit) => `Step ${h.step}: ${h.part} runs into ${h.hits} ${h.before} mm before its place, moving along [${h.move.map((v) => +v.toFixed(3)).join(', ')}], near (${h.at.join(', ')}). Put ${h.part} in before ${h.hits}, or give it another direction.`
 
-const settings: Command<Partial<AsmSettings>> = {
+const TEXT_FIELDS = ['product', 'version', 'publisher', 'intendedUse', 'safety', 'disposal'] as const
+
+const settings: Command<Partial<AsmSettings> & { preset?: string }> = {
   name: 'settings',
   title: 'Assembly manual settings',
-  description: `The manual's title, paper (letter or a4), orientation (landscape or portrait), how far new parts are pulled out in a step's drawing (explode, a share of their travel), and how it looks: theme — ${THEMES.map((t) => `${t.id} (${t.name}: ${t.about})`).join('; ')} — and accent, your own colour as '#rrggbb' over the theme's ('' for the theme's own). The theme sets the HTML's type, colours and layout and the accent and balloons on the pages. With nothing, reads them, and the themes. Defaults: ${JSON.stringify(DEFAULT_SETTINGS)}.`,
+  description: `The manual's title, paper (letter or a4), orientation (landscape or portrait), how far new parts are pulled out in a step's drawing (explode, a share of their travel), and how it looks.
+- preset: ${PRESETS.map((p) => `${p.id} (${p.name}: ${p.about})`).join('; ')} — sets theme, layout, words, partsBox and hardwarePage at once; any can be changed after.
+- theme: ${THEMES.map((t) => `${t.id} (${t.name}: ${t.about})`).join('; ')}; accent your own colour as '#rrggbb' over the theme's ('' for the theme's own).
+- layout: steps a page — one, two, grid4, grid6, or auto (each step the room it needs: simple ones share a page, a big one has a page to itself).
+- words: show, or hide for pictures only on the pages (the HTML keeps the words; safety messages always show). partsBox: side (a column) or corner (a framed box). hardwarePage: a page of the hardware at 1:1 after the cover.
+- product, version, publisher (maker and contact), intendedUse, safety (general safety on the cover, as a WARNING), disposal: what the cover says and asm.review looks for ('' clears one).
+With nothing, reads them, with the themes and presets. Defaults: ${JSON.stringify(DEFAULT_SETTINGS)}.`,
   input: obj({
+    preset: enumOf(PRESET_IDS),
     title: str(undefined, { minLength: 1 }),
     paper: enumOf(['letter', 'a4']),
     orientation: enumOf(['landscape', 'portrait']),
     explode: num(undefined, { minimum: 0.2, maximum: 5 }),
     theme: enumOf(THEME_IDS),
     accent: str('#rrggbb, or empty for the theme’s own.'),
+    layout: enumOf([...LAYOUTS]),
+    words: enumOf(['show', 'hide']),
+    partsBox: enumOf(['side', 'corner']),
+    hardwarePage: bool(),
+    product: str('Product name, model or part number.'),
+    version: str('Edition of the manual: "1.2", "2026-11".'),
+    publisher: str('Who makes it and how to reach them.'),
+    intendedUse: str('What it is for — and what not.'),
+    safety: str('General safety information for the cover.'),
+    disposal: str('Taking it apart, recycling, disposal.'),
   }),
-  run: async (input) => {
+  run: async ({ preset, ...input }) => {
     if (input.accent && !/^#[0-9a-fA-F]{6}$/.test(input.accent)) throw new CommandError('invalid_input', `accent is a colour as '#rrggbb' — '#1877c0', say — or '' for the theme's own; not ${JSON.stringify(input.accent)}.`)
-    if (Object.keys(input).length) {
-      const next = { ...useAsm.getState().settings, ...input }
+    if (preset || Object.keys(input).length) {
+      const next: AsmSettings = { ...useAsm.getState().settings, ...(preset ? PRESETS.find((p) => p.id === preset)!.settings : {}), ...input }
       if (!next.accent) delete next.accent
+      for (const k of TEXT_FIELDS) if (!next[k]?.trim()) delete next[k]
       useAsm.getState().set({ settings: next })
     }
-    const now = useAsm.getState().settings
+    const now = { ...DEFAULT_SETTINGS, ...useAsm.getState().settings }
     const t = themeOf(now)
-    return { settings: now, theme: { id: t.id, name: t.name, accent: t.accent }, themes: THEMES.map(({ id, name, about }) => ({ id, name, about })) }
+    return {
+      settings: now,
+      theme: { id: t.id, name: t.name, accent: t.accent },
+      themes: THEMES.map(({ id, name, about }) => ({ id, name, about })),
+      presets: PRESETS.map(({ id, name, about }) => ({ id, name, about, current: Object.entries(PRESETS.find((p) => p.id === id)!.settings).every(([k, v]) => now[k as keyof AsmSettings] === v) })),
+    }
   },
 }
 
@@ -149,6 +175,9 @@ const stepSchema = obj({
   torque: str('"0.8 N·m".'),
   notes: str('A caution or a tip, beside the parts list.'),
   text: str('The instructions; asm.text writes and lints them.'),
+  sub: str('The sub-assembly this step builds, apart from the main assembly — "Hinge". A later step places it whole by naming it as a part: { part: "Hinge", move }. Empty to build into the main assembly.'),
+  warnings: arr(obj({ level: enumOf([...SIGNALS]), text: str(undefined, { minLength: 1 }) }, ['level', 'text']), 'Safety messages before the instructions, ANSI Z535.6 style: danger (death or serious injury will result), warning (could result), caution (minor or moderate injury), notice (damage to the product, no injury).'),
+  icons: arr(enumOf([...ICONS]), 'Pictograms beside the step number.'),
   view: oneOf([enumOf([...VIEW_NAMES]), obj({ toward: vec3('From the parts toward the viewer.'), up: vec3('Up on the page.') }, ['toward'])], 'Chosen to show the moves when left out.'),
 })
 
@@ -169,6 +198,7 @@ function completeStep(x: StepInput, old: Step | undefined, taken: Set<string>): 
     throw new CommandError('invalid_input', (e as Error).message)
   }
   const merged = { ...old, ...x, id, place }
+  if (x.sub !== undefined && !x.sub.trim()) delete (merged as Partial<Step>).sub
   return Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined)) as unknown as Step
 }
 
@@ -176,7 +206,7 @@ const step: Command<{ add?: StepInput; update?: StepInput; remove?: string; move
   name: 'step',
   title: 'Add or change an assembly step',
   description:
-    'One step of the assembly. add appends one: place lists the parts it puts in, in order, each with the way it moves into its place (move: [x, y, z] or down, up, ±x, ±y, ±z) — the part is drawn pulled back along it, and asm.check sweeps it in along it against what is already there; tools, torque, notes, text, and view (chosen to show the moves when left out). update changes a step by id; remove drops one; move puts one at a position (1 = first). Returns the steps.',
+    'One step of the assembly. add appends one: place lists the parts it puts in, in order, each with the way it moves into its place (move: [x, y, z] or down, up, ±x, ±y, ±z) — the part is drawn pulled back along it, and asm.check sweeps it in along it against what is already there; tools, torque, notes, text, warnings, icons, and view (chosen to show the moves when left out). sub makes it a step of a sub-assembly, built apart and drawn framed (its steps numbered A1, A2…); a later step places the whole sub-assembly by its name. update changes a step by id; remove drops one; move puts one at a position (1 = first). Returns the steps.',
   input: obj({ add: stepSchema, update: stepSchema, remove: str(), move: obj({ id: str(), to: int(undefined, { minimum: 1 }) }, ['id', 'to']) }),
   run: async ({ add, update, remove, move }) => {
     let list = [...useAsm.getState().steps]
@@ -279,7 +309,7 @@ const style: Command<{ name?: StyleName; add?: { avoid: string; use: string }[];
   },
 }
 
-async function pages(progress?: (t: string) => void): Promise<Sheet[] & { figures: Sheet[] }> {
+async function pages(progress?: (t: string) => void) {
   const s = useAsm.getState()
   if (!s.steps.length) throw new CommandError('invalid_state', 'There are no steps yet: asm.step { add }.')
   const ins = await partsIn(progress)
@@ -287,34 +317,40 @@ async function pages(progress?: (t: string) => void): Promise<Sheet[] & { figure
   const drawings = await drawInWorker(ins, s.steps, s.steps.map(stepCamera), s.settings.explode).catch((e: Error) => {
     throw new CommandError('failed', `Drawing failed: ${e.message}`)
   })
-  const sheets = [cover(s.parts, s.steps, s.settings), ...s.steps.map((x, i) => stepPage(i, x, drawings[i], s.parts, s.steps.length, s.settings))]
-  return Object.assign(sheets, { figures: s.steps.map((_, i) => stepFigure(drawings[i], s.parts, s.settings)) })
+  const settings = { ...DEFAULT_SETTINGS, ...s.settings }
+  const laid = manualPages(s.parts, s.steps, drawings, settings)
+  return { ...laid, settings, figures: s.steps.map((_, i) => stepFigure(drawings[i], s.parts, settings, s.steps)) }
 }
 
-const render: Command<{ page?: number; format?: 'png' | 'svg' | 'pdf' }> = {
+const pageName = (p: Awaited<ReturnType<typeof pages>>, n: number) =>
+  n === 0 ? 'manual-cover' : p.steps[n].length ? `manual-page-${n + 1}` : 'manual-hardware'
+
+const render: Command<{ page?: number; step?: number; format?: 'png' | 'svg' | 'pdf' }> = {
   name: 'render',
   title: 'Draw a page of the manual',
-  description: 'One page of the manual: 0 the cover with the bill of materials, n step n — its drawing (parts already in grey, the step\'s parts in black pulled back along their moves, with the path to their place and a balloon for each item), its parts, tools and torque, and its instructions. A PNG to look at (the default), or SVG or PDF.',
-  input: obj({ page: int('0 the cover, n step n; 1 by default.', { minimum: 0 }), format: enumOf(['png', 'svg', 'pdf']) }),
+  description: "One page of the manual as it prints, laid out as asm.settings says: page 0 the cover (product, safety, bill of materials), then the hardware at 1:1 if asked, then the steps' pages — each step its drawing (parts already in grey, the step's parts in black pulled back along their moves, with the path to their place and a balloon for each item), its parts, tools and torque, safety messages and instructions. step n gives the page step n is on. Returns which steps the page holds. A PNG to look at (the default), or SVG or PDF.",
+  input: obj({ page: int('0 the cover; 1 by default — with one step a page and no hardware page, page n is step n.', { minimum: 0 }), step: int('The page this step is on, in place of page.', { minimum: 1 }), format: enumOf(['png', 'svg', 'pdf']) }),
   readOnly: true,
   long: true,
   returnsFile: true,
   returnsImage: true,
   timeoutMs: 600_000,
-  run: async ({ page = 1, format = 'png' }, ctx) => {
+  run: async ({ page, step: st, format = 'png' }, ctx) => {
     const all = await pages((t) => ctx?.progress(t))
-    const sh = all[page]
-    if (!sh) throw new CommandError('invalid_input', `There are ${all.length - 1} steps; page 0 is the cover.`)
-    const name = page === 0 ? 'manual-cover' : `manual-step-${page}`
+    const n = st !== undefined ? all.pageOf[st - 1] : (page ?? 1)
+    const sh = n === undefined ? undefined : all.sheets[n]
+    if (!sh) throw new CommandError('invalid_input', st !== undefined ? `There is no step ${st}.` : `There are ${all.sheets.length} pages: 0 the cover to ${all.sheets.length - 1}.`)
+    const name = pageName(all, n)
     const file = format === 'png' ? { name: `${name}.png`, mimeType: 'image/png', bytes: await toPng(sh, 3) } : format === 'svg' ? { name: `${name}.svg`, mimeType: 'image/svg+xml', bytes: new TextEncoder().encode(toSvg(sh)) } : { name: `${name}.pdf`, mimeType: 'application/pdf', bytes: toPdf([sh]) }
-    return { file, pages: all.length, step: page || null }
+    const on = all.steps[n].map((i) => i + 1)
+    return { file, page: n, pages: all.sheets.length, steps: on, step: on.length === 1 ? on[0] : on.length ? null : null, layout: all.settings.layout }
   },
 }
 
 const save: Command<{ format?: 'html' | 'pdf' | 'zip' }> = {
   name: 'save',
   title: 'Save the manual',
-  description: 'The whole manual as one file to save on this computer: html (the default; self-contained and styled by the theme — a cover with the bill of materials and contents, then a step a page with its drawing, parts, tools and instructions; prints a step a page), pdf (a page a step after the cover), or zip (both, and every page as SVG). Give path to write it to a folder. Local only: nothing is sent anywhere.',
+  description: 'The whole manual as one file to save on this computer: html (the default; self-contained and styled by the theme — a cover with what the product is, its safety information, the bill of materials and contents, the hardware at 1:1 if asked, then the steps with their drawings, parts, tools, safety messages and instructions; prints laid out as the layout says), pdf (the pages as they render), or zip (both, and every page as SVG). Give path to write it to a folder. Local only: nothing is sent anywhere.',
   input: obj({ format: enumOf(['html', 'pdf', 'zip']) }),
   readOnly: true,
   long: true,
@@ -324,14 +360,27 @@ const save: Command<{ format?: 'html' | 'pdf' | 'zip' }> = {
     const s = useAsm.getState()
     const all = await pages((t) => ctx?.progress(t))
     const enc = new TextEncoder()
-    const doc = html(s.settings, s.parts, s.steps, all.figures)
+    const doc = html(all.settings, s.parts, s.steps, all.figures)
     const stem = s.settings.title.replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'manual'
-    if (format === 'html') return { file: { name: `${stem}.html`, mimeType: 'text/html', bytes: enc.encode(doc) }, pages: all.length }
-    const pdf = toPdf(all)
-    if (format === 'pdf') return { file: { name: `${stem}.pdf`, mimeType: 'application/pdf', bytes: pdf }, pages: all.length }
-    const files = [{ name: `${stem}.html`, bytes: enc.encode(doc) }, { name: `${stem}.pdf`, bytes: pdf }, ...all.map((p, i) => ({ name: `pages/${i === 0 ? 'cover' : `step-${i}`}.svg`, bytes: enc.encode(toSvg(p)) }))]
-    return { file: { name: `${stem}.zip`, mimeType: 'application/zip', bytes: zip(files) }, files: files.map((f) => f.name), pages: all.length }
+    if (format === 'html') return { file: { name: `${stem}.html`, mimeType: 'text/html', bytes: enc.encode(doc) }, pages: all.sheets.length }
+    const pdf = toPdf(all.sheets)
+    if (format === 'pdf') return { file: { name: `${stem}.pdf`, mimeType: 'application/pdf', bytes: pdf }, pages: all.sheets.length }
+    const files = [{ name: `${stem}.html`, bytes: enc.encode(doc) }, { name: `${stem}.pdf`, bytes: pdf }, ...all.sheets.map((p, i) => ({ name: `pages/${pageName(all, i).replace('manual-', '')}.svg`, bytes: enc.encode(toSvg(p)) }))]
+    return { file: { name: `${stem}.zip`, mimeType: 'application/zip', bytes: zip(files) }, files: files.map((f) => f.name), pages: all.sheets.length }
   },
 }
 
-export const asmCommands = [settings, parts, step, steps, check, text, style, render, save]
+const reviewCommand: Command<Record<string, never>> = {
+  name: 'review',
+  title: 'Review the manual against IEC/IEEE 82079-1',
+  description: 'Holds the manual up against what IEC/IEEE 82079-1 (instructions for use) asks a manual to carry — product identified, who supplies it, the edition, intended use, safety information and where it sits, the parts and tools, every step said, plain wording, sub-assemblies joined, end of life — in this plugin\'s own words, not the standard\'s text. Each item says what to set to put it right. A checklist for the person, not a certificate of conformity.',
+  input: obj({}),
+  readOnly: true,
+  run: async () => {
+    const s = useAsm.getState()
+    const items = review({ ...DEFAULT_SETTINGS, ...s.settings }, s.parts, s.steps, s.style)
+    return { items, open: items.filter((x) => !x.ok && x.level !== 'note').length, cite: 'IEC/IEEE 82079-1:2019, Preparation of information for use (instructions for use) of products. Named, not reproduced.' }
+  },
+}
+
+export const asmCommands = [settings, parts, step, steps, check, text, style, render, save, reviewCommand]

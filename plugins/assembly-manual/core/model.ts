@@ -28,12 +28,27 @@ export interface Placement {
   travel?: number
 }
 
+/** ANSI Z535.6 signal words, most to least severe. */
+export const SIGNALS = ['danger', 'warning', 'caution', 'notice'] as const
+export type Signal = (typeof SIGNALS)[number]
+
+/** Pictograms a step can carry — drawn by this plugin, not taken from any
+ *  symbol set. */
+export const ICONS = ['two-people', 'eye-protection', 'gloves', 'click', 'no-overtighten', 'check-fit'] as const
+export type IconId = (typeof ICONS)[number]
+
 export interface Step {
   id: string
   place: Placement[]
+  /** The sub-assembly this step builds, apart from the main assembly; a
+   *  later step places it whole by naming it as a part. */
+  sub?: string
   tools?: string[]
   torque?: string
   notes?: string
+  /** Safety messages shown before the instructions. */
+  warnings?: { level: Signal; text: string }[]
+  icons?: IconId[]
   text?: string
   view?: ViewName | { toward: V3; up?: V3 }
 }
@@ -58,9 +73,31 @@ export interface AsmSettings {
   theme: string
   /** The person's own accent colour, '#rrggbb', over the theme's. */
   accent?: string
+  /** Steps on a page: one, two, a grid of four or six, or auto — each step
+   *  the room it needs, simple ones sharing a page. */
+  layout: Layout
+  /** show: the instructions on the pages; hide: pictures only, the words
+   *  left for the HTML (a wordless kit's way). */
+  words: 'show' | 'hide'
+  /** Where a step's parts go: a column at the side, or a framed box in
+   *  the top corner. */
+  partsBox: 'side' | 'corner'
+  /** A page of the hardware at 1:1 after the cover, to check a screw on. */
+  hardwarePage: boolean
+  /** What the manual is for and who stands behind it — the cover's and
+   *  the 82079 review's. */
+  product?: string
+  version?: string
+  publisher?: string
+  intendedUse?: string
+  safety?: string
+  disposal?: string
 }
 
-export const DEFAULT_SETTINGS: AsmSettings = { title: 'Assembly instructions', paper: 'letter', orientation: 'landscape', explode: 1, theme: 'workshop' }
+export const LAYOUTS = ['one', 'two', 'grid4', 'grid6', 'auto'] as const
+export type Layout = (typeof LAYOUTS)[number]
+
+export const DEFAULT_SETTINGS: AsmSettings = { title: 'Assembly instructions', paper: 'letter', orientation: 'landscape', explode: 1, theme: 'workshop', layout: 'one', words: 'show', partsBox: 'side', hardwarePage: false }
 
 export const DEFAULT_WORDS: Record<string, string> = {
   utilize: 'use',

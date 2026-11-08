@@ -50,18 +50,50 @@ export function itemOf(parts: Part[], name: string): number {
   return rows.find((r) => r.name === want && (r.designation ?? '') === (p.designation ?? ''))?.item ?? 0
 }
 
+/** Each sub-assembly by name: the parts its steps put in, in order — a
+ *  sub-assembly placed inside another brings its own parts. */
+export function subAssemblies(steps: Step[]): Map<string, string[]> {
+  const subs = new Map<string, string[]>()
+  for (const s of steps) {
+    if (!s.sub) continue
+    const list = subs.get(s.sub) ?? []
+    for (const pl of s.place) list.push(...(subs.get(pl.part) ?? [pl.part]))
+    subs.set(s.sub, list)
+  }
+  return subs
+}
+
+/** The parts a placement moves: the part, or every part of a sub-assembly. */
+export const membersOf = (name: string, subs: Map<string, string[]>) => subs.get(name) ?? [name]
+
+/** Where a step builds: '' the main assembly, else its sub-assembly. */
+export const scopeOf = (s: Step) => s.sub ?? ''
+
 export function issues(parts: Part[], steps: Step[], bodies: string[]): Issue[] {
   const out: Issue[] = []
   const placedIn = new Map<string, number[]>()
+  const subs = subAssemblies(steps)
+  const joined = new Map<string, number>()
+  for (const name of subs.keys()) if (parts.some((p) => p.name === name)) out.push({ level: 'error', message: `"${name}" is both a part and a sub-assembly; give the sub-assembly another name.` })
   steps.forEach((s, i) => {
     if (!s.place.length) out.push({ level: 'warn', step: i + 1, message: `Step ${i + 1} places nothing.` })
     for (const pl of s.place) {
+      if (subs.has(pl.part)) {
+        const last = steps.reduce((n, x, j) => (x.sub === pl.part ? j : n), -1)
+        if (last >= i) out.push({ level: 'error', step: i + 1, part: pl.part, message: `Step ${i + 1} places sub-assembly "${pl.part}" before its last step (${last + 1}) is done.` })
+        if (joined.has(pl.part)) out.push({ level: 'error', step: i + 1, part: pl.part, message: `Sub-assembly "${pl.part}" is placed in steps ${joined.get(pl.part)} and ${i + 1}; it goes in once.` })
+        joined.set(pl.part, i + 1)
+        if (s.sub === pl.part) out.push({ level: 'error', step: i + 1, part: pl.part, message: `Step ${i + 1} places "${pl.part}" inside itself.` })
+        if (Math.hypot(...pl.move) < 1e-9) out.push({ level: 'error', step: i + 1, part: pl.part, message: `Step ${i + 1}: "${pl.part}" has no direction to move in.` })
+        continue
+      }
       placedIn.set(pl.part, [...(placedIn.get(pl.part) ?? []), i + 1])
-      if (!parts.some((p) => p.name === pl.part)) out.push({ level: 'error', step: i + 1, part: pl.part, message: `Step ${i + 1} places "${pl.part}", which is not in the parts list (asm.parts).` })
+      if (!parts.some((p) => p.name === pl.part)) out.push({ level: 'error', step: i + 1, part: pl.part, message: `Step ${i + 1} places "${pl.part}", which is not in the parts list (asm.parts) or a sub-assembly.` })
       if (Math.hypot(...pl.move) < 1e-9) out.push({ level: 'error', step: i + 1, part: pl.part, message: `Step ${i + 1}: "${pl.part}" has no direction to move in.` })
     }
     if (!s.text) out.push({ level: 'note', step: i + 1, message: `Step ${i + 1} has no instructions yet (asm.text).` })
   })
+  for (const name of subs.keys()) if (!joined.has(name)) out.push({ level: 'warn', part: name, message: `Sub-assembly "${name}" is built but never placed: add a step that places "${name}".` })
   for (const p of parts) {
     const at = placedIn.get(p.name)
     if (!at && p.body) out.push({ level: 'warn', part: p.name, message: `"${p.name}" is never placed.` })

@@ -6,6 +6,7 @@
 
 import { hlr, nearestOn, type LineKernel, type Polyline } from '../../_shared/lineart/hlr'
 import { project, type Camera, type V3 } from '../../_shared/lineart/views'
+import { membersOf, scopeOf, subAssemblies } from './assembly'
 import type { Step } from './model'
 
 type H = unknown
@@ -68,6 +69,20 @@ function load(k: AsmKernel, parts: PartIn[]): Map<string, { shape: H; box: Box; 
   return m
 }
 
+const union = (bs: Box[]): Box => ({
+  min: [0, 1, 2].map((i) => Math.min(...bs.map((b) => b.min[i]))) as V3,
+  max: [0, 1, 2].map((i) => Math.max(...bs.map((b) => b.max[i]))) as V3,
+})
+
+/** What a placement moves as one: a part, or a sub-assembly's parts
+ *  together. */
+function unitOf(k: AsmKernel, shapes: Map<string, { shape: H; box: Box; volume: number }>, members: string[]) {
+  const got = members.map((n) => shapes.get(n)).filter((x): x is { shape: H; box: Box; volume: number } => Boolean(x))
+  if (!got.length) return null
+  if (got.length === 1) return got[0]
+  return { shape: k.makeCompound(got.map((g) => g.shape)), box: union(got.map((g) => g.box)), volume: got.reduce((v, g) => v + g.volume, 0) }
+}
+
 const touchVolume = (k: AsmKernel, a: H, b: H): number => {
   try {
     const c = k.common(a, b)
@@ -85,19 +100,23 @@ const touchVolume = (k: AsmKernel, a: H, b: H): number => {
  *  their places. */
 export function sweep(k: AsmKernel, parts: PartIn[], steps: Step[], samples = 40): { hits: Hit[]; clashes: Clash[] } {
   const shapes = load(k, parts)
-  const placed: string[] = []
+  const subs = subAssemblies(steps)
+  const placedIn = new Map<string, string[]>()
   const hits: Hit[] = []
   const clashes: Clash[] = []
   steps.forEach((s, i) => {
+    const placed = placedIn.get(scopeOf(s)) ?? []
+    placedIn.set(scopeOf(s), placed)
     for (const pl of s.place) {
-      const me = shapes.get(pl.part)
+      const members = membersOf(pl.part, subs)
+      const me = unitOf(k, shapes, members)
       if (!me) continue
       const d = unit(pl.move)
       const travel = pl.travel ?? travelOf(me.box, d)
       const tol = Math.max(1e-3, me.volume * 1e-6)
       for (const other of placed) {
-        const o = shapes.get(other)!
-        if (!overlap(me.box, o.box)) continue
+        const o = shapes.get(other)
+        if (!o || !overlap(me.box, o.box)) continue
         const v = touchVolume(k, me.shape, o.shape)
         if (v > tol) clashes.push({ step: i + 1, part: pl.part, with: other, volume: v })
       }
@@ -107,8 +126,8 @@ export function sweep(k: AsmKernel, parts: PartIn[], steps: Step[], samples = 40
         const off: V3 = [-d[0] * back, -d[1] * back, -d[2] * back]
         const b = shift(me.box, off)
         for (const other of placed) {
-          const o = shapes.get(other)!
-          if (!overlap(b, o.box)) continue
+          const o = shapes.get(other)
+          if (!o || !overlap(b, o.box)) continue
           const moved = k.translate(me.shape, off[0], off[1], off[2])
           const v = touchVolume(k, moved, o.shape)
           if (v > tol) {
@@ -121,10 +140,8 @@ export function sweep(k: AsmKernel, parts: PartIn[], steps: Step[], samples = 40
           if (first) break
         }
       }
-      if (first) {
-        hits.push(first)
-      }
-      placed.push(pl.part)
+      if (first) hits.push(first)
+      placed.push(...members)
     }
   })
   return { hits, clashes }
@@ -149,18 +166,24 @@ export interface StepDrawing {
  *  pulled back along their moves by `explode` of their travel. */
 export function drawSteps(k: AsmKernel, parts: PartIn[], steps: Step[], cameras: Camera[], explode: number): StepDrawing[] {
   const shapes = load(k, parts)
+  const subs = subAssemblies(steps)
   const out: StepDrawing[] = []
-  const before: string[] = []
+  const placedIn = new Map<string, string[]>()
+  const boxes = new Map<string, Box>()
   steps.forEach((s, i) => {
     const c = cameras[i]
+    const before = placedIn.get(scopeOf(s)) ?? []
+    placedIn.set(scopeOf(s), before)
     const scene: { part: string; fresh: boolean; shape: H; off: V3 }[] = before.filter((n) => shapes.has(n)).map((n) => ({ part: n, fresh: false, shape: shapes.get(n)!.shape, off: [0, 0, 0] as V3 }))
     for (const pl of s.place) {
-      const me = shapes.get(pl.part)
-      if (!me) continue
+      const members = membersOf(pl.part, subs).filter((n) => shapes.has(n))
+      if (!members.length) continue
+      const box = union(members.map((n) => shapes.get(n)!.box))
+      boxes.set(pl.part, box)
       const d = unit(pl.move)
-      const back = (pl.travel ?? travelOf(me.box, d)) * explode
+      const back = (pl.travel ?? travelOf(box, d)) * explode
       const off: V3 = [-d[0] * back, -d[1] * back, -d[2] * back]
-      scene.push({ part: pl.part, fresh: true, shape: k.translate(me.shape, ...off), off })
+      for (const n of members) scene.push({ part: pl.part, fresh: true, shape: k.translate(shapes.get(n)!.shape, ...off), off })
     }
     if (!scene.length) {
       out.push({ step: i + 1, lines: [], paths: [] })
@@ -192,9 +215,9 @@ export function drawSteps(k: AsmKernel, parts: PartIn[], steps: Step[], cameras:
       if (cur) lines.push(cur)
     }
     const paths = scene
-      .filter((x) => x.fresh)
+      .filter((x, j) => x.fresh && scene.findIndex((y) => y.fresh && y.part === x.part) === j)
       .map((x) => {
-        const b = shapes.get(x.part)!.box
+        const b = boxes.get(x.part)!
         const center: V3 = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]
         const from = project(c, [center[0] + x.off[0], center[1] + x.off[1], center[2] + x.off[2]])
         const to = project(c, center)
@@ -203,7 +226,7 @@ export function drawSteps(k: AsmKernel, parts: PartIn[], steps: Step[], cameras:
         return { part: x.part, from, to, anchor: far?.at ?? from }
       })
     out.push({ step: i + 1, lines, paths })
-    for (const pl of s.place) before.push(pl.part)
+    for (const pl of s.place) before.push(...membersOf(pl.part, subs))
   })
   return out
 }
