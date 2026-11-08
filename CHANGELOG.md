@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Hardware** (2026-11-08, new plugin `hw`). Holes for the hardware a printed
+  part takes, cut into Reverse Engineer bodies as editable features: ISO 273
+  screw clearances with ISO 4762 / 7380 counterbores or ISO 10642
+  countersinks, ISO 4032 nut traps and side slots, heat-set inserts, pilots,
+  magnets and bearing seats, singly or as bolt circles, rectangles and grids.
+  It adds a printing allowance, teardrops level holes and can keep a bridge
+  layer. `hw.check` says what an existing hole fits. A change command can now
+  run another inside its own undo step (`runWithin` in
+  `src/commands/registry.ts`).
+
 - **A Texture workspace** (2026-11-07, local fork). BumpMesh's texturing engine —
   the code its Export button runs, vendored from a BumpMesh checkout — on the
   part open here: library or your own textures, up to four layers, stamps,
