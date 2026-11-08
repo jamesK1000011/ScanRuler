@@ -6,6 +6,7 @@
 // one calibration, the one Fits' Design page sizes holes and shafts with.
 // Every control runs the fit.* command an agent does.
 
+import { useState } from 'react'
 import { create } from 'zustand'
 import { runCommand } from '../../../src/commands/registry'
 import { readStateSection } from '../../../src/commands/stateSections'
@@ -27,12 +28,20 @@ type FileOut = { name: string; mimeType: string; bytes: Uint8Array }
 
 /** What the page holds between renders: the work running, and the answers
  *  last given — none of it the project's. */
-export const useScanFitView = create<{ busy: string | null; shared: Json | null; suggest: { run: number; slicer: string; corrections: Correction[]; changes: SlicerChange[] } | null; compare: Json | null }>(() => ({
+export const useScanFitView = create<{ busy: string | null; shared: Json | null; suggest: { run: number; slicer: string; corrections: Correction[]; changes: SlicerChange[] } | null; compare: Json | null; features: FeatureList | null }>(() => ({
   busy: null,
   shared: null,
   suggest: null,
   compare: null,
+  features: null,
 }))
+
+/** fit.features' answer, as far as the page reads it. */
+type FeatureList = {
+  reference: string
+  planes: { id: string; facing: string; inner?: boolean; ignored?: boolean }[]
+  circles: { id: string; kind: 'hole' | 'boss'; diameter: number; ignored?: boolean }[]
+}
 
 const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : ((e as { message?: string })?.message ?? String(e)) })
 
@@ -98,6 +107,8 @@ function Parts() {
 /** What it was printed on, and with which slicer values. */
 function PrintedOn() {
   const s = useFit((st) => st.settings)
+  // keymaps() reads the store once; watching the own maps redraws the list.
+  useFit((st) => st.keymaps)
   const busy = useScanFitView((v) => v.busy) !== null
   const set = (p: Json) => void run('fit.settings', p)
   return (
@@ -129,7 +140,58 @@ function PrintedOn() {
       <TextField label="Material" value={s.material} testId="scanfit-material" disabled={busy} onCommit={(v) => set({ material: v })} />
       <TextField label="Nozzle" value={s.nozzle} testId="scanfit-nozzle" disabled={busy} onCommit={(v) => set({ nozzle: v })} />
       <NumberField label="First layer" testId="scanfit-first-layer" value={s.firstLayer} step={0.05} min={0.05} kind="length" disabled={busy} hint={<p>Its height: the slab the elephant foot is read in.</p>} onCommit={(v) => set({ firstLayer: v })} />
+      <Keymaps busy={busy} />
     </details>
+  )
+}
+
+/** Key maps of your own: another slicer, or a setting renamed. */
+function Keymaps({ busy }: { busy: boolean }) {
+  const own = useFit((st) => st.keymaps)
+  const [text, setText] = useState('')
+  const add = async () => {
+    let keymap: Json
+    try {
+      keymap = JSON.parse(text) as Json
+    } catch {
+      report(new Error('The key map is not valid JSON.'))
+      return
+    }
+    if (await run('fit.keymaps', { action: 'add', keymap })) setText('')
+  }
+  const template = () => {
+    const base = keymaps().find((k) => k.id === useFit.getState().settings.slicer)
+    if (base) setText(JSON.stringify({ ...base, id: `${base.id}-mine`, label: `${base.label} (mine)`, checked: undefined }, null, 2))
+  }
+  return (
+    <div className="pl-card" data-test="scanfit-keymaps">
+      <div className="pl-cardhead">
+        <span className="name">
+          Key maps of your own
+          <InfoDot title="Slicer key maps">
+            <p>A key map says which slicer setting each correction moves. Add one for another slicer, or where your slicer names a setting differently. Start from the slicer chosen above, change its id, label and keys, then add it. Adding one with the same id replaces it. Kept with the project.</p>
+          </InfoDot>
+        </span>
+      </div>
+      {own.map((k) => (
+        <div className="kv" key={k.id}>
+          <span className="name">{k.label}</span>
+          <span className="pl-aside">{k.id}</span>
+          <button className="x" title="Remove this key map" disabled={busy} onClick={() => void run('fit.keymaps', { action: 'remove', id: k.id })}>
+            ×
+          </button>
+        </div>
+      ))}
+      <textarea className="pl-text" rows={4} value={text} placeholder='{ "id": "myslicer", "label": "My slicer", "keys": { … } }' aria-label="Key map" data-test="scanfit-keymap-text" disabled={busy} onChange={(e) => setText(e.target.value)} />
+      <div className="toolrow">
+        <button data-test="scanfit-keymap-template" title="Start from the slicer chosen above" disabled={busy} onClick={template}>
+          Start from {keymaps().find((k) => k.id === useFit.getState().settings.slicer)?.label ?? 'slicer'}
+        </button>
+        <button data-test="scanfit-keymap-add" title="Add or replace this key map" disabled={busy || !text.trim()} onClick={() => void add()}>
+          Add
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -232,6 +294,52 @@ function Result({ len }: { len: BoundLength }) {
   )
 }
 
+const FACING: Record<string, string> = { '+X': 'Wall +X', '-X': 'Wall −X', '+Y': 'Wall +Y', '-Y': 'Wall −Y', '+Z': 'Top', '-Z': 'Floor' }
+
+/** Each feature of the reference, and how it is read: an outer wall or a
+ *  pocket's (inner), or left out. Takes effect at the next measure. */
+function Features({ len }: { len: BoundLength }) {
+  const list = useScanFitView((v) => v.features)
+  const inner = useFit((s) => s.settings.inner)
+  const ignore = useFit((s) => s.settings.ignore)
+  const busy = useScanFitView((v) => v.busy) !== null
+  const load = () => void run('fit.features').then((r) => r && useScanFitView.setState({ features: r as unknown as FeatureList }))
+  const state = (id: string) => (ignore.includes(id) ? 'ignore' : inner.includes(id) ? 'inner' : 'contour')
+  const retag = async (id: string, to: string) => {
+    const from = state(id)
+    if (from === to) return
+    // Ignored and inner are kept apart: take a feature back before tagging it anew.
+    if (from === 'ignore' && !(await run('fit.tag', { ids: [id], as: 'use' }))) return
+    if (from === 'inner' && to !== 'contour' && !(await run('fit.tag', { ids: [id], as: 'contour' }))) return
+    if (to !== 'contour' || from === 'inner') await run('fit.tag', { ids: [id], as: to })
+  }
+  const row = (id: string, name: string, upright: boolean) => (
+    <label className="field pl-field" key={id} data-test={`scanfit-feature-${id}`}>
+      <span>
+        {id} <span className="pl-aside">{name}</span>
+      </span>
+      <select value={state(id)} aria-label={`How ${id} is read`} disabled={busy} onChange={(e) => void retag(id, e.target.value)}>
+        <option value="contour">{upright ? 'Outer wall' : 'Read'}</option>
+        {upright && <option value="inner">Pocket wall</option>}
+        <option value="ignore">Left out</option>
+      </select>
+    </label>
+  )
+  return (
+    <details className="group" data-test="scanfit-features" onToggle={(e) => (e.target as HTMLDetailsElement).open && load()}>
+      <summary className="sec-head">
+        Features read {list ? `(${list.planes.length + list.circles.length})` : ''}
+        <InfoDot title="Correcting a feature">
+          <p>Each flat face and upright hole or boss found on the CAD. A wall bounding a pocket or slot is a pocket wall: the slicer offsets it as a hole. Leave out a face meant to be loose, one the print was trimmed on, or one you know warped. Measure again to use the change.</p>
+        </InfoDot>
+      </summary>
+      {!list && <p className="hint">Open the CAD in Surface Deviation to list its features.</p>}
+      {list?.planes.map((p) => row(p.id, FACING[p.facing] ?? p.facing, !p.facing.endsWith('Z')))}
+      {list?.circles.map((c) => row(c.id, `${c.kind === 'hole' ? 'Hole' : 'Boss'} ⌀${len.fmt(c.diameter, 2)}`, false))}
+    </details>
+  )
+}
+
 /** Correction sets kept by name. */
 function Profiles() {
   const profiles = useFit((s) => s.profiles)
@@ -277,6 +385,7 @@ export function ScanFitPanel() {
       </div>
       <Busy text={busy} />
       <Result len={len} />
+      <Features len={len} />
       <Calibration />
       <Profiles />
     </aside>
