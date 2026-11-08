@@ -4,7 +4,7 @@
 // app's marking tools), how the part is built, and the buttons that build
 // it. Every control is the same verb an agent's command runs.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useStore } from '../../../src/state/store'
 import { useMark } from '../../../src/state/markStore'
 import { InfoDot } from '../../../src/ui/InfoDot'
@@ -40,6 +40,7 @@ export interface TexturePanelProps {
 }
 
 export function TexturePanel(p: TexturePanelProps) {
+  const imageInput = useRef<HTMLInputElement>(null)
   const st = useTexture()
   const fileName = useStore((s) => s.fileName)
   const marked = useMark((s) => s.count)
@@ -100,10 +101,13 @@ export function TexturePanel(p: TexturePanelProps) {
             )
           })}
         </div>
-        <label className="field">
+        <div className="field">
           <span>Your own heightmap</span>
-          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) p.onImage(f); e.target.value = '' }} />
-        </label>
+          <button disabled={busy} title="A greyscale PNG, JPEG or WebP: white stands out, black sinks in" style={{ flex: '0 1 172px' }} onClick={() => imageInput.current?.click()}>
+            Load an image…
+          </button>
+          <input ref={imageInput} type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) p.onImage(f); e.target.value = '' }} />
+        </div>
       </div>
 
       {L.texture && (
@@ -149,15 +153,17 @@ export function TexturePanel(p: TexturePanelProps) {
           ))}
         </div>
         <MarkTools escapeNote="The marking stays until you take it into the layer or clear it." onClear={p.onClearMarking} />
-        <div className="kv">
-          <button disabled={busy || marked === 0} onClick={() => p.onUseMarking('set')}>Use marking</button>
-          <button disabled={busy || marked === 0} onClick={() => p.onUseMarking('add')}>Add</button>
-          <button disabled={busy || marked === 0} onClick={() => p.onUseMarking('remove')}>Remove</button>
+        <div className="toolrow">
+          <button disabled={busy || marked === 0} title="The layer's region becomes what is marked" onClick={() => p.onUseMarking('set')}>Use marking</button>
+          <button disabled={busy || marked === 0} title="What is marked joins the layer's region" onClick={() => p.onUseMarking('add')}>Add</button>
+          <button disabled={busy || marked === 0} title="What is marked leaves the layer's region" onClick={() => p.onUseMarking('remove')}>Remove</button>
         </div>
-        <div className="kv">
+        <div className="field">
           <span>{L.mask ? `${L.mask.length.toLocaleString()} vertices painted` : 'Nothing painted'}</span>
-          <button disabled={busy} onClick={p.onShowMask}>Show</button>
-          <button disabled={busy || !L.mask} onClick={p.onClearMask}>Clear</button>
+          <div className="toolrow" style={{ flex: '0 1 172px' }}>
+            <button disabled={busy} title="Light the layer's region on the part" onClick={p.onShowMask}>Show</button>
+            <button disabled={busy || !L.mask} title="Empty the layer's region" onClick={p.onClearMask}>Clear</button>
+          </div>
         </div>
       </div>
 
@@ -166,9 +172,10 @@ export function TexturePanel(p: TexturePanelProps) {
         <NumberField label="Resolution" kind="length" value={st.output.refineLength} step={0.05} min={0.02} disabled={busy} onCommit={(v) => st.setOutput({ refineLength: v })} hint="Edge length the textured surface is cut into. Smaller is finer and heavier." />
         <NumberField label="Triangle budget" value={st.output.maxTriangles} step={50000} min={1000} disabled={busy} onCommit={(v) => st.setOutput({ maxTriangles: Math.round(v) })} />
         <NumberField label="Plain below" unit="°" value={st.output.bottomAngleLimit} step={1} min={0} disabled={busy} onCommit={(v) => st.setOutput({ bottomAngleLimit: v })} hint="Faces within this angle of facing down stay plain — the bed face." />
-        <div className="kv">
-          <label><input type="checkbox" checked={st.output.preserveUntextured} disabled={busy} onChange={(e) => st.setOutput({ preserveUntextured: e.target.checked })} /> Leave plain faces exactly as they are</label>
-        </div>
+        <label className="checkrow">
+          <input type="checkbox" checked={st.output.preserveUntextured} disabled={busy} onChange={(e) => st.setOutput({ preserveUntextured: e.target.checked })} />
+          <span>Leave plain faces exactly as they are</span>
+        </label>
       </div>
 
       <div className="group">
@@ -178,11 +185,13 @@ export function TexturePanel(p: TexturePanelProps) {
             <button onClick={p.onStop}>Stop</button>
           </>
         ) : (
-          <div className="kv">
-            <button className="primary" disabled={!st.layers.some((x) => x.texture)} onClick={p.onPreview}>Preview</button>
-            <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('stl')}>Export STL</button>
-            <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('3mf')}>Export 3MF</button>
-          </div>
+          <>
+            <button className="primary block" disabled={!st.layers.some((x) => x.texture)} onClick={p.onPreview}>Preview</button>
+            <div className="toolrow">
+              <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('stl')}>Export STL</button>
+              <button disabled={!st.layers.some((x) => x.texture)} onClick={() => p.onExport('3mf')}>Export 3MF</button>
+            </div>
+          </>
         )}
         {st.result && !busy && (
           <p className="hint">
