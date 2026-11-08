@@ -52,7 +52,7 @@ export function embedsFrom(u: unknown): Embed[] {
     if (!(e.roof === null || fin(e.roof, 0, 1e4))) continue
     const features = Array.isArray(e.features) ? e.features.filter((f): f is string => text(f, 200)) : []
     if (out.some((x) => x.id === e.id)) continue
-    out.push({ id: e.id, body: e.body, kind: e.kind, label: e.label, what: e.what, top: e.top, roof: e.roof as number | null, minRoof: e.minRoof, span: e.span, count: e.count as number, features, ...(text(e.source, 20) ? { source: e.source } : {}) })
+    out.push({ id: e.id, body: e.body, kind: e.kind, label: e.label, what: e.what, top: e.top, roof: e.roof as number | null, minRoof: e.minRoof, span: e.span, count: e.count as number, features, ...(text(e.source, 20) ? { source: e.source } : {}), ...(fin(e.bedZ, -1e5, 1e5) ? { bedZ: e.bedZ } : {}) })
   }
   return out
 }

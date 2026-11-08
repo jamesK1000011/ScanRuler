@@ -526,7 +526,7 @@ function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
   const pauses = base === null ? [] : [...new Set(tops)].map((t) => ({ top: t, ...pauseLayer(t - base, layers) }))
   for (const p of pauses) if (!p.onBoundary) warn.push(`Warning: the pocket's top (${r3(p.top - base!)} above the bed) is not on a layer boundary at ${S.layerHeight} layers (first ${S.firstLayer}): the layer it falls in may be printed closed over it. Pause is before layer ${p.layer}; check the slice.`)
   if (base === null) notes.push('The body’s place on the bed was not read (is it built?): hw.pauses gives the layer once it is.')
-  const embed: EmbedPlan = { kind: a.kind, label: cut.label, what: cut.what, tops, roof: measured, minRoof, span: cut.span, ...(pauses.length ? { pauses: pauses.map((p) => ({ layer: p.layer, z: p.z, printZ: p.printZ, onBoundary: p.onBoundary })) } : {}) }
+  const embed: EmbedPlan = { kind: a.kind, label: cut.label, what: cut.what, tops, roof: measured, minRoof, span: cut.span, ...(pauses.length ? { pauses: pauses.map((p) => ({ layer: p.layer, z: p.z, printZ: p.printZ, onBoundary: p.onBoundary })) } : {}), ...(base !== null ? { bedZ: base } : {}) }
   return finish(a, placed, offsets, cut, [...cut.notes, ...notes, ...warn], embed)
 }
 
@@ -545,7 +545,7 @@ function record(e: EmbedPlan, body: string, features: string[]): Embed[] {
   const all = [...st().embeds]
   const added: Embed[] = []
   for (const [top, count] of groups) {
-    const one: Embed = { id: nextId(all), body, kind: e.kind, label: e.label, what: count > 1 && groups.size > 1 ? e.what.replace(/ ×\d+$/, '') + ` ×${count}` : e.what, top, roof: e.roof, minRoof: e.minRoof, span: e.span, count, features }
+    const one: Embed = { id: nextId(all), body, kind: e.kind, label: e.label, what: count > 1 && groups.size > 1 ? e.what.replace(/ ×\d+$/, '') + ` ×${count}` : e.what, top, roof: e.roof, minRoof: e.minRoof, span: e.span, count, features, ...(e.bedZ !== undefined ? { bedZ: e.bedZ } : {}) }
     all.push(one)
     added.push(one)
   }
@@ -788,6 +788,8 @@ const recordCmd: Command<RecordIn> = {
       if (bodies.length && !bodies.includes(a.body!)) invalid(`There is no body "${a.body}" (bodies: ${bodies.join(', ')}).`)
       r = { body: a.body!, kind: 'cavity', label: a.what!.trim(), what: a.what!.trim(), top: r3(a.top!), roof: a.roof ?? null, minRoof, span: r3(a.span ?? 0), count: a.count ?? 1, features: [] }
     }
+    const bed = baseOf(r.body)
+    if (bed !== null) r.bedZ = bed
     const all = [...st().embeds]
     if (all.some((e) => e.body === r.body && Math.abs(e.top - r.top) < EPS && e.what === r.what)) invalid(`${r.what} at ${r.top} in ${r.body} is recorded already.`)
     const one: Embed = { id: nextId(all), ...r }
@@ -825,6 +827,7 @@ export function pausesOf(a: PausesIn = {}) {
   const unplaced: string[] = []
   const gone: string[] = []
   const outside: string[] = []
+  const moved: string[] = []
   const items = []
   let groupBase: number | null = null
   if (together) {
@@ -842,6 +845,7 @@ export function pausesOf(a: PausesIn = {}) {
       unplaced.push(e.id)
       continue
     }
+    if (e.bedZ !== undefined && Math.abs((baseOf(e.body) ?? e.bedZ) - e.bedZ) > 1e-3) moved.push(`${e.id}: ${e.body}’s bottom is at Z ${r3(baseOf(e.body)!)}, not ${r3(e.bedZ)} as when it was ${e.features.length ? 'cut' : 'recorded'} — if the body was moved, its pocket moved with it and this pause is wrong: cut or record it again.`)
     const z = r3(e.top - base)
     if (z <= 1e-4) {
       outside.push(`${e.id}: its top (Z ${e.top}) is not above ${e.body}’s bottom (Z ${r3(base)}) — left out.`)
@@ -874,7 +878,7 @@ export function pausesOf(a: PausesIn = {}) {
     slicer: { pauses: sched.map((p) => ({ z: Math.max(...p.items.map((i) => i.z)), note: p.note })) },
     ...(gone.length ? { gone: `${gone.join(', ')}: the features that cut ${gone.length === 1 ? 'it are' : 'them are'} gone — left out (hw.unembed to forget ${gone.length === 1 ? 'it' : 'them'}).` } : {}),
     ...(unplaced.length ? { unplaced: `${unplaced.join(', ')}: ${unplaced.length === 1 ? 'its body has' : 'their bodies have'} no place on the bed (not built?) — left out.` } : {}),
-    ...(outside.length || warnings.length ? { warnings: [...outside, ...warnings] } : {}),
+    ...(outside.length || moved.length || warnings.length ? { warnings: [...outside, ...moved, ...warnings] } : {}),
   }
 }
 

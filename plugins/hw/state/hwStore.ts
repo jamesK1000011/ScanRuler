@@ -41,6 +41,8 @@ export interface EmbedPlan {
   /** The pause each top takes at the settings' layers, where the body's
    *  place on the bed is known. */
   pauses?: { layer: number; z: number; printZ: number; onBoundary: boolean }[]
+  /** The body's lowest Z as planned, where known. */
+  bedZ?: number
 }
 
 /** A part encased in the print: the pocket it goes in, and where the print
@@ -67,6 +69,9 @@ export interface Embed {
   features: string[]
   /** Where it came from, when not cut here: "mass". */
   source?: string
+  /** Its body's lowest Z when it was cut or recorded: a body moved since
+   *  takes its pocket with it, the top recorded here not. */
+  bedZ?: number
 }
 
 export interface HwState extends Settings {

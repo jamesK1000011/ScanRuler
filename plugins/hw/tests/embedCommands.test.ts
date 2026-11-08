@@ -132,7 +132,7 @@ describe('hw.embed', () => {
   test('a magnet from the top face: sunk under 3 layers, top on a boundary, its pause', async () => {
     const p = await run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 0 } })
     expect(p.steps[0]).toMatchObject({ role: 'pocket', diameter: 6.3, from: 0.6, to: 3.8 })
-    expect(p.embed).toEqual({ kind: 'magnet', label: '6x3 magnet', what: 'a 6x3 magnet', tops: [9.4], roof: 0.6, minRoof: 0.6, span: 6.3, pauses: [{ layer: 48, z: 9.4, printZ: 9.6, onBoundary: true }] })
+    expect(p.embed).toEqual({ kind: 'magnet', label: '6x3 magnet', what: 'a 6x3 magnet', tops: [9.4], roof: 0.6, minRoof: 0.6, span: 6.3, pauses: [{ layer: 48, z: 9.4, printZ: 9.6, onBoundary: true }], bedZ: 0 })
     expect(warnings(p)).toEqual([])
     // The cut starts under the surface: closed above.
     const cut = p.features.find((f: Json) => f.kind === 'extrude')
@@ -306,6 +306,20 @@ describe('cut, recorded, and the pauses', () => {
     expect((await run('unembed', { id: 'E1' })).removed).toEqual(['E1'])
     expect((await run('unembed', { all: true })).removed).toEqual(['E2'])
     expect(useHw.getState().embeds).toEqual([])
+  })
+
+  test('a body moved since its pocket was cut: said so', async () => {
+    await run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 0 } })
+    await run('apply')
+    expect(useHw.getState().embeds[0].bedZ).toBe(0)
+    expect((await run('pauses')).warnings).toBe(undefined)
+    const was = BODIES.Block.bounds
+    BODIES.Block.bounds = { min: [-20, -20, 3], max: [20, 20, 13] }
+    try {
+      expect((await run('pauses')).warnings.some((w: string) => /E1: Block’s bottom is at Z 3, not 0 .* moved/.test(w))).toBe(true)
+    } finally {
+      BODIES.Block.bounds = was
+    }
   })
 
   test('the state section names what is encased', async () => {
