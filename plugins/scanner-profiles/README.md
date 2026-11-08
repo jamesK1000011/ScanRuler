@@ -12,3 +12,10 @@ Which scanner a scan came from, and how noisy it is.
   `scanner.use` sets the project's profile, kept with the project.
 - Other plugins read the noise to plan with from the session's `scanner`
   part: the profile's, else the measured value.
+
+## In the app
+
+A **Scanner** section in the 3D Measure panel: choose the project's profile
+or the measured noise, **Measure noise** on the open scan, **Save as
+profile**, add a profile by hand, and remove one with its ×. Each control
+runs the command above.

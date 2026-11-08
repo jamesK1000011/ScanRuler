@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.scanner-add { margin: 8px 0 0; }
+.scanner-add > summary { cursor: pointer; font-size: 12px; color: var(--muted, #888); margin-bottom: 4px; }
+.scanner-list { margin-top: 6px; }

@@ -7,6 +7,12 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Scanner in 3D Measure** (2026-11-08). The 3D Measure panel has a
+  Scanner section: choose this project's scanner profile or the noise
+  measured from the scan, Measure noise on the open scan, Save as profile,
+  add a profile by hand (name, noise, point spacing, note) and remove one.
+  Profiles stay in this browser; the choice is kept with the project. The
+  section runs the same `scanner.*` commands.
 - **Thread in 3D Measure** (2026-11-08). The 3D Measure panel has a
   Thread section: pick a cylinder fitted in a threaded bore or on a boss and
   Identify names it against ISO metric, UNC, UNF, UNEF, NPT, G/R pipe,
