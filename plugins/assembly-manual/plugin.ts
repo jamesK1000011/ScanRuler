@@ -17,10 +17,11 @@ const plugin: ScanRulerPlugin = {
   name: 'Assembly manual',
   workspace: {
     id: 'assembly',
-    label: 'Assembly',
+    label: 'Manual',
     title: 'Step-by-step build instructions from parts in their places: each part checked it can get in, each step drawn and its words linted, saved as HTML and PDF',
-    icon: 'combine',
-    order: 41,
+    icon: 'manual',
+    order: 40,
+    group: 'share',
   },
   usePlugin: useAsmPlugin,
   install() {
