@@ -117,7 +117,7 @@ export function ShotButton() {
       <button
         className="sn-shoot"
         data-test="snapshot-button"
-        title="Screenshot this tab for the agent (⌥⇧S / Alt+Shift+S) — share this tab when asked"
+        title="Screenshot this tab (⌥⇧S / Alt+Shift+S)"
         aria-label="Screenshot this tab"
         disabled={busy}
         onClick={() => void takeShot(box.current)}
