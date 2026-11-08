@@ -8,6 +8,7 @@
 import { downloads, openUrl, stopWatch, take, watch, watchStatus } from './catalog.js'
 import { librariesStatus, LIBRARIES, modelFiles, searchModels, takeModel } from './models.js'
 import { mcmaster, saveSources, loadSources, sourcesStatus, traceparts } from './sources.js'
+import { feaTools, MATERIALS } from './fea.js'
 import { detect, job, jobs, KINDS, listProfiles, loadConfig, saveConfig, slice } from './slicer.js'
 import * as printer from './printer.js'
 import { KINDS as PRINTER_KINDS } from './printers/adapters.js'
@@ -278,6 +279,9 @@ export function extraTools({ text, failure, page = null }, env = process.env) {
       async (a) => take(a, env),
       false,
     )
+  }
+  if (wanted('fea')) {
+    tool('fea_tools', 'The FEA programs on this computer', 'Whether Gmsh (the mesher) and CalculiX (the solver) are found — FreeCAD’s own copies first, then Homebrew’s and the PATH — with their versions, and how to get them when not; and the printed materials the FEA workspace starts from. The FEA workspace’s own commands (fea.*) run a solve. Changes nothing.', obj({}), async () => ({ ...(await feaTools(env)), materials: MATERIALS }))
   }
   if (wanted('printer')) {
     const name = { type: 'string', description: 'The printer’s name in printers.json; the only one when there is one.' }
