@@ -48,6 +48,31 @@ saves carry the same number as `appVersion`. How a release is cut is in
   run another inside its own undo step (`runWithin` in
   `src/commands/registry.ts`).
 
+- **Fits** (2026-11-08, new plugin `fits`). This plugin designs fits for
+  printed parts.
+  - **Hole and shaft.** `fit.pair` sizes a pair from a nominal and a class:
+    free, slip, close, press or tight press. It gives the sizes to print and
+    to model, using the printer's calibrated offsets. It also gives the
+    clearance's worst-case and RSS range and the ISO 286 fit each class
+    stands in for (a reference only). For a press it gives the strain on the
+    hub.
+  - **Calibration.** `fit.calibrate` takes sizes measured on a print, Print
+    fit's last run, or the clearance each class felt right at on the
+    coupon.
+  - **Test coupon.** `fit.test` makes it in Reverse Engineer: holes and pegs
+    engraved with their clearances, plus a gauge pin and ring.
+  - **Snap fit.** `fit.snap` works out a cantilever hook from the beam
+    formulas: strain against the material's limit, and the mating and
+    separation forces.
+  - **Hinge and pin.** `fit.hinge` plans a print-in-place knuckle hinge and
+    `fit.pin` a pin and socket.
+  - **Making the parts.** `fit.apply` makes the planned part as solids.
+  - **Tolerance stack.** `fit.stack` adds up a chain of sizes worst case and
+    RSS.
+
+  The commands share `fit.*` with Print fit under different verbs. The guide
+  is `fits`.
+
 - **A Texture workspace** (2026-11-07, local fork). BumpMesh's texturing engine —
   the code its Export button runs, vendored from a BumpMesh checkout — on the
   part open here: library or your own textures, up to four layers, stamps,

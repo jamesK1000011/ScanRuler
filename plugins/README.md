@@ -12,6 +12,7 @@ not in this repository.
 | [texture/](texture/) | The Texture workspace — a printable surface texture with BumpMesh's engine, masked by paint or by a Reverse body's CAD faces |
 | [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
 | [fit-comp/](fit-comp/) | Print fit — scanned print against its CAD, to slicer settings or a compensated model |
+| [fits/](fits/) | Fits — hole and shaft sizes for slip and press fits, snap-fit hooks, print-in-place hinges, pins, tolerance stacks; calibrated with a test coupon |
 | [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML, and .blend through Blender |
 | [dfm-fdm/](dfm-fdm/) | Printability check — FDM rules from editable profiles, with findings you can waive |
 | [printer-handoff/](printer-handoff/) | Printer hand-off — the guide for the MCP server's printer tools; a print starts only on your Start |
