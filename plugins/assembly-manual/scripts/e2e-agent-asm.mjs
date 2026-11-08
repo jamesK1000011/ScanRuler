@@ -125,14 +125,14 @@ try {
   check(pg.images?.length === 1 && pg.json?.pages === 4, `asm_render shows step 3 as a picture (${pg.json?.pages} pages)`)
   await ok('asm_render', { page: 3, format: 'svg', path: join(out, 'step-3.svg') })
   const svg = readFileSync(join(out, 'step-3.svg'), 'utf8')
-  check(/>Step</.test(svg) && /4 × Screw/.test(svg) && /M3×16 ISO 4762/.test(svg) && /Torque: 0.8 N·m/.test(svg) && /stroke="#999999"/.test(svg), 'step 3 has the box and lid in grey, the four screws listed with their torque')
+  check(/font-weight="bold"[^>]*>3</.test(svg) && /4 × Screw/.test(svg) && /M3×16 ISO 4762/.test(svg) && /Torque: 0.8 N·m/.test(svg) && /stroke="#999999"/.test(svg), 'step 3 has the box and lid in grey, the four screws listed with their torque')
 
   await ok('asm_save', { path: join(out, 'box-kit.html') })
   const h = readFileSync(join(out, 'box-kit.html'), 'utf8')
   check(/<h1>Box kit<\/h1>/.test(h) && (h.match(/<section class="sheet step"/g) ?? []).length === 3 && !/<script|src="http|<link|url\(/.test(h), 'the HTML manual is self-contained: cover and three steps')
   check(/<li>Put the lid on the box\.<\/li><li>Align the four holes/.test(h) && /class="torque">0\.8 N·m/.test(h) && /<span class="balloon">3<\/span>/.test(h), 'each instruction on its own line, the torque and the balloons in the HTML')
   const themes = await ok('asm_settings', {})
-  check(themes.json?.themes?.map((t) => t.id).join() === 'workshop,picture,technical,shopfloor' && themes.json.theme.id === 'workshop', `asm_settings lists the themes: ${themes.json?.themes?.map((t) => t.name).join(', ')}`)
+  check(themes.json?.themes?.map((t) => t.id).join() === 'workshop,picture,technical,shopfloor,brick' && themes.json.theme.id === 'workshop', `asm_settings lists the themes: ${themes.json?.themes?.map((t) => t.name).join(', ')}`)
   const badColour = await call('asm_settings', { accent: 'green' })
   check(Boolean(badColour.error) && /#rrggbb/.test(badColour.text), 'an accent that is no colour is refused')
   const shots = {}
