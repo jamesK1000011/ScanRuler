@@ -5,6 +5,7 @@
 import { Status } from '../../_shared/ui/kit'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { useAsks, answer, type Ask } from '../state/askStore'
+import { useShell } from '../../../src/state/shellStore'
 
 const WORDS: Record<Ask['status'], string> = { waiting: 'Waiting for you', sending: 'Sending…', starting: 'Starting…', started: 'Started', cancelled: 'Cancelled — nothing was sent', failed: 'It did not start', expired: 'Expired — ask again', withdrawn: 'Withdrawn by the agent' }
 const TONE: Record<Ask['status'], 'ok' | 'warn' | 'bad' | 'idle'> = { waiting: 'warn', sending: 'warn', starting: 'warn', started: 'ok', cancelled: 'idle', failed: 'bad', expired: 'idle', withdrawn: 'idle' }
@@ -76,7 +77,8 @@ function Answer({ a, onClose }: { a: Ask; onClose?: () => void }) {
 /** Over every workspace: the request waiting, or the answer just given. */
 export function AskCard() {
   const list = useAsks((s) => s.asks)
-  const inPrint = useAsks((s) => s.inPrint)
+  // In the Print workspace its panel shows the request: no second Start over it.
+  const inPrint = useShell((s) => s.workspace) === 'print'
   const a = list.find((x) => x.status === 'waiting' || x.status === 'sending') ?? list.find((x) => Date.now() - Date.parse(x.at) < 15_000 && x.status !== 'waiting')
   if (!a || inPrint) return null
   return (
