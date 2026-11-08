@@ -18,9 +18,19 @@ export interface Sheet {
 /** Helvetica's cap height as a share of the font size. */
 const CAP = 0.718
 
-/** How wide a text of cap height h comes out, mm (Helvetica's digits are
- *  0.556 em; letters average about the same). */
-export const textWidth = (text: string, h: number) => [...text].reduce((s, c) => s + (c === ' ' ? 0.278 : c === '.' ? 0.278 : /[A-Z]/.test(c) ? 0.68 : 0.556), 0) * (h / CAP)
+/** Helvetica's advance widths, thousandths of an em, for the characters
+ *  space (32) to tilde (126) — the font's own metrics, so text is measured
+ *  as a PDF reader lays it out. */
+const HELVETICA = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584]
+
+/** How wide a text of cap height h comes out, mm, in Helvetica: by each
+ *  character's own width; one outside ASCII as a digit. Bold runs about 6 %
+ *  wider. */
+export const textWidth = (text: string, h: number, bold = false) =>
+  ([...text].reduce((s, c) => {
+    const code = c.charCodeAt(0)
+    return s + (code >= 32 && code <= 126 ? HELVETICA[code - 32] : 556)
+  }, 0) / 1000) * (h / CAP) * (bold ? 1.06 : 1)
 
 const f = (n: number) => (Math.round(n * 1000) / 1000).toString()
 
@@ -87,7 +97,7 @@ export function toPdf(sheets: Sheet[]): Uint8Array {
         ops.push(`${isRgb(m.rgb) ? `${rgbOf(m.rgb).map(f).join(' ')} rg` : `${f(m.grey ?? 0)} g`} ${X(m.pts[0])} ${Y(m.pts[1])} m ${m.pts.slice(2).reduce((a, v, i) => a + (i % 2 === 0 ? `${X(v)} ` : `${Y(v)} l `), '')}h f`)
       } else {
         const size = (m.h / CAP) * PT
-        const w = textWidth(m.text, m.h)
+        const w = textWidth(m.text, m.h, m.bold)
         const x = m.anchor === 'middle' ? m.x - w / 2 : m.anchor === 'end' ? m.x - w : m.x
         ops.push(`${isRgb(m.rgb) ? `${rgbOf(m.rgb).map(f).join(' ')} rg` : '0 g'} BT /${m.bold ? 'F2' : 'F1'} ${f(size)} Tf ${X(x)} ${Y(m.y)} Td (${winAnsi(m.text).replace(/[\\()]/g, (c) => `\\${c}`)}) Tj ET`)
       }
