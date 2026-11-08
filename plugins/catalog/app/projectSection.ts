@@ -19,4 +19,11 @@ export const catalogSection: ProjectSection<SavedCatalog> = {
     return () => useCatalog.getState().replace(v.parts)
   },
   hasContent: (v) => v.parts.length > 0,
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['parts'] as const
+    return useCatalog.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }
