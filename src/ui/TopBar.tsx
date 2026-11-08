@@ -30,20 +30,19 @@ const GITHUB_URL = 'https://github.com/CNCKitchen/scanruler'
 const sourceTitle = () =>
   plugins().length > 0 ? 'Source code of the open-source core (AGPL-3.0-only) on GitHub' : 'Source code (AGPL-3.0-only) on GitHub'
 
-const CORE_TABS: { id: Workspace; icon: IconName; label: string; title: string }[] = [
-  { id: 'elements', icon: 'wsMeasure', label: '3D Measure', title: 'Fit spheres, cylinders and planes, and measure between them' },
-  { id: 'deviation', icon: 'compare', label: 'Surface Deviation', title: 'Best-fit the scan to a nominal part and map the difference' },
-  { id: 'thickness', icon: 'wsThickness', label: 'Wall Thickness', title: 'Map the wall thickness of the part itself — no reference needed' },
-  { id: 'flat', icon: 'wsFlat', label: '2D Measure', title: 'Measure a flatbed scan the way a measuring microscope would' },
+const CORE_TABS: { id: Workspace; icon: IconName; label: string; title: string; order: number; group: 'measure' }[] = [
+  { id: 'elements', icon: 'wsMeasure', label: '3D Measure', title: 'Fit spheres, cylinders and planes, and measure between them', order: 1, group: 'measure' },
+  { id: 'deviation', icon: 'compare', label: 'Surface Deviation', title: 'Best-fit the scan to a nominal part and map the difference', order: 2, group: 'measure' },
+  { id: 'thickness', icon: 'wsThickness', label: 'Wall Thickness', title: 'Map the wall thickness of the part itself — no reference needed', order: 3, group: 'measure' },
+  { id: 'flat', icon: 'wsFlat', label: '2D Measure', title: 'Measure a flatbed scan the way a measuring microscope would', order: 4, group: 'measure' },
 ]
 
-/** The app's tabs, then those of the plugins in use, in their order. */
-const workspaceTabs = () => [
-  ...CORE_TABS,
-  ...plugins()
-    .flatMap((p) => (p.workspace ? [p.workspace] : []))
-    .sort((a, b) => a.order - b.order),
-]
+/** The app's tabs and those of the plugins in use, in the order of the work
+ *  — measure, model, make, share — each marked where a new stage starts. */
+const workspaceTabs = () => {
+  const all = [...CORE_TABS, ...plugins().flatMap((p) => (p.workspace ? [p.workspace] : []))].sort((a, b) => a.order - b.order)
+  return all.map((w, i) => ({ ...w, opens: i > 0 && (w.group ?? 'model') !== (all[i - 1].group ?? 'model') }))
+}
 
 /** The page's own title, while no project is named. */
 const APP_TITLE = 'ScanRuler by CNC Kitchen'
@@ -98,7 +97,7 @@ function ProjectName() {
 
 /** How many of its folds the bar takes — see the top bar in styles.css —
  *  when everything spelled out does not fit its row. */
-const FOLDS = 5
+const FOLDS = 6
 
 /** Folds the bar just as far as its row needs, and marks the ends with keys
  *  scrolled out of sight ('start', 'end' or both) for the fade that says
@@ -120,6 +119,8 @@ function useFit(ref: RefObject<HTMLElement | null>) {
       if (fold === FOLDS || el.scrollWidth <= el.clientWidth) break
     }
     el.classList.remove('measuring')
+    // Folded to the last, the tabs scroll on their own: keep the open one in view.
+    if (el.dataset.fold?.includes('6')) el.querySelector<HTMLElement>('.modeswitch button.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     markEnds(el)
   }
   useLayoutEffect(() => fit.current())
@@ -221,7 +222,7 @@ export function TopBar({
             role="tab"
             data-test={`workspace-${w.id}`}
             aria-selected={workspace === w.id}
-            className={workspace === w.id ? 'on' : undefined}
+            className={[workspace === w.id ? 'on' : '', w.opens ? 'stage' : ''].filter(Boolean).join(' ') || undefined}
             title={`${w.label}\n${w.title}`}
             aria-label={w.label}
             disabled={picking}
