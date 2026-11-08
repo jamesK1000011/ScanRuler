@@ -1,0 +1,48 @@
+{
+  "id": "prusa",
+  "label": "Prusa Knowledge Base: modeling with 3D printing in mind",
+  "publisher": "Prusa Research",
+  "kind": "printer maker",
+  "url": "https://help.prusa3d.com/en/article/modeling-with-3d-printing-in-mind_164135/",
+  "read": "2026-11-07",
+  "note": "Overhangs print cleanly between 45° and 60° depending on nozzle and settings, up to 75° on printers with 360° cooling (MK4S, CORE One): the check takes 45°. Two perimeters of a 0.4 mm nozzle, about 0.9 mm, is the thinnest wall that prints solid.",
+  "overrides": {
+    "thin-wall": {
+      "params": {
+        "minMm": 0.9
+      }
+    },
+    "overhang": {
+      "params": {
+        "maxDeg": 45
+      }
+    }
+  },
+  "figures": [
+    {
+      "topic": "wall, 1 perimeter (0.4 nozzle)",
+      "value": 0.45,
+      "unit": "mm"
+    },
+    {
+      "topic": "wall, 2 perimeters (0.4 nozzle)",
+      "value": 0.9,
+      "unit": "mm"
+    },
+    {
+      "topic": "overhang angle",
+      "value": "45–60 (75 with 360° cooling)",
+      "unit": "°"
+    },
+    {
+      "topic": "accuracy",
+      "value": "0.2",
+      "unit": "mm"
+    },
+    {
+      "topic": "clearance, moving parts",
+      "value": 0.3,
+      "unit": "mm"
+    }
+  ]
+}

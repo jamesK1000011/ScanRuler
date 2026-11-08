@@ -5,13 +5,15 @@
 import { create } from 'zustand'
 import type { Finding } from '../core/checks'
 import type { Up } from '../core/frame'
-import type { Override } from '../core/rules'
+import type { Guide, Override } from '../core/rules'
 
 export interface DfmSettings {
   up: Up
   printer: string | null
   material: string | null
   nozzle: string | null
+  /** A published guide's numbers, stacked over the profiles. */
+  guide: string | null
   target: 'scan' | 'reference'
 }
 
@@ -28,21 +30,25 @@ export interface NumberedFinding extends Finding {
   waived?: string
 }
 
-export const DEFAULT_DFM: DfmSettings = { up: '+z', printer: null, material: null, nozzle: '0.4', target: 'scan' }
+export const DEFAULT_DFM: DfmSettings = { up: '+z', printer: null, material: null, nozzle: '0.4', guide: null, target: 'scan' }
 
 interface DfmState {
   settings: DfmSettings
   overrides: Record<string, Override>
   waivers: Waiver[]
+  /** Guides imported into this project. */
+  guides: Guide[]
   findings: NumberedFinding[]
   skipped: { rule: string; why: string }[]
   checkedAt: string | null
   set(p: Partial<DfmSettings>): void
   setOverride(rule: string, o: Override | null): void
+  addGuide(g: Guide): void
+  removeGuide(id: string): void
   waive(w: Waiver): void
   unwaive(rule: string, at: [number, number, number]): boolean
   result(findings: NumberedFinding[], skipped: { rule: string; why: string }[]): void
-  replace(s: Pick<DfmState, 'settings' | 'overrides' | 'waivers'>): void
+  replace(s: Pick<DfmState, 'settings' | 'overrides' | 'waivers'> & { guides?: Guide[] }): void
   reset(): void
 }
 
@@ -52,6 +58,7 @@ export const useDfm = create<DfmState>((set, get) => ({
   settings: { ...DEFAULT_DFM },
   overrides: {},
   waivers: [],
+  guides: [],
   findings: [],
   skipped: [],
   checkedAt: null,
@@ -62,6 +69,8 @@ export const useDfm = create<DfmState>((set, get) => ({
     else delete next[rule]
     set({ overrides: next })
   },
+  addGuide: (g) => set({ guides: [...get().guides.filter((x) => x.id !== g.id), g] }),
+  removeGuide: (id) => set({ guides: get().guides.filter((x) => x.id !== id), settings: get().settings.guide === id ? { ...get().settings, guide: null } : get().settings }),
   waive: (w) => set({ waivers: [...get().waivers.filter((x) => !(x.rule === w.rule && x.at.join() === w.at.join())), w] }),
   unwaive: (rule, at) => {
     const before = get().waivers.length
@@ -70,5 +79,5 @@ export const useDfm = create<DfmState>((set, get) => ({
   },
   result: (findings, skipped) => set({ findings, skipped, checkedAt: new Date().toISOString() }),
   replace: (s) => set(s),
-  reset: () => set({ settings: { ...DEFAULT_DFM }, overrides: {}, waivers: [], findings: [], skipped: [], checkedAt: null }),
+  reset: () => set({ settings: { ...DEFAULT_DFM }, overrides: {}, waivers: [], guides: [], findings: [], skipped: [], checkedAt: null }),
 }))

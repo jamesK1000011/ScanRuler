@@ -60,7 +60,7 @@ try {
   check(waited.json?.connected === true && waited.json.page.plugins.includes('dfm-fdm'), `the page connected with dfm-fdm (${waited.json?.page?.plugins})`)
   const tools = (await agent.client.listTools()).tools
   const names = tools.map((t) => t.name)
-  const wanted = ['dfm_settings', 'dfm_profiles', 'dfm_rules', 'dfm_check', 'dfm_explain', 'dfm_waive', 'dfm_report']
+  const wanted = ['dfm_settings', 'dfm_profiles', 'dfm_rules', 'dfm_check', 'dfm_explain', 'dfm_waive', 'dfm_report', 'dfm_guides', 'dfm_considerations']
   check(wanted.every((n) => names.includes(n)), `the ${wanted.length} dfm tools are listed (missing: ${wanted.filter((n) => !names.includes(n)).join(', ') || 'none'})`)
   const depth = (v) => (v !== null && typeof v === 'object' ? 1 + Math.max(0, ...Object.values(v).map(depth)) : 0)
   const heavy = tools.filter((t) => t.name.startsWith('dfm_') && (JSON.stringify(t.inputSchema).length > 8000 || depth(t.inputSchema) > 12)).map((t) => t.name)
@@ -98,6 +98,29 @@ try {
   check(bad.error && /maxMm/.test(bad.text), 'an unknown parameter is refused with the ones there are')
   await ok('dfm_rules', { action: 'clear', rule: 'bridge' })
 
+  // ---- published guides, imported ones, the design review --------------------------------------
+  const gl = await ok('dfm_guides', {})
+  check(gl.json?.guides?.length >= 7 && gl.json.guides.every((g) => g.url && g.read && g.publisher), `dfm_guides lists ${gl.json?.guides?.length} guides, each with its source and the date it was read`)
+  const cmp = await ok('dfm_guides', { action: 'compare' })
+  const wallRow = cmp.json?.rows?.find((r) => r.topic === 'unsupported wall')
+  check(wallRow && wallRow.agree === false && wallRow.low === 0.8 && wallRow.high === 1.2 && cmp.json.disagree.includes('unsupported wall'), `compare shows the guides disagree on unsupported walls (${wallRow?.low}–${wallRow?.high} mm)`)
+  await ok('dfm_settings', { guide: 'hlh-rapid' })
+  const strict = await ok('dfm_rules', {})
+  const wallRule = strict.json?.rules?.find((r) => r.id === 'thin-wall')
+  check(wallRule?.params?.minMm === 1.2 && wallRule.setBy.minMm === 'guide hlh-rapid', 'choosing a guide stacks its numbers, and the rule says the guide set them')
+  const mine = { id: 'my-shop', label: 'My H2D, tuned', publisher: 'A. Example', read: '2026-11-07', overrides: { 'thin-wall': { params: { minMm: 0.6 } }, bridge: { params: { maxMm: 25 } } }, figures: [{ topic: 'bridge span', value: 25, unit: 'mm' }] }
+  const bad = await call('dfm_guides', { action: 'import', guide: { ...mine, id: 'Bad', overrides: { overhang: { params: { maxAngle: 40 } } } } })
+  check(bad.error && /maxDeg/.test(bad.text) && /id:/.test(bad.text), 'a guide naming a parameter the rule lacks is refused, saying which')
+  await ok('dfm_guides', { action: 'import', guide: mine })
+  await ok('dfm_settings', { guide: 'my-shop' })
+  const tuned = await ok('dfm_rules', {})
+  check(tuned.json?.rules?.find((r) => r.id === 'bridge')?.params?.maxMm === 25, 'an imported guide stacks like a shipped one')
+  const exp = await ok('dfm_guides', { action: 'export', label: 'Exported', publisher: 'A. Example' })
+  check(exp.json?.guide?.overrides?.bridge?.params?.maxMm === 25 && /guide my-shop/.test(exp.json.guide.note), 'export writes the rules in force as a guide to edit and share')
+  const review = await ok('dfm_considerations', {})
+  check(review.json?.considerations?.length >= 12 && /52910/.test(review.json.cite) && review.json.considerations.some((x) => x.checkedBy.length === 0), 'dfm_considerations lists the design review, the checks it covers and the ones for the person')
+  await ok('dfm_settings', { guide: null })
+
   // ---- waivers, the report, the project -------------------------------------------------------
   const again = await ok('dfm_check', {})
   const hole = of(again.json, 'small-hole')[0]
@@ -112,6 +135,8 @@ try {
   await ok('project_load', { path: projectFile, discard: true })
   const after = await ok('dfm_check', {})
   check(of(after.json, 'small-hole')[0]?.waived && after.json.waived === 1, 'the waiver comes back with the project')
+  const back = await ok('dfm_guides', {})
+  check(back.json?.guides?.some((g) => g.id === 'my-shop' && g.custom), 'the imported guide comes back with the project')
   const st = await ok('session_state', {})
   check(st.json?.plugins?.dfm?.last?.errors >= 1 && st.json.plugins.dfm.waivers === 1, `session_state: ${JSON.stringify(st.json?.plugins?.dfm)}`)
 } finally {

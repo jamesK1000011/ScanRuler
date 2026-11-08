@@ -12,7 +12,8 @@ import { useStore } from '../../../src/state/store'
 import { useThickness } from '../../../src/state/thicknessStore'
 import { runChecks } from '../core/checks'
 import { arrayToBuild, buildFrame, fromBuild, UPS, type Up } from '../core/frame'
-import { stack, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
+import { CONSIDERATIONS, CONSIDERATIONS_CITE } from '../core/considerations'
+import { stack, validateGuide, type Guide, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
 import { atKey, useDfm, type DfmSettings, type NumberedFinding } from '../state/dfmStore'
 
@@ -21,6 +22,9 @@ const glob = (g: Record<string, Profile>) => Object.values(g).sort((a, b) => a.i
 const PRINTERS = glob(import.meta.glob<Profile>('../rules/printers/*.json', { eager: true, import: 'default' }))
 const MATERIALS = glob(import.meta.glob<Profile>('../rules/materials/*.json', { eager: true, import: 'default' }))
 const NOZZLES = glob(import.meta.glob<Profile>('../rules/nozzles/*.json', { eager: true, import: 'default' }))
+const SHIPPED_GUIDES = glob(import.meta.glob<Guide>('../rules/guides/*.json', { eager: true, import: 'default' }) as Record<string, Profile>) as Guide[]
+/** The guides there are: shipped ones, and the project's imported ones. */
+export const guidesNow = (): Guide[] => [...SHIPPED_GUIDES, ...useDfm.getState().guides.map((g) => ({ ...g, custom: true }))]
 
 const r = (v: number, d = 3) => Math.round(v * 10 ** d) / 10 ** d
 
@@ -34,6 +38,7 @@ function layers(s: DfmSettings = useDfm.getState().settings): Layer[] {
   pick(NOZZLES, s.nozzle, 'nozzle')
   pick(MATERIALS, s.material, 'material')
   pick(PRINTERS, s.printer, 'printer')
+  pick(guidesNow(), s.guide, 'guide')
   out.push({ name: 'project', overrides: useDfm.getState().overrides })
   return out
 }
@@ -62,16 +67,18 @@ function weld(src: ArrayLike<number>, index: ArrayLike<number> | null): { positi
 export const settings: Command<Partial<DfmSettings>> = {
   name: 'settings',
   title: 'What the part is printed on',
-  description: `Choose the profiles the rules are stacked from — nozzle (${NOZZLES.map((p) => p.id).join(', ')}; 0.4 by default), material (${MATERIALS.map((p) => p.id).join(', ')}), printer (${PRINTERS.map((p) => p.id).join(', ')}) — which way of the part stands up on the bed (up, +z by default), and what is checked: the scan (default) or the reference part. null clears a profile. Call with nothing to read them. Kept with the project.`,
+  description: `Choose the profiles the rules are stacked from — nozzle (${NOZZLES.map((p) => p.id).join(', ')}; 0.4 by default), material (${MATERIALS.map((p) => p.id).join(', ')}), printer (${PRINTERS.map((p) => p.id).join(', ')}), and a published guide stacked over them (${SHIPPED_GUIDES.map((g) => g.id).join(', ')}, or one imported with dfm.guides) — which way of the part stands up on the bed (up, +z by default), and what is checked: the scan (default) or the reference part. null clears a profile. Call with nothing to read them. Kept with the project.`,
   input: obj({
     up: enumOf(UPS, 'Which way of the part stands up on the bed.'),
     nozzle: { oneOf: [enumOf(NOZZLES.map((p) => p.id)), { type: 'null' }], description: 'The nozzle profile, or null.' },
     material: { oneOf: [enumOf(MATERIALS.map((p) => p.id)), { type: 'null' }], description: 'The material profile, or null.' },
     printer: { oneOf: [enumOf(PRINTERS.map((p) => p.id)), { type: 'null' }], description: 'The printer profile, or null.' },
+    guide: { oneOf: [str(), { type: 'null' }], description: 'A published guide whose numbers stack over the profiles (dfm.guides lists them), or null.' },
     target: enumOf(['scan', 'reference'], 'What is checked.'),
   }),
   history: false,
   run: async (p) => {
+    if (p.guide && !guidesNow().some((g) => g.id === p.guide)) throw new CommandError('not_found', `No guide "${p.guide}" — have ${guidesNow().map((g) => g.id).join(', ')}.`)
     if (Object.keys(p).length) useDfm.getState().set(p)
     return { settings: useDfm.getState().settings }
   },
@@ -88,6 +95,7 @@ export const profiles: Command<Record<string, never>> = {
     nozzles: NOZZLES,
     materials: MATERIALS,
     printers: PRINTERS,
+    guides: guidesNow().map(({ id, label, publisher, url, read, custom }) => ({ id, label, publisher, url, read, ...(custom ? { custom } : {}) })),
     chosen: useDfm.getState().settings,
   }),
 }
@@ -269,5 +277,83 @@ export const report: Command<{ format?: 'md' | 'json' }> = {
   },
 }
 
-export const dfmCommands = [settings, profiles, rules, check, explain, waive, report] as Command<never>[]
+const TOPIC_ORDER = ['supported wall', 'unsupported wall', 'minimum wall', 'overhang angle', 'overhang length', 'bridge span', 'hole diameter', 'pin diameter', 'minimum feature', 'clearance, connecting or moving parts']
+
+export const guides: Command<{ action?: 'list' | 'compare' | 'import' | 'export' | 'remove'; ids?: string[]; guide?: Record<string, unknown>; id?: string; label?: string; publisher?: string }> = {
+  name: 'guides',
+  title: 'Published design guides',
+  description: `Design guides from service bureaus, printer makers and universities, each a set of numbers with where they come from (publisher, url, the date it was read) — the ones a check uses (thin-wall, overhang, bridge, small-hole) and the rest to read (clearances, pins, text, tolerances).
+- list (the default): the guides, shipped and imported, with their figures.
+- compare: ids (all by default) side by side, topic by topic, with the spread where they disagree.
+- import: guide is a JSON guide — { id, label, publisher, url?, read?, note?, overrides: { "thin-wall": { params: { minMm: 1 } }, … }, figures: [{ topic, value, unit }] } — checked against the rules and kept with the project; dfm.settings { guide } then stacks it.
+- export: the rules in force now as such a guide (label, publisher: who you are), to edit and import elsewhere; or id: one guide as it is.
+- remove: id, an imported guide.
+No guide is a standard; they disagree, which compare shows.`,
+  input: obj({
+    action: enumOf(['list', 'compare', 'import', 'export', 'remove']),
+    ids: arr(str(), 'For compare.'),
+    guide: anyObject('For import: the guide, as JSON.'),
+    id: str('For export or remove.'),
+    label: str('For export of the rules in force.'),
+    publisher: str('For export of the rules in force.'),
+  }),
+  history: false,
+  run: async ({ action = 'list', ids, guide, id, label, publisher }) => {
+    const all = guidesNow()
+    if (action === 'import') {
+      const errors = validateGuide(guide, PACK)
+      if (SHIPPED_GUIDES.some((g) => g.id === (guide as unknown as Guide)?.id)) errors.push(`id: "${(guide as unknown as Guide).id}" is a shipped guide; give yours its own id.`)
+      if (errors.length) throw new CommandError('invalid_input', `The guide was not imported:\n- ${errors.join('\n- ')}`)
+      const g = guide as unknown as Guide
+      useDfm.getState().addGuide({ ...g, figures: g.figures ?? [] })
+      return { imported: g.id, guides: guidesNow().map((x) => x.id), next: `dfm.settings { guide: "${g.id}" } stacks it.` }
+    }
+    if (action === 'remove') {
+      if (!useDfm.getState().guides.some((g) => g.id === id)) throw new CommandError('not_found', `No imported guide "${id}" — imported: ${useDfm.getState().guides.map((g) => g.id).join(', ') || 'none'}. Shipped guides cannot be removed.`)
+      useDfm.getState().removeGuide(id!)
+      return { removed: id, guides: guidesNow().map((x) => x.id) }
+    }
+    if (action === 'export') {
+      if (id) {
+        const g = all.find((x) => x.id === id)
+        if (!g) throw new CommandError('not_found', `No guide "${id}".`)
+        const { custom: _c, ...plain } = g
+        return { guide: plain }
+      }
+      const eff = effective()
+      const overrides: Record<string, Override> = Object.fromEntries(eff.map((r) => [r.id, { params: r.params, severity: r.severity, ...(r.disabled ? { disabled: true } : {}) }]))
+      const today = new Date().toISOString().slice(0, 10)
+      return { guide: { id: 'my-rules', label: label ?? 'My printability rules', publisher: publisher ?? 'me', read: today, note: `The rules in force on ${today}: ${layers().map((l) => l.name).join(', ')}.`, overrides, figures: [] } }
+    }
+    const chosen = action === 'compare' && ids?.length ? ids.map((x) => all.find((g) => g.id === x) ?? (() => { throw new CommandError('not_found', `No guide "${x}".`) })()) : all
+    if (action === 'list') return { guides: chosen, chosen: useDfm.getState().settings.guide }
+    const topics = [...new Set(chosen.flatMap((g) => g.figures.map((f) => f.topic)))].sort((a, b) => (TOPIC_ORDER.indexOf(a) + 1 || 99) - (TOPIC_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b))
+    const rows = topics.map((topic) => {
+      const values = Object.fromEntries(chosen.map((g) => {
+        const f = g.figures.find((x) => x.topic === topic)
+        return [g.id, f ? `${f.value}${f.unit && typeof f.value === 'number' ? ` ${f.unit}` : f.unit ? ` ${f.unit}` : ''}` : null]
+      }))
+      const nums = chosen.map((g) => g.figures.find((x) => x.topic === topic)?.value).filter((v): v is number => typeof v === 'number')
+      return { topic, values, ...(nums.length > 1 ? { low: Math.min(...nums), high: Math.max(...nums), agree: Math.min(...nums) === Math.max(...nums) } : {}) }
+    })
+    return { guides: chosen.map(({ id: gid, label: l, publisher: p, url, read }) => ({ id: gid, label: l, publisher: p, url, read })), rows, disagree: rows.filter((r) => r.agree === false).map((r) => r.topic) }
+  },
+}
+
+export const considerations: Command<Record<string, never>> = {
+  name: 'considerations',
+  title: 'Design review questions',
+  description: 'The questions to ask of a printed part besides the numbers — function, orientation and strength, supports, feature size, accuracy and fits, warping, surface, closed volumes, size, assembly, after printing, material, cost, inspection — each saying which dfm rule checks it, or that it is the person\'s call. Written in this plugin\'s words; ISO/ASTM 52910 is the standard on design for additive manufacturing, named, not reproduced.',
+  input: obj({}),
+  readOnly: true,
+  run: async () => {
+    const found = new Set(useDfm.getState().findings.filter((f) => !f.waived).map((f) => f.rule))
+    return {
+      considerations: CONSIDERATIONS.map((c) => ({ ...c, open: c.checkedBy.some((r) => found.has(r)) })),
+      cite: CONSIDERATIONS_CITE,
+    }
+  },
+}
+
+export const dfmCommands = [settings, profiles, rules, check, explain, waive, report, guides, considerations] as Command<never>[]
 

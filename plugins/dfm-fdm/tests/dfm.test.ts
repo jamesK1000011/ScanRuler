@@ -3,7 +3,8 @@
 // and a broken mesh.
 import { describe, expect, test } from 'vitest'
 import { runChecks } from '../core/checks'
-import { stack, validatePack, type Profile, type RulePack } from '../core/rules'
+import { CONSIDERATIONS } from '../core/considerations'
+import { stack, validateGuide, validatePack, type Guide, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
 import petg from '../rules/materials/petg.json'
 import n06 from '../rules/nozzles/0.6.json'
@@ -105,5 +106,47 @@ describe('build volume', () => {
     expect(find(100, 322, 20).findings.map((f) => f.severity)).toEqual(['warning'])
     expect(find(100, 318, 20).findings).toEqual([])
     expect(find(100, 100, 330).findings.map((f) => f.unit)).toEqual(['mm tall'])
+  })
+})
+
+describe('published guides', () => {
+  const guides = Object.values(import.meta.glob<Guide>('../rules/guides/*.json', { eager: true, import: 'default' }))
+
+  test('every shipped guide says where it comes from and fits the pack', () => {
+    expect(guides.length).toBeGreaterThanOrEqual(7)
+    for (const g of guides) {
+      expect(validateGuide(g, pack as RulePack), g.id).toEqual([])
+      expect(g.url, g.id).toMatch(/^https:\/\//)
+      expect(g.read, g.id).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(g.figures.length, g.id).toBeGreaterThan(3)
+    }
+  })
+
+  test('a guide stacks over the profiles and says it set the number', () => {
+    const uzh = guides.find((g) => g.id === 'uzh-amf')!
+    const eff = stack(pack as RulePack, [{ name: 'nozzle 0.4', overrides: (n06 as Profile).overrides }, { name: 'guide uzh-amf', overrides: uzh.overrides }])
+    const wall = eff.find((r) => r.id === 'thin-wall')!
+    expect(wall.params.minMm).toBe(1)
+    expect(wall.setBy.minMm).toBe('guide uzh-amf')
+    expect(eff.find((r) => r.id === 'small-hole')!.params.minDiameterMm).toBe(2)
+  })
+
+  test('an imported guide is checked against the rules', () => {
+    const ok = { id: 'my-shop', label: 'My shop', publisher: 'A. Example', overrides: { 'thin-wall': { params: { minMm: 1.1 } } }, figures: [{ topic: 'pin diameter', value: 2, unit: 'mm' }] }
+    expect(validateGuide(ok, pack as RulePack)).toEqual([])
+    const bad = { id: 'Bad Id', label: '', overrides: { 'no-such': {}, overhang: { params: { maxAngle: 40 } }, bridge: { params: { maxMm: -1 } } }, url: 'ftp://x' }
+    const errors = validateGuide(bad, pack as RulePack)
+    expect(errors.join('\n')).toMatch(/id:/)
+    expect(errors.join('\n')).toMatch(/publisher/)
+    expect(errors.join('\n')).toMatch(/no such rule/)
+    expect(errors.join('\n')).toMatch(/overhang has maxDeg/)
+    expect(errors.join('\n')).toMatch(/bridge.params.maxMm: a number, 0 or more/)
+    expect(errors.join('\n')).toMatch(/url/)
+  })
+
+  test('the design review names only rules the pack has', () => {
+    const ids = new Set((pack as RulePack).rules.map((r) => r.id))
+    for (const c of CONSIDERATIONS) for (const r of c.checkedBy) expect(ids.has(r), `${c.id} → ${r}`).toBe(true)
+    expect(CONSIDERATIONS.filter((c) => c.checkedBy.length === 0).length).toBeGreaterThan(4)
   })
 })
