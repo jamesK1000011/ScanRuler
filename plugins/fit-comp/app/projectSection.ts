@@ -29,4 +29,11 @@ export const fitSection: ProjectSection<SavedFit> = {
     return () => useFit.getState().replace({ settings: { ...DEFAULT_SETTINGS, ...v.settings }, runs: v.runs, profiles: v.profiles, keymaps: v.keymaps })
   },
   hasContent: (v) => v.runs.length > 0 || v.profiles.length > 0,
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['settings', 'runs', 'profiles', 'keymaps'] as const
+    return useFit.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }
