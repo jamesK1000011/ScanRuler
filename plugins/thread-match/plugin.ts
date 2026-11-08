@@ -2,17 +2,20 @@
 // thread-match: a scanned thread named against the standards, or the honest
 // answer that this scan can't tell two of them apart and the measurement
 // that would. No workspace of its own: its commands (thread.*) work on the
-// scan and on Reverse Engineer bodies, through reverse.thread.read.
+// scan and on Reverse Engineer bodies, through reverse.thread.read, and a
+// section of the 3D Measure panel runs them on a fitted cylinder.
 
-import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerCommands, registerGuide, registerPanelSection, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { threadCommands } from './app/threadCommands'
 import { useThreadMatch } from './state/threadStore'
+import { ThreadSection } from './ui/ThreadSection'
 
 const plugin: ScanRulerPlugin = {
   id: 'thread-match',
   name: 'Thread match',
   install() {
     registerCommands('thread', threadCommands)
+    registerPanelSection({ id: 'thread-match', slot: 'measure', order: 20, Section: ThreadSection })
     registerStateSection('thread', () => {
       const s = useThreadMatch.getState()
       return { families: s.families, pitchFloor: s.pitchFloor, last: s.last }

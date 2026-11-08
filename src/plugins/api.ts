@@ -63,6 +63,15 @@ export { CommandError } from '../commands/types'
 export type { Command, CommandContext, CommandErrorCode, FileOut } from '../commands/types'
 export type { JsonSchema } from '../commands/schema'
 
+// ---- Panel sections -----------------------------------------------------------
+// registerPanelSection({ id, slot, order, Section }) adds a section to a panel
+// of the app's own — for a plugin with no workspace that works on what one of
+// the app's holds (a thread read off a cylinder fitted in 3D Measure, say).
+// Its controls run the plugin's commands, as a workspace panel's do.
+
+export { registerPanelSection } from './panelSections'
+export type { PanelSection, PanelSlot } from './panelSections'
+
 /** A workspace's tab in the top bar. */
 export interface WorkspaceTab {
   /** The workspace's id — the shell store's `workspace` while it is open,

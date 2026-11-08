@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.thread-settings { margin: 8px 0 0; }
+.thread-settings > summary { cursor: pointer; font-size: 12px; color: var(--muted, #888); margin-bottom: 4px; }
+.thread-decide + .thread-decide { margin-top: 6px; }

@@ -32,6 +32,7 @@ import { InfoDot } from './InfoDot'
 import { ModelSlot } from './ModelSlot'
 import { SectionEditor } from './SectionEditor'
 import { ExportMeshButton } from './ExportMeshButton'
+import { PanelSections } from './PanelSections'
 import type { MeshFormat } from '../core/exportMesh'
 import { useUnits } from '../app/useUnits'
 
@@ -452,6 +453,9 @@ export function Panel({
 
       <DimensionSection editorOpen={editorOpen} onPickPoint={onPickPoint} />
       <ToleranceSection editorOpen={editorOpen} />
+      {/* Plugins' sections: a thread named off a fitted cylinder, the scan's
+          noise — work on what this panel holds, by the plugins' commands. */}
+      <PanelSections slot="measure" />
 
       {fileName && (
         <>

@@ -14,6 +14,12 @@ It reads through the Reverse Engineer's `reverse.thread.read`, then folds the
 scan's points along the helix. The fold gives a sharper pitch, the flank
 angle, the taper, the hand and the number of starts.
 
+## In the app
+
+A **Thread** section in the 3D Measure panel: pick a fitted cylinder and
+**Identify**; **Look up** a size by name; the families tried and the pitch
+floor under *Families and settings*. Each control runs the command below.
+
 ## Commands (`thread.*`)
 
 | Command | Changes | What |

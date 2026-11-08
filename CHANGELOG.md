@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Thread in 3D Measure** (2026-11-08). The 3D Measure panel has a
+  Thread section: pick a cylinder fitted in a threaded bore or on a boss and
+  Identify names it against ISO metric, UNC, UNF, UNEF, NPT, G/R pipe,
+  trapezoidal, ACME and the 3D-printing form — or, when the scan can't tell
+  two sizes apart, says which and what to measure by hand to settle it, with
+  what each would read. Look up gives a size's dimensions by name (major and
+  minor diameters, pitch or threads per inch, tap drill, flank angle,
+  standard); the families tried and the pitch floor are under Families and
+  settings. The section runs the same `thread.*` commands. Plugins add such
+  sections with `registerPanelSection` (`src/plugins/api.ts`).
 - **Fewer, fuller tabs** (2026-11-08). Three merges, each plugin keeping its
   id, commands, state section, project section, guide and undo steps:
   - **Electronics** takes the place of Boards, Circuit and Circuits, as
