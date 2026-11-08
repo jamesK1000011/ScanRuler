@@ -4,16 +4,16 @@
 // history.
 
 import { runImport } from '../../app/imports'
-import { historyBlocked, redo, undo, useHistory } from '../../state/historyStore'
+import { activeLocalHistory, historyBlocked, redo, undo, useHistory } from '../../state/historyStore'
 import { useShell } from '../../state/shellStore'
 import { useStore } from '../../state/store'
-import { commandHost } from '../host'
+import { commandHost, sceneOf } from '../host'
 import { reportJson, reportText, REPORT_WORKSPACES, type ReportWorkspace } from '../report'
 import { RECENT_KEPT, RECENT_RESULT_CHARS, recentOutcomes } from '../registry'
 import { enumOf, int, obj, str } from '../schema'
 import { internalWorkspace, publicWorkspace, sessionAfterStep, sessionState, workspaceNames } from '../state'
 import { CommandError, type Command } from '../types'
-import { discardSchema, requireDiscardable, waitFor } from './common'
+import { discardSchema, lastError, mapSettledOrMeasuring, requireDiscardable, waitFor } from './common'
 
 const state: Command = {
   name: 'state',
@@ -23,7 +23,10 @@ const state: Command = {
   input: obj({}),
   readOnly: true,
   headless: true,
-  run: () => sessionState(),
+  run: async () => {
+    await mapSettledOrMeasuring(sceneOf())
+    return sessionState()
+  },
 }
 
 const reset: Command<{ discard?: boolean }> = {
@@ -44,6 +47,9 @@ const reset: Command<{ discard?: boolean }> = {
       flat?.closeImage()
       useStore.getState().setProjectName(null)
     })
+    // runImport reports a failure on screen rather than throwing it; the
+    // agent must hear of it too, not read a session it thinks is empty.
+    if (useStore.getState().errorText) throw new CommandError('failed', lastError('The session could not be started over.'))
     return await sessionState()
   },
 }
@@ -73,8 +79,13 @@ const report: Command<{ format?: 'json' | 'text'; workspace?: ReportWorkspace }>
     workspace: enumOf(REPORT_WORKSPACES, 'For text: whose report — measure (the default), deviation, thickness or flat.'),
   }),
   readOnly: true,
-  run: async ({ format = 'json', workspace: w = 'measure' }) =>
-    format === 'text' ? { format, workspace: w, text: reportText(w) } : { format, report: reportJson() },
+  run: async ({ format = 'json', workspace: w = 'measure' }) => {
+    // The report pairs the map's figures with the settings it was measured
+    // under: the one measured, not the one before — or, past the wait, none,
+    // with the map said to be running.
+    await mapSettledOrMeasuring(sceneOf())
+    return format === 'text' ? { format, workspace: w, text: reportText(w) } : { format, report: reportJson() }
+  },
 }
 
 /** What a step of the history answers with: the session in brief, or the
@@ -91,8 +102,23 @@ const afterStep = async (detail: StepDetail) => {
   return detail === 'full' ? { state: await sessionState() } : { after: sessionAfterStep() }
 }
 
+/** Refused while an editor with an undo history of its own is open: the
+ *  undo keys walk that one then, and a command that meant the session's
+ *  would step the editor's — a sketch edit — and report its own step as
+ *  failed (issue 34). */
+function refuseLocal(what: string): void {
+  const local = activeLocalHistory()
+  if (local) {
+    throw new CommandError(
+      'invalid_state',
+      `A ${local.label} is open with an undo history of its own, so ${what} would step that instead of the session's — finish or cancel it first.`,
+    )
+  }
+}
+
 /** Walk the history one step, as the undo keys do. */
 async function travel(back: boolean, detail: StepDetail) {
+  refuseLocal(back ? 'undo' : 'redo')
   const h = useHistory.getState()
   const entry = (back ? h.past : h.future).at(-1)
   if (!entry) throw new CommandError('invalid_state', `There is nothing to ${back ? 'undo' : 'redo'}.`)
@@ -186,6 +212,7 @@ const restoreCommand: Command<{ checkpoint: string; detail?: StepDetail }> = {
     if (mark.top !== null && at < 0) {
       throw new CommandError('invalid_state', `The history no longer holds the step the checkpoint was made on (“${mark.label}”) — it was undone, or the history started afresh; nothing was undone.`)
     }
+    refuseLocal('history.restore')
     const undone: string[] = []
     while (useHistory.getState().past.length - 1 > at) {
       // Each step once the one before has settled — a rebuild it set off

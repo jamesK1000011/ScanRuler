@@ -16,6 +16,7 @@ import { applyFinish, setSurfaceColor, type ViewTheme } from '../../../src/viewe
 import { patchWireframe, setSurfaceOpacity } from '../../../src/viewer/surfaceModes'
 import { CAP_SLOT, CapSet, cutColor, type CapPart } from '../../../src/viewer/sliceCap'
 import { clipTree } from '../../../src/viewer/clipTree'
+import { refitAfterRigid } from '../../../src/viewer/bvh'
 import { paintField, type Colormap, type FieldScale } from '../../../src/core/field/colormap'
 import type { SectionFrame } from '../../../src/core/section/frame'
 
@@ -217,10 +218,7 @@ export class MeshScene {
           rigidApplyToPoints(m, at.array as Float32Array)
           at.needsUpdate = true
           if (geometry.getAttribute('normal')) geometry.computeVertexNormals()
-          geometry.computeBoundingBox()
-          geometry.computeBoundingSphere()
-          geometry.disposeBoundsTree?.()
-          geometry.computeBoundsTree()
+          refitAfterRigid(geometry)
         }
         const solids = new Set(this.booleanSolids.flatMap((d) => [d.fill.geometry, d.edges.geometry]))
         for (const geometry of [...this.islandGeometries(), ...solids]) {
@@ -471,9 +469,17 @@ export class MeshScene {
     const mating = (piece.material as THREE.MeshStandardMaterial[])[1]
     const geometry = piece.geometry as THREE.BufferGeometry
     if (paint) {
-      const rgb = new Uint8Array(this.pieceGap.length * 3)
-      paintField(this.pieceGap, paint.scale, paint.map, rgb)
-      geometry.setAttribute('color', new THREE.BufferAttribute(rgb, 3, true))
+      // One colour attribute for the piece's life, painted over in place:
+      // three frees an attribute's GPU buffer only for those the geometry
+      // still holds when it is disposed, so one replaced on every repaint
+      // would stay uploaded until the context goes.
+      let color = geometry.getAttribute('color') as THREE.BufferAttribute | undefined
+      if (!color) {
+        color = new THREE.BufferAttribute(new Uint8Array(this.pieceGap.length * 3), 3, true)
+        geometry.setAttribute('color', color)
+      }
+      paintField(this.pieceGap, paint.scale, paint.map, color.array as Uint8Array)
+      color.needsUpdate = true
       mating.vertexColors = true
       mating.color.setHex(0xffffff)
     } else {

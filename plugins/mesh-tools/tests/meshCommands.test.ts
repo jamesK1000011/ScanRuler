@@ -117,7 +117,7 @@ describe('cleaning a scan up through the commands', () => {
     expect((await refused('mesh.inspect')).code).toBe('no_scan')
     const mesh = listCommands().filter((c) => c.name.startsWith('mesh.'))
     expect(mesh.map((c) => c.name)).toEqual(
-      expect.arrayContaining(['mesh.parts', 'mesh.inspect', 'mesh.remove_islands', 'mesh.delete_marked', 'mesh.flip_normals', 'mesh.cut', 'mesh.fill_holes', 'mesh.smooth', 'mesh.offset', 'mesh.boolean', 'mesh.shell', 'mesh.wrap', 'mesh.apply_wrap', 'mesh.reduce', 'mesh.trim', 'mesh.use_edited', 'mesh.discard_edited', 'mesh.export']),
+      expect.arrayContaining(['mesh.parts', 'mesh.inspect', 'mesh.remove_islands', 'mesh.delete_marked', 'mesh.flip_normals', 'mesh.cut', 'mesh.fill_holes', 'mesh.smooth', 'mesh.densify', 'mesh.offset', 'mesh.boolean', 'mesh.shell', 'mesh.wrap', 'mesh.apply_wrap', 'mesh.reduce', 'mesh.trim', 'mesh.use_edited', 'mesh.discard_edited', 'mesh.export']),
     )
     for (const c of mesh) {
       const w = schemaWeight(c.input)
@@ -207,6 +207,24 @@ describe('cleaning a scan up through the commands', () => {
     expect(undoLabels().at(-1)).toBe('Agent: use the edited mesh for analysis')
   }, 120_000)
 
+  it('densifies a CAD box of long triangles to an edge length, its volume and closure kept, one step', async () => {
+    await open('cad.stl', cuboid([-10, -10, -10], [10, 10, 10], 1))
+    useHistory.setState({ past: [], future: [] })
+    const qa = await run<{ tessellation?: { sparse: boolean; densifyTo?: number } }>('scan.qa', { axis: 'z' })
+    expect(qa.tessellation?.sparse).toBe(true)
+    // A hundredth of the cube's 35 mm across, on a round number.
+    const to = qa.tessellation!.densifyTo!
+    expect(to).toBe(0.2)
+    const dense = await run<EditAnswer>('mesh.densify', { maxEdge: to })
+    expect(dense.edit).toMatchObject({ kind: 'densify', text: 'Densified to edges under 0.2 mm' })
+    expect(dense.report.longest).toBeLessThanOrEqual(to + 1e-9)
+    expect(dense.mesh).toMatchObject({ working: 'edited copy', open: 0, bad: 0 })
+    expect(dense.mesh.triangles).toBeGreaterThan(6 * 2 * 100 * 100)
+    expect(dense.mesh.volume).toBeCloseTo(8000, 3)
+    expect(useMeshTools.getState().tool).toBe('densify')
+    expect(undoLabels()).toEqual(['Agent: densify'])
+  })
+
   it('flips a part inside-out and back, the whole of it and a face, a step each', async () => {
     await open('cube.stl', cuboid([-10, -10, -10], [10, 10, 10], 4))
     useHistory.setState({ past: [], future: [] })
@@ -279,6 +297,9 @@ describe('cleaning a scan up through the commands', () => {
     expect((await refused('mesh.delete_marked', { region: { box: { min: [50, 50, 50], max: [60, 60, 60] } } })).code).toBe('invalid_input')
     expect((await refused('mesh.delete_marked', { region: { box: { min: [0, 0, 0], max: [1, 1, 1] }, sphere: { center: [0, 0, 0], radius: 1 } } })).code).toBe('invalid_input')
     expect((await refused('mesh.delete_marked', { region: 'marked' })).code).toBe('unavailable')
+    // A vertex number past 32 bits is refused, not wrapped onto vertex 1.
+    expect((await refused('mesh.delete_marked', { region: { vertices: [2 ** 32 + 1] } })).code).toBe('invalid_input')
+    expect(undoLabels()).toEqual([])
     expect((await refused('mesh.mark', { region: { sphere: { center: [0, 0, 10], radius: 3 } } })).code).toBe('unavailable')
     expect((await refused('mesh.boolean', { op: 'subtract', solids: ['Peg'] })).code).toBe('not_found')
     expect((await refused('mesh.cut', { plane: 'Plane 9', offset: 0, keep: 'plus' })).code).toBe('not_found')

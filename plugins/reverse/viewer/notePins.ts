@@ -90,6 +90,8 @@ export function dotTexture(): THREE.CanvasTexture {
 export const spriteMaterial = (map: THREE.Texture) => new THREE.SpriteMaterial({ map, depthTest: false, depthWrite: false, transparent: true, toneMapped: false })
 
 const drawn = new THREE.Vector2()
+const spot = new THREE.Vector3()
+const look = new THREE.Vector3()
 
 /** Hold a sprite at `px()` pixels across in whatever it is drawn into —
  *  the canvas, or a picture of the view at a size of its own, which is
@@ -97,10 +99,18 @@ const drawn = new THREE.Vector2()
  *  from the camera's frustum and the size of the drawing. */
 export function heldAt(sprite: THREE.Sprite, px: () => number): void {
   sprite.onBeforeRender = (renderer, _scene, camera) => {
-    const ortho = camera as THREE.OrthographicCamera
-    if (!ortho.isOrthographicCamera) return
     const h = renderer.getSize(drawn).y || 1
-    sprite.scale.setScalar((px() * (ortho.top - ortho.bottom)) / ortho.zoom / h)
+    const ortho = camera as THREE.OrthographicCamera
+    const persp = camera as THREE.PerspectiveCamera
+    // What the drawing's height spans where the sprite stands: the whole
+    // frustum in parallel, the frustum at the sprite's distance in perspective.
+    let span: number
+    if (ortho.isOrthographicCamera) span = (ortho.top - ortho.bottom) / ortho.zoom
+    else if (persp.isPerspectiveCamera) {
+      const far = sprite.getWorldPosition(spot).sub(persp.position).dot(persp.getWorldDirection(look))
+      span = 2 * Math.max(far, persp.near) * Math.tan(THREE.MathUtils.degToRad(persp.fov / 2))
+    } else return
+    sprite.scale.setScalar((px() * span) / h)
     sprite.updateMatrixWorld()
   }
 }
@@ -297,7 +307,7 @@ export class NotePins {
   /** A pin's badge centre on the screen, in client pixels. */
   private badgeCentre(pin: Pin): { x: number; y: number } {
     const p = pin.badge.getWorldPosition(new THREE.Vector3()).project(this.host.camera())
-    const r = this.host.canvas.getBoundingClientRect()
+    const r = this.host.canvasRect()
     const off = (BADGE_OFFSET + 0.5) * badgePx(pin)
     return { x: r.left + ((p.x + 1) / 2) * r.width + off, y: r.top + ((1 - p.y) / 2) * r.height - off }
   }

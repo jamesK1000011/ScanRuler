@@ -43,13 +43,15 @@ import { DEFAULT_MAP_FACING_DEG } from '../core/deviation/deviation'
  *  opened in, so the applied alignment goes on it the same way — see
  *  core/mesh/plyWriter. */
 export interface SourceFiles {
-  /** `units` is what the bytes' coordinates are in — the mesh was read in
-   *  millimetres from them, and is read the same way again from a project or
-   *  after a worker restart. Absent means millimetres. `scale` is the
-   *  factor the scan was scaled by to its true size (core/scanScale), read
-   *  into it on top of the units the same way; absent means 1. */
-  scan: { name: string; bytes: Uint8Array; units?: MeshUnits; scale?: number; companions?: ScanCompanion[] } | null
-  reference: { name: string; bytes: Uint8Array; units?: MeshUnits } | null
+  /** `file` is the file as it was opened — kept, not copied, and read again
+   *  only when its bytes are needed (see core/sourceFile). `units` is what
+   *  its coordinates are in — the mesh was read in millimetres from them,
+   *  and is read the same way again from a project or after a worker
+   *  restart. Absent means millimetres. `scale` is the factor the scan was
+   *  scaled by to its true size (core/scanScale), read into it on top of the
+   *  units the same way; absent means 1. */
+  scan: { name: string; file: Blob; units?: MeshUnits; scale?: number; companions?: ScanCompanion[] } | null
+  reference: { name: string; file: Blob; units?: MeshUnits } | null
   image: { name: string; bytes: Uint8Array } | null
 }
 
@@ -169,12 +171,16 @@ export function collectProject(
   // a section in use writes its part over a kept one of the same key.
   const kept = keptParts()
   Object.assign(manifest, kept.parts)
-  members.push(...kept.members)
   const ctx = { sources, scanSaved: manifest.scan !== null, addMember: (name: string, bytes: Uint8Array) => members.push({ name, bytes }) }
   for (const section of projectSections()) {
     const part = section.collect(ctx)
     if (part !== undefined) manifest[section.key] = part
   }
+  // A kept file goes in only under a name nothing in this session writes:
+  // the project it came from may have used a name the scan, reference or
+  // image is saved under, and the archive keeps the last file of a name.
+  const taken = new Set(members.map((m) => m.name))
+  members.push(...kept.members.filter((m) => !taken.has(m.name)))
   return { manifest, members }
 }
 
@@ -208,7 +214,7 @@ function coreProject(
   let scan: ScanPart | null = null
   if (sources.scan && s.fileName) {
     const member = `${SCAN_STEM}.${extensionOf(sources.scan.name)}`
-    members.push({ name: member, bytes: sources.scan.bytes })
+    members.push({ name: member, bytes: sources.scan.file })
     // What came with it, each under a member of its own and the name it came
     // under — the name is how the OBJ and its library find it again.
     const companions = (sources.scan.companions ?? []).map((c, i) => {
@@ -246,7 +252,7 @@ function coreProject(
   let reference: DeviationPart['reference'] = null
   if (sources.reference && dev.nominalName) {
     const member = `${REFERENCE_STEM}.${extensionOf(sources.reference.name)}`
-    members.push({ name: member, bytes: sources.reference.bytes })
+    members.push({ name: member, bytes: sources.reference.file })
     reference = {
       fileName: dev.nominalName,
       member,

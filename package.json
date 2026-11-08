@@ -1,7 +1,7 @@
 {
   "name": "scanruler",
   "private": true,
-  "version": "0.9.6",
+  "version": "0.9.10",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": "Stefan Hermann (CNC Kitchen) <stefan@cnckitchen.com>",
@@ -42,6 +42,7 @@
     "e2e:units": "node scripts/e2e-units.mjs",
     "e2e:deviation": "node scripts/e2e-deviation.mjs",
     "e2e:split": "node scripts/e2e-split.mjs",
+    "e2e:sleep": "node scripts/e2e-sleep.mjs",
     "e2e:pick-fit": "node scripts/e2e-pick-fit.mjs",
     "e2e:element-deviation": "node scripts/e2e-element-deviation.mjs",
     "e2e:circle": "node scripts/e2e-circle.mjs",
@@ -94,6 +95,6 @@
     "puppeteer-core": "^25.6.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^5.0.5"
   }
 }

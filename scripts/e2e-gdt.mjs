@@ -91,6 +91,8 @@ const SHAFT = join(dir, 'shaft.stl')
 writeFileSync(SHAFT, Buffer.from(writeBinarySTL(steppedShaft())))
 
 const { browser, page, consoleErrors } = await launchApp()
+// A scan opened over measurements asks first: yes.
+page.on('dialog', (d) => void d.accept())
 
 const saveEnabled = (timeout = 30_000) =>
   page
@@ -224,8 +226,15 @@ check(/^Cylindricity 1 · Cylindricity/.test(cylRow), `named by its characterist
 check((await count('.viewport-label.distance-label')) === 1, 'it has a pin on the part')
 check((await count('.viewport-label.distance-label.over')) === 0, 'which is not red')
 
+/** A new tolerance box: Add leaves an empty one open for the next, as Add
+ *  dimension does, and New tolerance is there only when none is. */
+const newTolerance = async () => {
+  if (await page.$('[data-test="new-tolerance"]')) await click(page, '[data-test="new-tolerance"]')
+  await page.waitForSelector('[data-test="tol-type"]')
+}
+
 // ---- parallelism of the pin to the shaft: zero ------------------------------
-await click(page, '[data-test="new-tolerance"]')
+await newTolerance()
 await page.select('[data-test="tol-type"]', 'orient-parallelism')
 await sleep(150)
 await selectByLabel(page, '[data-test="tol-ref-0"]', named.pin)
@@ -239,7 +248,7 @@ await click(page, '[data-test="add-tolerance"]')
 await sleep(300)
 
 // ---- coaxiality: Ø 0.200 mm, over a limit of 0.1 ------------------------------
-await click(page, '[data-test="new-tolerance"]')
+await newTolerance()
 await page.select('[data-test="tol-type"]', 'loc-coaxiality')
 await sleep(150)
 await selectByLabel(page, '[data-test="tol-ref-0"]', named.pin)
@@ -335,7 +344,7 @@ const p2 = await fitElement('plane', rect, [[0.25, 0.7], [0.75, 0.3], [0.2, 0.3]
 if (!p2) fail('no second plane could be fitted on the block')
 
 // ---- flatness: a tight limit fails, a loose one passes -----------------------
-await click(page, '[data-test="new-tolerance"]')
+await newTolerance()
 await selectByLabel(page, '[data-test="tol-ref-0"]', 'Plane 1')
 await sleep(250)
 const flat = mmOf(await text('[data-test="tol-preview"]'))
@@ -359,7 +368,7 @@ check(
 )
 
 // ---- parallelism off the scanned surface ------------------------------------
-await click(page, '[data-test="new-tolerance"]')
+await newTolerance()
 await page.select('[data-test="tol-type"]', 'orient-parallelism')
 await sleep(150)
 await selectByLabel(page, '[data-test="tol-ref-0"]', 'Plane 2')

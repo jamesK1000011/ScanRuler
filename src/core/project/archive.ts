@@ -5,10 +5,28 @@
 
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
 import { MANIFEST_NAME, validateManifest, type ProjectManifest } from './manifest'
+import { readSourceFile } from '../sourceFile'
 
+/** A member as the session hands it over: the scan and the reference are
+ *  the files they were opened from (see core/sourceFile), read only when the
+ *  archive is built. */
 export interface ArchiveMember {
   name: string
+  bytes: Uint8Array | Blob
+}
+
+/** A member with its bytes in hand, as the archive is built from. */
+export interface ArchiveFile {
+  name: string
   bytes: Uint8Array
+}
+
+/** Every member's bytes, the files among them read now — a copy that lives
+ *  only as long as the packing does. One that can no longer be read is
+ *  reported by the name the person opened it under, not its member's. */
+export async function readMembers(members: readonly ArchiveMember[]): Promise<ArchiveFile[]> {
+  return Promise.all(members.map(async ({ name, bytes }) =>
+    ({ name, bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(await readSourceFile(bytes, bytes instanceof File ? bytes.name : name)) })))
 }
 
 /** Past this many characters of compact JSON the manifest is written
@@ -29,7 +47,7 @@ export function manifestText(manifest: ProjectManifest, prettyLimit = PRETTY_LIM
  *  is the one member a person might open — and every model file is deflated
  *  at a level that gets most of the gain without waiting on the last few
  *  percent. */
-export function packProject(manifest: ProjectManifest, members: ArchiveMember[], limits = PROJECT_LIMITS): Uint8Array {
+export function packProject(manifest: ProjectManifest, members: ArchiveFile[], limits = PROJECT_LIMITS): Uint8Array {
   const manifestBytes = strToU8(manifestText(manifest))
   const total = members.reduce((sum, member) => sum + member.bytes.byteLength, manifestBytes.byteLength)
   if (members.length + 1 > limits.members || manifestBytes.byteLength > limits.manifestBytes || total > limits.totalBytes) {
@@ -56,14 +74,19 @@ export function unpackProject(bytes: Uint8Array, limits = PROJECT_LIMITS): Unpac
   try {
     let total = 0
     const names = new Set<string>()
-    files = unzipSync(bytes, { filter: ({ name, originalSize }) => {
+    files = unzipSync(bytes, { filter: ({ name, size, originalSize, compression }) => {
       if (names.has(name) || name.includes('/') || name.includes('\\') || name === '__proto__') {
         throw new ArchiveLimitError('Malformed project: duplicate or invalid archive member.')
       }
+      // Only stored and deflated members are written; and a stored member
+      // yields its compressed bytes whatever size it declares, so the larger
+      // of the two sizes is what counts against the limits.
+      if (compression !== 0 && compression !== 8) throw new ArchiveLimitError('Malformed project: unsupported archive compression.')
+      const expanded = Math.max(size, originalSize)
       names.add(name)
-      total += originalSize
+      total += expanded
       if (names.size > limits.members || total > limits.totalBytes ||
-          (name === MANIFEST_NAME && originalSize > limits.manifestBytes)) {
+          (name === MANIFEST_NAME && expanded > limits.manifestBytes)) {
         throw new ArchiveLimitError('The project exceeds the supported archive size limits.')
       }
       return true
@@ -71,6 +94,12 @@ export function unpackProject(bytes: Uint8Array, limits = PROJECT_LIMITS): Unpac
   } catch (error) {
     if (error instanceof ArchiveLimitError) throw error
     throw new Error('Not a ScanRuler project file.')
+  }
+  // The declared sizes are the archive's word only; what came out is checked too.
+  let unpacked = 0
+  for (const data of Object.values(files)) unpacked += data.byteLength
+  if (unpacked > limits.totalBytes || (files[MANIFEST_NAME]?.byteLength ?? 0) > limits.manifestBytes) {
+    throw new Error('The project exceeds the supported archive size limits.')
   }
   const raw = files[MANIFEST_NAME]
   if (!raw) throw new Error('Not a ScanRuler project file.')

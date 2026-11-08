@@ -147,6 +147,8 @@ export class FlatScene {
   private dimStrokeCleanup: (() => void)[] = []
   private draftGroup = new THREE.Group()
   private draftCleanup: (() => void)[] = []
+  private guideGroup = new THREE.Group()
+  private guideCleanup: (() => void)[] = []
   /** Fitted geometry and callouts draw as screen-space fat lines (a WebGL
    *  LineBasicMaterial is one pixel whatever it asks for). Every such
    *  material needs the canvas size; this is the one copy they all read.
@@ -323,10 +325,10 @@ export class FlatScene {
         // ruled over.
         if (this.gridFrame && this.gridStale()) this.rebuildGrid()
         if (this.sketchDims && Math.abs(this.unitsPerScreenPx() / this.sketchDims.px - 1) > 0.01) this.rebuildDimStrokes()
-        // Fat lines are sized in screen pixels and need to know the canvas.
-        const el = this.viewport.renderer.domElement
-        const w = el.clientWidth || 1
-        const h = el.clientHeight || 1
+        // Fat lines are sized in screen pixels and need to know the canvas:
+        // its cached size, as a read of the layout every frame is a forced
+        // layout pass after any DOM write.
+        const { w, h } = this.viewport.size
         if (this.fatLines.setResolution(w, h)) {
           this.edgeMaterial.resolution.copy(this.fatLines.resolution)
           this.viewport.invalidate()
@@ -361,6 +363,47 @@ export class FlatScene {
     this.viewport.scene.add(this.dimensionGroup)
     this.viewport.scene.add(this.dimStrokeGroup)
     this.viewport.scene.add(this.draftGroup)
+    this.viewport.scene.add(this.guideGroup)
+  }
+
+  /** Guide lines a tool draws over the sheet while the cursor moves, each in
+   *  its own colour: a sketch's dashed tracking lines from a point it can be
+   *  placed level with, the stretch a trim would take, lit. Dashes are
+   *  sized in screen pixels at the zoom they are drawn at — the caller draws
+   *  them again as the cursor moves. Empty clears them. */
+  setGuides(guides: readonly { points: readonly Vec2[]; color: string; dashed?: boolean; width?: number }[]): void {
+    for (const dispose of this.guideCleanup) dispose()
+    this.guideCleanup = []
+    this.guideGroup.clear()
+    const px = this.unitsPerScreenPx()
+    for (const g of guides) {
+      if (g.points.length < 2) continue
+      const width = g.width ?? 1.5
+      const mat = new LineMaterial({
+        color: new THREE.Color(g.color).getHex(),
+        linewidth: width * this.fatLines.scale,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+        worldUnits: false,
+        dashed: Boolean(g.dashed),
+        dashSize: 6 * px,
+        gapSize: 4 * px,
+      })
+      const letGo = this.fatLines.track(mat, width)
+      const geo = new LineGeometry()
+      geo.setPositions(g.points.flatMap((p) => [p[0], p[1], 0.22]))
+      const line = new Line2(geo, mat)
+      line.computeLineDistances()
+      line.renderOrder = 5
+      this.guideGroup.add(line)
+      this.guideCleanup.push(() => {
+        letGo()
+        mat.dispose()
+        geo.dispose()
+      })
+    }
+    this.viewport.invalidate()
   }
 
   /** The measured dimensions on the sheet: a callout line with its value for
@@ -970,13 +1013,24 @@ export class FlatScene {
     this.container.appendChild(div)
     this.bandDiv = div
     const move = (ev: PointerEvent) => this.layoutBand(ev.clientX, ev.clientY)
-    const up = (ev: PointerEvent) => {
+    const stop = () => {
       document.removeEventListener('pointermove', move)
       document.removeEventListener('pointerup', up)
+      document.removeEventListener('pointercancel', cancel)
+    }
+    const up = (ev: PointerEvent) => {
+      stop()
       this.finishBand(ev.clientX, ev.clientY, ev)
+    }
+    // A gesture the browser takes over selects nothing: left listening, the
+    // band would box-select at whatever release came next, anywhere.
+    const cancel = () => {
+      stop()
+      this.dropBand()
     }
     document.addEventListener('pointermove', move)
     document.addEventListener('pointerup', up)
+    document.addEventListener('pointercancel', cancel)
     this.layoutBand(e.clientX, e.clientY)
   }
 
@@ -1020,9 +1074,12 @@ export class FlatScene {
 
   /** Draw a selection box from the press: rightward a window, drawn solid,
    *  leftward a crossing box, drawn dashed — read again at every move, so
-   *  the box changes as the hand crosses back over where it started. Only
-   *  the pointer that pressed moves it; a release within the click
-   *  threshold is a click. */
+   *  the box changes as the hand crosses back over where it started. With
+   *  Ctrl, Command or Shift held it adds to the selection, and says so with
+   *  a + and a heavier border, as the key goes down or up too: the colour
+   *  tells the box's direction, not the key (issue 62). Only the pointer
+   *  that pressed moves it; a release within the click threshold is a
+   *  click. */
   private beginBox(e: PointerEvent): void {
     this.dropBox()
     const id = e.pointerId
@@ -1038,6 +1095,7 @@ export class FlatScene {
       const box = this.sheetBox(start, ev)
       div.classList.toggle('window', !box?.crossing)
       div.classList.toggle('crossing', !!box?.crossing)
+      div.classList.toggle('additive', !!box?.additive)
       this.layoutBox(div, start, ev.clientX, ev.clientY)
       if (box) this.onBoxDrag?.(box)
     }
@@ -1055,14 +1113,20 @@ export class FlatScene {
     const cancel = (ev: PointerEvent) => {
       if (ev.pointerId === id) this.dropBox()
     }
+    // The key pressed or let go with the hand still: the mark follows it.
+    const key = (ev: KeyboardEvent) => div.classList.toggle('additive', modHeld(ev) || ev.shiftKey)
     document.addEventListener('pointermove', move)
     document.addEventListener('pointerup', up)
     document.addEventListener('pointercancel', cancel)
+    window.addEventListener('keydown', key)
+    window.addEventListener('keyup', key)
     this.box = {
       end: () => {
         document.removeEventListener('pointermove', move)
         document.removeEventListener('pointerup', up)
         document.removeEventListener('pointercancel', cancel)
+        window.removeEventListener('keydown', key)
+        window.removeEventListener('keyup', key)
         div.remove()
         if (moved) this.onBoxDrag?.(null)
       },
@@ -1109,9 +1173,7 @@ export class FlatScene {
   /** Document units per screen pixel at the current zoom — what turns a snap
    *  radius the hand understands into one the sheet understands. */
   unitsPerScreenPx(): number {
-    const cam = this.viewport.camera
-    const h = this.viewport.renderer.domElement.clientHeight || 1
-    return (cam.top - cam.bottom) / cam.zoom / h
+    return this.viewport.worldPerPixel()
   }
 
   /** The polyline a fit draws as: a segment, a full circle, an arc. A point
@@ -1885,6 +1947,14 @@ export class FlatScene {
     this.viewport.invalidate()
   }
 
+  /** Held back while the sheet is not on screen: no frame is drawn and no
+   *  layout is read. What the stores pushed in the meantime is on the sheet
+   *  already and is drawn on the first frame after it comes back. */
+  setPaused(paused: boolean): void {
+    this.viewport.paused = paused
+    if (!paused) this.viewport.resize()
+  }
+
   dispose(): void {
     this.container.removeEventListener('pointermove', this.hoverMove)
     this.container.style.cursor = ''
@@ -1899,6 +1969,7 @@ export class FlatScene {
     this.setFlatElements([])
     this.setFlatDimensions([])
     this.setDraftMarks([], null)
+    this.setGuides([])
     this.setEdgeChains(null)
     this.dropBox()
     this.edgeMaterial.dispose()

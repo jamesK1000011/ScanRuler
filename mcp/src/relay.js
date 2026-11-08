@@ -152,21 +152,23 @@ export class SharedLink extends EventEmitter {
     return this.role === 'relay' ? (this.peer?.holderVersion ?? null) : undefined
   }
 
-  run(name, input, binaryKey, onProgress, job, deferred = false) {
+  run(name, input, binaryKey, onProgress, job, deferred = false, timeoutMs) {
     const link = this.current
     if (!link) return Promise.reject({ code: 'unavailable', message: 'No ScanRuler page is connected.' })
-    return link.run(name, input, binaryKey, onProgress, job, deferred)
+    return link.run(name, input, binaryKey, onProgress, job, deferred, timeoutMs)
   }
 
   waitForPage(timeoutMs) {
     return waitForPage(this, timeoutMs)
   }
 
-  /** Take the port, or the relay through the copy that has it. */
+  /** Take the port, or the relay through the copy that has it. On this
+   *  computer only — SCANRULER_MCP_HOST widens it for a container, whose
+   *  port is published to the host's loopback instead (mcp/Dockerfile). */
   start() {
     if (this.closed) return
     clearTimeout(this.timer)
-    this.http.listen(this.port, '127.0.0.1')
+    this.http.listen(this.port, process.env.SCANRULER_MCP_HOST || '127.0.0.1')
   }
 
   /** Pass on a link's page events while `active()` says it is the one in use. */

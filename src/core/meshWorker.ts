@@ -9,7 +9,7 @@
 // prepared beside the models in use, put in their place when committed.
 
 import type { MeshGraph, ParsedMesh, TextureNote, Vec3 } from './types'
-import type { WorkerRequest, WorkerResponse } from './workerProtocol'
+import type { SerializedTree, WorkerRequest, WorkerResponse } from './workerProtocol'
 import { parseSTL } from './parsers/stl'
 import { parsePLY } from './parsers/ply'
 import { parseOBJ } from './parsers/obj'
@@ -30,9 +30,15 @@ import {
 } from './deviation/align'
 import type { Steps } from './deviation/steps'
 import { computeDeviation, defaultMaxDistance, suggestRange } from './deviation/deviation'
+import { deflectionVectors } from './deviation/deflection'
+import { computeElementDeviation } from './deviation/elementField'
+import { GPU_MIN_VERTICES, gpuNearestFaces } from './deviation/gpuNearest'
+import { icpPoolFor } from './deviation/icpPool'
+import { computeDeviationAuto } from './deviation/parallel'
 import { rigidApplyToPoints, rigidInvert, rigidRotateVectors, type Rigid } from './deviation/rigid'
 import { meshArea, meshLongEdges, readReference, sampleSpacing, subdivideForMap } from './deviation/onReference'
 import { buildSolidIndex, computeThickness, suggestThicknessScale } from './thickness/thickness'
+import { computeThicknessParallel, helpersFor } from './thickness/parallel'
 import { sliceMesh } from './section/slice'
 import { shadowMesh } from './section/shadow'
 import { meshCentroid } from './geometry/centroid'
@@ -42,14 +48,16 @@ import { planeRegionReport, segmentPlanes } from './fit/segment'
 import { meanCurvature } from './geometry/curvature'
 import { scanSpot } from './geometry/nearest'
 import { boundsOf } from './geometry/bounds'
+import { closedVertices } from './geometry/closedShells'
 import { gatherVertices, queryVertices } from './geometry/query'
 import { findSymmetryPlane } from './symmetry'
 import { autoAlign } from './autoAlign'
 import { workerPlugins } from './workerPlugins'
 import type { WorkerContext } from './workerPluginApi'
-import type { MeshBVH } from 'three-mesh-bvh'
+import * as THREE from 'three'
+import { MeshBVH, type MeshBVHOptions } from 'three-mesh-bvh'
 import { reply } from './workerRpc'
-import { firstHits, firstHitsAt, localNoise, scanRim, scanRims } from './geometry/scanQa'
+import { firstHits, firstHitsAt, localNoise, scanRim, scanRims, tessellationOf } from './geometry/scanQa'
 import { sheetReading, type SheetReading } from './geometry/sheet'
 import { rimLoops, type RimLoop } from './geometry/openEdges'
 import { DEFAULT_VOLUME_BETA, volumeDeviation } from './deviation/volume'
@@ -89,6 +97,11 @@ function scanLoops(g: MeshGraph): RimLoop[] {
   }
   return loops
 }
+/** The copies the render thread's layout of each model last posted was
+ *  split into for shading (see geometry/crease.ts) — the scan's by its
+ *  graph, the reference's by its surface — what lays a vertex-by-vertex
+ *  answer over that layout (see 'closed-shells'). */
+const renderCopies = new WeakMap<object, Uint32Array>()
 const stagedScans = new Map<number, MeshGraph>()
 const stagedNominals = new Map<number, NominalSurface>()
 
@@ -112,6 +125,8 @@ function postScan(
 ): void {
   if (crease.mode !== 'off') progress('Finding sharp edges…')
   const { positions, indices, normals, wireSlots: slots, copyOf, crease: report } = scanRender(g, crease)
+  // Kept: the posted one goes over with the rest.
+  renderCopies.set(g, copyOf.slice())
   // The file's own colours are the render thread's alone: nothing measured
   // here reads them, and a worker restart reads the geometry back without.
   const colors = file?.colors && file.colors.length === g.vertexCount * 3 ? file.colors : undefined
@@ -199,7 +214,7 @@ function parseNominal(
  * fit is a generator (see deviation/steps.ts) driven a slice at a time, and
  * between slices the inbox is read — which is where the abort arrives.
  */
-let alignRun: { steps: Steps<AlignResult>; requestId: number } | null = null
+let alignRun: { steps: Steps<AlignResult>; requestId: number; pool: { close(): void } | null } | null = null
 let alignAborted = false
 /** A plugin's request that awaits — a library loading, say. Nothing may run
  *  inside the wait: a scan committed in the gap would be worked on as the
@@ -220,6 +235,14 @@ self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
   // holding the queue up.
   if (msg.type === 'align-abort') {
     alignAborted = true
+    // A fit still waiting its turn is stopped where it waits: starting
+    // clears the flag, so it would otherwise run and apply as if never stopped.
+    for (let i = queued.length - 1; i >= 0; i--) {
+      const waiting = queued[i]
+      if (waiting.type !== 'align') continue
+      queued.splice(i, 1)
+      post({ type: 'align-stopped', requestId: waiting.requestId })
+    }
     return
   }
   if (alignRun || holding) {
@@ -404,6 +427,7 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
       const indices = split ? split.indices : g.indices.slice()
       const normals = split ? split.normals : g.normals.slice()
       const slots = split ? split.wireSlots : slotsOwn
+      renderCopies.set(candidate, split ? split.copyOf : new Uint32Array(0))
       post(
         {
           type: 'nominal-loaded',
@@ -436,6 +460,7 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
       })
       return
     }
+    let pool: ReturnType<typeof icpPoolFor> = null
     try {
       const options = {
         onProgress: progress,
@@ -453,7 +478,10 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
       }
       let steps
       if (msg.mode === 'auto') {
-        steps = autoAlignSteps(nominal, graph.positions, graph.normals, options)
+        // Helpers for the closest-point passes, started now so they build their copy of
+        // the reference while the first passes run here.
+        pool = icpPoolFor(nominal, graph.vertexCount)
+        steps = autoAlignSteps(nominal, graph.positions, graph.normals, { ...options, pool: pool ?? undefined })
       } else if (msg.mode === 'points') {
         checkVertices(msg.vertices, graph.vertexCount)
         steps = alignFromPairsSteps(
@@ -471,10 +499,11 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
           maxDistance: msg.maxDistance,
         })
       }
-      alignRun = { steps, requestId: msg.requestId }
+      alignRun = { steps, requestId: msg.requestId, pool }
       alignAborted = false
       pumpAlign()
     } catch (e) {
+      pool?.close()
       post({ type: 'error', requestId: msg.requestId, message: errorText(e) })
     }
     return
@@ -546,6 +575,94 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
     return
   }
 
+  if (msg.type === 'closed-shells') {
+    // On the welded copy held here, laid over the render thread's split
+    // copy by the copies it was split into: the same vertices, then copies
+    // of some of them bit for bit — the same shells. A vertex at a time, as
+    // nothing here or there keeps the triangles in one order: a bounds tree
+    // (the reference's, a thickness ray's, the render thread's) reorders an
+    // index in place, and never a vertex.
+    const mesh =
+      msg.which === 'scan'
+        ? graph && { held: graph, positions: graph.positions, indices: graph.indices }
+        : nominal && { held: nominal, positions: nominal.positions, indices: nominal.index }
+    if (!mesh) {
+      post({ type: 'error', requestId: msg.requestId, message: 'No model loaded.' })
+      return
+    }
+    const closed = closedVertices(mesh.positions, mesh.indices, renderCopies.get(mesh.held) ?? [])
+    post({ type: 'closed-shells-ok', requestId: msg.requestId, closed }, [closed.buffer])
+    return
+  }
+
+  if (msg.type === 'bounds-tree') {
+    // Indirect, so that the tree sorts a list of triangle numbers of its own
+    // and leaves the index alone: the render thread lays the tree over a
+    // geometry whose index is already drawn, and read by triangle by the
+    // section caps and the picks, as it was sent. The positions and index
+    // sent are this request's own; the tree takes them over and only its
+    // nodes and its triangle order go back.
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(msg.positions, 3))
+    geometry.setIndex(new THREE.BufferAttribute(msg.indices, 1))
+    const { roots, indirectBuffer } = MeshBVH.serialize(new MeshBVH(geometry, { indirect: true } as MeshBVHOptions), { cloneBuffers: false }) as unknown as SerializedTree
+    post({ type: 'bounds-tree-ok', requestId: msg.requestId, tree: { roots, indirectBuffer } }, [...roots, indirectBuffer.buffer as ArrayBuffer])
+    return
+  }
+
+  if (msg.type === 'deflection') {
+    // Smoothed over the scan's vertices as held here: the render thread's
+    // own, bit for bit — the first `vertexCount` of what it was posted,
+    // moved since by the same transforms — so the motion is the one it
+    // would have worked out itself, without the pass over the whole scan
+    // landing on the thread that answers the user.
+    if (!graph) {
+      post({ type: 'error', requestId: msg.requestId, message: 'No model loaded.' })
+      return
+    }
+    const vectors = deflectionVectors(msg.values, msg.directions, {
+      limit: msg.limit,
+      maxDistance: msg.maxDistance,
+      positions: msg.positions ?? graph.positions,
+      smoothing: msg.smoothing,
+    })
+    post({ type: 'deflection-ok', requestId: msg.requestId, vectors }, [vectors.buffer])
+    return
+  }
+
+  if (msg.type === 'element-deviation') {
+    // Over the scan's vertices as held here, which are the render thread's
+    // own bit for bit (see `deflection`), and the normals it sent, which are
+    // not the ones held here — so that the map is the one it would have
+    // measured itself, without the pass over the whole scan landing on the
+    // thread that answers the user.
+    if (!graph) {
+      post({ type: 'error', requestId: msg.requestId, message: 'No model loaded.' })
+      return
+    }
+    const positions = msg.positions ?? graph.positions
+    if (msg.normals.length !== positions.length) {
+      post({ type: 'error', requestId: msg.requestId, message: 'The normals sent are not the scan’s.' })
+      return
+    }
+    try {
+      const directions = new Int8Array(positions.length)
+      const values = computeElementDeviation(msg.target, positions, msg.normals, {
+        side: msg.side,
+        maxNormalDeviation: msg.maxNormalDeviation,
+        subset: msg.subset,
+        directions,
+      })
+      post(
+        { type: 'element-deviation-ok', requestId: msg.requestId, values, directions, suggestedRange: suggestRange(values, msg.maxDistance) },
+        [values.buffer, directions.buffer],
+      )
+    } catch (e) {
+      post({ type: 'error', requestId: msg.requestId, message: errorText(e) })
+    }
+    return
+  }
+
   if (msg.type === 'bounds') {
     if (!graph) {
       post({ type: 'error', requestId: msg.requestId, message: 'No model loaded.' })
@@ -591,12 +708,13 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
       } else {
         const rims = scanRims(graph.positions, scanLoops(graph), msg.rims)
         const noise = localNoise(graph, msg.sample)
+        const tessellation = tessellationOf(graph, msg.sample)
         let sheet: SheetReading | undefined
         if (msg.sheet) {
           if (!scanSolid) scanSolid = buildSolidIndex(graph.positions, graph.indices)
           sheet = sheetReading(graph, scanSolid, { ...msg.sheet, noise: noise.median })
         }
-        post({ type: 'scan-qa-ok', requestId: msg.requestId, rims, noise, ...(sheet ? { sheet } : {}) })
+        post({ type: 'scan-qa-ok', requestId: msg.requestId, rims, noise, tessellation, ...(sheet ? { sheet } : {}) })
       }
     } catch (e) {
       post({ type: 'error', requestId: msg.requestId, message: errorText(e) })
@@ -772,40 +890,46 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
         scanSolid = buildSolidIndex(graph.positions, graph.indices)
       }
       let lastPercent = -1
-      const values = computeThickness(
-        scanSolid,
-        graph.positions,
-        graph.normals,
-        {
-          method: msg.method,
-          coneRays: msg.coneRays,
-          coneAngle: (msg.coneAngleDeg * Math.PI) / 180,
-          maxNormalDeviation:
-            msg.normalDeviationDeg === null ? null : (msg.normalDeviationDeg * Math.PI) / 180,
-          maxThickness: msg.maxThickness,
-          // A hair off the surface, scaled to the part: enough that a ray
-          // never scores a hit on the triangle it left from, small enough
-          // never to reach across a real wall.
-          epsilon: Math.max(1e-6, graph.bboxDiag * 1e-5),
-        },
-        (f) => {
-          const percent = Math.round(f * 100)
-          if (percent === lastPercent) return
-          lastPercent = percent
-          progress(`Measuring wall thickness — ${percent}%…`)
-        },
-      )
-      const { low, high } = suggestThicknessScale(values)
-      post(
-        {
-          type: 'thickness-ok',
-          requestId: msg.requestId,
-          values,
-          suggestedLow: low,
-          suggestedHigh: high,
-        },
-        [values.buffer],
-      )
+      const options = {
+        method: msg.method,
+        coneRays: msg.coneRays,
+        coneAngle: (msg.coneAngleDeg * Math.PI) / 180,
+        maxNormalDeviation:
+          msg.normalDeviationDeg === null ? null : (msg.normalDeviationDeg * Math.PI) / 180,
+        maxThickness: msg.maxThickness,
+        // A hair off the surface, scaled to the part: enough that a ray
+        // never scores a hit on the triangle it left from, small enough
+        // never to reach across a real wall.
+        epsilon: Math.max(1e-6, graph.bboxDiag * 1e-5),
+      }
+      const onFraction = (f: number) => {
+        const percent = Math.round(f * 100)
+        if (percent === lastPercent) return
+        lastPercent = percent
+        progress(`Measuring wall thickness — ${percent}%…`)
+      }
+      const finish = (values: Float32Array) => {
+        const { low, high } = suggestThicknessScale(values)
+        post({ type: 'thickness-ok', requestId: msg.requestId, values, suggestedLow: low, suggestedHigh: high }, [values.buffer])
+      }
+      const solid = scanSolid
+      const { positions, normals } = graph
+      const helpers = helpersFor(positions.length / 3, options.method === 'sphere' ? 8 : 1 + options.coneRays)
+      if (helpers > 0) {
+        // On every core. The queue is held meanwhile, as for any request that awaits.
+        holding = true
+        computeThicknessParallel(solid, positions, normals, options, helpers, onFraction)
+          // Helpers that would not start, or died: measure the ordinary way.
+          .catch(() => computeThickness(solid, positions, normals, options, onFraction))
+          .then(finish)
+          .catch((e) => post({ type: 'error', requestId: msg.requestId, message: errorText(e) }))
+          .finally(() => {
+            holding = false
+            drainQueue()
+          })
+        return
+      }
+      finish(computeThickness(solid, positions, normals, options, onFraction))
     } catch (e) {
       post({ type: 'error', requestId: msg.requestId, message: errorText(e) })
     }
@@ -894,37 +1018,68 @@ function handle(msg: Exclude<WorkerRequest, { type: 'align-abort' }>): void {
       })
       return
     }
-    try {
-      let lastPercent = -1
-      const directions = new Int8Array(graph.positions.length)
-      const values = computeDeviation(nominal, graph.positions, msg.transform, {
-        onProgress: (f) => {
-          const percent = Math.round(f * 100)
-          if (percent === lastPercent) return
-          lastPercent = percent
-          progress(`Measuring the scan against the reference — ${percent}%…`)
-        },
+    const scan = graph, reference = nominal, transform = msg.transform, requestId = msg.requestId
+    let lastPercent = -1
+    const report = (f: number) => {
+      const percent = Math.round(f * 100)
+      if (percent === lastPercent) return
+      lastPercent = percent
+      progress(`Measuring the scan against the reference — ${percent}%…`)
+    }
+    const deviate = (nearestFaces: Int32Array | null) => {
+      const directions = new Int8Array(scan.positions.length)
+      const options = {
+        // With the faces in hand the GPU had the first half of the bar.
+        onProgress: (f: number) => report(nearestFaces ? 0.5 + f * 0.5 : f),
+        nearestFaces,
         directions,
         // Rotated along with the positions whenever an alignment is baked in,
         // so they stand in the same frame the transform starts from.
-        normals: graph.normals,
+        normals: scan.normals,
         maxNormalDeviation: msg.facingDeg === null ? null : (msg.facingDeg * Math.PI) / 180,
-      })
-      const suggestedMaxDistance = defaultMaxDistance(graph.bboxDiag)
-      post(
-        {
-          type: 'deviation-ok',
-          requestId: msg.requestId,
-          values,
-          directions,
-          suggestedRange: suggestRange(values, suggestedMaxDistance),
-          suggestedMaxDistance,
-        },
-        [values.buffer, directions.buffer],
-      )
-    } catch (e) {
-      post({ type: 'error', requestId: msg.requestId, message: errorText(e) })
+      }
+      const finish = (values: Float32Array) => {
+        const suggestedMaxDistance = defaultMaxDistance(scan.bboxDiag)
+        post(
+          {
+            type: 'deviation-ok',
+            requestId,
+            values,
+            directions,
+            suggestedRange: suggestRange(values, suggestedMaxDistance),
+            suggestedMaxDistance,
+          },
+          [values.buffer, directions.buffer],
+        )
+      }
+      const fail = (e: unknown) => post({ type: 'error', requestId, message: errorText(e) })
+      try {
+        // Faces from the GPU leave only the readings, quick on one thread; a
+        // CPU search is sliced across helpers (parallel.ts) when big enough.
+        const map = nearestFaces ? computeDeviation(reference, scan.positions, transform, options) : computeDeviationAuto(reference, scan.positions, transform, options)
+        if (!(map instanceof Promise)) return finish(map)
+        // Gone out to helpers: held meanwhile, as for any request that awaits.
+        holding = true
+        map.then(finish, fail).finally(() => {
+          holding = false
+          drainQueue()
+        })
+      } catch (e) {
+        fail(e)
+      }
     }
+    // A big scan's nearest faces are looked up on the GPU first, where there
+    // is one, and the CPU tree searched as ever where there is not. The wait
+    // holds the queue, as an awaiting plugin's does.
+    if (scan.positions.length / 3 < GPU_MIN_VERTICES) return deviate(null)
+    holding = true
+    gpuNearestFaces(reference, scan.positions, transform, (f) => report(f * 0.5))
+      .then(deviate)
+      .finally(() => {
+        holding = false
+        drainQueue()
+      })
+    return
   }
 }
 
@@ -952,19 +1107,28 @@ function checkVertices(vertices: Uint32Array | undefined, vertexCount: number): 
 function pumpAlign(): void {
   const run = alignRun
   if (!run) return
+  const end = () => {
+    alignRun = null
+    run.pool?.close()
+  }
   try {
     const until = performance.now() + ALIGN_SLICE_MS
     for (;;) {
       if (alignAborted) {
-        alignRun = null
+        end()
         post({ type: 'align-stopped', requestId: run.requestId })
         break
       }
       const step = run.steps.next()
       if (step.done) {
-        alignRun = null
+        end()
         post({ type: 'align-ok', requestId: run.requestId, result: step.value })
         break
+      }
+      if (step.value instanceof Promise) {
+        // A pass is out with the helpers (it never rejects); an abort is read when it is back.
+        step.value.then(pumpAlign)
+        return
       }
       if (performance.now() >= until) {
         setTimeout(pumpAlign, 0)
@@ -972,7 +1136,7 @@ function pumpAlign(): void {
       }
     }
   } catch (e) {
-    alignRun = null
+    end()
     post({ type: 'error', requestId: run.requestId, message: errorText(e) })
   }
   drainQueue()

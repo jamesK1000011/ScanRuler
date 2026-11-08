@@ -136,7 +136,7 @@ const regionSchema = (what: string): JsonSchema =>
         {
           box: obj({ min: vec3('The low corner, mm.'), max: vec3('The high corner, mm.') }, ['min', 'max'], 'The vertices inside an axis-aligned box, its sides included.'),
           sphere: obj({ center: vec3('The centre, mm.'), radius: num('mm.', { exclusiveMinimum: 0 }) }, ['center', 'radius'], 'The vertices within a radius of a point.'),
-          vertices: arr(int(undefined, { minimum: 0 }), 'The vertices by number — the edited copy’s while there is one, else the scan’s.', { minItems: 1 }),
+          vertices: arr(int(undefined, { minimum: 0, maximum: 0xffffffff }), 'The vertices by number — the edited copy’s while there is one, else the scan’s.', { minItems: 1 }),
           facing: vec3('Of those, only the vertices whose normal points within angleDeg of this direction — [0, 0, 1] for the faces looking up. Narrows a box to one face of the part.'),
           angleDeg: num(`How far a normal may turn from facing and still face it, degrees — ${DEFAULT_FACING_DEG} to start.`, { exclusiveMinimum: 0, maximum: 180 }),
         },
@@ -158,6 +158,10 @@ async function regionVertices(region: RegionIn): Promise<Uint32Array> {
   }
   const shapes = (['box', 'sphere', 'vertices'] as const).filter((k) => region[k] !== undefined)
   if (shapes.length !== 1) invalid('Name the region one way: a box, a sphere or vertices — with facing and angleDeg to narrow it.')
+  // A number past 32 bits would wrap round to another vertex when made a
+  // Uint32Array, out of reach of the worker's own check that it is one.
+  const tooBig = region.vertices?.find((v) => !(v >= 0 && v <= 0xffffffff))
+  if (tooBig !== undefined) invalid(`The mesh has no vertex ${tooBig}.`)
   let found: { vertices: Uint32Array; vertexCount: number }
   try {
     found = await client().select({
@@ -596,6 +600,23 @@ const smooth: Command<{ size?: number; limit?: number; keepEdges?: boolean; regi
   },
 }
 
+const densify: Command<{ maxEdge?: number }> = {
+  name: 'densify',
+  title: 'Densify the mesh',
+  description:
+    'Cut the triangles until no edge is longer than maxEdge, the surface unchanged: every new vertex is an edge’s middle, on the facet it was cut from, and the mesh stays as closed as it was. For an STL exported from CAD, whose vertices lie only on its edges and rims (scan.qa’s tessellation.sparse): a segmentation, a seeded fit or a section fit finds points inside its faces only after it — scan.qa’s densifyTo is the length to give. A scan needs none. maxEdge defaults to the panel’s, a hundredth of the part to start. Edits the copy. One undo step. Returns the edit (maxEdge, the vertices added, the triangles now) and the mesh after it.',
+  input: obj({ maxEdge: sizeIn('No edge longer than this, mm.') }),
+  history: false,
+  run: async ({ maxEdge }) =>
+    editAnswer(
+      await step('densify', 'Densifying', async () => {
+        inHand('densify')
+        if (maxEdge !== undefined) m().setDensifyEdge(maxEdge)
+        return session().densifyScan({ inStep: true })
+      }, true),
+    ),
+}
+
 const offset: Command<{ direction: OffsetDirection; distance: number; region?: RegionIn }> = {
   name: 'offset',
   title: 'Shrink or expand',
@@ -937,7 +958,7 @@ const stop: Command = {
 
 /** The workspace's commands, in the order a cleanup goes: what is there,
  *  islands and marked surface off, the normals the right way, the cut, a
- *  mirror, the holes, smoothing, a shrink
+ *  mirror, the holes, smoothing, densifying, a shrink
  *  or an expansion, a boolean, the shell, a wrap, and the reduction last. */
 export const meshCommands = [
   parts,
@@ -952,6 +973,7 @@ export const meshCommands = [
   mirror,
   fillHoles,
   smooth,
+  densify,
   offset,
   boolean,
   shell,

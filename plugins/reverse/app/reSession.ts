@@ -28,6 +28,7 @@ import type { CompareDetail, PatchRequest } from '../core/compareDetail'
 import { type BuildStep, type Feature, type ResolveContext, type SketchFeature, type SurfaceFeature } from '../core/features'
 import { resolveFeatures } from '../core/resolve'
 import type { KernelMesh, StepCheck, StepMend } from '../core/kernel'
+import { withoutCollapsed } from '../core/kernelMesh'
 import type { ScanSide, SparseField } from '../core/liveMap'
 import { type BuildInPlay, ReClient } from '../core/reClient'
 import { findRegions, type Region } from '../core/regions'
@@ -159,6 +160,11 @@ export function createReverseSession({
   let stopping: Promise<Stopped | null> | null = null
   /** The store's build version the last build that landed was made for. */
   let landed: number | null = null
+  /** Builds asked for, counted, and the count of the last that landed: an
+   *  answer to an earlier one is overtaken (see overtaken). The session's
+   *  own count, which no reset of the store puts back. */
+  let asks = 0
+  let landedAsk = 0
   /** Builds held back while changes are made one after another, to build
    *  once after the last of them (see hold); the timer lets them go should
    *  nothing else — a caller gone before its last change. */
@@ -246,11 +252,13 @@ export function createReverseSession({
     const re = useReverse.getState()
     if (!client || re.kernelStatus !== 'ready') return
     const version = re.buildVersion
+    const ask = ++asks
     if (re.features.length === 0) {
       meshes.clear()
       topologies.clear()
       re.finishBuild([], [])
       landed = version
+      landedAsk = ask
       return
     }
     const built = featuresToBuild(re)
@@ -273,6 +281,7 @@ export function createReverseSession({
       client.steps.builds++
       re.finishBuild([], [])
       landed = version
+      landedAsk = ask
       return
     }
     const sketches = new Map(built.filter((f): f is SketchFeature => f.kind === 'sketch').map((f) => [f.id, f.sketch]))
@@ -298,7 +307,7 @@ export function createReverseSession({
         // Not running any more before the store says what landed, so that
         // what waits on the store finds the session idle when it looks.
         uncount()
-        if (!answer) return
+        if (!answer || overtaken(ask)) return
         // A body the build left as it was comes back the very object it
         // was, so what the viewport made of its mesh stays.
         meshes.clear()
@@ -333,6 +342,7 @@ export function createReverseSession({
           })
         }
         landed = version
+        landedAsk = ask
         useReverse.getState().finishBuild(
           withStepsSaid(answer.results, built),
           answer.bodies.map((b) => ({
@@ -352,10 +362,19 @@ export function createReverseSession({
       .catch((e) => {
         if (c !== client) return
         uncount()
+        if (overtaken(ask)) return
         landed = version
+        landedAsk = ask
         useReverse.getState().failBuild(message(e))
       })
   }
+
+  /** Whether a build for a newer list has landed since this one was asked
+   *  for. A list emptied, or left with sketches alone, lands at once with
+   *  no kernel call to overtake the build still running — whose answer,
+   *  landing after, brought the deleted bodies back and set the version
+   *  landed back, so a wait for the build sat out its limit (issue 34). */
+  const overtaken = (ask: number): boolean => landedAsk > ask
 
   /** The surfaces' regions read again in their boxes, written into the
    *  list — not a step of its own: the change that moved the box is — and
@@ -753,12 +772,13 @@ export function createReverseSession({
     return c.compare(bodyIds, range, spots, patches, within, far, side)
   }
 
-  /** The given solid bodies meshed to the chord — what a printer takes —
-   *  as one binary STL, or a 3MF with each body an object of its own under
-   *  its name, and how many triangles it holds. */
-  const meshFile = async (bodies: { id: number; name: string }[], chord: number, format: MeshFormat): Promise<(MeshFile & { name: string }) | null> => {
-    const meshes = await requireClient().referenceMeshes(bodies.map((b) => b.id), chord)
-    const parts = meshes.map((m, i) => ({ name: meshes.length === bodies.length ? bodies[i].name : `Body ${i + 1}`, positions: m.positions, indices: m.indices }))
+  /** The given solid bodies meshed to the chord and the angle (degrees;
+   *  see core/meshResolution) — what a printer takes — as one binary STL,
+   *  or a 3MF with each body an object of its own under its name, and how
+   *  many triangles it holds. */
+  const meshFile = async (bodies: { id: number; name: string }[], chord: number, format: MeshFormat, angleDeg?: number): Promise<(MeshFile & { name: string }) | null> => {
+    const meshes = await requireClient().referenceMeshes(bodies.map((b) => b.id), chord, false, angleDeg !== undefined ? (angleDeg * Math.PI) / 180 : undefined, true)
+    const parts = meshes.map((m, i) => ({ name: meshes.length === bodies.length ? bodies[i].name : `Body ${i + 1}`, positions: m.positions, indices: withoutCollapsed(m.positions, m.indices) }))
     const file = buildMeshFile(format, parts, null, 'ScanRuler - bodies from Reverse engineer')
     return file && { ...file, name: `${exportStem('model')}-body.${file.extension}` }
   }

@@ -267,6 +267,448 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `snapshot_latest` and cannot take one itself. Shots stay in the tab's
   memory until you close it; Save PNG and Copy are there too.
 
+- **More ways to construct points, lines and planes** (2026-11-08, issues
+  45 and 46). Under Create element, 3D Measure now also builds:
+  - points: the centre of a sphere, circle or torus; where three planes
+    meet; where two lines or axes cross; a point dropped onto a plane;
+  - lines: square to a plane through a point; a line or a feature's axis
+    laid onto a plane; a line from coordinates; and the axis of a cone,
+    torus or circle as well as a cylinder's;
+  - planes: parallel to a plane through a point; normal to a line through a
+    point; at an angle about an axis; through a line and square to a plane;
+    through two lines; tangent to a sphere or a cylinder on the side facing
+    a point.
+
+  Measured lines never cross exactly, so the two that need crossing lines
+  take a Max gap (0.1 mm to start with) and refuse lines that pass further
+  apart, rather than putting the nearest approach in place of an
+  intersection; parallel, coincident and square-on cases say why they have
+  no answer. A torus now stands for its ring's centre wherever a point is
+  asked for. Constructions stay linked to what they are built from — a
+  constructed row says so when you point at it — and Unlink from its
+  sources, in its box (element.unlink for an agent), freezes one where it
+  stands. Thanks to SteemSucker for both issues.
+- **A new dimension or tolerance starts over an empty box** (2026-11-08).
+  Add dimension and Add tolerance leave an empty box open for the next one,
+  and that empty box greyed out New tolerance, New dimension and the edit
+  keys on every row until it was cancelled. An empty box is no longer in the
+  way; one with something in it still is.
+- **A two-finger pan keeps up with the fingers** (2026-11-08). The first
+  move of a two-finger gesture only set where it started, so a pan or pinch
+  lost that move's travel and lagged the hand. It now starts where the
+  fingers land.
+- **Opening a scan asks before it replaces your measurements**
+  (2026-11-08). A new scan clears the elements, dimensions and sections
+  measured on the one in place, and opening one from the panel, by drag and
+  drop, as the sample or from a link did so without a word. It now asks
+  first when there is something to lose. The idea came from Greg-J's pull
+  request 23.
+- **Keys stay with an open dialog** (2026-11-08, issue 34). With Settings,
+  the imprint or another dialog open, Enter, a middle click and the view
+  keys still acted on the workspace behind it: Enter could press "Align
+  automatically" behind Settings. The units question no longer opens the
+  file on Enter with Cancel focused, and Escape stops a running best fit
+  from the Reverse engineer as it does elsewhere. Thanks to Jozkah.
+- **Smooth zoom on a trackpad** (2026-11-08, issue 34). Each scroll event
+  zoomed a full step, so a trackpad jumped, and a sideways swipe zoomed out.
+  The zoom now follows how far you scroll, one mouse notch as before, and a
+  sideways swipe does nothing. Thanks to Jozkah.
+- **Extend grips can be dragged by touch** (2026-11-08, issue 34). A grip
+  had to be hovered before it could be taken, which a finger never does.
+  Thanks to Jozkah.
+- **Undo is left alone by an agent's pictures and readings** (2026-11-08,
+  issue 34). A picture with the scan or the map put away, or a volume
+  reading, went through the same switches as a click and recorded undo
+  steps, which also cleared redo. An agent's undo with a sketch open is
+  refused instead of stepping the sketch's own history. Thanks to Jozkah.
+- **A Reverse engineer model kept safe in three more places** (2026-11-08,
+  issue 34). A model rolled back to its first feature counted as empty, so a
+  project could be opened over it without a warning. A build still running
+  when every feature was deleted brought the bodies back when it finished.
+  An edit an agent was refused still hid or suppressed the feature. Thanks
+  to Jozkah.
+- **A huge scan is drawn whole while it turns, unless it turns slowly**
+  (2026-11-08). The coarser copy 0.9.10 drew while the view moves, for every
+  scan of more than 400,000 triangles, made the part flicker between two
+  looks. It is now drawn only once the full scan has been seen to turn at
+  under 20 frames a second, and then for that scan until another is opened.
+- **No black specks on a huge scan while the view turns** (2026-11-08).
+  The coarser copy a scan of more than 400,000 triangles is drawn from while
+  the view moves (new in 0.9.10) showed black specks all over the part until
+  the view held still. On a thin wall it built triangles of one skin on
+  corners of the other, lit from inside the part, and elsewhere it turned
+  some triangles over. The copy now keeps the two sides of a wall apart and
+  every triangle facing the way the scan does.
+- **A reading shown equal to its limit passes** (2026-11-08, issue 34). A
+  value printed as 12.050 mm against a top limit of 12.050 mm could still
+  FAIL, by "0.000 mm", because the verdict judged the digits the screen
+  leaves off. An excess that rounds away at the digits shown (three in
+  millimetres, four in inches, two in degrees) now passes. Thanks to Jozkah.
+- **A minus tolerance typed equal to the plus stays put** (2026-11-08, issue
+  34). Typing − the same as + made the band read as symmetric, so the next
+  change to + dragged − along: +0.1 / −0.05, with − typed 0.1 and then +
+  typed 0.2, ended as ±0.2 and could pass a part that was out. A typed minus
+  is now kept as typed; one left empty still follows the plus. A typo in a
+  limit field goes back to the value held, instead of taking the limit or
+  the whole band off. Thanks to Jozkah.
+- **Emptying a number field no longer sets it to zero** (2026-11-08, issue
+  34). Clearing a field and leaving it committed 0: a section's offset or
+  angle, a shadow's play, an extended side. An emptied field, or one holding
+  a typo, now goes back to its value. Tabbing through the section's angle
+  no longer re-cuts the plane at the rounded figure. Thanks to Jozkah.
+- **The deviation map's sign holds against fixtures and far walls**
+  (2026-11-08, issue 34). Which way an open scan's normals point was settled
+  by a vote of all its points alike, so a fixture, or the far side of a
+  wall, scanned in large enough amounts turned every reading the wrong way
+  round. Points now vote by how close they lie to the reference.
+  Triangles of no area in the reference, as a CAD export leaves along a
+  seam, no longer turn the sign beside them. Thanks to Jozkah.
+- **An inside-out scan aligns** (2026-11-08, issue 34). A scan too open for
+  its winding to be settled could match nothing, or settle upside down on
+  the part's opposite faces, and still say "Aligned". The automatic best fit
+  now tries the scan wound both ways and keeps the one that places it, which
+  makes it about a sixth slower; a fit that matches no point says so instead
+  of reporting success. Thanks to Jozkah.
+- **A STEP opened with units asked comes in at its size** (2026-11-08, issue
+  34). A STEP states its own units and arrives in millimetres; opening one
+  with units "in", as an agent can, made it 25.4 times too big. Thanks to
+  Jozkah.
+- **Midplane of two tilted planes lies on their bisector** (2026-11-08,
+  issue 34). Between planes that are not parallel, the midplane passed
+  through the midpoint of the two patches, off the plane halfway between
+  them. Thanks to Jozkah.
+- **2D ΔX and ΔY follow the alignment** (2026-11-08, issue 34). On a sheet
+  aligned to a datum the point-to-point deltas still read along the image's
+  axes, unlike every coordinate beside them, and ΔY ran the wrong way on a
+  mirrored sheet. Thanks to Jozkah.
+- **STL files that write zero as −0 weld whole** (2026-11-08, issue 34).
+  −0.0 and 0.0 were taken for different corners, which left a crack along
+  every plane through zero. Thanks to Jozkah.
+
+## 0.9.10 — 2026-11-08
+
+- **A bore's cone point exports as a clean mesh** (2026-11-08, pull request
+  109). A cone closing to a point, as a drill leaves the end of a bore,
+  meshed with a triangle of no area at its apex, so an STL or 3MF of it had
+  an edge four triangles share, which slicers and mesh checkers call
+  non-manifold. The Reverse engineer's mesh export now leaves it out.
+  Thanks to martinfrancois.
+- **No "same region" warning for one profile picked twice on purpose**
+  (2026-11-08, pull request 110). Two cuts on one sketch that ask for its
+  region the same way, such as one hole at each end of a bar, no longer
+  warn that a junction came apart. Thanks to martinfrancois.
+- **Exports and the body check name the features that failed to build**
+  (2026-11-08, pull request 111). A failed feature leaves the bodies whole
+  without it, so they checked clean and exported as the part; the STL, 3MF
+  and STEP exports and the body check now say which features are missing.
+  Thanks to martinfrancois.
+- **A mirror warns that it turns a thread's hand** (2026-11-08, pull request
+  112). A right-handed thread mirrored comes out left-handed; the mirror's
+  row now says so and suggests copying the body with a 180° turn instead.
+  Thanks to martinfrancois.
+- **Huge scans turn smoothly** (2026-11-08, pull request 72). A scan of
+  more than 400,000 triangles is drawn from a coarser copy of itself while
+  the view turns, pans or zooms, and in full again once the view holds
+  still. Its colours, deviation map and paint stay on it, and picking and
+  measuring always use the full scan. Thanks to Jozkah.
+- **Deviation maps on the graphics card** (2026-11-08, pull request 73).
+  Where the browser offers WebGPU, a scan of 100,000 points or more finds
+  its nearest place on the reference on the graphics card, and the reading
+  itself is still taken on the processor, so the map is the same. Without
+  WebGPU it is measured as before. Thanks to Jozkah.
+- **Perspective view** (2026-11-08, pull request 43, issue 24). A button
+  beside Fit to view switches the 3D view between parallel (orthographic),
+  still the default and what measuring wants, and perspective. Picks,
+  marking and the readings follow whichever is on screen, the part keeps its
+  size at the orbit centre when you switch, and the choice is remembered in
+  the browser. Thanks to Jozkah.
+- **Development tools updated** (2026-11-08, pull request 30). The test
+  runner moves to Vitest 5 and the browser checks' puppeteer-core to 25.16,
+  which clears the security advisories npm reported against the
+  development dependencies. Nothing changes in the app. Thanks to Jozkah.
+- **One activity lamp for the whole app** (2026-11-08, pull request 113).
+  The status strip at the bottom left reads WORKING, with the step under
+  way beside it, whenever anything is busy: loading, fitting, aligning,
+  measuring, a Mesh Tools or Reverse engineer job, an export or an agent's
+  command. It shows a percentage only where the work measures one, and
+  goes back to READY when it is done. Errors still come first. Thanks to
+  Myuavbug66.
+- **Large scans use less memory** (2026-11-08, pull request 69). A
+  scan or reference over 256 MB is no longer held in the tab as a copy for
+  the whole session: ScanRuler keeps the file it was opened from and reads
+  it again to save a project, write a recovery checkpoint or restart a
+  worker. If such a file is changed, moved or deleted on disk in the
+  meantime, as a photogrammetry tool re-exporting in place does, saving
+  says so and asks to open it again. Smaller files are still kept as a copy,
+  so nothing on disk can get in the way of saving them. Thanks to Jozkah.
+- **A stricter security policy for the hosted app** (2026-11-08, pull
+  request 58). The site now sends a Content-Security-Policy and the usual
+  security headers: the page runs only its own scripts and cannot be framed
+  by another site, and only the CAD kernel's own worker may generate code.
+  three.js and React load as chunks of their own, which the browser keeps
+  across updates. The build checks pin the GitHub actions they use, and
+  AGENTS.md sums up the repository's rules for coding agents. Thanks to
+  Jozkah.
+- **Quicker taps, and an idle view that rests** (2026-11-08, pull request
+  98, issue 91). Deviation, the map, Split, the Section view, an element's
+  target and facing limit answer sooner, most of all on phones: work that
+  changes nothing is skipped, shaders are prepared while the app is idle,
+  the split and 2D views stay ready once opened, and the motion, the map
+  against an element and the scan's search tree are made in the background
+  worker. A view held still stops drawing after half a second and wakes on
+  the next touch, key or change, so a phone left on a part no longer runs
+  its graphics for nothing. Thanks to Jozkah.
+- **Wall thickness and deviation on every core** (2026-11-08, pull request
+  65). A wall-thickness map with a cone of rays or the sphere method, and a
+  deviation map measured without WebGPU, are shared out across several
+  helper workers when the scan is big enough to pay for starting them; a
+  small scan, the single-ray thickness and a deviation the GPU helps with
+  are measured as before. Every point is read by the same code either way,
+  so the maps are unchanged. The automatic alignment can share its passes
+  the same way where the page is cross-origin isolated. Thanks to Israel
+  Fernandes.
+- **Run ScanRuler in Docker** (2026-11-08, pull request 33).
+  `docker compose up -d --build` serves the app on port 8080 from an
+  unprivileged nginx container, with the same security policy as the hosted
+  app and no short-link file store unless one is given at build time. The
+  agent connection, scanruler-mcp, has a container of its own that the agent
+  starts in place of `npx`. It now ends when the agent closes its input, and
+  `SCANRULER_MCP_HOST` sets the address it listens on (still 127.0.0.1 by
+  default). See docs/docker.md. Thanks to Oliver Zimmermann.
+
+## 0.9.9 — 2026-11-08
+
+- **Horizontal and vertical dimensions in the sketch** (2026-11-08, issue
+  106). A dimension between two points or two circles' centres can now
+  measure only their ΔX or ΔY, as a drawing gives a hole's pitch: pull its
+  number above or below the two points for the horizontal distance, beside
+  them for the vertical one, anywhere else for the distance straight across.
+  The chip on its row switches it later. Thanks to SphaeroX.
+- **A line's middle and a circle's quadrants as points to constrain and
+  dimension** (2026-11-08, issue 103). The middle of a line, the centre of
+  an arc and the top, bottom, left and right of a circle or an arc light up
+  under the cursor and can be picked for Coincident and for a dimension, and
+  a drawn end snaps to them. The sketch also has a Point tool now. Thanks to
+  Leafy1.
+- **Trim in the sketch** (2026-11-08, issue 102). The Trim tool (T) takes
+  away the stretch of a line, an arc or a circle between the two nearest
+  places other pieces cross it, lit red under the cursor first. A piece
+  nothing crosses goes whole, a stretch from the middle leaves two pieces in
+  line, and a circle becomes an arc. The ends the cut moved are held on the
+  piece that cut them. Thanks to Leafy1.
+- **Tracking lines while drawing** (2026-11-08, issue 107). After the cursor
+  passes over an end, a centre, a middle or the origin, a dashed line runs
+  from it along X or Y, and a new point snaps onto it, or onto the crossing
+  of two such lines, to stand level or upright with it. Thanks to SphaeroX.
+- **Planes through three points, through a point square to a direction, and
+  through a bore's axis** (2026-11-08, issue 104). An agent can give a
+  sketch plane, a Cut by plane, a mirror or a body section as the plane
+  through three points (its normal by the right-hand rule, with a flip), as
+  a point and a normal, or as the plane through a cylinder's or a cone's
+  axis and a point. A compound chamfer is then one flat cut instead of a
+  ruled loft. Three points on one line are refused, with the reason. Thanks
+  to Leafy1.
+- **STLs exported from CAD are recognised, and a Densify tool readies them
+  for measuring** (2026-11-08, issue 42). The scan check now tells an STL
+  exported from CAD from a scan by its exactly flat facets, reports its
+  noise as 0, and says when its triangles are too long to fit on, with the
+  edge length to subdivide it to. Mesh Tools has a Densify tool that cuts
+  the triangles down to that length without moving the surface; the agent
+  has it as `mesh_densify`. The scan-to-CAD guide says how to work from such
+  a file, and `view_render { show: { map } }` now works in the Deviation
+  workspace too. Thanks to lpkralv for the test part and the measurements.
+- **Auto-align says when the face it squared to is an inside wall**
+  (2026-11-08, issue 77). On a housing whose largest flat face is a rib's
+  wall, not the flange it mates on, `align_auto` now says so, with how far
+  the part stands in front of that face, and points to aligning on the
+  mating face. The scan-to-CAD guide also says how to model a bowl-shaped
+  part whose inside is scanned: fit the inner skin and keep the wall
+  between, rather than shelling the outside. Thanks to hummcustom.
+- **Export mesh in Reverse engineer, at a resolution you choose**
+  (2026-11-08, issue 89). Beside Export body STEP, Export mesh writes the
+  visible bodies as an STL or a 3MF, meshed Draft, Normal, Fine or Finest,
+  so a print of curved faces comes out as smooth as you ask rather than as
+  the slicer meshes a STEP. The agent's mesh export takes the same choice.
+  When the part is under 2 mm across, the export says its scan was most
+  likely in metres. That was what made the reported part print faceted.
+  Thanks to DRiNVAD3R.
+- **A hidden element shows while you point at its row** (2026-11-08, issue
+  75). In 3D Measure's list, moving the pointer over an element's or a
+  section's row draws it on the part and lights it, hidden or not, so you
+  can find it. Nothing about it changes, and it goes away again when the
+  pointer leaves. Thanks to SteemSucker.
+- **Parameters show what they drive, and the important ones stay on top**
+  (2026-11-08, issue 21). Pointing at a parameter in Reverse engineer, or
+  typing in it, lights the features it drives in the list and their faces
+  on the part. A star marks a parameter as important: it is listed first,
+  kept in the saved project, and the agent is told which ones they are.
+  Thanks to Vergilcd.
+
+## 0.9.8 — 2026-11-08
+
+- **No spike in Fusion from a plane a hair off a cone's apex** (2026-11-08,
+  issue 97). A wedge whose sides were meant to pass through a revolve's axis,
+  but missed it by 0.00001 mm because the sketch was rounded, cut the cones
+  in tiny hyperbolas centred on their apexes, far outside the part. ScanRuler
+  read them as the straight edges they are, and the STEP check passed, but
+  Fusion drew a spike out to the apex. The STEP export now writes such an
+  edge as a straight line, the STEP check fails on one left in a file, and
+  the body check names them. Thanks to daniel-vork.
+- **Holes and rims found right on scans over 2.1 million vertices**
+  (2026-11-08, issue 34). Past that size, edges of the mesh could be taken
+  for one another, so a scan's open rims came out broken or misplaced, in
+  the gaps a model reports and in the volume deviation. Thanks to Jozkah.
+- **Circles and spheres fitted to a short arc or a shallow cap read their
+  true radius** (2026-11-08, issue 34). The fit stopped after a fixed number
+  of steps, long before it had settled when only part of the circle or
+  sphere was scanned, so the radius came out too small: a 30° arc of R10
+  read 9.84. It now runs until it has settled, which takes only a few steps.
+  Thanks to Jozkah.
+- **Angularity reads right for a basic angle over 90°** (2026-11-08, issue
+  34). A face drawn at 150° to its datum read as far off as it could be.
+  The basic angle is now taken the way the face's lean is, so 150° is the
+  same lean as 30° the other way. Thanks to Jozkah.
+- **Trim with a measured cone builds the right cone** (2026-11-08, issue
+  34). Where the cone's apex was within reach of the trim, the tool ran past
+  the apex and came out as a different cone. It now stops just short of the
+  apex. Thanks to Jozkah.
+- **A circular sketch pattern keeps turned copies where it put them**
+  (2026-11-08, issue 34). Each copy took the original's horizontal and
+  vertical relations, so a rectangle turned 120° was pulled level or
+  distorted by the next solve. A copy turned a quarter now has them swapped,
+  and one turned by any other angle has its sides held parallel and square
+  to each other instead. Thanks to Jozkah.
+- **The privacy policy says what is kept and fetched** (2026-11-08, issue
+  34). It said scans stay in memory and four preferences are stored. It now
+  says that a recovery copy of unsaved work, files included, is kept in the
+  browser's IndexedDB storage, that settings (the agent connection's token
+  among them) are kept in localStorage, and that a link with `?open=` or
+  `/s/` fetches its file from where it points. Thanks to Jozkah.
+- **A fit tolerance of 0.05 can be typed** (2026-11-08, issue 81). The Fit
+  options window took each keystroke on its own, and "0.0" on the way to
+  0.05 is no tolerance, so the field cleared. Its number fields now take
+  what you type when you press Enter or leave the field, as the other
+  fields in ScanRuler do. The same goes for the polygon's side count
+  (typing 12 gave 62), the span count of a patch network's strip, and the
+  agent connection's port, which jumped back to the default while you
+  typed. Thanks to neilyoung and Jozkah.
+- **A project saved over an older one opens again** (2026-11-08, issue 83).
+  Saving a project where one of the same name already was could leave
+  `MyProject.scanruler-2`, which ScanRuler would not open. Such names now
+  open, from the Open button, by dropping the file, or by link, and the Open
+  dialog offers them. A project saved under any other name is recognised by
+  what is in the file. Thanks to upex-yes.
+- **A point's label no longer hides the point, and points and grips can be
+  drawn larger** (2026-11-08, issue 47). The label above a point or a line
+  was lifted along the part's Y axis, so seen from the front or the side it
+  sat on the point, and from other views its lower half covered it. It now
+  stands just above the point on the screen from every side. New in
+  Settings → Lines, *Points and grips* draws the marks that keep their size
+  on the screen (points, picked spots, the arrows and bars on an element
+  being made, the section's handle) up to 2.5 times as large, for big
+  screens. Thanks to SteemSucker.
+- **A selection box that adds says so while you drag it** (2026-11-08,
+  issue 62). On a sketch's sheet and in 2D Measure, a box dragged with Ctrl,
+  Command or Shift held adds to the selection, but nothing showed that the
+  key had registered until the button was let go; the box's colour tells its
+  direction, not the key. It now bears a + and a heavier border while it
+  adds. Thanks to Starzrng.
+- **Plugins: a password field in a panel looks like the other fields**
+  (2026-11-08, issue 94). An `input type="password"` inside `.field` now
+  takes the same style as number and text fields. Thanks to CW3Ds.
+- **The scan-to-CAD guide says a wall can follow a parameter** (2026-11-08,
+  issue 59). It said a loft's inner wall and an inset sketch take the wall
+  only as a number. Both take a parameter as well: `exprs.inner` on the loft,
+  `exprs.inset` on the inset sketch. Thanks to Mearman and alexgavs.
+- **Development** (2026-11-08, issue 76). The browser tests clear a number
+  field without Cmd+A, which selects nothing in headless Chrome on macOS and
+  failed four Mesh Tools checks there. Thanks to bdawg-ML.
+
+## 0.9.7 — 2026-11-08
+
+- **scanruler-mcp fixes** (2026-11-07, scanruler-mcp 0.6.2). Thanks to Jozkah.
+  - A returned file whose name holds a colon wrote on Windows into a hidden
+    stream and left an empty file. Characters Windows refuses become `_`,
+    and a name such as `CON` gets one in front.
+  - A picture tool no longer writes over a file that is there; a path to a
+    folder still numbers past what is in it.
+  - `--allow-origin` matches the page's address however it is written (a
+    slash at the end, capitals), and a value that is not an address is
+    refused at start.
+  - Numbers of 100 or more in answers keep four decimals: six digits of a
+    coordinate far from the origin had moved it by a tenth of a millimetre
+    or more.
+  - The server's own tools check their arguments: a `timeoutSeconds` that is
+    no number or out of range is refused, where it waited no time at all. A
+    number sent as a string is taken as that number, as before.
+  - An update that stopped because of the arguments it was given is no
+    longer marked as broken.
+  - Copies started at the same moment no longer each make a pairing token,
+    and a damaged `config.json` is kept as `config.json.bad`, not replaced.
+  - A relative `--out` folder is resolved, and the file tools no longer
+    follow a link out of the scan's folder.
+  - A page that stops answering no longer holds a read or a wait past the
+    answer limit, and leaves nothing waiting behind it.
+  - When another page takes the connection over, the calls of the one
+    closing are turned down instead of left hanging.
+  - A batch file of very many calls answers after running them, where it
+    failed past about 125,000.
+  - An answer limit or wait too long for a timer to hold no longer fires at
+    once.
+  - A torn read of `folders.json` no longer wipes the list of folders, and
+    the file is written whole.
+  - The pairing token is left out of call traces.
+- **Scan colours from PLY and OBJ, and sturdier file reading** (2026-11-07).
+  Thanks to Jozkah.
+  - A PLY or OBJ scan that carries a colour on each vertex now opens in
+    colour, as a 3MF does. One colour on every vertex is taken as the
+    exporter's default and left out.
+  - A PLY whose header counts more than the file holds, or names a type it
+    does not know, is refused at once. Before, it could spin or open as
+    garbage.
+  - A PrusaSlicer project with many modifier parts opens faster.
+  - A 3MF with an odd character code or member name gives a clear error.
+  - A project file is held to the ranges the panels set, so a damaged one
+    cannot start a thickness map with a billion rays. Agents' `bands` and
+    `coneRays` stop at 256 to match.
+  - A best fit stopped while it still waited its turn no longer runs anyway.
+  - Edge detection on a 2D image reports only the failure of the request on
+    screen, not of one already replaced.
+- **Undo, agents and recovery hold together better** (2026-11-07). Thanks
+  to Jozkah.
+  - A step that takes a while (a fit, a mesh edit) no longer merges into the
+    edit of a field that happened to be open while it ran.
+  - An undo across a scan edit that fails halfway puts the scan back as it
+    was, so scan and measurements stay on the same side of the step.
+  - An agent's change that ran out of time is waited for before the next
+    one starts, so their changes don't land in each other's steps. An
+    agent hears when starting over failed.
+  - The agent link, switched off while the browser asks for local network
+    access, stays off.
+  - A plugin that fails to start is left out, not half in use.
+  - Local recovery keeps the newest ten checkpoints of closed pages, for
+    two weeks; before, they piled up and filled the browser's storage. A
+    save or a restore drops the checkpoint it makes needless.
+  - A project opened with files of a plugin not in use keeps them, but they
+    no longer overwrite the scan, reference or image of the same name.
+  - A file opened from a link (`?open=`) is limited to 1 GB.
+  - An image whose header claims more than 16384 × 16384 pixels is refused
+    before decoding.
+  - A rubber band on the 2D sheet is dropped when the browser takes the
+    gesture over, instead of selecting at the next release.
+- **Mesh Tools fixes** (2026-11-07). Thanks to Jozkah.
+  - The undo history keeps edited copies up to 1 GB of memory, dropping
+    the oldest steps past that; it always keeps the newest. Before, a long
+    run of edits on a large scan could run the tab out of memory.
+  - Edits on a copy not yet taken into use count as work: leaving the page
+    or opening another scan asks first.
+  - A survey that fails (islands, holes, shell) says so with a key to try
+    again, instead of spinning on.
+  - A project whose edited copy doesn't fit its scan is refused before it
+    replaces the session.
+  - Cut's offset in inches is read whole, the trim piece's gap colours
+    repaint in place, and the tool panels draw again only when what they
+    show changes.
 
 ## 0.9.6 — 2026-11-07
 
@@ -314,6 +756,20 @@ saves carry the same number as `appVersion`. How a release is cut is in
   instead of being cut off, the units dialog fits its four keys, the agent
   port and token fields look like the panel's other fields, and small keys
   are easier to hit. Thanks to Jozkah.
+- **Reverse engineer fixes** (2026-11-07). Thanks to Jozkah.
+  - A project with an imported STEP file never read as saved: the page
+    warned on leaving even right after a save, and recovery wrote the whole
+    project again every two seconds. It now reads as saved.
+  - After a Mesh Tools edit (a smooth, an offset) or an undo across one,
+    splits and compares ran on the scan as it was before. They now take the
+    edited scan.
+  - A project file whose id counters were too low could make removing one
+    feature remove two. The counters now start past every id in use.
+  - A helper kernel that failed to load stayed failed until a reload, and
+    builds lost its share of the work. It is tried again.
+  - An expression nested too deeply, or a long chain of parameters each
+    reading the next, could stop the page. It is now an error of that
+    expression.
 - **Wrap in Mesh Tools** (2026-11-05). A new tool puts one closed skin round
   a part that is a mess inside: an assembly exported as one file, a casting
   with channels inside, overlapping or inside-out shells, a scan with cracks.

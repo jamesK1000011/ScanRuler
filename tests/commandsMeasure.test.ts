@@ -11,10 +11,10 @@ import { parsePlaneName } from '../src/commands/refs'
 import { BASE_PLANES } from '../src/core/basePlanes'
 import { worldPlaneName } from '../src/core/section/frame'
 import { registerStateSection } from '../src/commands/stateSections'
-import { useHistory } from '../src/state/historyStore'
+import { registerHistory, useHistory } from '../src/state/historyStore'
 import { useShell } from '../src/state/shellStore'
 import { useStore } from '../src/state/store'
-import { boxMesh, icosphere } from './helpers'
+import { boxMesh, cylinderMesh, icosphere } from './helpers'
 import { refused, run, soupOf, startHeadless, stlBytes, undoLabels, type Headless } from './commandKit'
 
 type Vec3 = [number, number, number]
@@ -47,7 +47,7 @@ describe('the command list', () => {
     const names = listCommands().map((c) => c.name)
     for (const name of [
       'session.state', 'session.reset', 'workspace.set', 'scan.open', 'scan.nearest', 'scan.query', 'scan.fit_surface', 'scan.draft',
-      'element.fit', 'element.fit_marked', 'element.construct', 'element.rename', 'element.remove', 'element.set_visible',
+      'element.fit', 'element.fit_marked', 'element.construct', 'element.rename', 'element.unlink', 'element.remove', 'element.set_visible',
       'dimension.add', 'dimension.set_limit', 'dimension.set_basic', 'dimension.remove',
       'align.datum', 'align.auto', 'align.symmetry', 'align.clear', 'section.cut', 'section.get',
       'deviation.open_reference', 'deviation.align', 'deviation.measure', 'deviation.set_target', 'deviation.settings', 'deviation.hotspots',
@@ -244,6 +244,29 @@ describe('elements', () => {
     expect(useStore.getState().draft).toBeNull()
   })
 
+  it('element.construct takes the constructions of issues 45 and 46, and element.unlink freezes one', async () => {
+    const top = await fitFace([0, 0, 20])
+    const side = await fitFace([20, 0, 0])
+    const front = await fitFace([0, -20, 0])
+    const corner = (await run<{ element: El }>('element.construct', { kind: 'point', method: 'point-three-planes', refs: [top.id, side.id, front.id] })).element
+    for (const [c, want] of corner.fit!.center.map((c, i) => [c, [20, -20, 20][i]])) expect(Math.abs(c)).toBeCloseTo(Math.abs(want), 2)
+    const edge = (await run<{ element: El }>('element.construct', { kind: 'line', method: 'line-plane-plane', refs: [top.id, side.id] })).element
+    // 30° about the top's edge from the top: Max gap and the angle by key,
+    // the gap left at its default where a method has one.
+    const turned = (await run<{ element: El }>('element.construct', { kind: 'plane', method: 'plane-angle', refs: [edge.id, top.id], params: { angle: 30 } })).element
+    expect((Math.acos(Math.abs(turned.fit!.normal![2])) * 180) / Math.PI).toBeCloseTo(30, 3)
+    const onTop = (await run<{ element: El }>('element.construct', { kind: 'point', method: 'point-project', refs: [corner.id, top.id] })).element
+    expect(Math.abs(onTop.fit!.center[2])).toBeCloseTo(20, 2)
+    // A torus is a point now (its ring's centre) — and a plane is still not.
+    expect((await refused('element.construct', { kind: 'point', method: 'point-center', refs: [top.id] })).code).toBe('invalid_input')
+
+    const unlinked = (await run<{ element: El & { source: { method?: string } } }>('element.unlink', { element: turned.id })).element
+    expect(unlinked.source).toMatchObject({ type: 'constructed', method: 'plane-coords', refs: [] })
+    expect((Math.acos(Math.abs(unlinked.fit!.normal![2])) * 180) / Math.PI).toBeCloseTo(30, 3)
+    expect((await refused('element.unlink', { element: turned.id })).code).toBe('invalid_input')
+    expect(undoLabels().at(-1)).toBe('Agent: unlink element')
+  })
+
   it('element.rename, element.set_visible and element.remove are a step each', async () => {
     const top = await fitFace([0, 0, 20])
     const derived = (await run<{ element: El }>('element.construct', { kind: 'plane', method: 'plane-offset', refs: [top.id], params: [1] })).element
@@ -366,6 +389,8 @@ describe('alignment', () => {
     expect(auto.note).toMatch(/Squared to its largest face/)
     expect(auto.square.largest!.tiltDeg).toBeLessThan(0.01)
     expect(auto.square.axes.map((a) => a.axis).sort()).toEqual(['x', 'y', 'z'])
+    // A box's faces look out: nothing stands in front of the largest.
+    expect((auto as { largestInside?: unknown }).largestInside).toBeUndefined()
     expect(useStore.getState().alignDraft).toBeNull()
     const sym = await run<{ note?: string }>('align.symmetry')
     expect(sym.note).toMatch(/Settled on/)
@@ -373,6 +398,30 @@ describe('alignment', () => {
     await undo()
     await undo()
     expect(useStore.getState().appliedAlignment).toBeNull()
+  })
+})
+
+describe('align.auto on a housing whose largest flat face is inside it (issue 77)', () => {
+  it('says the face it squared to looks into the part — a rib’s wall, not a mating face', async () => {
+    // A tall round pot, 40 across and 60 high, with a rib 36 × 58 across its
+    // middle: the rib's sides (2088 mm² each) outdo the pot's flat ends.
+    const pot = cylinderMesh(20, 60, 96, 24).positions
+    const rib = boxMesh(2, 24)
+    for (let i = 0; i < rib.length; i += 3) {
+      rib[i] *= 18
+      rib[i + 1] *= 1
+      rib[i + 2] = rib[i + 2] * 29 - 1
+    }
+    const soup = new Float32Array(pot.length + rib.length)
+    soup.set(pot)
+    soup.set(rib, pot.length)
+    await run('scan.open', { bytes: stlBytes(soup), name: 'pot.stl', discard: true })
+    const auto = await run<{ square: { largest: { axis: string; area: number } }; largestInside?: { clearMm: number; note: string } }>('align.auto', { level: 'largest' })
+    expect(auto.square.largest.area).toBeGreaterThan(1500)
+    expect(auto.largestInside?.clearMm).toBeGreaterThan(15)
+    expect(auto.largestInside?.clearMm).toBeLessThan(20)
+    expect(auto.largestInside?.note).toMatch(/faces into the part.*an inside wall/)
+    await run('align.clear')
   })
 })
 
@@ -608,6 +657,25 @@ describe('session, report, files and history', () => {
     expect(r.redone).toBe('Agent: fit plane')
   })
 
+  it('history.undo is refused while an editor walks a history of its own (issue 34)', async () => {
+    await openBox()
+    await fitFace([0, 0, 20])
+    let stepped = 0
+    const stop = registerHistory({
+      local: { workspace: 'measure', label: 'sketch edit', active: () => true, canUndo: () => true, canRedo: () => false, undo: () => stepped++, redo: () => stepped++ },
+    })
+    try {
+      const e = await refused('history.undo')
+      expect(e.code).toBe('invalid_state')
+      expect(e.message).toMatch(/sketch edit is open/)
+      expect(stepped).toBe(0)
+      expect(undoLabels()).toEqual(['Agent: fit plane'])
+    } finally {
+      stop()
+    }
+    expect((await run<{ undone: string }>('history.undo')).undone).toBe('Agent: fit plane')
+  })
+
   it('session.reset closes everything — only when told to drop the work', async () => {
     await openBox()
     await fitFace([0, 0, 20])
@@ -617,5 +685,17 @@ describe('session, report, files and history', () => {
     expect(s.elements).toEqual([])
     expect(useStore.getState().busy).toBe(false)
     expect((await refused('element.fit', { kind: 'plane', at: { vertex: 0 } })).code).toBe('no_scan')
+  })
+
+  it('session.reset says so when starting over fails', async () => {
+    await openBox()
+    const client = headless.session.clientRef.current!
+    const commitImport = client.commitImport
+    client.commitImport = async () => { throw new Error('worker gone') }
+    try {
+      const error = await refused('session.reset', { discard: true })
+      expect(error.code).toBe('failed')
+      expect(error.message).toMatch(/worker gone/)
+    } finally { client.commitImport = commitImport }
   })
 })

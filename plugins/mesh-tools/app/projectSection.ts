@@ -52,6 +52,8 @@ export interface MeshPart {
   }
   fill?: { size: number; sizeAuto: boolean; mode: 'curved' | 'flat' }
   smooth?: { size: number; sizeAuto: boolean; limit: number; limitAuto: boolean; keepEdges: boolean; scope?: 'all' | 'marked' }
+  /** Densify's longest edge. Absent before the tool existed. */
+  densify?: { edge: number; edgeAuto: boolean }
   /** What Boolean does with the solid. Absent before the tool existed. */
   boolean?: { op: 'subtract' | 'add' | 'intersect' }
   /** Shrink / expand's and Shell's settings. Absent before the tools
@@ -84,6 +86,7 @@ export type ScanEditJson =
   | { kind: 'mirror'; mode: 'whole' | 'symmetric'; plane: string; triangles: number }
   | { kind: 'fill'; maxSize: number; mode: 'curved' | 'flat'; holes: number; triangles: number }
   | { kind: 'smooth'; size: number; limit: number; maxMove: number; region?: number }
+  | { kind: 'densify'; maxEdge: number; added: number; triangles: number }
   | { kind: 'boolean'; op: 'subtract' | 'add' | 'intersect'; solid: string; removed: number; added: number; volume: number }
   | { kind: 'offset'; distance: number; maxMove: number; region?: number }
   | { kind: 'reduce'; tolerance: number; held: boolean; p999: number; triangles: number }
@@ -109,6 +112,16 @@ function mapBytes(map: Int32Array): Uint8Array {
     mapViews.set(map, bytes)
   }
   return bytes
+}
+
+/** The vertex count a copy's PLY header states, or -1 for a header that
+ *  does not state one. The copy is always the binary PLY buildBinaryPly
+ *  writes, so its header is short ASCII at the very start. */
+function plyVertexCount(bytes: Uint8Array): number {
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, 4096))
+  const end = head.indexOf('end_header')
+  const m = /^element vertex (\d+)$/m.exec(end < 0 ? '' : head.slice(0, end))
+  return m ? Number(m[1]) : -1
 }
 
 const BOOLEAN_OPS: readonly string[] = ['subtract', 'add', 'intersect']
@@ -152,6 +165,12 @@ function validateMeshPart(raw: unknown): MeshPart {
     fields(s, 'sizeAuto limitAuto keepEdges', 'boolean', 'mesh.smooth')
     if ((s.size as number) <= 0 || (s.limit as number) <= 0) invalid('mesh.smooth')
     if (s.scope !== undefined && s.scope !== 'all' && s.scope !== 'marked') invalid('mesh.smooth.scope')
+  }
+  if (x.densify !== undefined) {
+    const d = object(x.densify, 'mesh.densify')
+    fields(d, 'edge', 'number', 'mesh.densify')
+    fields(d, 'edgeAuto', 'boolean', 'mesh.densify')
+    if (!((d.edge as number) > 0)) invalid('mesh.densify.edge')
   }
   if (x.boolean !== undefined) {
     const b = object(x.boolean, 'mesh.boolean')
@@ -207,6 +226,8 @@ function validateMeshPart(raw: unknown): MeshPart {
       } else if (edit.kind === 'smooth') {
         fields(edit, 'size limit maxMove', 'number', where)
         if (edit.region !== undefined && typeof edit.region !== 'number') invalid(`${where}.region`)
+      } else if (edit.kind === 'densify') {
+        fields(edit, 'maxEdge added triangles', 'number', where)
       } else if (edit.kind === 'boolean') {
         fields(edit, 'solid', 'string', where)
         fields(edit, 'removed added volume', 'number', where)
@@ -257,6 +278,8 @@ function scanEditOf(e: ScanEditJson): ScanEdit {
       return { kind: e.kind, maxSize: e.maxSize, mode: e.mode, holes: e.holes, triangles: e.triangles }
     case 'smooth':
       return { kind: e.kind, size: e.size, limit: e.limit, maxMove: e.maxMove, ...(e.region !== undefined ? { region: e.region } : {}) }
+    case 'densify':
+      return { kind: e.kind, maxEdge: e.maxEdge, added: e.added, triangles: e.triangles }
     case 'boolean':
       return { kind: e.kind, op: e.op, solid: e.solid, removed: e.removed, added: e.added, volume: e.volume }
     case 'offset':
@@ -308,6 +331,7 @@ function meshPartState(p: MeshPart): Partial<ReturnType<typeof useMeshTools.getS
           ...(p.smooth.scope ? { smoothScope: p.smooth.scope } : {}),
         }
       : {}),
+    ...(p.densify ? { densifyEdge: p.densify.edge, densifyEdgeAuto: p.densify.edgeAuto } : {}),
     ...(p.boolean ? { boolOp: p.boolean.op } : {}),
     ...(p.offset ? { offsetDistance: p.offset.distance, offsetDirection: p.offset.direction, offsetScope: p.offset.scope } : {}),
     ...(p.shell ? { shellThickness: p.shell.thickness, shellThicknessAuto: p.shell.thicknessAuto, shellSide: p.shell.side } : {}),
@@ -342,6 +366,7 @@ export const meshSection: ProjectSection<MeshPart> = {
         keepEdges: x.smoothEdges,
         scope: x.smoothScope,
       },
+      densify: { edge: x.densifyEdge, edgeAuto: x.densifyEdgeAuto },
       boolean: { op: x.boolOp },
       offset: { distance: x.offsetDistance, direction: x.offsetDirection, scope: x.offsetScope },
       shell: { thickness: x.shellThickness, thicknessAuto: x.shellThicknessAuto, side: x.shellSide },
@@ -368,6 +393,15 @@ export const meshSection: ProjectSection<MeshPart> = {
     for (const member of part.copy ? [part.copy.member, part.copy.mapMember] : []) {
       if (!members.has(member)) throw new Error(`Project is missing ${member}.`)
     }
+    // The map is checked here, while the session being replaced is still
+    // whole, as far as it can be without the scan it belongs to: whole
+    // int32s, each a vertex number or -1 for one an edit took.
+    const map = part.copy && members.get(part.copy.mapMember)
+    if (map) {
+      if (map.byteLength % 4 !== 0) throw new Error('Malformed project: mesh.copy.')
+      const numbers = new Int32Array(map.slice().buffer)
+      for (let i = 0; i < numbers.length; i++) if (numbers[i] < -1) throw new Error('Malformed project: mesh.copy.')
+    }
     const state = meshPartState(part)
     return () => useMeshTools.setState(state)
   },
@@ -379,8 +413,16 @@ export const meshSection: ProjectSection<MeshPart> = {
     const bytes = members.get(copy.member)
     const map = members.get(copy.mapMember)
     if (!bytes || !map) throw new Error(`Project is missing ${bytes ? copy.mapMember : copy.member}.`)
+    // Only now is the scan in place to size the map against, and the copy's
+    // header to bound its numbers: one past the copy's vertices would carry
+    // a selection onto vertices the copy does not have.
     const numbers = new Int32Array(map.slice().buffer)
-    if (map.byteLength % 4 !== 0 || numbers.length !== useStore.getState().vertexCount) {
+    const copyVertices = plyVertexCount(bytes)
+    let fits = numbers.length === useStore.getState().vertexCount && copyVertices >= 0
+    for (let i = 0; fits && i < numbers.length; i++) if (numbers[i] >= copyVertices) fits = false
+    if (!fits) {
+      // The edits listed as waiting on the copy went with it.
+      useMeshTools.setState({ pending: [] })
       throw new Error('Malformed project: mesh.copy.')
     }
     await meshToolsSession()?.setEditedCopy({ source: { name: readAs(manifest.scan.fileName, copy.member), bytes }, map: numbers })
@@ -390,10 +432,17 @@ export const meshSection: ProjectSection<MeshPart> = {
     if (manifest.scan && part.reduced) await meshToolsSession()?.runReduce(usePrefs.getState().units)
   },
   // The settings alone are no work; an edited scan is, the file it came from
-  // no longer saying it.
+  // no longer saying it, and so is a copy with edits not yet taken into use,
+  // which nothing but this session holds.
   hasContent: () => false,
-  holdsWork: () => useMeshTools.getState().edits.length > 0,
-  holds: () => ({ scanEdits: useMeshTools.getState().edits.length }),
+  holdsWork: () => {
+    const s = useMeshTools.getState()
+    return s.edits.length > 0 || s.pending.length > 0
+  },
+  holds: () => {
+    const s = useMeshTools.getState()
+    return { scanEdits: s.edits.length, copyEdits: s.pending.length }
+  },
   // The edits taken into use are in the scan's file and scale with it; a
   // copy still being edited is a mesh of its own at the old size, and goes
   // when the scan is read again.

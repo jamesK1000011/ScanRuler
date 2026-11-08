@@ -466,40 +466,69 @@ button.primary:hover:not(:disabled) {
    busy lamp runs at — so the guidance reads as a lamp rather than as another
    piece of the control. It stands off by a couple of pixels rather than hugging
    the control, because that strip of background is what makes it a ring. */
-.pulse::after {
+.pulse::after,
+.pulse::before {
   content: '';
   position: absolute;
   inset: -4px;
-  border: 2px solid #e8a33d;
   border-radius: 6px;
   pointer-events: none;
+}
+
+.pulse::after {
+  border: 2px solid #e8a33d;
   animation: pulsering 1.6s ease-out infinite;
 }
 
-.pulse:disabled::after {
+/* The halo is its own element with a static shadow, so that both layers can
+   be animated on the compositor: a box-shadow or border-color keyframe
+   repaints the control's neighbourhood every frame for as long as the hint is
+   showing, where opacity and scale are only a change of the layer's matrix. */
+.pulse::before {
+  box-shadow: 0 0 0 7px rgba(232, 163, 61, 0.5);
+  opacity: 0;
+  animation: pulsehalo 1.6s ease-out infinite;
+}
+
+.pulse:disabled::after,
+.pulse:disabled::before {
   display: none;
 }
 
 /* An annunciator ping: the ring comes up to full, then throws a halo outward
-   off its own edge as it settles back. Colour and halo are animated rather
-   than opacity, so the two peak together instead of the ring dimming the very
-   halo it is throwing — and the halo is spread on a shadow rather than a
-   second element, so nothing around the control moves. */
+   off its own edge as it settles back. The ring only changes opacity, and the
+   halo swells and fades, so the two peak together instead of the ring dimming
+   the very halo it is throwing — and nothing around the control moves. */
 @keyframes pulsering {
   0%,
   100% {
-    border-color: rgba(232, 163, 61, 0.5);
-    box-shadow: 0 0 0 0 rgba(232, 163, 61, 0);
+    opacity: 0.5;
   }
 
   35% {
-    border-color: rgba(232, 163, 61, 1);
-    box-shadow: 0 0 0 0 rgba(232, 163, 61, 0.5);
+    opacity: 1;
   }
 
   75% {
-    border-color: rgba(232, 163, 61, 0.8);
-    box-shadow: 0 0 0 10px rgba(232, 163, 61, 0);
+    opacity: 0.8;
+  }
+}
+
+@keyframes pulsehalo {
+  0%,
+  35%,
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  55% {
+    opacity: 0.6;
+  }
+
+  75% {
+    opacity: 0;
+    transform: scale(1);
   }
 }
 
@@ -1811,6 +1840,11 @@ button.x:disabled {
   bottom: calc(var(--gizmo-size, 0px) + 22px);
 }
 
+/* Parallel or perspective, just left of Fit to view. */
+.viewport > .viewprojection {
+  right: 50px;
+}
+
 /* WebGL could not be started: the one state where the stage has nothing to
    show. A plain card in the middle of it, so the failure reads as a message
    from the tool rather than a page that never loaded. */
@@ -1937,6 +1971,29 @@ button.x:disabled {
 .flat-band.box.crossing {
   border: 1px dashed #4db8ff;
   background: rgba(77, 184, 255, 0.12);
+}
+
+/* Ctrl, Command or Shift held: the box adds to the selection — a + in its
+   corner and a heavier border, in the box's own colour. */
+.flat-band.box.window {
+  color: #3cb371;
+}
+
+.flat-band.box.crossing {
+  color: #4db8ff;
+}
+
+.flat-band.box.additive {
+  border-width: 2px;
+}
+
+.flat-band.box.additive::after {
+  content: '+';
+  position: absolute;
+  top: 1px;
+  right: 4px;
+  font: 700 18px/1 var(--mono);
+  color: currentColor;
 }
 
 .loupe {
@@ -2748,6 +2805,11 @@ button.x:disabled {
     animation: none;
     opacity: 1;
   }
+
+  .pulse::before {
+    animation: none;
+    display: none;
+  }
 }
 
 /* ---------------- modals ---------------- */
@@ -3311,7 +3373,8 @@ button.x:disabled {
 }
 
 .field input[type='number'],
-.field input[type='text'] {
+.field input[type='text'],
+.field input[type='password'] {
   font-family: var(--mono);
   font-size: 12px;
   color: var(--ink);

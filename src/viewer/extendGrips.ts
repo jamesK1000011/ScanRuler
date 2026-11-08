@@ -157,9 +157,13 @@ export class ExtendGrips {
   private fieldGroup = new THREE.Group()
   private field: { side: GripSide; label: CSS2DObject; input: HTMLInputElement; unit: HTMLElement; value: number } | null = null
   private hoveredHandle: GripSide | null = null
+  /** Whether the grip in hand was taken by a finger or a pen, not a mouse. */
+  private touchHeld = false
   /** The view the grips held on the screen were last fitted to: what a
    *  pixel was worth, and which way the camera looked. */
   private pixel = 0
+  /** The operator's factor on the sizes held on the screen (markSize.ts). */
+  private markScale = 1
   private viewTurn = new THREE.Quaternion()
   /** What was last reported through onActiveSide, so it is only said when it
    *  changes. */
@@ -356,6 +360,16 @@ export class ExtendGrips {
     this.ctx.invalidate()
   }
 
+  /** The operator's factor on the arrows, bars and gizmo held on the
+   *  screen. */
+  setMarkSize(scale: number): void {
+    if (!(scale > 0) || scale === this.markScale) return
+    this.markScale = scale
+    for (const h of this.handles) if (h.screen || h.bar) this.fitToScreen(h)
+    if (this.field) this.placeField()
+    this.ctx.invalidate()
+  }
+
   followView(): void {
     const pixel = this.ctx.worldPerPixel()
     const zoomed = pixel !== this.pixel
@@ -380,14 +394,14 @@ export class ExtendGrips {
    *  point. */
   private fitToScreen(h: ExtendGrip): void {
     if (h.bar) {
-      const thick = Math.max(EDGE_BAR_PX * this.pixel, 1e-5)
-      h.mesh.scale.set(Math.max(h.bar.span, EDGE_BAR_MIN_PX * this.pixel), thick, thick)
+      const thick = Math.max(EDGE_BAR_PX * this.markScale * this.pixel, 1e-5)
+      h.mesh.scale.set(Math.max(h.bar.span, EDGE_BAR_MIN_PX * this.markScale * this.pixel), thick, thick)
       return
     }
     if (!h.screen) return
-    const size = Math.max(h.screen.size * this.pixel, 1e-5)
+    const size = Math.max(h.screen.size * this.markScale * this.pixel, 1e-5)
     h.mesh.scale.setScalar(size)
-    if (!h.ring) h.mesh.position.copy(h.position).addScaledVector(h.dir, h.screen.standoff * this.pixel + size / 2)
+    if (!h.ring) h.mesh.position.copy(h.position).addScaledVector(h.dir, h.screen.standoff * this.markScale * this.pixel + size / 2)
   }
 
   private rebuild(): void {
@@ -607,8 +621,14 @@ export class ExtendGrips {
    *  already stepped aside for it, the same way it does for the brush.
    *  Returns whether the event was taken. */
   handlePointerDown(e: PointerEvent): boolean {
-    if (this.hoveredHandle === null) return false
     if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey) return false
+    // A finger or a pen has no hover to have lit a grip: what is under it is
+    // read at the press, or no grip could be taken by touch (issue 34).
+    this.touchHeld = e.pointerType !== 'mouse'
+    if (this.hoveredHandle === null && this.touchHeld && this.handleDrag === null) {
+      this.setHoveredHandle(this.handleAt(e.clientX, e.clientY)?.side ?? null)
+    }
+    if (this.hoveredHandle === null) return false
     const grip = this.handles.find((h) => h.side === this.hoveredHandle)
     if (!grip) return false
     this.beginHandleDrag(grip, e.clientX, e.clientY)
@@ -730,6 +750,9 @@ export class ExtendGrips {
     const drag = this.handleDrag
     if (!drag) return
     this.handleDrag = null
+    // A finger lifted leaves nothing hovering, and the plain drag goes back
+    // to the camera.
+    if (this.touchHeld) this.setHoveredHandle(null)
     this.ctx.canvas.style.cursor = this.hoveredHandle !== null ? 'grab' : ''
     this.syncActiveSide()
     this.ctx.onExtendDrag(drag.side, 0, 'end')

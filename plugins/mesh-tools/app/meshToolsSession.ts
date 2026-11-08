@@ -44,7 +44,7 @@ import { reduceSettingsOf, useMeshTools, type ScanEdit } from '../state/meshStor
 import type { ImportQueue } from '../../../src/app/importQueue'
 import { runImport } from '../../../src/app/imports'
 import type { SourceFiles } from '../../../src/app/project'
-import { editedCopy, type EditedCopy } from '../state/editedCopy'
+import { editedCopy, editedCopyBytes, type EditedCopy } from '../state/editedCopy'
 import type { ScanSource } from '../../../src/app/scanSwap'
 import { onScan } from '../../../src/app/scanEvents'
 import { meanEdgeLength } from '../core/smooth'
@@ -406,7 +406,7 @@ export function createMeshToolsSession({
         const alignment = s.appliedAlignment
         if (alignment) rigidApplyToPoints(rigidInvert(alignment), result.positions)
         const name = s.fileName ?? 'scan'
-        const source: ScanSource = {
+        const source: EditedCopy['source'] = {
           name: `${name.replace(/\.[^.]+$/, '')}.ply`,
           bytes: buildBinaryPly(result.positions, result.indices, `${name}, edited in ScanRuler`),
           // units-ok: the file's own unit, an id — the copy is written in mm.
@@ -443,7 +443,9 @@ export function createMeshToolsSession({
     try {
       await runImport(imports, 'Taking the edited mesh into use…', async () => {
         await historyAsync('Mesh Tools: use the edited mesh for analysis', async () => {
-          await swapScan(copy.source, useStore.getState().appliedAlignment)
+          // The session keeps a scan as a file: the edited bytes become one.
+          const { name, bytes, units } = copy.source
+          await swapScan({ name, file: new Blob([bytes as BlobPart]), units }, useStore.getState().appliedAlignment)
           remapScan(copy.map)
           useMeshTools.getState().takePending()
           await remeasureScan(true)
@@ -752,6 +754,34 @@ export function createMeshToolsSession({
     )
   }
 
+  // ---- Densify -----------------------------------------------------------------------
+
+  /** Cut the copy's triangles until no edge is longer than the panel's
+   *  length — every new vertex an edge's middle, so the surface stays as it
+   *  was: what an STL exported from CAD, with vertices only on its edges,
+   *  needs before a fit finds points inside its faces (issue 42). */
+  const densifyScan = async (run?: EditRun): Promise<EditLanded | null> => {
+    const { densifyEdge: maxEdge } = useMeshTools.getState()
+    const len = lengthsOf(run?.units)
+    return workerEdit(
+      'Mesh Tools: densify',
+      'Densifying…',
+      () => ({ type: 'densify', maxEdge }),
+      (rep) => {
+        const d = rep.kind === 'densify' ? rep.report : null
+        const added = d?.added ?? 0
+        return {
+          edit: { kind: 'densify', maxEdge, added, triangles: d?.triangles ?? 0 },
+          status:
+            added === 0
+              ? `No edge was longer than ${len.fmt(maxEdge, 3)} — nothing to cut. Ctrl+Z takes the step back.`
+              : `Densified: ${count(d?.trianglesBefore ?? 0)} triangles cut into ${count(d?.triangles ?? 0)}, none with an edge over ${len.fmt(maxEdge, 3)} — the surface where it was. Ctrl+Z puts it back.`,
+        }
+      },
+      run,
+    )
+  }
+
   // ---- Shrink / expand -----------------------------------------------------------------
 
   /** Move the copy's surface along its normal as the panel says — all of it,
@@ -1015,7 +1045,9 @@ export function createMeshToolsSession({
       // the copy from the other side of it in place — after the app has put
       // the scan from that side in place, which takes the copy away.
       registerHistory({
-        sections: [{ key: 'edited', compare: 'identity', capture: () => editedCopy.current ?? null, apply: () => {} }],
+        // Weighed, so the history keeps no more versions of a large copy
+        // than fit its byte budget.
+        sections: [{ key: 'edited', compare: 'identity', capture: () => editedCopy.current ?? null, apply: () => {}, bytes: (copy) => editedCopyBytes(copy as EditedCopy) }],
         beforeRestore: async (patch) => {
           if ('edited' in patch && (patch.edited ?? null) !== (editedCopy.current ?? null)) {
             await setEditedCopy((patch.edited as EditedCopy | null) ?? null)
@@ -1054,6 +1086,7 @@ export function createMeshToolsSession({
     mirrorScan,
     fillScanHoles,
     smoothScan,
+    densifyScan,
     offsetScan,
     shellScan,
     meshOfSolid,

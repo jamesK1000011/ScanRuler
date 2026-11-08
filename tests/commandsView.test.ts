@@ -13,13 +13,14 @@ import type { Command } from '../src/commands/types'
 import { applyShow, pluginToggleKeys, registerViewToggles, settleShown, viewToggles, whyNotShown, type ViewToggle } from '../src/commands/viewToggles'
 import type { AlignResult } from '../src/core/deviation/align'
 import { useDeviation } from '../src/state/deviationStore'
+import { installHistory, useHistory } from '../src/state/historyStore'
 import { usePrefs } from '../src/state/prefsStore'
 import { useShell } from '../src/state/shellStore'
 import { useStore } from '../src/state/store'
 import { frameExtent, STANDARD_VIEWS, viewAcross, viewHalfHeight } from '../src/viewer/orthoViewport'
 import { refused, resetStores, run, startHeadless, undoLabels, type Headless } from './commandKit'
 // After the kit, which loads the commands in the order the app does.
-import { describeMapPainted, frameKeeper, type MapPainted } from '../src/commands/core/view'
+import { baseToggles, describeMapPainted, frameKeeper, type MapPainted } from '../src/commands/core/view'
 import { registerMapReport, type MapReport } from '../src/commands/mapReports'
 
 let headless: Headless
@@ -71,6 +72,30 @@ describe('the view', () => {
     }
     expect(viewToggles(base).has('bodies')).toBe(false)
     expect(pluginToggleKeys()).toEqual([])
+  })
+
+  it('has a map key in the Deviation workspace, its Map switch, as Reverse engineer has one (issue 42)', () => {
+    const scene = {} as Parameters<typeof baseToggles>[0]
+    let uninstall: (() => void) | undefined
+    useShell.getState().setWorkspace('deviation')
+    try {
+      const map = viewToggles(baseToggles(scene)).get('map')
+      expect(map?.description).toMatch(/deviation map/)
+      useDeviation.getState().setShowMap(true)
+      // The store actions as the app wraps them, each a step.
+      uninstall = installHistory()
+      const steps = useHistory.getState().past.length
+      const applied = applyShow(viewToggles(baseToggles(scene)), { map: false }, (m) => new Error(m))
+      expect(useDeviation.getState().showMap).toBe(false)
+      applied.putBack()
+      expect(useDeviation.getState().showMap).toBe(true)
+      // A picture's show is no step of the history (issue 34).
+      expect(useHistory.getState().past.length).toBe(steps)
+    } finally {
+      uninstall?.()
+      useShell.getState().setWorkspace('measure')
+    }
+    expect(viewToggles(baseToggles(scene)).has('map')).toBe(false)
   })
 
   it('lists view.render, flat.render, section.render and scan.heightmap as the commands that answer with a picture', () => {

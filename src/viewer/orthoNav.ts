@@ -27,6 +27,7 @@ import {
   type NavAction,
 } from './navSchemes'
 import { spaceMouseBusy, type SpaceMouseMotion } from './spaceMouse'
+import { sparingRays, treeAwaited } from './bvh'
 
 // SpaceMouse speeds at full deflection, BumpMesh's.
 const PUCK_TURN_RAD_PER_S = 2.4
@@ -53,6 +54,10 @@ export class OrthoNavigator {
    *  moving, the pivot marker coming or going — so an owner that only renders
    *  on demand knows the frame is worth drawing. */
   onChange: (() => void) | null = null
+  /** The camera the view is drawn through when it is not this one — a
+   *  perspective view set from it (OrthoViewport.view) — for picks to aim
+   *  through what is on the screen; null while the view is drawn in parallel. */
+  pickCamera: (() => THREE.Camera | null) | null = null
 
   private scheme: ControlScheme = SCHEMES[0]
   /** The active scheme's bindings, with plain left-drag handed over to the
@@ -113,10 +118,14 @@ export class OrthoNavigator {
   private q2 = new THREE.Quaternion()
   private q3 = new THREE.Quaternion()
   private pickNdc = new THREE.Vector2()
-  /** The canvas rect, asked of the layout engine at most once per frame:
-   *  getBoundingClientRect can force a layout pass, and setPickRay runs for
-   *  every dab of a brush stroke. Cleared in updateClipPlanes, which the owner
-   *  already calls once per frame. */
+  /** Scratch for surfaceAt's test of a part still waiting for its tree. */
+  private waitingBox = new THREE.Box3()
+  private waitingHit = new THREE.Vector3()
+  /** The canvas rect, asked of the layout engine at most once per frame or
+   *  task: getBoundingClientRect can force a layout pass, and setPickRay runs
+   *  for every dab of a brush stroke. Cleared in updateClipPlanes, which the
+   *  owner already calls once per frame, and at the end of the task that
+   *  read it — see canvasRect. */
   private rect: DOMRect | null = null
 
   constructor(
@@ -129,6 +138,9 @@ export class OrthoNavigator {
      *  hiding a model takes it out of reach. */
     private orbitTargets: () => THREE.Object3D[],
     private clipSphere: ClipSphere,
+    /** The canvas's height in CSS pixels: the viewport's cached size, so a
+     *  pan step reads no layout. */
+    private canvasHeight: () => number = () => canvas.clientHeight,
   ) {
     this.pivotMarker = new THREE.Mesh(
       new THREE.SphereGeometry(1, 16, 10),
@@ -302,6 +314,13 @@ export class OrthoNavigator {
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     )
+    // Drawn in perspective, picked in perspective: the ray leaves the eye,
+    // which stands behind everything in view, so it needs no walking back.
+    const drawnWith = this.pickCamera?.()
+    if (drawnWith) {
+      raycaster.setFromCamera(ndc, drawnWith)
+      return
+    }
     raycaster.setFromCamera(ndc, this.camera)
     const ray = raycaster.ray
     const along = this.tmp.copy(this.clipSphere.center).sub(ray.origin).dot(ray.direction)
@@ -309,8 +328,17 @@ export class OrthoNavigator {
     if (back < 0) ray.recast(back)
   }
 
-  private canvasRect(): DOMRect {
-    if (!this.rect) this.rect = this.canvas.getBoundingClientRect()
+  canvasRect(): DOMRect {
+    if (!this.rect) {
+      this.rect = this.canvas.getBoundingClientRect()
+      // And forgotten once this task is done as well: the frames that clear
+      // it stop while the view stands still, and the canvas can be moved
+      // under a still view — a panel opening beside it — before the next
+      // pick, which would aim through where the canvas was.
+      queueMicrotask(() => {
+        this.rect = null
+      })
+    }
     return this.rect
   }
 
@@ -463,7 +491,7 @@ export class OrthoNavigator {
     const dist = Math.hypot(a.x - b.x, a.y - b.y)
     const prev = this.pinch
     this.pinch = { x, y, dist }
-    if (!prev) return // first move of the gesture: this frame only sets the datum
+    if (!prev) return
     this.moving = true
     this.panByPixels(x - prev.x, y - prev.y)
     // Below a finger's width apart the spacing is mostly noise, and dividing by
@@ -484,15 +512,18 @@ export class OrthoNavigator {
    *  other straight back to the orbit — re-anchored where it currently is,
    *  which is what keeps the model from jumping as the second finger goes. */
   private retuneTouch(): void {
-    if (this.touchPair()) {
+    const pair = this.touchPair()
+    if (pair) {
       if (this.touchOrbit) {
         this.endOrbit()
         this.touchOrbit = false
       }
       this.touchPan = null
-      // Datum is taken on the next move, by which time both fingers have
-      // reported a position through touchMove.
-      this.pinch = null
+      // The datum is where the fingers are now: each is held from its touch
+      // down and kept current by every move. Taken on the next move instead,
+      // that move's travel was lost, and a two-finger pan lagged the hand.
+      const [a, b] = pair
+      this.pinch = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) }
       return
     }
     this.pinch = null
@@ -532,13 +563,32 @@ export class OrthoNavigator {
     this.orbiting = false // promoted once the drag passes the threshold
   }
 
-  /** The point on the model under a client position, if the model is there. */
+  /** The point on the model under a client position, if the model is there.
+   *  A pivot has somewhere to fall back to, so a part whose tree is still on
+   *  its way is not run through triangle by triangle to find one — see
+   *  bvh.ts sparingRays. Skipped outright, though, it would let the ray
+   *  through to whatever lies behind it: so the parts with a tree are tested,
+   *  and a hit on them stands only where no waiting part's box comes nearer
+   *  along the ray. */
   surfaceAt(clientX: number, clientY: number): THREE.Vector3 | null {
     const targets = this.orbitTargets()
     if (!targets.length) return null
+    const waiting = (t: THREE.Object3D) => (t as THREE.Mesh).isMesh === true && treeAwaited((t as THREE.Mesh).geometry)
+    const ready = targets.filter((t) => !waiting(t))
+    if (!ready.length) return null
     this.setPickRay(this.orbitRaycaster, clientX, clientY)
-    const hits = this.orbitRaycaster.intersectObjects(targets, false)
-    return hits.length ? hits[0].point.clone() : null
+    const hit = sparingRays(() => this.orbitRaycaster.intersectObjects(ready, false))[0]
+    if (!hit) return null
+    const ray = this.orbitRaycaster.ray
+    for (const t of targets) {
+      if (!waiting(t)) continue
+      const geometry = (t as THREE.Mesh).geometry
+      if (!geometry.boundingBox) geometry.computeBoundingBox()
+      this.waitingBox.copy(geometry.boundingBox!).applyMatrix4(t.matrixWorld)
+      const at = ray.intersectBox(this.waitingBox, this.waitingHit)
+      if (at && ray.origin.distanceTo(at) < hit.distance) return null
+    }
+    return hit.point.clone()
   }
 
   /**
@@ -637,7 +687,7 @@ export class OrthoNavigator {
     if (dx === 0 && dy === 0) return
     // Every pan is a drag's: a mouse chord's, one finger on a sheet, two.
     this.moving = true
-    const h = Math.max(1, this.canvas.clientHeight)
+    const h = Math.max(1, this.canvasHeight())
     const worldPerPx = (this.camera.top - this.camera.bottom) / this.camera.zoom / h
     this.camera.updateMatrixWorld()
     this.right.setFromMatrixColumn(this.camera.matrixWorld, 0).normalize()
@@ -668,9 +718,8 @@ export class OrthoNavigator {
     // Emulated by the 3Dconnexion driver while the puck is pushed — see
     // spaceMouseBusy.
     if (spaceMouseBusy()) return
-    // SolidWorks/Autodesk/NX muscle memory: their schemes zoom OUT on scroll up.
-    const zoomIn = this.scheme.wheelZoomsOut ? e.deltaY > 0 : e.deltaY < 0
-    this.zoomAt(zoomIn ? 1.1 : 1 / 1.1, e.clientX, e.clientY)
+    const factor = wheelZoomFactor(e.deltaY, e.deltaMode, this.scheme.wheelZoomsOut ?? false)
+    if (factor !== 1) this.zoomAt(factor, e.clientX, e.clientY)
   }
 
   /** Cursor-centric zoom: scale the frustum, then shift the camera so the world
@@ -766,4 +815,29 @@ export class OrthoNavigator {
     this.camera.updateMatrixWorld()
     this.onChange?.()
   }
+}
+
+/** One notch of a mouse wheel, as Chrome and Edge report it, in pixels. */
+const NOTCH_PX = 100
+/** What a notch zooms by. */
+const NOTCH_ZOOM = 1.1
+/** The most one wheel event moves, in pixels: a page-sized jump, or a burst
+ *  a driver reports as one, takes three notches' worth at most. */
+const MAX_WHEEL_PX = 3 * NOTCH_PX
+
+/**
+ * The zoom one wheel event makes: by how far it scrolled, so a mouse notch
+ * zooms 1.1× as it always has and a trackpad's run of small deltas zooms
+ * smoothly instead of a full step each — it jumped. A scroll with no
+ * vertical part (a trackpad swiped sideways, a tilt wheel) zooms nothing; it
+ * read as a zoom out (issue 34). `zoomsOut`: the SolidWorks, Autodesk and NX
+ * schemes zoom out on scroll up.
+ */
+export function wheelZoomFactor(deltaY: number, deltaMode: number, zoomsOut: boolean): number {
+  if (deltaY === 0 || !Number.isFinite(deltaY)) return 1
+  // Lines (Firefox: three a notch) and pages, in pixels.
+  const px = deltaMode === 1 ? deltaY * (NOTCH_PX / 3) : deltaMode === 2 ? deltaY * MAX_WHEEL_PX : deltaY
+  const clamped = Math.max(-MAX_WHEEL_PX, Math.min(MAX_WHEEL_PX, px))
+  const steps = -clamped / NOTCH_PX
+  return NOTCH_ZOOM ** (zoomsOut ? -steps : steps)
 }

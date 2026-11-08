@@ -1,11 +1,11 @@
 {
-  "app": "0.9.6",
-  "saved": "2026-11-07T18:56:12.064Z",
+  "app": "0.9.10",
+  "saved": "2026-11-08T21:07:49.381Z",
   "commands": [
     {
       "name": "align.auto",
       "title": "Auto-align the part",
-      "description": "Read a coordinate system off the scan and apply it, as Auto-align then Confirm alignment do: the directions most faces are square to and the axis round walls run along, the part standing on its base, its long side along X. level: settled (the default) lays all the faces on the axes at once, by area; largest squares the largest flat face exactly and settles the rest about its normal. Returns what the pose was read from, the transform, how many elements moved, and square — how square it came out: largest (the largest flat face’s axis, area, tiltDeg) and per axis the faces square to it with their tilts. Trap: a drafted wall reads as its draft, not as an alignment error. One undo step.",
+      "description": "Read a coordinate system off the scan and apply it, as Auto-align then Confirm alignment do: the directions most faces are square to and the axis round walls run along, the part standing on its base, its long side along X. level: settled (the default) lays all the faces on the axes at once, by area; largest squares the largest flat face exactly and settles the rest about its normal. Returns what the pose was read from, the transform, how many elements moved, and square — how square it came out: largest (the largest flat face’s axis, area, tiltDeg) and per axis the faces square to it with their tilts; largestInside when that face looks into the part (the scan stands in front of it: a rib’s wall, not a mating face — level on the mating face with align.datum). Trap: a drafted wall reads as its draft, not as an alignment error. One undo step.",
       "input": {
         "type": "object",
         "properties": {
@@ -591,7 +591,8 @@
             "oneOf": [
               {
                 "type": "integer",
-                "minimum": 2
+                "minimum": 2,
+                "maximum": 256
               },
               {
                 "type": "null",
@@ -1028,7 +1029,7 @@
     {
       "name": "element.construct",
       "title": "Construct an element",
-      "description": "Construct an element from others and typed-in numbers, as the panel’s creation methods do — point: point-coords, point-centroid, point-midpoint, point-line-plane; line: line-two-points, line-axis, line-plane-plane; plane: plane-three-points, plane-offset, plane-midplane, plane-coords, plane-symmetry; circle: circle-plane-cylinder, circle-plane-sphere, circle-coords. refs fill the slots in order, by id or name (a section stands in a plane’s slot as its cut plane; \"XY\", \"YZ\", \"XZ\" become plane elements, listed under made); params are the numbers in order or by key. point-centroid and plane-symmetry measure the scan (vertices confines them, seed starts the symmetry search), plane-symmetry answering symmetry { rms, matched, sampled }. Returns the element. One undo step.",
+      "description": "Construct an element from others and typed-in numbers, as the panel’s creation methods do — point: point-coords, point-centroid, point-midpoint, point-line-plane, point-center (of a sphere, circle or torus), point-three-planes, point-line-line (params gap: the most two measured lines may pass apart and be taken to cross, 0.1 mm by default; skew past it is refused), point-project (a point onto a plane); line: line-two-points, line-axis (of a cylinder, cone, torus or circle), line-plane-plane, line-plane-point (square to a plane through a point), line-project (a line or axis onto a plane), line-coords (dx, dy, dz, px, py, pz, length); plane: plane-three-points, plane-offset, plane-offset-point (parallel through a point), plane-midplane, plane-line-point (normal to a line through a point), plane-angle (refs axis, zero-angle plane; params angle in degrees, right-handed about the axis), plane-line-plane (through a line, square to a plane), plane-two-lines (params gap as for point-line-line), plane-tangent-sphere, plane-tangent-cylinder (refs the feature, a point on the side to touch), plane-coords, plane-symmetry; circle: circle-plane-cylinder, circle-plane-sphere, circle-coords. Constructions stay linked to their sources, rebuilt when one changes; element.unlink freezes one where it stands. refs fill the slots in order, by id or name (a section stands in a plane’s slot as its cut plane; \"XY\", \"YZ\", \"XZ\" become plane elements, listed under made); params are the numbers in order or by key. point-centroid and plane-symmetry measure the scan (vertices confines them, seed starts the symmetry search), plane-symmetry answering symmetry { rms, matched, sampled }. Returns the element. One undo step.",
       "input": {
         "type": "object",
         "properties": {
@@ -1081,7 +1082,7 @@
               },
               {
                 "type": "object",
-                "description": "The numbers by key (x, y, z; offset; nx, ny, nz, px, py, pz; d, cx, cy, cz).",
+                "description": "The numbers by key (x, y, z; offset; angle; gap; nx, ny, nz, px, py, pz; dx, dy, dz, length; d, cx, cy, cz).",
                 "additionalProperties": true
               }
             ],
@@ -1791,6 +1792,38 @@
         },
         "required": [
           "visible"
+        ],
+        "additionalProperties": false
+      },
+      "readOnly": false,
+      "returnsFile": false,
+      "returnsImage": false
+    },
+    {
+      "name": "element.unlink",
+      "title": "Unlink a construction from its sources",
+      "description": "Freeze a constructed element where it stands: its sources give way to coordinates of its own (point-coords, line-coords, plane-coords or circle-coords), so it no longer moves when they do and stays if they are deleted. Refused for an element that is not linked to others. Returns the element. One undo step.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "element": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "description": "Its id.",
+                "minimum": 1
+              },
+              {
+                "type": "string",
+                "description": "Its name — \"Sphere 1\".",
+                "minLength": 1
+              }
+            ],
+            "description": "The constructed element."
+          }
+        },
+        "required": [
+          "element"
         ],
         "additionalProperties": false
       },
@@ -3728,7 +3761,7 @@
     {
       "name": "scan.qa",
       "title": "Check the scan before modelling",
-      "description": "One call before modelling, to know what the scan will and will not give. Returns rims (the open edges of its holes: count, total length, the longest few with rim number, centre, size and circle where one fits — element.fit { kind: \"circle\", rim } makes it an element), noise (the median scatter of small plane fits, mm; near 0 is a CAD tessellation), thickness through the part along axis (p5, p50, p95, the main faces’ tiltDeg and faces { topDeg, bottomDeg }), sheet where most of the area has a second skin facing back within reach mm (gauge { p5, p50, p95 }, twoSkins: that share), apart on such a part with flat walls (regions standing over reach mm off every main wall — tabs bent in, ribs, bosses: center, box, area mm², largest first) and notes, what looks wrong, plainly. Traps: a scanned skin with no rims, or only pinholes, is a wrap bridging the holes it did not see through; on a sheet, thickness reads the box across the part — the gauge is sheet.gauge. Changes nothing.",
+      "description": "One call before modelling, to know what the scan will and will not give. Returns rims (the open edges of its holes: count, total length, the longest few with rim number, centre, size and circle where one fits — element.fit { kind: \"circle\", rim } makes it an element), noise (the median scatter of small plane fits, mm; 0 on a CAD tessellation), tessellation where the mesh is an STL exported from CAD (cad, its facets exactly flat; sparse where its vertices lie only on edges and rims, too far apart to fit on — densifyTo, the edge length to subdivide it to first, noise.measured the bends between facets that a fit would read), thickness through the part along axis (p5, p50, p95, the main faces’ tiltDeg and faces { topDeg, bottomDeg }), sheet where most of the area has a second skin facing back within reach mm (gauge { p5, p50, p95 }, twoSkins: that share), apart on such a part with flat walls (regions standing over reach mm off every main wall — tabs bent in, ribs, bosses: center, box, area mm², largest first) and notes, what looks wrong, plainly. Traps: a scanned skin with no rims, or only pinholes, is a wrap bridging the holes it did not see through; on a sheet, thickness reads the box across the part — the gauge is sheet.gauge. Changes nothing.",
       "input": {
         "type": "object",
         "properties": {
@@ -4576,7 +4609,8 @@
           "coneRays": {
             "type": "integer",
             "description": "ray: rays in the cone about the normal; 0 for the normal alone.",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 256
           },
           "coneAngleDeg": {
             "type": "number",
@@ -4628,7 +4662,8 @@
           "coneRays": {
             "type": "integer",
             "description": "ray: rays in the cone about the normal; 0 for the normal alone.",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 256
           },
           "coneAngleDeg": {
             "type": "number",
@@ -4748,7 +4783,7 @@
           },
           "show": {
             "type": "object",
-            "description": "Keys to show (true) or put away (false): scan, reference, sections, elements (with dimensions), labels, and a workspace’s own (view.set lists every key standing now).",
+            "description": "Keys to show (true) or put away (false): scan, reference, sections, elements (with dimensions), labels, map (the deviation map, in Deviation and in Reverse engineer), and a workspace’s own (view.set lists every key standing now).",
             "properties": {
               "scan": {
                 "type": "boolean"
@@ -4763,6 +4798,9 @@
                 "type": "boolean"
               },
               "labels": {
+                "type": "boolean"
+              },
+              "map": {
                 "type": "boolean"
               }
             }
@@ -4941,7 +4979,7 @@
           },
           "show": {
             "type": "object",
-            "description": "Keys to show (true) or put away (false): scan, reference, sections, elements (with dimensions), labels, and a workspace’s own (view.set lists every key standing now).",
+            "description": "Keys to show (true) or put away (false): scan, reference, sections, elements (with dimensions), labels, map (the deviation map, in Deviation and in Reverse engineer), and a workspace’s own (view.set lists every key standing now).",
             "properties": {
               "scan": {
                 "type": "boolean"
@@ -4956,6 +4994,9 @@
                 "type": "boolean"
               },
               "labels": {
+                "type": "boolean"
+              },
+              "map": {
                 "type": "boolean"
               }
             }

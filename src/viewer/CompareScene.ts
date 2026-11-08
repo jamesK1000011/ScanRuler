@@ -4,15 +4,18 @@
 //
 // A viewport of its own rather than a second pass over the main scene, for the
 // same reason the point picker's halves are: the two parts have to be looked at
-// apart from each other, and three.js keeps GPU state per renderer, so the
-// reference geometry — BVH and all — is drawn here without a second copy of it.
-// Borrowed, never owned: disposing it here would take the main view's reference
-// with it.
+// apart from each other. The CPU side of the reference geometry — its arrays and
+// BVH — is shared, so there is no second copy of that here. The GPU side is not:
+// three.js keeps buffers and programs per renderer, so this half's own renderer
+// uploads the geometry again and links its own shader. That is paid once per
+// half, which is why the half is kept alive when the split view closes and shown
+// again rather than rebuilt. Borrowed, never owned: disposing it here would take
+// the main view's reference with it.
 
 import * as THREE from 'three'
 import { CameraLink, type LinkedView } from './cameraLink'
 import type { ControlScheme } from './navSchemes'
-import { OrthoViewport } from './orthoViewport'
+import { OrthoViewport, type Projection } from './orthoViewport'
 import { applyFinish, setSurfaceColor, type ViewTheme } from './viewThemes'
 import { backfaceUniforms, spliceBackfaceTint } from './backfaceTint'
 import { CAP_SLOT, closedPartOf, cutColor, SliceCap } from './sliceCap'
@@ -100,6 +103,8 @@ export class CompareScene {
   /** Hold this half in the same pose as the scan's viewport, in both
    *  directions: either half can be the one under the hand. */
   linkTo(scan: LinkedView): void {
+    // The link before goes: it would go on waking both halves.
+    this.link?.dispose()
     this.link = new CameraLink(scan, this.viewport.viewLink())
   }
 
@@ -159,6 +164,12 @@ export class CompareScene {
     this.viewport.setNavScheme(scheme)
   }
 
+  /** Drawn the way the main view is, in parallel or in perspective: the
+   *  two halves are held in one pose and must read as one view. */
+  setProjection(projection: Projection): void {
+    this.viewport.setProjection(projection)
+  }
+
   /** And the same colour scheme, for the same reason: two halves of one view
    *  lit differently would read as two instruments. */
   setViewTheme(theme: ViewTheme): void {
@@ -197,7 +208,17 @@ export class CompareScene {
     this.viewport.invalidate()
   }
 
+  /** Held back while the half is not on screen: no frame is drawn and no layout
+   *  is read, and what the stores changed in the meantime is drawn on the first
+   *  frame after it comes back. */
+  setPaused(paused: boolean): void {
+    this.viewport.paused = paused
+    if (!paused) this.viewport.resize()
+  }
+
   dispose(): void {
+    this.link?.dispose()
+    this.link = null
     this.cap?.dispose()
     this.capGeometry.dispose()
     this.material.dispose()

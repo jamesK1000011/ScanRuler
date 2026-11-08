@@ -34,9 +34,19 @@ export interface SceneLayerHost {
   readonly partGroup: THREE.Group
   readonly raycaster: THREE.Raycaster
   readonly canvas: HTMLCanvasElement
+  /** The canvas's box on the page, read of the layout at most once a frame
+   *  or a task: what a hit test run on every hover pass measures against,
+   *  rather than a getBoundingClientRect of its own that may force a layout
+   *  pass. */
+  canvasRect(): DOMRect
   /** The viewport's element, for anything laid over the canvas. */
   readonly container: HTMLElement
-  camera(): THREE.OrthographicCamera
+  /** The camera the view is drawn through: parallel, or in perspective. */
+  camera(): THREE.Camera
+  /** How many millimetres a pixel of the canvas spans: everywhere in
+   *  parallel, at the orbit target's depth in perspective — what anything
+   *  held at a size on screen is scaled by (OrthoViewport.worldPerPixel). */
+  worldPerPixel(): number
   /** Aim the raycaster through a client point. */
   setPickRay(clientX: number, clientY: number): void
   /** A frame is wanted. */
@@ -106,7 +116,11 @@ export interface SceneLayer {
    *  While it holds, the layer alone lights under the cursor and takes the
    *  next click, ahead of every layer before it. */
   cycling?(at: { x: number; y: number } | null): boolean
-  /** Every frame, before it is drawn, with the canvas's size in pixels. */
+  /** On every frame the viewport runs, before it is drawn, with the
+   *  canvas's size in pixels. Not every animation tick: the viewport's
+   *  frames stop while nothing changes, so what a layer polls here must,
+   *  when it changes, call the host's invalidate or requestHover to be
+   *  looked at. */
   tick?(width: number, height: number): void
   themeChanged?(theme: ViewTheme): void
   /** The part was cut open at a plane — or closed again, with null. The
