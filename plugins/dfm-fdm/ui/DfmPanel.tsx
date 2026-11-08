@@ -12,6 +12,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
+import { useLength, type BoundLength } from '../../../src/app/useUnits'
 import { Busy, Notes, Status } from '../../_shared/ui/kit'
 import { UPS } from '../core/frame'
 import { useDfm } from '../state/dfmStore'
@@ -65,7 +66,24 @@ const RULE_WORDS: Record<string, string> = {
   'build-volume': 'Build volume',
 }
 const PARAM_WORDS: Record<string, string> = { minMm: 'min', maxDeg: 'max', maxMm: 'max', minDiameterMm: 'min Ø', minShare: 'min share', maxRatio: 'max ratio', minVolumeMm3: 'min', xMm: 'x', yMm: 'y', zMm: 'z', dualXMm: 'dual x', minAreaMm2: 'area ≥' }
-const unitOf = (k: string) => (/Deg$/.test(k) ? '°' : /Mm3$/.test(k) ? ' mm³' : /Mm2$/.test(k) ? ' mm²' : /Mm$/.test(k) ? ' mm' : '')
+/** A parameter's power of length by its name: 1 for …Mm, 2 for …Mm2, 3
+ *  for …Mm3, 0 for an angle or a ratio. */
+const powerOf = (k: string): 0 | 1 | 2 | 3 => (/Mm3$/.test(k) ? 3 : /Mm2$/.test(k) ? 2 : /Mm$/.test(k) ? 1 : 0)
+/** A parameter as the person reads it: a length in the units chosen in
+ *  Settings, an angle in degrees. */
+const showParam = (k: string, n: number, len: BoundLength) => {
+  const p = powerOf(k)
+  if (p === 1) return len.fmt(n, 2)
+  if (p === 2) return len.area(n, 1)
+  if (p === 3) return len.vol(n, 1)
+  return `${fmt(n)}${/Deg$/.test(k) ? '°' : ''}`
+}
+/** A finding's value or limit as the person reads it. */
+const showValue = (n: number, unit: string, len: BoundLength) =>
+  unit === 'mm' ? len.fmt(n, 2) : unit === 'mm²' ? len.area(n, 1) : unit === 'mm³' ? len.vol(n, 1) : `${fmt(n)}${unit.startsWith('°') ? '°' : unit ? ` ${unit}` : ''}`
+/** Display ↔ millimetres for a parameter typed in the rule editor. */
+const toShown = (k: string, n: number, len: BoundLength) => (powerOf(k) ? n / len.fromDisplay(1) ** powerOf(k) : n)
+const fromShown = (k: string, v: number, len: BoundLength) => (powerOf(k) ? v * len.fromDisplay(1) ** powerOf(k) : v)
 const fmt = (n: number) => (Math.abs(n) >= 100 ? n.toFixed(0) : Math.abs(n) >= 10 ? n.toFixed(1) : n.toFixed(2)).replace(/\.?0+$/, '')
 
 function ProfileSelect({ label, value, list, field }: { label: string; value: string | null; list: Json[]; field: string }) {
@@ -142,13 +160,14 @@ export function CompareStage() {
 }
 
 function RuleRow({ r }: { r: Json }) {
+  const len = useLength()
   const busy = useDfmView((s) => s.busy !== null)
   const own = useDfm((s) => s.overrides[r.id])
   const [open, setOpen] = useState(false)
   const [vals, setVals] = useState<Record<string, string>>({})
   const params = Object.entries(r.params as Record<string, number>)
   const save = async (extra: Json = {}) => {
-    const changed = Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Number(x)]).filter(([, n]) => Number.isFinite(n as number)))
+    const changed = Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, fromShown(k, Number(x), len)]).filter(([, n]) => Number.isFinite(n as number)))
     if (await run('rules', { action: 'set', rule: r.id, ...(Object.keys(changed).length ? { params: changed } : {}), ...extra })) {
       setVals({})
       await loadProfiles()
@@ -162,7 +181,7 @@ function RuleRow({ r }: { r: Json }) {
           {params
             .filter(([k]) => !/Area/.test(k))
             .slice(0, 2)
-            .map(([k, n]) => `${PARAM_WORDS[k] ?? k} ${fmt(n)}${unitOf(k)}`)
+            .map(([k, n]) => `${PARAM_WORDS[k] ?? k} ${showParam(k, n, len)}`)
             .join(' · ') || '—'}
         </b>
         <span className="pl-aside">{[...new Set(Object.values(r.setBy as Record<string, string>).filter((x) => x !== 'default'))].join(', ') || 'default'}</span>
@@ -173,9 +192,9 @@ function RuleRow({ r }: { r: Json }) {
             <label key={k} className="field">
               <span>
                 {PARAM_WORDS[k] ?? k}
-                {unitOf(k) && <small> ({unitOf(k).trim()})</small>}
+                {powerOf(k) ? <small> ({len.word(powerOf(k) as 1 | 2 | 3)})</small> : /Deg$/.test(k) ? <small> (°)</small> : null}
               </span>
-              <input type="number" step="any" min={0} data-test={`dfm-param-${k}`} value={vals[k] ?? String(n)} disabled={busy} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+              <input type="number" step="any" min={0} data-test={`dfm-param-${k}`} value={vals[k] ?? String(+toShown(k, n, len).toPrecision(6))} disabled={busy} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
             </label>
           ))}
           <label className="checkrow">
@@ -207,6 +226,7 @@ function RuleRow({ r }: { r: Json }) {
 }
 
 export function DfmPanel() {
+  const len = useLength()
   const st = useDfm()
   const v = useDfmView()
   const scan = useStore((s) => s.fileName)
@@ -310,8 +330,7 @@ export function DfmPanel() {
                 <span className="pl-num">{f.id}</span>
                 <span className="name">{RULE_WORDS[f.rule] ?? f.rule}</span>
                 <span className="dfm-value">
-                  {fmt(f.value)}
-                  {f.unit.startsWith('°') ? '°' : ` ${f.unit}`} <small>/ {fmt(f.limit)}</small>
+                  {showValue(f.value, f.unit, len)} <small>/ {showValue(f.limit, f.unit, len)}</small>
                 </span>
               </button>
               {f.waived && <p className="hint">Waived: {f.waived}</p>}
@@ -342,7 +361,7 @@ export function DfmPanel() {
                   {v.why && (
                     <Notes
                       items={[
-                        { level: 'note', rule: 'limit', text: Object.entries(v.why.params as Record<string, number>).map(([k, n]) => `${PARAM_WORDS[k] ?? k} ${fmt(n)}${unitOf(k)} (${v.why!.setBy[k]})`).join(' · ') },
+                        { level: 'note', rule: 'limit', text: Object.entries(v.why.params as Record<string, number>).map(([k, n]) => `${PARAM_WORDS[k] ?? k} ${showParam(k, n, len)} (${v.why!.setBy[k]})`).join(' · ') },
                         { level: 'note', rule: 'why', text: v.why.rationale },
                         { level: 'note', rule: 'source', text: v.why.source },
                       ]}

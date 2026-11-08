@@ -189,10 +189,12 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
           if (a < (P.minAreaMm2 ?? 0)) continue
           let worst = 0
           for (const t of run) worst = Math.max(worst, (Math.asin(Math.min(1, -m.normal[3 * t + 2])) * 180) / Math.PI)
+          // units-ok: the agent's readout, in millimetres always
           add(rule, { value: r(worst, 1), limit: P.maxDeg, unit: '° from vertical', at: centroid(m, run), areaMm2: r(a, 1), says: `${r(a, 1)} mm² facing down at up to ${r(worst, 1)}° from vertical — past ${P.maxDeg}°: support it, chamfer it, or turn the part` })
         }
         for (const c of ceilings(m)) {
           if (c.bridged || c.area < (P.minAreaMm2 ?? 0)) continue
+          // units-ok: the agent's readout, in millimetres always
           add(rule, { value: 90, limit: P.maxDeg, unit: '° from vertical', at: c.at, areaMm2: r(c.area, 1), says: `a flat underside of ${r(c.area, 1)} mm² held up on ${c.held ? 'one side only' : 'no side'} — it prints in air: support it, or chamfer it to ${P.maxDeg}° or less` })
         }
         break
@@ -200,6 +202,7 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
       case 'bridge': {
         for (const c of ceilings(m)) {
           if (!c.bridged || c.area < (P.minAreaMm2 ?? 0) || c.span <= P.maxMm) continue
+          // units-ok: the agent's readout, in millimetres always
           add(rule, { value: r(c.span, 1), limit: P.maxMm, unit: 'mm', at: c.at, areaMm2: r(c.area, 1), says: `a flat ceiling bridging ${r(c.span, 1)} mm between its walls, ${r(c.area, 1)} mm² — over the ${P.maxMm} mm bridge limit: support it, add a rib, or arch it` })
         }
         break
@@ -216,6 +219,7 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
           if (a < (P.minAreaMm2 ?? 0)) continue
           let least = Infinity
           for (const t of run) for (let k = 0; k < 3; k++) if (thin(m.idx[3 * t + k])) least = Math.min(least, th[m.idx[3 * t + k]])
+          // units-ok: the agent's readout, in millimetres always
           add(rule, { value: r(least), limit: P.minMm, unit: 'mm', at: centroid(m, run), areaMm2: r(a, 1), says: `a wall ${r(least)} mm thick over ${r(a, 1)} mm² — under ${P.minMm} mm: thicken it, or print it with a finer nozzle` })
         }
         break
@@ -223,6 +227,7 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
       case 'smallHole': {
         for (const h of uprightHoles(m)) {
           if (2 * h.radius >= P.minDiameterMm) continue
+          // units-ok: the agent's readout, in millimetres always
           add(rule, { value: r(2 * h.radius), limit: P.minDiameterMm, unit: 'mm Ø', at: [r(h.cx), r(h.cy), r((h.z0 + h.z1) / 2)], says: `an upright hole Ø${r(2 * h.radius)} mm — under Ø${P.minDiameterMm} mm it closes up: drill or ream it after printing, or model it larger` })
         }
         break
@@ -245,6 +250,7 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
         }
         const foot = hullArea(xs, ys).area
         const share = foot > 0 ? contact / foot : 0
+        // units-ok: the agent's readout, in millimetres always
         if (share < P.minShare) add(rule, { value: r(share, 3), limit: P.minShare, unit: 'of the footprint', at: [r(xs.reduce((s, v) => s + v, 0) / xs.length), r(ys.reduce((s, v) => s + v, 0) / ys.length), r(m.zMin)], areaMm2: r(contact, 1), says: `${r(contact, 1)} mm² on the bed of a ${r(foot, 1)} mm² footprint (${r(100 * share, 1)} %) — add a brim, or turn the part onto a larger face` })
         break
       }
@@ -263,12 +269,14 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
           break
         }
         const ratio = height / base
+        // units-ok: the agent's readout, in millimetres always
         if (ratio > P.maxRatio) add(rule, { value: r(ratio, 1), limit: P.maxRatio, unit: '× its base', at: [r(bx.reduce((s, v) => s + v, 0) / bx.length), r(by.reduce((s, v) => s + v, 0) / by.length), r(m.zMin)], says: `${r(height, 1)} mm tall on a base ${r(base, 1)} mm across at its narrowest (${r(ratio, 1)}×) — add a brim or a support fin, print several together, or lay it down` })
         break
       }
       case 'trappedVolume': {
         for (const shell of shells(m)) {
           if (shell.volume >= 0 || -shell.volume < (P.minVolumeMm3 ?? 0)) continue
+          // units-ok: the agent's readout, in millimetres always
           add(rule, { value: r(-shell.volume, 1), limit: P.minVolumeMm3 ?? 0, unit: 'mm³', at: shell.at, says: `a closed cavity of ${r(-shell.volume, 1)} mm³ inside the part — it prints, but traps air; add a vent if anything must get out` })
         }
         break
@@ -285,8 +293,11 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
         const w = xMax - xMin, d = yMax - yMin, h = m.zMax - m.zMin
         const fits = (X: number) => (w <= X && d <= P.yMm) || (d <= X && w <= P.yMm)
         const at: [number, number, number] = [r((xMin + xMax) / 2), r((yMin + yMax) / 2), r(m.zMin)]
+        // units-ok: the agent's readout, in millimetres always
         if (h > P.zMm) add(rule, { value: r(h, 1), limit: P.zMm, unit: 'mm tall', at, says: `${r(h, 1)} mm tall, over the ${P.zMm} mm the printer builds — lay it down, split it or scale it` })
+        // units-ok: the agent's readout, in millimetres always
         else if (!fits(P.xMm)) add(rule, { value: r(Math.max(w, d), 1), limit: P.xMm, unit: 'mm across', at, says: `${r(w, 1)} × ${r(d, 1)} mm on the bed, over the ${P.xMm} × ${P.yMm} mm plate even turned — split it, scale it or stand it another way` })
+        // units-ok: the agent's readout, in millimetres always
         else if (P.dualXMm > 0 && !fits(P.dualXMm)) add({ ...rule, severity: 'warning' }, { value: r(Math.max(w, d), 1), limit: P.dualXMm, unit: 'mm across', at, says: `${r(w, 1)} × ${r(d, 1)} mm fits printing from one nozzle, but not the ${P.dualXMm} mm both nozzles reach — print it in one material, or turn it` })
         break
       }
