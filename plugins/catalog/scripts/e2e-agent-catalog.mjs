@@ -13,7 +13,7 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { check, fail, finish, launchAgent, launchApp, repoFile } from '../../../scripts/e2e-lib.mjs'
+import { check, fail, finish, launchAgent, launchApp, OUT_DIR, repoFile } from '../../../scripts/e2e-lib.mjs'
 
 if (!existsSync(repoFile('mcp/node_modules/@modelcontextprotocol/sdk/package.json'))) {
   console.error('FATAL: the MCP server has no dependencies yet — run npm --prefix mcp ci.')
@@ -54,7 +54,7 @@ async function ok(name, input, what) {
 }
 const link = /(\S+#agent=\d+:[\w-]+)/.exec((await call('scanruler_status')).json?.howToConnect ?? '')?.[1]
 check(Boolean(link), `the server hands out a pairing link (${link})`)
-const { browser, consoleErrors } = await launchApp({ url: link, protocolTimeout: 600_000 })
+const { browser, page, consoleErrors } = await launchApp({ url: link, protocolTimeout: 600_000 })
 try {
   const waited = await call('scanruler_wait', { for: 'page', timeoutSeconds: 90 })
   check(waited.json?.connected === true && waited.json.page.plugins.includes('catalog'), `the page connected with catalog (${waited.json?.page?.plugins})`)
@@ -103,6 +103,28 @@ try {
   await ok('catalog_watch', { action: 'stop' })
   const bad = await call('catalog_open_url', { url: 'file:///etc/hosts' })
   check(bad.error && /http/.test(bad.text), 'a non-web address is refused')
+
+  await ok('workspace_set', { workspace: 'catalog' })
+  await page.waitForSelector('[data-test=catalog-panel]', { timeout: 30_000 })
+  check((await page.$$('[data-test=catalog-record]')).length >= 1, 'the Catalog panel lists where the project’s files came from')
+  await page.select('[data-test=catalog-panel] select', 'bearing')
+  await page.type('[data-test=catalog-dim-d]', '8.02')
+  await page.type('[data-test=catalog-dim-D]', '21.97')
+  await page.type('[data-test=catalog-dim-B]', '7')
+  await page.click('[data-test=catalog-match]')
+  await page.waitForSelector('[data-test=catalog-matches] .cat-row', { timeout: 30_000 })
+  const first = await page.$eval('[data-test=catalog-matches] .cat-row .name', (e) => e.textContent)
+  check(first === '608', `Find the size names a bearing measured 8.02 × 21.97 × 7 a 608 (${first})`)
+  await page.click('[data-test=catalog-matches] .cat-row')
+  await page.click('[data-test=catalog-links]')
+  await page.waitForSelector('[data-test=catalog-link-list] a', { timeout: 30_000 })
+  const hrefs = await page.$$eval('[data-test=catalog-link-list] a', (l) => l.map((a) => a.href))
+  check(hrefs.length >= 3 && hrefs.every((h) => /^https:\/\//.test(h)) && hrefs.some((h) => /608/.test(h)), `a size picked searches the catalogues for it: ${hrefs.length} pages`)
+  await page.type('[data-test=catalog-lookup-name]', 'M5 socket')
+  await page.keyboard.press('Enter')
+  await page.waitForSelector('[data-test=catalog-found] .cat-part', { timeout: 30_000 })
+  check(/M5/.test(await page.$eval('[data-test=catalog-found]', (e) => e.textContent)), 'Look up a size shows an M5 socket head’s dimensions')
+  await page.screenshot({ path: join(OUT_DIR, 'catalog-panel.png') })
 } finally {
   await agent.close?.()
   await finish(browser, consoleErrors)
