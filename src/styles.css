@@ -653,12 +653,47 @@ button.block {
   display: none;
 }
 
+/* The tabs and the keys at their ends that bring hidden ones into view. */
+.tabstrip {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+  gap: 2px;
+}
+
+.tabstrip .modeswitch {
+  margin-left: 0;
+}
+
+.tabmore {
+  flex: none;
+  width: 22px;
+  height: 30px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--accent-d);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+}
+
+.tabmore:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
 /* 6. With many workspaces (plugins add theirs) the tabs scroll on their
    own, in the room the row has, so New, Save, Load and Settings stay in
    reach; the open tab is kept in view (TopBar). */
+.top[data-fold~='6'] .tabstrip {
+  flex: 0 1 auto;
+  min-width: 132px;
+}
+
 .top[data-fold~='6'] .modeswitch {
   flex: 0 1 auto;
-  min-width: 96px;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
