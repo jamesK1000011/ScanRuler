@@ -28,6 +28,7 @@ import { lstat, mkdir, open, readdir, readFile, realpath, stat, writeFile } from
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { attachNotices } from './notices.js'
 import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
 
@@ -493,7 +494,7 @@ export function createMcpServer({
   const server = new Server(
     { name: 'scanruler', title: 'ScanRuler', version },
     {
-      capabilities: { tools: { listChanged: true } },
+      capabilities: { tools: { listChanged: true }, logging: {} },
       instructions:
         (headless ? HEADLESS_INSTRUCTIONS : INSTRUCTIONS)[compact ? 'compact' : 'full'] +
         (selection.named ? ` This server lists ScanRuler’s tools by namespace, as it was started (--tools ${selection.text}); a tool of a namespace left out is unknown here.` : ''),
@@ -507,7 +508,9 @@ export function createMcpServer({
   // A server shipped with a newer list than the one kept lists its own: the
   // kept one may be days old (listBeforePage).
   let lastPage = listBeforePage(remembered?.load() ?? null)
-  const commands = () => (link.page?.commands?.length ? link.page.commands : lastPage?.commands ?? SNAPSHOT)
+  // A command marked internal is the page's answer to this server — never
+  // a tool: link.run reaches it, an agent does not.
+  const commands = () => (link.page?.commands?.length ? link.page.commands : lastPage?.commands ?? SNAPSHOT).filter((c) => !c.internal)
   const remember = () => {
     const list = link.page?.commands
     if (!list?.length) return
@@ -779,6 +782,24 @@ export function createMcpServer({
   }
   /** A reply with the reload said in it, when one is to be said: in an
    *  object answer as pageReloaded, first; after a refusal's message. */
+  // What the page told without being asked — a screenshot the person took
+  // — said with the next answer (notices.js).
+  const notices = attachNotices({
+    link,
+    folder: () => workFolderNow().catch(() => null),
+    outDir,
+    log,
+    notify: (text) => server.sendLoggingMessage?.({ level: 'info', logger: 'scanruler', data: text }).catch(() => {}),
+  })
+  const withNews = (reply, tool) => {
+    if (/^snapshot_/.test(tool ?? '')) {
+      notices.seen()
+      return reply
+    }
+    const lines = notices.drain()
+    if (!lines.length || !Array.isArray(reply?.content)) return reply
+    return { ...reply, content: [...reply.content, { type: 'text', text: lines.join('\n') }] }
+  }
   const withReload = (reply) => {
     if (!reloaded || !link.connected) return reply
     const block = reply?.content?.find((x) => x.type === 'text')
@@ -1762,13 +1783,13 @@ export function createMcpServer({
   // lines of their own.
   let callNo = 0
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-    if (!trace) return withReload(await dispatch(request, extra, null))
+    if (!trace) return withNews(withReload(await dispatch(request, extra, null)), request.params.name)
     const { name, arguments: args } = request.params
     const ctx = { call: ++callNo, fields: {} }
     const t = trace.now()
     const hiddenAt = hiddenNow()
     const running = runningJobs()
-    const reply = withReload(await dispatch(request, extra, ctx))
+    const reply = withNews(withReload(await dispatch(request, extra, ctx)), name)
     trace.write({
       ev: 'call',
       call: ctx.call,

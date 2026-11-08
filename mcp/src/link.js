@@ -282,6 +282,15 @@ export class PageLink extends Asker {
       this.emit('visibility', this.page.hidden)
       return
     }
+    // Something the page tells without being asked — the person took a
+    // screenshot — for the server to pass on with its next answer.
+    if (message.event === 'notice' && typeof message.kind === 'string') {
+      const notice = { kind: message.kind, data: message.data && typeof message.data === 'object' ? message.data : {} }
+      const frame = JSON.stringify({ event: 'notice', ...notice })
+      for (const ws of this.peers) if (ws.readyState === ws.OPEN) ws.send(frame)
+      this.emit('notice', notice)
+      return
+    }
     if (message.event === 'commands' && Array.isArray(message.commands)) {
       this.page = { ...this.page, commands: message.commands }
       this.#tellPeers()

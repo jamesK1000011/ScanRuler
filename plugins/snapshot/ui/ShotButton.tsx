@@ -6,7 +6,9 @@ import { useRef } from 'react'
 import { saveFile } from '../../../src/app/exports'
 import { IconFrame } from '../../../src/ui/icons'
 import { fileName, takeShot } from '../app/capture'
+import { announce, composite } from '../app/marks'
 import { useShots } from '../state/shotStore'
+import { ShotEditor } from './ShotEditor'
 import '../../_shared/ui/kit.css'
 import './snapshot.css'
 
@@ -29,11 +31,13 @@ async function copy(png: Uint8Array) {
 }
 
 export function ShotButton() {
-  const { shots, open, busy, error } = useShots()
+  const { shots, open, busy, error, save } = useShots()
   const box = useRef<HTMLDivElement>(null)
   const shot = shots.find((s) => s.id === open)
 
   return (
+    <>
+    <ShotEditor />
     <div ref={box} className="sn-dock">
       {shot && (
         <div className="sn-card" data-test="snapshot-card">
@@ -47,22 +51,42 @@ export function ShotButton() {
               ×
             </button>
           </div>
-          <img src={shot.url} alt="The screenshot" className="sn-thumb" />
+          <img src={shot.url} alt="The screenshot" className="sn-thumb" title="Mark it up" style={{ cursor: 'pointer' }} onClick={() => useShots.setState({ editing: shot.id })} />
+          {shot.marks.length > 0 && (
+            <p className="hint">
+              {shot.marks.length} mark{shot.marks.length === 1 ? '' : 's'}, {shot.marks.filter((m) => m.kind === 'pin').length} pin{shot.marks.filter((m) => m.kind === 'pin').length === 1 ? '' : 's'}
+            </p>
+          )}
           <textarea
             className="pl-text"
             rows={2}
             placeholder="What to look at — “the Patent panel’s numerals are off”"
+            key={`${shot.id}:${shot.note}`}
             defaultValue={shot.note}
             data-test="snapshot-note"
-            onBlur={(e) => useShots.getState().note(shot.id, e.target.value.trim())}
+            onBlur={(e) => {
+              const note = e.target.value.trim()
+              if (note === shot.note) return
+              useShots.getState().note(shot.id, note)
+              const now = useShots.getState().shots.find((x) => x.id === shot.id)
+              if (now) announce(now)
+            }}
           />
-          <p className="hint">Ask Claude to look at your screenshot: it reads it with snapshot_latest. It stays in this tab until you close it.</p>
+          <p className="hint">Claude is told about it with its next answer, and can look with snapshot_latest.</p>
+          {shot.path && <p className="sn-saved" title={shot.path}>Saved to {shot.path}</p>}
+          <label className="checkrow">
+            <input type="checkbox" checked={save} onChange={(e) => useShots.getState().setSave(e.target.checked)} />
+            Save shots beside the project
+          </label>
           <div className="pl-actions">
-            <button onClick={() => saveFile(fileName(shot), new Blob([shot.png as BlobPart], { type: 'image/png' }))}>Save PNG</button>
+            <button className="primary" data-test="snapshot-markup" onClick={() => useShots.setState({ editing: shot.id })}>
+              Mark up
+            </button>
+            <button onClick={async () => saveFile(fileName(shot), new Blob([(await composite(shot)) as BlobPart], { type: 'image/png' }))}>Save PNG</button>
             <button
               onClick={async (e) => {
                 const b = e.currentTarget
-                b.textContent = (await copy(shot.png)) ? 'Copied' : 'Copy failed'
+                b.textContent = (await copy(await composite(shot))) ? 'Copied' : 'Copy failed'
                 setTimeout(() => (b.textContent = 'Copy'), 1500)
               }}
             >
@@ -94,5 +118,6 @@ export function ShotButton() {
         {shots.length > 0 && <b>{shots.length}</b>}
       </button>
     </div>
+    </>
   )
 }

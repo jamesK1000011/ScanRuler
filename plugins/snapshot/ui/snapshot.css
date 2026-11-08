@@ -77,3 +77,89 @@
   border: 1px solid var(--line);
   border-radius: var(--r);
 }
+
+/* The markup view: the shot on the stage's colour, the tools at the side. */
+.sn-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  background: rgba(20, 22, 24, 0.82);
+}
+
+.sn-editor-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sn-editor-stage canvas {
+  display: block;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  touch-action: none;
+}
+
+.sn-editor-side {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 15px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.sn-colours {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sn-colours > button[role='radio'] {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.sn-colours > button[role='radio'].on {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.sn-colours .grow {
+  flex: 1;
+}
+
+.sn-colours > button:not([role]) {
+  padding: 4px 9px;
+}
+
+.sn-pin {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sn-pin-n {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sn-saved {
+  font-size: 11px;
+  color: var(--dim);
+  word-break: break-all;
+}

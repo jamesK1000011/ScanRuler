@@ -50,6 +50,7 @@ export class PeerLink extends Asker {
           return
         }
         if (message.event === 'page') this.#setPage(message.page ?? null)
+        else if (message.event === 'notice' && typeof message.kind === 'string') this.emit('notice', { kind: message.kind, data: message.data ?? {} })
         else this.answer(message)
       })
       ws.on('open', () => ws.send(JSON.stringify({ peer: { token: this.token, version: this.version } })))
@@ -170,7 +171,7 @@ export class SharedLink extends EventEmitter {
 
   /** Pass on a link's page events while `active()` says it is the one in use. */
   #forward(link, active) {
-    for (const event of ['connected', 'disconnected', 'commands', 'visibility']) {
+    for (const event of ['connected', 'disconnected', 'commands', 'visibility', 'notice']) {
       link.on(event, (...args) => {
         if (active()) this.emit(event, ...args)
       })
