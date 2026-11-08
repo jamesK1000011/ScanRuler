@@ -155,7 +155,7 @@ export function PatentPanel() {
           <button disabled={busy || noPart} onClick={() => void run('figures', { plan: 'standard' })}>
             Plan standard figures
           </button>
-          <select disabled={busy || noPart} value="" onChange={(e) => e.target.value && void run('figures', { add: [{ kind: 'view', view: e.target.value }] })}>
+          <select title="Add a view of the part as a figure" disabled={busy || noPart} value="" onChange={(e) => e.target.value && void run('figures', { add: [{ kind: 'view', view: e.target.value }] })}>
             <option value="">Add a view…</option>
             {VIEW_NAMES.map((n) => (
               <option key={n} value={n}>
