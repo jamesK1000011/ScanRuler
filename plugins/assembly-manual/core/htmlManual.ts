@@ -25,7 +25,7 @@ function css(t: Theme): string {
   return `
 :root{--accent:${t.accent};--ink:${t.ink};--muted:${t.muted};--paper:${t.paper};--rule:${t.rule};--wash:${t.wash};--font:${t.font};--heading:${t.heading};--mono:${t.mono}}
 *{box-sizing:border-box}
-html{font-size:${t.size}px;-webkit-text-size-adjust:100%}
+html{font-size:${t.size}px;/* units-ok: type size in CSS pixels, not a length of the part */-webkit-text-size-adjust:100%}
 body{margin:0;background:color-mix(in srgb,var(--rule) 35%,var(--paper));color:var(--ink);font-family:var(--font);line-height:1.5;font-feature-settings:"tnum" 1}
 main{max-width:64rem;margin:0 auto;padding:2.5rem 1.25rem 4rem;display:flex;flex-direction:column;gap:1.75rem}
 .sheet{background:var(--paper);border-radius:6px;box-shadow:0 1px 2px rgba(0,0,0,.06),0 8px 28px rgba(0,0,0,.08);padding:2.25rem 2.5rem}
@@ -196,10 +196,12 @@ ${said.length ? `<ol class="do${said.length === 1 ? ' one' : ''}">${said.map((x)
         const w = o.length + 2 * pad
         const h = o.height + 2 * pad
         const paths = o.lines.map((l) => `<path d="${l.map((v, j) => `${j === 0 ? 'M' : j % 2 === 0 ? 'L' : ''}${(j % 2 === 0 ? v + pad : v + h / 2).toFixed(2)}${j % 2 === 0 ? ' ' : ' '}`).join('')}" fill="none" stroke="#000" stroke-width="0.25"/>`).join('')
+        // units-ok: a printed length on purpose: the hardware is drawn at 1:1, in millimetres
         return [`<li>${balloon(r.item)}<span><span class="q">${r.qty}×</span><br><span class="d">${esc(r.designation!)}</span></span><svg width="${w.toFixed(2)}mm" height="${h.toFixed(2)}mm" viewBox="0 0 ${w.toFixed(2)} ${h.toFixed(2)}" role="img" aria-label="${esc(o.kind)} at 1:1">${paths}</svg></li>`]
       })
     : []
   const hardware = hw.length
+    // units-ok: a printed length on purpose: the hardware is drawn at 1:1, in millimetres
     ? `<section class="sheet hardware"><h2 class="label">Hardware at 1:1</h2><p class="meta">Print at 100% — no “fit to page” — and lay each piece on its outline.</p><div class="bar"><svg width="50mm" height="4mm" viewBox="0 0 50 4"><path d="M0 2H50M0 0.5V3.5M10 1V3M20 1V3M30 1V3M40 1V3M50 0.5V3.5" stroke="#000" stroke-width="0.3" fill="none"/></svg><span>This bar is 50 mm when printed true to size.</span></div><ul>${hw.join('')}</ul></section>`
     : ''
   const facts = [
