@@ -246,7 +246,7 @@ export function DfmPanel() {
                 <span className="name">{RULE_WORDS[f.rule] ?? f.rule}</span>
                 <span className="dfm-value">
                   {fmt(f.value)}
-                  {f.unit === '°' ? '°' : ` ${f.unit}`} <small>/ {fmt(f.limit)}</small>
+                  {f.unit.startsWith('°') ? '°' : ` ${f.unit}`} <small>/ {fmt(f.limit)}</small>
                 </span>
               </button>
               {f.waived && <p className="hint">Waived: {f.waived}</p>}
