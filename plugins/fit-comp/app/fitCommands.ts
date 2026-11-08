@@ -8,6 +8,8 @@
 
 import { arr, bool, enumOf, num, obj, str, anyObject } from '../../../src/commands/schema'
 import { type Command, CommandError } from '../../../src/plugins/api'
+import { noTrueSize, noTrueSizeText } from '../../../src/core/scanScale'
+import { useStore } from '../../../src/state/store'
 import { compensate, stlBytes } from '../core/compensate'
 import { fromBuild, UPS, type Up } from '../core/frame'
 import { measure } from '../core/measure'
@@ -19,6 +21,17 @@ import { alignedScan, reference } from './geometry'
 type Json = Record<string, unknown>
 
 const BUILT_IN: Keymap[] = Object.values(import.meta.glob<Keymap>('../keymaps/*.json', { eager: true, import: 'default' }))
+
+
+/** A scan with no true size — Meshroom's, or one a few millimetres or
+ *  several metres across — measured as if it had one gives confident
+ *  nonsense: said with the answer, with how to scale it. */
+const sizeWarning = () => {
+  const st = useStore.getState()
+  const across = 2 * st.modelSize
+  const none = noTrueSize(st.fileName, across, Boolean(st.scanScale))
+  return none ? { sizeWarning: noTrueSizeText(none, across) } : {}
+}
 
 export const keymaps = (): Keymap[] => [...BUILT_IN.filter((b) => !useFit.getState().keymaps.some((k) => k.id === b.id)), ...useFit.getState().keymaps]
 
@@ -156,6 +169,7 @@ export const measureCommand: Command<{ detail?: 'brief' | 'full' }> = {
     return {
       run: run.n,
       reference: ref.name,
+      ...sizeWarning(),
       ...(s.printer || s.material ? { printedOn: { printer: s.printer, material: s.material, nozzle: s.nozzle } } : {}),
       read: { faces: readings.planes.length, circles: readings.circles.length, ...(readings.missed.length ? { missed: readings.missed } : {}) },
       noise: readings.noise,
