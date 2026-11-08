@@ -7,6 +7,7 @@ import { sceneOf } from '../../../src/commands/host'
 import { arr, bool, enumOf, num, obj, oneOf, str, vec3 } from '../../../src/commands/schema'
 import { rigidApply, rigidInvert } from '../../../src/core/deviation/rigid'
 import { type Command, CommandError } from '../../../src/plugins/api'
+import { noTrueSize, noTrueSizeText } from '../../../src/core/scanScale'
 import { useDeviation } from '../../../src/state/deviationStore'
 import { useStore } from '../../../src/state/store'
 import { mirror, surface, type Mesh, type Region } from '../core/geometry'
@@ -88,6 +89,17 @@ const stl = (positions: Float64Array, indices: Uint32Array): Uint8Array => {
 
 const stem = (name: string | null) => (name ?? 'part').replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '_')
 
+
+/** A scan with no true size — Meshroom's, or one a few millimetres or
+ *  several metres across — measured as if it had one gives confident
+ *  nonsense: said with the answer, with how to scale it. */
+const sizeWarning = () => {
+  const st = useStore.getState()
+  const across = 2 * st.modelSize
+  const none = noTrueSize(st.fileName, across, Boolean(st.scanScale))
+  return none ? { sizeWarning: noTrueSizeText(none, across) } : {}
+}
+
 export const settings: Command<Partial<ReturnType<typeof useWear.getState>['settings']>> = {
   name: 'settings',
   title: 'Wear-repair settings',
@@ -152,7 +164,7 @@ export const diffCommand: Command<{ names?: string[] }> = {
     if (!worn.length) throw new CommandError('invalid_state', 'No region tagged worn — wear.tag first.')
     const scan = scanMesh()
     const ref = referenceSurface(scan)
-    return { reference: st.reference, tolerance: st.settings.tolerance, regions: diff(scan, ref, worn, st.settings.tolerance, st.settings.maxMm) }
+    return { ...sizeWarning(), reference: st.reference, tolerance: st.settings.tolerance, regions: diff(scan, ref, worn, st.settings.tolerance, st.settings.maxMm) }
   },
 }
 
