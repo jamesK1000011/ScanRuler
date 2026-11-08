@@ -20,8 +20,9 @@ const plugin: ScanRulerPlugin = {
     id: 'patent',
     label: 'Patent',
     title: 'Patent drawings with reference numerals, laid out to 37 CFR 1.84, and a draft description for your attorney — saved to this computer only',
-    icon: 'sheet',
-    order: 40,
+    icon: 'patent',
+    order: 42,
+    group: 'share',
   },
   usePlugin: usePatentPlugin,
   install() {
