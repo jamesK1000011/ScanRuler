@@ -24,4 +24,11 @@ export const scannerSection: ProjectSection<Saved> = {
     return () => useScanner.getState().replace(v.using ?? null, v.measured ?? null)
   },
   hasContent: (v) => Boolean(v.using || v.measured),
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['using', 'measured'] as const
+    return useScanner.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }
