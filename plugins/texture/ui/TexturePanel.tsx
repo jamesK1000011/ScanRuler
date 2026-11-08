@@ -108,7 +108,7 @@ export function TexturePanel(p: TexturePanelProps) {
         </div>
         <div className="field">
           <span>Your own heightmap</span>
-          <button disabled={busy} title="A greyscale PNG, JPEG or WebP: white stands out, black sinks in" style={{ flex: '0 1 172px' }} onClick={() => imageInput.current?.click()}>
+          <button disabled={busy} title="Greyscale image: white stands out, black sinks in" style={{ flex: '0 1 172px' }} onClick={() => imageInput.current?.click()}>
             Load an image…
           </button>
           <input ref={imageInput} type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) p.onImage(f); e.target.value = '' }} />
