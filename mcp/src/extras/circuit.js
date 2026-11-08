@@ -445,15 +445,15 @@ export const TEMPLATES = {
     tsx: (p) => {
       const r = e24Above((p.supply - p.vf) / (p.current / 1000))
       return [
-        `// R1 = (supply − vf) / current = (${f3(p.supply)} − ${f3(p.vf)}) V / ${f3(p.current)} mA, up to the next E24 value.`,
+        `// LED pin 1 is the cathode, as SMD LED footprints and JLCPCB's parts number it\n// (tscircuit's default is the anode, and its parts check flags the mismatch).\n// R1 = (supply − vf) / current = (${f3(p.supply)} − ${f3(p.vf)}) V / ${f3(p.current)} mA, up to the next E24 value.`,
         'export default () => (',
         `  <board width=${mm(p.width)} height=${mm(p.height)}>`,
         `    <pinheader name="J1" pinCount={2} pitch="2.54mm" pcbX=${mm(-p.width / 2 + 4)} pcbY="0mm" pcbRotation="90deg" />`,
         `    <resistor name="R1" resistance="${ohmsText(r)}" footprint="0603" pcbX="0mm" pcbY=${mm(p.height / 6)} />`,
-        `    <led name="LED1" color="red" footprint="0603" pcbX=${mm(p.width / 4)} pcbY=${mm(p.height / 6)} />`,
-        '    <trace from=".J1 > .pin1" to=".R1 > .pin1" />',
-        '    <trace from=".R1 > .pin2" to=".LED1 > .anode" />',
-        '    <trace from=".LED1 > .cathode" to=".J1 > .pin2" />',
+        `    <led name="LED1" color="red" footprint="0603" pinLabels={{ pin1: "cathode", pin2: "anode" }} pcbX=${mm(p.width / 4)} pcbY=${mm(p.height / 6)} />`,
+        '    <trace name="VIN" from=".J1 > .pin1" to=".R1 > .pin1" />',
+        '    <trace name="LED_A" from=".R1 > .pin2" to=".LED1 > .anode" />',
+        '    <trace name="GND" from=".LED1 > .cathode" to=".J1 > .pin2" />',
         '  </board>',
         ')',
       ]
@@ -517,10 +517,10 @@ function carrierTsx(p, m) {
     `    <pinheader name="J1" pinCount={${m.pins}} pitch="2.54mm" gender="female" pcbX=${mm(-half)} pcbY="0mm" pcbRotation="90deg" />`,
     `    <pinheader name="J2" pinCount={${m.pins}} pitch="2.54mm" gender="female" pcbX=${mm(half)} pcbY="0mm" pcbRotation="90deg" />`,
     `    <resistor name="R1" resistance="1k" footprint="0603" pcbX="0mm" pcbY=${mm(lenY / 2 + 1)} />`,
-    `    <led name="LED1" color="green" footprint="0603" pcbX="0mm" pcbY=${mm(-lenY / 2 - 1)} />`,
-    `    <trace from=".J1 > .pin${m.vcc}" to=".R1 > .pin1" />`,
-    '    <trace from=".R1 > .pin2" to=".LED1 > .anode" />',
-    `    <trace from=".LED1 > .cathode" to=".J1 > .pin${m.gnd}" />`,
+    `    <led name="LED1" color="green" footprint="0603" pinLabels={{ pin1: "cathode", pin2: "anode" }} pcbX="0mm" pcbY=${mm(-lenY / 2 - 1)} />`,
+    `    <trace name="V3V3" from=".J1 > .pin${m.vcc}" to=".R1 > .pin1" />`,
+    '    <trace name="LED_A" from=".R1 > .pin2" to=".LED1 > .anode" />',
+    `    <trace name="GND" from=".LED1 > .cathode" to=".J1 > .pin${m.gnd}" />`,
     ...corners(p.width, p.height, inset).map(([x, y]) => holeTsx(x, y, 3.2)),
     '  </board>',
     ')',
@@ -794,7 +794,7 @@ export async function build({ project, entry, outputs = [], routing = true, part
       const target = Object.entries(OUTPUTS).find(([, o]) => o.format === format && o.file)?.[1].file ?? `${format}.out`
       const r = await step(['export', circuitJson, '--format', format, '--output', join(job, target)], `export ${format}`)
       if (r.code === 0 && existsSync(join(job, target))) files[target] = join(job, target)
-      else failed.push({ format, exitCode: r.code, said: r.log.trim().split('\n').slice(-4).join(' | ').slice(0, 600) })
+      else failed.push({ format, exitCode: r.code, said: saidOf(r.log).slice(0, 600) })
     }
   } catch (e) {
     if (e.cancelled) await finish({ ok: false, cancelled: true }).catch(() => {})

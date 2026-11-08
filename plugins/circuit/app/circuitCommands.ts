@@ -6,6 +6,7 @@
 // Reverse Engineer as solids — the board, its copper, the components'
 // keep-outs (bodies). The panel's every control runs one of these.
 
+import { bodiesBox } from '../../_shared/bodiesBox'
 import { runCommand, runWithin } from '../../../src/commands/registry'
 import { anyObject, arr, bool, enumOf, num, obj, str } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
@@ -390,7 +391,7 @@ const bodies: Command<{ parts?: Partial<Record<'board' | 'copperTop' | 'copperBo
     ctx.progress('Building the board…')
     let a
     try {
-      a = await buildSolidsInWorker({ board: l.board, options: { ...SOLID_DEFAULTS, ...on, copper: copper ?? s.copper, keepoutHeight: keepoutHeight ?? s.keepoutHeight }, out: 'step' }, ctx.signal)
+      a = await buildSolidsInWorker({ board: l.board, options: { ...SOLID_DEFAULTS, ...on, copper: copper ?? s.copper, keepoutHeight: keepoutHeight ?? s.keepoutHeight }, out: 'step', avoid: bodiesBox() }, ctx.signal)
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e)
       throw new CommandError('failed', m === 'Stopped.' ? 'Stopped.' : `The board could not be built: ${m}`)
