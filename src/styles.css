@@ -653,6 +653,37 @@ button.block {
   display: none;
 }
 
+/* 6. Narrower — a window beside another — the brand gives up its name to
+   its mark, the save status its second line, and the project's name shrinks
+   further, so the tabs keep room to be reached. */
+.top[data-fold~='6'] .brand {
+  display: none;
+}
+
+.top[data-fold~='6'] .project-save-status small {
+  display: none;
+}
+
+.top[data-fold~='6'] .projectname {
+  min-width: 56px;
+  max-width: 120px;
+}
+
+/* 7. Narrower still: the part chip and the source-code key go (the part's name is
+   in the panel's model row, the source in the imprint), and the save status
+   keeps its words in its tooltip. */
+.top[data-fold~='7'] .partchip,
+.top[data-fold~='7'] a.iconbtn {
+  display: none;
+}
+
+.top[data-fold~='7'] .project-save-status {
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The tabs and the keys at their ends that bring hidden ones into view. */
 .tabstrip {
   display: flex;
@@ -683,31 +714,31 @@ button.block {
   background: var(--accent-soft);
 }
 
-/* 6. With many workspaces (plugins add theirs) the tabs scroll on their
+/* 8. Last, with many workspaces (plugins add theirs) the tabs scroll on their
    own, in the room the row has, so New, Save, Load and Settings stay in
    reach; the open tab is kept in view (TopBar). */
-.top[data-fold~='6'] .tabstrip {
+.top[data-fold~='8'] .tabstrip {
   flex: 0 1 auto;
   min-width: 132px;
 }
 
-.top[data-fold~='6'] .modeswitch {
+.top[data-fold~='8'] .modeswitch {
   flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.top[data-fold~='6'] .modeswitch::-webkit-scrollbar {
+.top[data-fold~='8'] .modeswitch::-webkit-scrollbar {
   display: none;
 }
 
-.top[data-fold~='6'] .modeswitch button {
+.top[data-fold~='8'] .modeswitch button {
   flex: none;
 }
 
 /* …and the part chip keeps enough to show the start of the part's name. */
-.top[data-fold~='6'] .partchip {
+.top[data-fold~='8'] .partchip {
   flex: 0 0 auto;
   max-width: 140px;
 }
