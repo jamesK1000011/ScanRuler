@@ -90,7 +90,8 @@ const setup: Command<{ material?: string; density?: number | null; infill?: numb
   }),
   history: false,
   run: async ({ material, density: d, infill, walls, lineMm, filler }) => {
-    st().set({ ...(material ? { material } : {}), ...(d !== undefined ? { density: d ?? undefined } : {}), ...(infill !== undefined ? { infill } : {}), ...(walls !== undefined ? { walls } : {}), ...(lineMm !== undefined ? { lineMm } : {}), ...(filler ? { filler } : {}), reading: null, pocket: null })
+    st().set({ ...(material ? { material } : {}), ...(d !== undefined ? { density: d ?? undefined } : {}), ...(infill !== undefined ? { infill } : {}), ...(walls !== undefined ? { walls } : {}), ...(lineMm !== undefined ? { lineMm } : {}), ...(filler ? { filler } : {}) })
+    useMass.setState({ reading: null, pocket: null })
     return describeMass()
   },
 }
@@ -102,7 +103,11 @@ const properties: Command<{ bodies?: string[] }> = {
   input: obj({ bodies: arr(str(undefined, { minLength: 1 }), 'Bodies by name.', { minItems: 1 }) }),
   readOnly: true,
   long: true,
-  run: async ({ bodies }) => {
+  run: async ({ bodies }) => weigh(bodies),
+}
+
+async function weigh(bodies?: string[]) {
+  {
     useMass.setState({ busy: 'Weighing…' })
     try {
       const list = await measure(bodies)
@@ -113,7 +118,7 @@ const properties: Command<{ bodies?: string[] }> = {
     } finally {
       useMass.setState({ busy: null })
     }
-  },
+  }
 }
 
 const calibrate: Command<{ grams?: number; body?: string; reset?: boolean }> = {
@@ -148,10 +153,14 @@ const target: Command<{ mass?: number; com?: V3; clear?: boolean }> = {
   input: obj({ mass: num('g.', { exclusiveMinimum: 0 }), com: vec3('mm, part frame.'), clear: { type: 'boolean' } }),
   history: false,
   run: async ({ mass, com, clear }) => {
-    if (clear) st().set({ target: null, pocket: null })
+    if (clear) {
+      st().set({ target: null })
+      useMass.setState({ pocket: null })
+    }
     else {
       if (mass === undefined && com === undefined) throw new CommandError('invalid_input', 'Give the mass wanted, the balance point, or both.')
-      st().set({ target: { ...(st().target ?? {}), ...(mass !== undefined ? { mass } : {}), ...(com ? { com } : {}) }, pocket: null })
+      st().set({ target: { ...(st().target ?? {}), ...(mass !== undefined ? { mass } : {}), ...(com ? { com } : {}) } })
+      useMass.setState({ pocket: null })
     }
     return describeMass()
   },
@@ -178,7 +187,7 @@ const plan: Command<{ body?: string; filler?: string; width?: number; depth?: nu
     if (!t) throw new CommandError('invalid_state', 'Set the target first (mass.target { mass, com }).')
     if (filler) st().set({ filler })
     const fill = FILLERS[st().filler]
-    if (!st().reading) await properties.run({}, undefined)
+    if (!st().reading) await weigh()
     const reading = st().reading!
     const name = body ?? (reading.bodies.length === 1 ? reading.bodies[0].body : null)
     if (!name) throw new CommandError('invalid_input', `Say which body the pocket goes in (body): ${reading.bodies.map((b) => b.body).join(', ')}.`)
