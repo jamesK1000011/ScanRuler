@@ -71,9 +71,12 @@ export interface Run {
 export function stopRule(runs: readonly Run[], tolerance: number, maxRuns = 3): { stop: boolean; why: string } {
   const last = runs.at(-1)
   if (!last) return { stop: false, why: 'no run yet' }
+  // units-ok: the agent's readout, in millimetres always
   if (last.rms <= tolerance) return { stop: true, why: `the print is within ${tolerance} mm RMS of the target` }
   const prev = runs.at(-2)
+  // units-ok: the agent's readout, in millimetres always
   if (prev && last.rms > 0.8 * prev.rms) return { stop: true, why: `run ${last.n} gained less than a fifth on run ${prev.n} (${prev.rms} → ${last.rms} mm RMS): what is left is not a shape error a pre-warp undoes — look at the print itself` }
   if (runs.length >= maxRuns) return { stop: true, why: `${maxRuns} runs made` }
+  // units-ok: the agent's readout, in millimetres always
   return { stop: false, why: `${last.rms} mm RMS — print the pre-warped model, scan it, and run again` }
 }
