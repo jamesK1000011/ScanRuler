@@ -189,7 +189,7 @@ test('fab package: protel names, plated and unplated drills, JLCPCB columns, DRC
   const { env, board, dir, runs } = await setUp(9)
   await writeFile(join(dir, 'tiny.kicad_sch'), '(kicad_sch (version 20231120))')
   const r = await fabPackage({ path: board }, env)
-  assert.deepEqual(r.files.filter((f) => !f.includes('/')).sort(), ['tiny-NPTH.DRL', 'tiny-PTH.DRL', 'tiny.GBL', 'tiny.GBO', 'tiny.GBP', 'tiny.GBS', 'tiny.GKO', 'tiny.GTL', 'tiny.GTO', 'tiny.GTP', 'tiny.GTS', 'tiny.gbrjob'])
+  assert.deepEqual(r.files.filter((f) => !f.includes('/')).sort(), ['tiny-NPTH-drl_map.gbr', 'tiny-NPTH.DRL', 'tiny-PTH-drl_map.gbr', 'tiny-PTH.DRL', 'tiny.GBL', 'tiny.GBO', 'tiny.GBP', 'tiny.GBS', 'tiny.GKO', 'tiny.GTL', 'tiny.GTO', 'tiny.GTP', 'tiny.GTS', 'tiny.gbrjob'])
   assert.ok(r.files.includes('assembly/tiny-pos.csv'))
   assert.ok(r.files.includes('assembly/tiny-bom.csv'))
   assert.ok(r.files.includes('reports/tiny-drc.json'))
@@ -207,8 +207,12 @@ test('fab package: protel names, plated and unplated drills, JLCPCB columns, DRC
   const drill = (await runs()).find((x) => x.cmd === 'pcb export drill')
   assert.equal(drill.flags['--excellon-separate-th'], true)
   assert.equal(drill.flags['--excellon-units'], 'mm')
+  assert.equal(drill.flags['--map-format'], 'gerberx2')
+  // JLCPCB's KiCad guide: silkscreen subtracted from the mask openings.
+  assert.equal((await runs()).find((x) => x.cmd === 'pcb export gerbers').flags['--subtract-soldermask'], true)
   const kicadNames = await fabPackage({ path: board, naming: 'kicad', drc: false }, env)
   assert.ok(kicadNames.files.includes('tiny-F_Cu.gbr'))
+  assert.equal((await runs()).filter((x) => x.cmd === 'pcb export gerbers').pop().flags['--subtract-soldermask'], undefined)
   assert.equal(kicadNames.drc, null)
   await assert.rejects(fabPackage({ path: board, naming: 'gerber' }, env), /naming is fab or kicad/)
 })
@@ -239,7 +243,9 @@ test('DRC: exit 5 is violations, exit 0 clean; the summary', async () => {
 
 test('names and columns for a board house', () => {
   assert.equal(fabName('b-F_Cu.gtl', 'b', 'fab'), 'b.GTL')
-  assert.equal(fabName('b-In1_Cu.g2', 'b', 'fab'), 'b.G2')
+  assert.equal(fabName('b-In1_Cu.g1', 'b', 'fab'), 'b.G2L')
+  assert.equal(fabName('b-In2_Cu.g2', 'b', 'fab'), 'b.G3L')
+  assert.equal(fabName('b-PTH-drl_map.gbr', 'b', 'fab'), 'b-PTH-drl_map.gbr')
   assert.equal(fabName('b-Edge_Cuts.gm1', 'b', 'fab'), 'b.GKO')
   assert.equal(fabName('my-board-B_Silkscreen.gbo', 'my-board', 'fab'), 'my-board.GBO')
   assert.equal(fabName('b-F_Cu.gtl', 'b', 'kicad'), 'b-F_Cu.gtl')
@@ -279,4 +285,90 @@ test('the real kicad-cli, where installed', { skip: real ? false : 'kicad-cli is
   const f = await fabPackage({ path: board, drc: t.commands.drc.ok }, env)
   assert.ok(f.files.some((x) => /\.GTL$/.test(x)))
   assert.ok(f.files.some((x) => /NPTH\.DRL$/.test(x)))
+})
+
+test('KiCad 10: every flag used is still listed; a 4-layer board names its inner layers as JLCPCB lists them', async () => {
+  const { env, board, dir, runs } = await setUp(10)
+  const t = await kicadTools(env, { fresh: true })
+  assert.equal(t.major, 10)
+  for (const [id, c] of Object.entries(t.commands)) assert.equal(c.ok, true, id)
+  // The same board with two inner copper layers.
+  const text = (await readFile(board, 'utf8')).replace(/\(layers/, '(layers (1 "In1.Cu" signal) (2 "In2.Cu" signal)')
+  await writeFile(board, text)
+  const r = await fabPackage({ path: board, drc: false }, env)
+  assert.ok(r.files.includes('tiny.G2L') && r.files.includes('tiny.G3L'), r.files.join(' '))
+  assert.ok((await runs()).some((x) => x.cmd === 'pcb export gerbers' && /In1\.Cu,In2\.Cu/.test(x.flags['--layers'])))
+  void dir
+})
+
+// ---- the board read: tricky outlines (red team) -------------------------------------
+
+const ec = (body) => `${body} (stroke (width 0.05) (type default)) (layer "Edge.Cuts")`
+const sizeOf = (text) => readBoard(text).size
+
+test('outline: a gr_poly with an arc among its points (KiCad 7 on) keeps the arc', () => {
+  const b = readBoard(`(kicad_pcb (version 20221018) (general (thickness 1.2)) (gr_poly (pts (xy 0 0) (xy 40 0) (arc (start 40 0) (mid 50 10) (end 40 20)) (xy 0 20)) ${ec('(fill none)')}))`)
+  assert.deepEqual(b.size, [50, 20])
+  assert.ok(b.outline.some(([x]) => x === 25))
+})
+
+test('outline: an arc’s box is the arc’s, not its chords’ (start/mid/end across a quarter)', () => {
+  // start (0,30) mid (15,35) end (30,30): centre (15,10), r 25 — its top at y 35.
+  const t = `(kicad_pcb (version 20241229) (general (thickness 0.8))
+    (gr_line (start 0 0) (end 30 0) ${ec('')}) (gr_line (start 30 30) (end 30 0) ${ec('')})
+    (gr_arc (start 0 30) (mid 15 35) (end 30 30) ${ec('')}) (gr_line (start 0 30) (end 0 0) ${ec('')}))`
+  assert.deepEqual(sizeOf(t), [30, 35])
+})
+
+test('outline: a Bézier edge (gr_curve) closes the outline', () => {
+  const t = `(kicad_pcb (version 20240108) (general (thickness 1.6))
+    (gr_line (start 0 0) (end 40 0) ${ec('')}) (gr_line (start 40 0) (end 40 20) ${ec('')})
+    (gr_curve (pts (xy 40 20) (xy 30 30) (xy 10 30) (xy 0 20)) ${ec('')}) (gr_line (start 0 20) (end 0 0) ${ec('')}))`
+  const b = readBoard(t)
+  assert.equal(b.size[0], 40)
+  assert.ok(Math.abs(b.size[1] - 27.5) < 1e-3, String(b.size[1]))
+})
+
+test('outline: KiCad 5 arcs (centre, start, angle) either way round', () => {
+  const lines = '(gr_line (start 0 0) (end 45 0) (layer Edge.Cuts) (width 0.05)) (gr_line (start 50 5) (end 50 30) (layer Edge.Cuts) (width 0.05)) (gr_line (start 50 30) (end 0 30) (layer Edge.Cuts) (width 0.05)) (gr_line (start 0 30) (end 0 0) (layer Edge.Cuts) (width 0.05))'
+  for (const arc of ['(gr_arc (start 45 5) (end 45 0) (angle 90) (layer Edge.Cuts) (width 0.05))', '(gr_arc (start 45 5) (end 50 5) (angle -90) (layer Edge.Cuts) (width 0.05))']) {
+    const b = readBoard(`(kicad_pcb (version 20171130) (host pcbnew 5.1.9) (general (thickness 1.6)) ${lines} ${arc})`)
+    assert.deepEqual(b.size, [50, 30])
+    // The corner is rounded the right way (about (45, 5) in KiCad's frame, (20, 10) here), not cut or bulging out.
+    const corner = b.outline.filter(([x, y]) => x > 20 && y > 10)
+    assert.ok(corner.length > 5 && corner.every(([x, y]) => Math.abs(Math.hypot(x - 20, y - 10) - 5) < 1e-3), arc)
+  }
+})
+
+test('connectors rotated 0, 90, 180 and 270 at each edge; holes as NPTH and plated MountingHole footprints', () => {
+  const crt = '(fp_rect (start -4.5 -4) (end 4.5 3.6) (stroke (width 0.05) (type default)) (fill none) (layer "F.CrtYd"))'
+  const fp = (ref, at, body, name = 'Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12') => `(footprint "${name}" (layer "F.Cu") (at ${at.join(' ')}) (property "Reference" "${ref}" (at 0 0 0) (layer "F.SilkS")) ${body})`
+  const t = `(kicad_pcb (version 20240108) (general (thickness 1.6))
+    (gr_rect (start 100 100) (end 200 160) ${ec('(fill none)')})
+    ${fp('H1', [104, 104], '(pad "" np_thru_hole circle (at 0 0) (size 3.2 3.2) (drill 3.2) (layers "*.Cu" "*.Mask"))', 'MountingHole:MountingHole_3.2mm_M3')}
+    ${fp('H2', [196, 156, 45], '(pad "1" thru_hole circle (at 0 0) (size 6 6) (drill 3.2) (layers "*.Cu")) (pad "1" thru_hole circle (at 2.25 0) (size 0.7 0.7) (drill 0.4) (layers "*.Cu"))', 'MountingHole:MountingHole_3.2mm_M3_Pad_Via')}
+    ${fp('J1', [150, 103.5, 0], crt)} ${fp('J2', [196.5, 130, 90], crt)} ${fp('J3', [103.5, 130, 270], crt)} ${fp('J4', [120, 156.5, 180], crt)})`
+  const b = readBoard(t)
+  assert.deepEqual(b.holes.map((h) => [h.ref, h.x, h.y, h.d, h.plated]), [['H1', -46, 26, 3.2, false], ['H2', 46, -26, 3.2, true]])
+  const c = Object.fromEntries(b.connectors.map((k) => [k.ref, [k.side, k.inset, k.centre, k.box.min, k.box.max]]))
+  // KiCad turns a footprint anticlockwise as drawn (y down): the courtyard's
+  // −y end (−4) goes to −x at 90°, to +y (down, our −y) at 180°, to +x at 270°.
+  assert.deepEqual(c.J1, ['+y', -0.5, 0, [-4.5, 22.9], [4.5, 30.5]])
+  assert.deepEqual(c.J2, ['+x', -0.1, 0, [42.5, -4.5], [50.1, 4.5]])
+  assert.deepEqual(c.J3, ['-x', -0.1, 0, [-50.1, -4.5], [-42.5, 4.5]])
+  assert.deepEqual(c.J4, ['-y', -0.5, -30, [-34.5, -30.5], [-25.5, -22.9]])
+})
+
+test('outline drawn inside a footprint, turned with it; an L-shaped board', () => {
+  const slot = `(kicad_pcb (version 20240108) (general (thickness 1.6)) (gr_rect (start 0 0) (end 60 40) ${ec('(fill none)')})
+    (footprint "Slot" (layer "F.Cu") (at 30 20 90) (property "Reference" "S1" (at 0 0 0) (layer "F.SilkS")) (fp_rect (start -10 -1) (end 10 1) ${ec('(fill none)')})))`
+  const b = readBoard(slot)
+  assert.equal(b.cutouts.length, 1)
+  const xs = b.cutouts[0].map((p) => p[0])
+  const ys = b.cutouts[0].map((p) => p[1])
+  // 20 long along the footprint's x, which the 90° turn lays along y.
+  assert.deepEqual([Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)], [-1, 1, -10, 10])
+  const L = readBoard(`(kicad_pcb (version 20240108) (general (thickness 1.6)) (gr_poly (pts (xy 0 0) (xy 60 0) (xy 60 20) (xy 30 20) (xy 30 50) (xy 0 50)) ${ec('(fill none)')}))`)
+  assert.deepEqual(L.size, [60, 50])
+  assert.equal(L.outline.length, 7) // closed: the first point again
 })

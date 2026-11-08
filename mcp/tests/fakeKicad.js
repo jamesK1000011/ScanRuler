@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // A stand-in kicad-cli for the Boards extras' tests: it answers `version`
 // and each command's --help with the flags that KiCad version's own help
-// lists (KiCad 7, 8 and 9, from KiCad's command-line reference), refuses a
+// lists (KiCad 7, 8, 9 and 10, from KiCad's command-line reference), refuses a
 // flag its help does not list as the real one does, and writes what the
 // real one writes — a STEP, Gerbers named as KiCad names them, drill files
 // with plated and unplated holes apart, a placement CSV, a DRC report in
@@ -30,12 +30,24 @@ export const HELP = {
 HELP[9] = {
   ...HELP[8],
   'pcb export step': [...HELP[8]['pcb export step'], '--cut-vias-in-body', '--no-board-body', '--no-components', '--component-filter', '--include-pads', '--include-inner-copper', '--include-silkscreen', '--include-soldermask', '--fuse-shapes', '--fill-all-vias', '--net-filter'],
-  'pcb export gerbers': [...HELP[8]['pcb export gerbers'], '--sketch-pads-on-fab-layers', '--plot-invisible-text'],
+  'pcb export gerbers': [...HELP[8]['pcb export gerbers'], '--sketch-pads-on-fab-layers', '--hide-DNP-footprints-on-fab-layers', '--sketch-DNP-footprints-on-fab-layers', '--crossout-DNP-footprints-on-fab-layers', '--plot-invisible-text'],
   'sch export bom': [...HELP[8]['sch export bom'], '--include-excluded-from-bom'],
+}
+// KiCad 10 (docs.kicad.org/10.0/en/cli/cli.html): DRC can refill zones and
+// save the board, drill gains its report and tenting, Gerbers lose
+// --plot-invisible-text and gain --check-zones and --variant, pos and step
+// gain --variant (step --no-extra-pad-thickness too).
+HELP[10] = {
+  ...HELP[9],
+  'pcb drc': [...HELP[9]['pcb drc'], '--refill-zones', '--save-board'],
+  'pcb export drill': [...HELP[9]['pcb export drill'], '--generate-report', '--report-path', '--generate-tenting'],
+  'pcb export gerbers': [...HELP[9]['pcb export gerbers'].filter((f) => f !== '--plot-invisible-text'), '--check-zones', '--variant'],
+  'pcb export pos': [...HELP[9]['pcb export pos'], '--variant'],
+  'pcb export step': [...HELP[9]['pcb export step'], '--variant', '--no-extra-pad-thickness'],
 }
 
 /** The flags that take a value, as kicad-cli reads them. */
-const VALUED = ['--output', '--layers', '--user-origin', '--format', '--units', '--side', '--excellon-units', '--fields', '--labels', '--group-by', '--min-distance', '--define-var', '--map-format', '--drill-origin', '--excellon-zeros-format', '--excellon-oval-format', '--precision', '--common-layers', '--drawing-sheet', '--preset', '--format-preset', '--sort-field', '--filter', '--field-delimiter', '--string-delimiter', '--ref-delimiter', '--ref-range-delimiter', '--gerber-precision', '--component-filter', '--net-filter']
+const VALUED = ['--output', '--layers', '--user-origin', '--format', '--units', '--side', '--excellon-units', '--fields', '--labels', '--group-by', '--min-distance', '--define-var', '--map-format', '--drill-origin', '--excellon-zeros-format', '--excellon-oval-format', '--precision', '--common-layers', '--drawing-sheet', '--preset', '--format-preset', '--sort-field', '--filter', '--field-delimiter', '--string-delimiter', '--ref-delimiter', '--ref-range-delimiter', '--gerber-precision', '--component-filter', '--net-filter', '--report-path', '--variant']
 
 const SCRIPT = (version, help) => `#!/usr/bin/env node
 const fs = require('fs'), path = require('path')
@@ -74,7 +86,8 @@ if (cmd === 'pcb export gerbers') {
   const ext = { 'F.Cu': 'gtl', 'B.Cu': 'gbl', 'F.Mask': 'gts', 'B.Mask': 'gbs', 'F.SilkS': 'gto', 'B.SilkS': 'gbo', 'F.Paste': 'gtp', 'B.Paste': 'gbp', 'Edge.Cuts': 'gm1' }
   const names = { 'F.SilkS': 'F_Silkscreen', 'B.SilkS': 'B_Silkscreen' }
   for (const l of String(flags['--layers']).split(',')) {
-    const e = flags['--no-protel-ext'] ? 'gbr' : (ext[l] || 'gbr')
+    const inner = /^In(\\d+)\\.Cu$/.exec(l)
+    const e = flags['--no-protel-ext'] ? 'gbr' : inner ? 'g' + inner[1] : (ext[l] || 'gbr')
     fs.writeFileSync(path.join(out, name + '-' + (names[l] || l.replace('.', '_')) + '.' + e), 'G04 fake ' + l + '*\\nM02*\\n')
   }
   fs.writeFileSync(path.join(out, name + '-job.gbrjob'), '{}')
@@ -83,6 +96,7 @@ if (cmd === 'pcb export gerbers') {
 if (cmd === 'pcb export drill') {
   if (!flags['--excellon-separate-th']) fs.writeFileSync(path.join(out, name + '.drl'), 'M48\\n')
   else { fs.writeFileSync(path.join(out, name + '-PTH.drl'), 'M48\\n;PTH\\n'); fs.writeFileSync(path.join(out, name + '-NPTH.drl'), 'M48\\n;NPTH\\n') }
+  if (flags['--generate-map']) for (const k of flags['--excellon-separate-th'] ? ['-PTH', '-NPTH'] : ['']) fs.writeFileSync(path.join(out, name + k + '-drl_map.' + (flags['--map-format'] === 'gerberx2' ? 'gbr' : flags['--map-format'] || 'pdf')), 'G04 map*\\n')
   process.exit(0)
 }
 if (cmd === 'pcb export pos') {
@@ -105,7 +119,7 @@ process.exit(0)
 /** A fake kicad-cli of the given major version in dir; its path. */
 export async function fakeKicad(dir, major = 9) {
   const help = HELP[major]
-  const version = major === 7 ? '7.0.11' : major === 8 ? '8.0.8' : '9.0.2'
+  const version = major === 7 ? '7.0.11' : major === 8 ? '8.0.8' : major === 10 ? '10.0.0' : '9.0.2'
   const path = join(dir, 'kicad-cli')
   await writeFile(path, SCRIPT(version, help))
   await chmod(path, 0o755)

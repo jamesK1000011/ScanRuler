@@ -142,10 +142,28 @@ function arcPoints(a, m, b) {
   if (Math.abs(sweep) < 1e-9) sweep = 2 * Math.PI
   t1 = t0 + sweep
   const steps = Math.max(2, Math.ceil(Math.abs(sweep) / (5 * deg)))
+  // Every 5° or less, and on each quarter the arc passes (where it reaches
+  // furthest along x or y), so the outline's box is the arc's own, not its
+  // chords'.
+  const ts = []
+  for (let i = 1; i < steps; i++) ts.push((sweep * i) / steps)
+  const dir = Math.sign(sweep)
+  for (let q = Math.ceil((dir * t0) / (Math.PI / 2) + 1e-9); ; q++) {
+    const d = dir * q * (Math.PI / 2) - t0
+    if (Math.abs(d) >= Math.abs(sweep) - 1e-9) break
+    if (Math.abs(d) > 1e-9) ts.push(d)
+  }
+  ts.sort((x, y) => dir * (x - y))
+  return [a, ...ts.map((d) => [k.c[0] + k.r * Math.cos(t0 + d), k.c[1] + k.r * Math.sin(t0 + d)]), b]
+}
+
+/** Points along a cubic Bézier (KiCad's gr_curve / bezier), 32 pieces. */
+function bezierPoints([p0, p1, p2, p3]) {
   const out = []
-  for (let i = 0; i <= steps; i++) {
-    const t = t0 + (sweep * i) / steps
-    out.push(i === 0 ? a : i === steps ? b : [k.c[0] + k.r * Math.cos(t), k.c[1] + k.r * Math.sin(t)])
+  for (let i = 0; i <= 32; i++) {
+    const t = i / 32
+    const u = 1 - t
+    out.push(i === 0 ? p0 : i === 32 ? p3 : [0, 1].map((j) => u * u * u * p0[j] + 3 * u * u * t * p1[j] + 3 * u * t * t * p2[j] + t * t * t * p3[j]))
   }
   return out
 }
@@ -235,8 +253,29 @@ function pieces(item, place = (p) => p) {
     return [{ loop: [...pts, pts[0]] }]
   }
   if (kind === 'poly') {
-    const pts = findAll(find(item, 'pts'), 'xy').map((p) => P(p)).filter(Boolean)
+    // Its corners, and (KiCad 7 on) arcs among them: (arc (start) (mid) (end)).
+    const pts = []
+    for (const q of find(item, 'pts') ?? []) {
+      if (!isList(q)) continue
+      if (q[0] === 'xy') {
+        const p = P(q)
+        if (p) pts.push(p)
+      } else if (q[0] === 'arc') {
+        const [s, m, e] = ['start', 'mid', 'end'].map((k) => P(find(q, k)))
+        if (s && m && e) {
+          const run = arcPoints(s, m, e)
+          const last = pts[pts.length - 1]
+          pts.push(...(last && Math.hypot(last[0] - s[0], last[1] - s[1]) < 1e-6 ? run.slice(1) : run))
+        }
+      }
+    }
+    if (pts.length > 1 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1e-6) pts.pop()
     return pts.length >= 3 ? [{ loop: [...pts, pts[0]] }] : []
+  }
+  if (kind === 'curve') {
+    // A cubic Bézier: four control points.
+    const ctl = findAll(find(item, 'pts'), 'xy').map((p) => P(p))
+    return ctl.length === 4 && ctl.every(Boolean) ? [{ open: bezierPoints(ctl) }] : []
   }
   return []
 }
@@ -357,7 +396,7 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
 
   // The outline: every Edge.Cuts item on the board and in its footprints.
   const edge = []
-  for (const item of root) if (isList(item) && /^gr_(line|arc|circle|rect|poly)$/.test(item[0]) && layerOf(item) === 'Edge.Cuts') edge.push(...pieces(item))
+  for (const item of root) if (isList(item) && /^gr_(line|arc|circle|rect|poly|curve)$/.test(item[0]) && layerOf(item) === 'Edge.Cuts') edge.push(...pieces(item))
   const footprints = []
   for (const f of root) {
     if (!isList(f) || (f[0] !== 'footprint' && f[0] !== 'module')) continue
@@ -388,7 +427,7 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
         drill: dvals.length ? Math.min(...dvals) : 0,
       }
     })
-    const graphics = f.filter((x) => isList(x) && /^fp_(line|arc|circle|rect|poly)$/.test(x[0]))
+    const graphics = f.filter((x) => isList(x) && /^fp_(line|arc|circle|rect|poly|curve)$/.test(x[0]))
     for (const g of graphics) if (layerOf(g) === 'Edge.Cuts') edge.push(...pieces(g, place))
     const ptsOn = (re) => graphics.filter((g) => re.test(layerOf(g) ?? '')).flatMap((g) => pieces(g, place).flatMap((p) => p.open ?? p.loop))
     const padPts = pads.flatMap((p) => {

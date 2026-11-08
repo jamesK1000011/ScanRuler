@@ -413,8 +413,10 @@ export function fabName(file, boardName, naming) {
   if (ext === '.drl') return /NPTH/i.test(base) ? `${boardName}-NPTH.DRL` : /PTH/i.test(base) ? `${boardName}-PTH.DRL` : `${boardName}.DRL`
   if (ext === '.gbrjob') return `${boardName}.gbrjob`
   const layer = base.slice(base.lastIndexOf('-') + 1)
+  // Inner copper as JLCPCB's naming page lists it: the board's second
+  // layer .G2L, its third .G3L (In1.Cu is layer 2).
   const inner = /^In(\d+)_Cu$/.exec(layer)
-  if (inner) return `${boardName}.G${Number(inner[1]) + 1}`
+  if (inner) return `${boardName}.G${Number(inner[1]) + 1}L`
   return PROTEL[layer] ? `${boardName}.${PROTEL[layer]}` : file
 }
 
@@ -452,11 +454,18 @@ export async function fabPackage({ path, naming = 'fab', drc = true, dnp = false
   say('gerbers', `Gerbers: ${layers.join(', ')}`)
   const gArgs = [...COMMANDS.gerbers.args, '--output', `${gdir}/`, '--layers', layers.join(',')]
   if (naming === 'kicad' && gHas('--no-protel-ext')) gArgs.push('--no-protel-ext')
+  // JLCPCB's KiCad guide: silkscreen taken off where the mask opens (pads).
+  if (naming === 'fab' && gHas('--subtract-soldermask')) gArgs.push('--subtract-soldermask')
   gArgs.push(board.file)
   const g = await run(tools.path, gArgs, { env, signal, timeoutMs: 600_000, cwd: job })
   if (g.code !== 0) throw failed('plot the Gerbers', g)
   say('drill', 'Drill files')
-  const dArgs = [...COMMANDS.drill.args, '--output', `${gdir}/`, '--format', 'excellon', '--excellon-separate-th', '--excellon-units', 'mm', board.file]
+  const dHas = (f) => tools.commands.drill.has.includes(f)
+  const dArgs = [...COMMANDS.drill.args, '--output', `${gdir}/`, '--format', 'excellon', '--excellon-separate-th', '--excellon-units', 'mm']
+  // A drill map beside them, which board houses ask for (which holes are
+  // plated, how many slots), as a Gerber.
+  if (dHas('--generate-map') && dHas('--map-format')) dArgs.push('--generate-map', '--map-format', 'gerberx2')
+  dArgs.push(board.file)
   const d = await run(tools.path, dArgs, { env, signal, timeoutMs: 300_000, cwd: job })
   if (d.code !== 0) throw failed('write the drill files', d)
   say('pos', 'Placement list')
