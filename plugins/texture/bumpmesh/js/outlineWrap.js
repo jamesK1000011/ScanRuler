@@ -366,6 +366,7 @@ function cutTable(z, x, y, cx, cy) {
   const angle = X.map((xi, i) => Math.atan2(Y[i] - cy, xi - cx));
   const steps = angle.map((a, i) => half(angle[(i + 1) % n] - a));
   if (n < 3 || steps.reduce((sum, d) => sum + d, 0) < Math.PI) {
+    // units-ok: vendored BumpMesh text, in millimetres as BumpMesh writes it
     return `At z = ${mm(z)} mm, the centre of the bounding box lies outside the part's outline, so the outline wrap cannot go around it.`;
   }
 
@@ -398,6 +399,7 @@ function cutTable(z, x, y, cx, cy) {
     most = A[i + 1];
   }
   if (hidden > OUTLINE_FOLD_MM) {
+    // units-ok: vendored BumpMesh text, in millimetres as BumpMesh writes it
     return `At z = ${mm(z)} mm, a ray from the centre of the bounding box crosses the part's outline more than once, and ${mm(hidden)} mm of the outline lies hidden from the centre, so the outline wrap cannot follow it.`;
   }
 
