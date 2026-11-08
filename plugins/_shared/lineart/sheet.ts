@@ -47,6 +47,7 @@ const greyHex = (g = 0) => {
 
 export function toSvg(s: Sheet): string {
   const out: string[] = [
+    // units-ok: the SVG's size attribute: a sheet is drawn in millimetres
     `<svg xmlns="http://www.w3.org/2000/svg" width="${f(s.w)}mm" height="${f(s.h)}mm" viewBox="0 0 ${f(s.w)} ${f(s.h)}">`,
     `<rect width="${f(s.w)}" height="${f(s.h)}" fill="#ffffff"/>`,
   ]

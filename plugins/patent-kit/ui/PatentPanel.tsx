@@ -10,6 +10,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { saveFile } from '../../../src/app/exports'
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
+import { useLength, type BoundLength } from '../../../src/app/useUnits'
 import { Busy, Notes, Pager, Paper, Status } from '../../_shared/ui/kit'
 import { VIEW_NAMES } from '../../_shared/lineart/views'
 import { SECTIONS, type Section } from '../core/model'
@@ -66,10 +67,11 @@ const SECTION_NAMES: Record<Section, string> = {
   abstract: 'Abstract',
 }
 
-const figureName = (f: Json) =>
-  f.kind === 'section' ? `Section on ${f.section?.axis} = ${f.section?.offset} mm` : `${f.kind === 'exploded' ? 'Exploded ' : ''}${typeof f.view === 'string' ? f.view : 'custom'} view`
+const figureName = (f: Json, len: BoundLength) =>
+  f.kind === 'section' ? `Section on ${f.section?.axis} = ${len.fmt(f.section?.offset ?? 0, 2)}` : `${f.kind === 'exploded' ? 'Exploded ' : ''}${typeof f.view === 'string' ? f.view : 'custom'} view`
 
 export function PatentPanel() {
+  const len = useLength()
   const st = usePatent()
   const v = usePatentView()
   const [section, setSection] = useState<Section>('detailed')
@@ -87,6 +89,7 @@ export function PatentPanel() {
           Drawing sheets
           <InfoDot title="A draft for your attorney">
             <p>Line drawings and a draft description to take to a patent attorney. Nothing here is filed, uploaded or sent: Save writes to this computer only.</p>
+            {/* units-ok: quotes 37 CFR 1.84's limit as the rule states it */}
             <p>The drawings follow 37 CFR 1.84 — black lines, no shading, margins, numerals 3.2 mm or more. The checklist below is for the attorney to judge.</p>
           </InfoDot>
         </div>
@@ -133,7 +136,7 @@ export function PatentPanel() {
           {st.figures.map((f, i) => (
             <div className="kv" key={f.id} data-test="patent-figure">
               <span className="pl-num">{i + 1}</span>
-              <span className="name">{figureName(f)}</span>
+              <span className="name">{figureName(f, len)}</span>
               <button className="x" title="Remove this figure" disabled={busy} onClick={() => void run('figures', { remove: [f.id] })}>
                 ×
               </button>
@@ -161,8 +164,8 @@ export function PatentPanel() {
             ))}
           </select>
           <span>=</span>
-          <input type="number" value={cut.offset} step={1} onChange={(e) => setCut({ ...cut, offset: Number(e.target.value) })} />
-          <span>mm</span>
+          <input type="number" value={+len.toDisplay(cut.offset).toPrecision(6)} step={len.step(1)} onChange={(e) => setCut({ ...cut, offset: len.fromDisplay(Number(e.target.value)) })} />
+          <span>{len.word()}</span>
         </div>
         <div className="toolrow">
           <select value={cut.from} title="The figure the section is marked on" onChange={(e) => setCut({ ...cut, from: e.target.value })}>
