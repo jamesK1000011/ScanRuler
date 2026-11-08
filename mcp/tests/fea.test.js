@@ -152,3 +152,24 @@ test('the page asks for the tools and gets them; a solve with no part is refused
   assert.ok(a.find((x) => x.input.req === 'f1').input.result.materials.pla)
   assert.match(a.find((x) => x.input.req === 'f2').input.error, /not found|FreeCAD/)
 })
+
+test('a plate held by a bolt hole: the hole taken whole from a coarse display mesh', { skip, timeout: 300_000 }, async () => {
+  const hole = []
+  const N = 16
+  for (let i = 0; i < N; i++) {
+    const a = (2 * Math.PI * i) / N
+    const b = (2 * Math.PI * (i + 1)) / N
+    const p = (t, z) => [10 + 3 * Math.cos(t), 10 + 3 * Math.sin(t), z]
+    hole.push(...p(a, 0), ...p(b, 0), ...p(b, 4), ...p(a, 0), ...p(b, 4), ...p(a, 4))
+  }
+  const r = await solve({
+    step: readFileSync(new URL('./fea-plate.step', import.meta.url), 'utf8'),
+    build: [0, 0, 1],
+    material: { id: 'petg' },
+    fixtures: [{ name: 'bolt', triangles: hole }],
+    loads: [{ name: 'end', triangles: quad([60, 0, 0], [0, 20, 0], [0, 0, 4]), force: [0, 0, -20] }],
+  })
+  // Every face of the hole's wall held: none of the plate's top or bottom.
+  assert.ok(r.groups.fixtures[0].faces >= 40, `hole faces: ${r.groups.fixtures[0].faces}`)
+  assert.ok(r.worst.displacement > 2 && r.worst.displacement < 5)
+})

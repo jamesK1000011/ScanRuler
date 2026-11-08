@@ -259,7 +259,12 @@ export function surfaceOf(mesh) {
     const cr = cross(sub(b, a), sub(c, a))
     const area = norm(cr) / 2
     if (!(area > 0)) continue
-    faces.push({ nodes, normal: [cr[0] / (2 * area), cr[1] / (2 * area), cr[2] / (2 * area)], area, centre: [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3] })
+    // The centre on the curved face: the quadratic triangle at its middle
+    // (corners −1/9 each, mid-sides 4/9) — on a hole's wall, not inside it
+    // as the flat triangle's centre would be.
+    const m = nodes.slice(3).map(at)
+    const centre = [0, 1, 2].map((k) => (-(a[k] + b[k] + c[k]) + 4 * (m[0][k] + m[1][k] + m[2][k])) / 9)
+    faces.push({ nodes, normal: [cr[0] / (2 * area), cr[1] / (2 * area), cr[2] / (2 * area)], area, centre })
   }
   return faces
 }
@@ -535,7 +540,7 @@ export async function solve(job, env = process.env, { signal, progress = () => {
     const diag = pts.length ? Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) : 100
     const size = job.mesh?.size > 0 ? job.mesh.size : diag / (FINENESS[job.mesh?.fineness ?? 'medium'] ?? 24)
     progress('meshing', `elements about ${size.toPrecision(2)} mm`)
-    const g = await run(tools.gmsh.path, ['part.step', '-3', '-order', '2', '-clmax', String(size), '-clmin', String(size / 4), '-format', 'msh22', '-o', 'part.msh', '-nt', '4'], { cwd: dir, env: envFor(tools.gmsh.path, env), signal, timeoutMs: 600_000 })
+    const g = await run(tools.gmsh.path, ['part.step', '-3', '-order', '2', '-clmax', String(size), '-clmin', String(size / 4), '-setnumber', 'Mesh.MeshSizeFromCurvature', '12', '-format', 'msh22', '-o', 'part.msh', '-nt', '4'], { cwd: dir, env: envFor(tools.gmsh.path, env), signal, timeoutMs: 600_000 })
     if (g.code !== 0 || !existsSync(join(dir, 'part.msh'))) throw new Error(`Gmsh could not mesh the part: ${(g.err || g.out).split('\n').filter((l) => /error/i.test(l)).slice(-3).join(' ') || `exit ${g.code}`}`)
     const mesh = readMsh(await readFile(join(dir, 'part.msh'), 'utf8'))
     const elements = mesh.elements.length / 10
