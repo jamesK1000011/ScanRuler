@@ -162,12 +162,15 @@ try {
   await page.evaluate(() => [...document.querySelectorAll('[data-test=dfm-compare] button')].find((b) => /Back/.test(b.textContent))?.click())
   await page.waitForFunction(() => !document.querySelector('[data-test=dfm-compare]'), { timeout: 30_000 })
   await page.click('[data-test=dfm-review]')
-  await page.waitForFunction(() => (document.querySelector('[data-test=dfm-panel] .pl-notes')?.children.length ?? 0) >= 12, { timeout: 30_000 })
+  await page.waitForFunction(() => (document.querySelector('[data-test=dfm-review-list]')?.children.length ?? 0) >= 12, { timeout: 30_000 })
+  check(true, 'the design review shows in the panel')
   await page.screenshot({ path: join(OUT_DIR, 'dfm-panel.png') })
   await page.select('[data-test=dfm-guide]', '')
 
   const st = await ok('session_state', {})
   check(st.json?.plugins?.dfm?.last?.errors >= 1 && st.json.plugins.dfm.waivers === 1, `session_state: ${JSON.stringify(st.json?.plugins?.dfm)}`)
+} catch (e) {
+  fail(e.stack ?? String(e))
 } finally {
   await agent.close?.()
   await finish(browser, consoleErrors)
