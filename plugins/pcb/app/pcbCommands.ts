@@ -6,6 +6,8 @@
 // kicad-cli doing the KiCad work on this computer, through the agent's
 // server.
 
+import { bodiesBox } from '../../_shared/bodiesBox'
+import { clearOf, type Box3 } from '../../_shared/clear'
 import { runCommand, runWithin } from '../../../src/commands/registry'
 import { anyObject, arr, bool, bytes, enumOf, num, obj, oneOf, str } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
@@ -148,6 +150,8 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
     ctx.signal?.throwIfAborted()
     const before = reverseBodies()
     const had = new Set(before.map((b) => b.id))
+    // What stands already: the board is moved clear of it once it's in.
+    const standing = bodiesBox()
     ctx.progress('Bringing the board into Reverse Engineer…')
     const stem = board.name.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'board'
     try {
@@ -175,6 +179,19 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
     const boardBody = placed.board ? await rename(placed.board, stem, '#2e7d32') : null
     const named: Record<string, string> = {}
     for (const [ref, b] of Object.entries(placed.connectors)) named[ref] = await rename(b, `${stem} ${ref}`.slice(0, 80))
+    // The board's own frame, read before any move: the boxes stay in it.
+    const boxes = connectorBoxes(placed)
+    let offset = placed.offset
+    // Clear of the bodies standing (a bin, a coupon): board and parts move
+    // together, and the enclosure follows them by this same offset.
+    const freshBoxes = fresh.flatMap((b) => (b.bounds ? [b.bounds as Box3] : []))
+    const move = clearOf(freshBoxes, standing)
+    if (move) {
+      const ids = new Set(fresh.map((b) => b.id))
+      const names = reverseBodies().filter((b) => ids.has(b.id)).map((b) => b.name)
+      await runWithin('reverse.feature.add', { kind: 'moveBody', name: `${stem} clear of the other parts`.slice(0, 80), bodies: names, translate: move }, ctx)
+      offset = [offset[0] + move[0], offset[1] + move[1], offset[2] + move[2]]
+    }
     const imported: Imported = {
       at: now(),
       body: boardBody,
@@ -182,8 +199,8 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
       components: withParts,
       above: placed.above,
       below: placed.below,
-      offset: placed.offset,
-      boxes: connectorBoxes(placed),
+      offset,
+      boxes,
       kicad: r.kicad ?? null,
       warnings: (r.warnings ?? []).slice(0, 30),
     }
@@ -191,6 +208,7 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
     st().set({ path: p, board, imported, components: withParts, subst: subs, ...(same ? {} : { enclosureMade: null, skip: [] }) })
     const off = placed.offset.some((x) => Math.abs(x) > 0.05)
     return {
+      ...(move ? { moved: move.map(r2), moveNote: 'Moved clear of the bodies already there; pcb.enclosure follows it.' } : {}),
       board: boardBody,
       bodies: fresh.length,
       connectors: named,
