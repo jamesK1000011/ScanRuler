@@ -3039,10 +3039,10 @@ button.x:disabled {
   white-space: nowrap;
 }
 
-.modeswitch button.stage {
+.modeswitch button.tabgap {
   /* A new stage of the work — measure, model, make, share — set apart by a
-     rule of the switch's own well showing through. */
-  margin-left: 3px;
+     heavier rule than the one between tabs of a stage. */
+  border-left: 3px solid var(--line-strong);
 }
 
 .modeswitch button + button {
