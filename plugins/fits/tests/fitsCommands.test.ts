@@ -161,4 +161,14 @@ describe('fit.* commands', () => {
     await refused('pair', { nominal: 5, class: 'slip', clearance: 0.1 }, /not both/)
     await refused('pair', { nominal: 5 }, /class or a clearance/)
   })
+  it('red team: a material by its old name is taken and kept by its id; the list says where each strain comes from', async () => {
+    await runCommand('fit.set', { material: 'tpu' })
+    expect(useFits.getState().settings.material).toBe('tpu-95a')
+    const p = (await runCommand('fit.pair', { nominal: 6, class: 'press', material: 'abs', wall: 2 })) as Json
+    expect(p.strain.limit).toBe(0.016)
+    const l = (await runCommand('fit.list', {})) as Json
+    expect(l.materials.find((m: Json) => m.id === 'abs')).toMatchObject({ strain: 0.016, upright: 0.3, basis: 'printed' })
+    await expect(runCommand('fit.set', { material: 'wood' })).rejects.toThrow()
+    await runCommand('fit.set', { reset: true })
+  })
 })
