@@ -424,6 +424,7 @@ export function DfmPanel() {
           </div>
         ) : (
           <Notes
+            testId="dfm-review-list"
             items={v.review.map((c) => ({
               level: c.open ? 'warn' : c.checkedBy.length ? 'ok' : 'note',
               rule: c.checkedBy.length ? (c.open ? 'flagged' : 'checked') : 'yours',
