@@ -38,3 +38,6 @@ export function stop(why = 'Stopped.'): void {
   for (const b of builds.splice(0)) b.fail(new Error(why))
 }
 export const busy = () => builds.length > 0
+
+/** A change run within another, as the registry does it. */
+export const runWithin = runCommand

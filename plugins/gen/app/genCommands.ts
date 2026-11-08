@@ -4,7 +4,7 @@
 // Reverse Engineer as bodies of its own (an Import feature, saved with the
 // project, to cut, fillet and export like any other); or the file alone.
 
-import { runCommand } from '../../../src/commands/registry'
+import { runWithin } from '../../../src/commands/registry'
 import { anyObject, bool, enumOf, num, obj, str } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
@@ -136,7 +136,7 @@ const make: Command<{ generator?: string; params?: Record<string, unknown>; name
       const before = reverseBodies()
       const had = new Set(before.map((b) => b.id))
       const base = (name ?? a.parts.map((p) => p.name).join(' + ')).replace(/[\\/:*?"<>|]+/g, ' ').trim() || g.label
-      await runCommand('reverse.import.step', { bytes: new TextEncoder().encode(a.step), name: `${base}.step` })
+      await runWithin('reverse.import.step', { bytes: new TextEncoder().encode(a.step), name: `${base}.step` })
       const fresh = reverseBodies().filter((b) => !had.has(b.id))
       // Each part to the body that stands where it does (the file's order
       // is not promised), then named after it.
@@ -149,7 +149,7 @@ const make: Command<{ generator?: string; params?: Record<string, unknown>; name
         taken.delete(b.name.toLowerCase())
         let want = want0
         for (let n = 2; taken.has(want.toLowerCase()); n++) want = `${want0} ${n}`
-        if (want !== b.name) await runCommand('reverse.body.set', { body: b.id, name: want }).catch(() => (want = b.name))
+        if (want !== b.name) await runWithin('reverse.body.set', { body: b.id, name: want }).catch(() => (want = b.name))
         taken.add(want.toLowerCase())
         bodies.push(want)
       }
