@@ -117,9 +117,10 @@ export function PatentPanel() {
             ))}
           </select>
         </label>
-        <label className="field">
+        <label className="field pl-field">
           <span>The device is called</span>
           <input
+            className="pl-input"
             key={st.settings.title}
             type="text"
             defaultValue={st.settings.title}
