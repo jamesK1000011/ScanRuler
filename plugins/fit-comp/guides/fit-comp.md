@@ -70,3 +70,8 @@ The result can be slicer settings or a pre-compensated model.
   on a scanner calibrated to 0.1 % is not a finding.
 - A print can't be corrected tighter than it repeats. Before chasing
   0.02 mm, measure the same print twice, or two prints, to see the spread.
+
+## Before measuring
+
+- A scan with no true size (Meshroom's output, or one a few millimetres or several metres across) answers with `sizeWarning`. Scale it first with `scan_scale`, from a length measured on the real part; every offset read before that is in no unit.
+- A scan with cracks, or one exported as an assembly with insides, measures cleaner wrapped: `mesh_wrap` puts one closed skin round it, `mesh_apply_wrap` keeps it.
