@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.gen-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.gen-row > span:first-child { flex: 0 0 104px; color: var(--muted, #888); font-size: 12px; }
+.gen-row > select, .gen-row > input:not([type='checkbox']) { flex: 1; min-width: 0; }
