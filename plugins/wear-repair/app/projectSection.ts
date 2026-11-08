@@ -27,4 +27,11 @@ export const wearSection: ProjectSection<SavedWear> = {
     return () => useWear.getState().replace({ settings: { ...DEFAULT_WEAR, ...v.settings }, tags: v.tags, reference: v.reference ?? null, runs: v.runs })
   },
   hasContent: (v) => v.tags.length > 0 || v.runs.length > 0,
+  // What collect reads, so the project shows unsaved and New project asks.
+  watch(changed) {
+    const keys = ['settings', 'tags', 'reference', 'runs'] as const
+    return useWear.subscribe((s, prev) => {
+      if (keys.some((k) => s[k] !== prev[k])) changed()
+    })
+  },
 }
