@@ -5,7 +5,7 @@
 // is the one the caller saves.
 
 import { toPng } from '../../_shared/lineart/raster'
-import { toPdf, toSvg } from '../../_shared/lineart/sheet'
+import { pdfMissingNote, toPdf, toSvg } from '../../_shared/lineart/sheet'
 import { VIEW_NAMES } from '../../_shared/lineart/views'
 import { zip } from '../../_shared/zip'
 import { runCommand } from '../../../src/commands/registry'
@@ -350,10 +350,12 @@ const save: Command<{ format?: 'zip' | 'pdf' | 'spec' | 'md' }> = {
     if (format === 'md') return { file: { name: 'patent-draft.md', mimeType: 'text/markdown', bytes: new TextEncoder().encode(md) } }
     const spec = specification(s.draft, s.numerals, s.figures, s.settings)
     const specPdf = toPdf(spec.sheets)
-    if (format === 'spec') return { file: { name: 'patent-specification.pdf', mimeType: 'application/pdf', bytes: specPdf }, pages: spec.sheets.length, paragraphs: spec.paragraphs, findings: spec.findings }
+    const specMissing = pdfMissingNote(spec.sheets)
+    if (format === 'spec') return { file: { name: 'patent-specification.pdf', mimeType: 'application/pdf', bytes: specPdf }, pages: spec.sheets.length, paragraphs: spec.paragraphs, findings: spec.findings, ...(specMissing ? { note: specMissing } : {}) }
     const d = await drawAll((t) => ctx?.progress(t))
     const pdf = toPdf(d.layout.sheets)
-    if (format === 'pdf') return { file: { name: 'patent-drawings.pdf', mimeType: 'application/pdf', bytes: pdf }, sheets: d.layout.sheets.length, checklist: brief(d.findings) }
+    const missing = pdfMissingNote([...spec.sheets, ...d.layout.sheets])
+    if (format === 'pdf') return { file: { name: 'patent-drawings.pdf', mimeType: 'application/pdf', bytes: pdf }, sheets: d.layout.sheets.length, checklist: brief(d.findings), ...(pdfMissingNote(d.layout.sheets) ? { note: pdfMissingNote(d.layout.sheets) } : {}) }
     const enc = new TextEncoder()
     const checklist = [`# 37 CFR 1.84 checklist`, '', `> ${DRAFT_MARK}. A target, not a guarantee.`, '', ...d.findings.map((f) => `- [${f.ok ? 'x' : ' '}] ${f.rule} (${f.level})${f.figure ? ` FIG. ${f.figure}` : ''}: ${f.message}`), '', '## Specification (37 CFR 1.52, 1.72, 1.75, 1.77)', '', ...(spec.findings.length ? spec.findings.map((f) => `- [ ] ${f.rule} (${f.level}): ${f.message}`) : ['- [x] Every section the specification needs is there.']), ''].join('\n')
     const files = [
@@ -364,7 +366,7 @@ const save: Command<{ format?: 'zip' | 'pdf' | 'spec' | 'md' }> = {
       { name: 'numerals.csv', bytes: enc.encode(numeralsCsv(s.numerals)) },
       { name: 'checklist.md', bytes: enc.encode(checklist) },
     ]
-    return { file: { name: 'patent-kit.zip', mimeType: 'application/zip', bytes: zip(files) }, files: files.map((f) => f.name), sheets: d.layout.sheets.length, checklist: brief(d.findings) }
+    return { file: { name: 'patent-kit.zip', mimeType: 'application/zip', bytes: zip(files) }, files: files.map((f) => f.name), sheets: d.layout.sheets.length, checklist: brief(d.findings), ...(missing ? { note: missing } : {}) }
   },
 }
 

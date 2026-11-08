@@ -50,6 +50,7 @@ async function draw(sheet: number) {
 async function save(format: 'zip' | 'pdf' | 'spec' | 'md') {
   const r = await run('save', { format }, 'Saving…')
   if (r) saveFile((r.file as FileOut).name, new Blob([(r.file as FileOut).bytes as BlobPart], { type: (r.file as FileOut).mimeType }))
+  if (r?.note) useStore.getState().setStatus(String(r.note))
 }
 
 export function PatentSheet() {
