@@ -9,6 +9,7 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { links, SOURCES } from '../core/links'
 import { KINDS, lookup, match, PARTS, type Kind } from '../core/standards'
 import { useCatalog } from '../state/catalogStore'
+import { answered } from '../state/modelsStore'
 
 const KIND_IDS = KINDS.map((k) => k.kind)
 
@@ -76,4 +77,15 @@ export const provenance: Command<{ action?: 'list' | 'record' | 'forget'; file?:
   },
 }
 
-export const catalogCommands = [kinds, lookupCommand, matchCommand, linksCommand, provenance] as Command<never>[]
+export const answerCommand: Command<{ req: string; ok: boolean; result?: unknown; error?: string }> = {
+  name: 'answer',
+  title: 'A model library’s answer',
+  description: 'Used by the agent’s server: the answer to a search, a file list or a take the Catalog panel asked of it. Not for an agent.',
+  input: obj({ req: str(), ok: bool(), result: anyObject('The answer.'), error: str() }, ['req', 'ok']),
+  readOnly: true,
+  history: false,
+  internal: true,
+  run: async (a) => ({ taken: answered(a) }),
+}
+
+export const catalogCommands = [kinds, lookupCommand, matchCommand, linksCommand, provenance, answerCommand] as Command<never>[]

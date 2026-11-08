@@ -16,6 +16,7 @@ import { Busy, Status } from '../../_shared/ui/kit'
 import { KINDS, type Kind } from '../core/standards'
 import { SOURCES } from '../core/links'
 import { useCatalog } from '../state/catalogStore'
+import { ModelsSection } from './ModelsSection'
 import './catalog.css'
 
 type Json = Record<string, any>
@@ -172,9 +173,9 @@ function FindCad() {
   return (
     <div className="group">
       <div className="sec-head">
-        Find its CAD
-        <InfoDot title="Find its CAD">
-          <p>Opens each site's search for the part in your browser. You sign in where a site asks and click download yourself — nothing is fetched behind your back.</p>
+        Catalogues
+        <InfoDot title="Catalogues">
+          <p>For a part a maker sells — a screw, a bearing, a motor — opens each catalogue's own search in your browser. You sign in where a site asks and click download yourself — nothing is fetched behind your back.</p>
           <p>Ask Claude to watch your downloads: what arrives is brought into the project with its source and licence, and recorded below.</p>
         </InfoDot>
       </div>
@@ -307,6 +308,7 @@ export function CatalogPanel() {
   return (
     <aside className="panel" data-test="catalog-panel">
       <Busy text={busy} />
+      <ModelsSection />
       <Identify />
       <Lookup />
       <FindCad />
