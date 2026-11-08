@@ -9,7 +9,7 @@ import { Icon } from '../../../src/ui/icons'
 import { ExportMeshButton } from '../../../src/ui/ExportMeshButton'
 import type { MeshFormat } from '../../../src/core/exportMesh'
 import { TRIM_MARK_COLOR, useMeshTools } from '../state/meshStore'
-import { count, typedLen } from './meshFormat'
+import { count } from './meshFormat'
 
 /**
  * What is in the viewport with no tool in hand, as CAD's browser lists it:
@@ -56,7 +56,7 @@ export function PartsList({ busy, onExportReduced, onExportTrimmed }: { busy: bo
           name="Reduced mesh"
           dot="#7f8ba0"
           reading={`${count(report.triangles)} triangles`}
-          title="The scan reduced for CAD — shown in the scan's place, the two lying on one surface"
+          title="The scan reduced for CAD, shown in its place"
           shown={shownReduced}
           what="the reduced mesh"
           onToggle={() => setPartShown('reduced', !shownReduced)}
@@ -68,7 +68,7 @@ export function PartsList({ busy, onExportReduced, onExportTrimmed }: { busy: bo
           name={`${made.name}, trimmed`}
           dot={TRIM_MARK_COLOR}
           reading={len.vol(made.report.volume, 1)}
-          title={`The piece Trim to scan cut of ${made.name}, ${made.report.offset > 0 ? `${typedLen(made.report.offset, len.units)} off the break` : 'on the break'} — its mating face in teal, the scan a veil over it`}
+          title={`Repair piece cut from ${made.name}, mating face in teal`}
           shown={shownPiece}
           what="the piece"
           onToggle={() => setPartShown('piece', !shownPiece)}
@@ -83,7 +83,7 @@ export function PartsList({ busy, onExportReduced, onExportTrimmed }: { busy: bo
             name={b.name}
             dot="#8b95a3"
             reading={b.source}
-            title={`${b.name}, a body from ${b.source} — drawn see-through, as Boolean and Trim to scan offer it`}
+            title={`${b.name}, a body from ${b.source}`}
             shown={shown}
             what={b.name}
             onToggle={() => toggleBodyShown(b.key)}
@@ -102,7 +102,7 @@ export function PartsList({ busy, onExportReduced, onExportTrimmed }: { busy: bo
               testId="parts-export-reduced"
               disabled={busy}
               onExport={onExportReduced}
-              title="Save the reduced mesh as an STL or a 3MF where the part now stands"
+              title="Save the reduced mesh as STL or 3MF"
             />
           )}
           {made && (
@@ -111,7 +111,7 @@ export function PartsList({ busy, onExportReduced, onExportTrimmed }: { busy: bo
               testId="parts-export-trimmed"
               disabled={busy}
               onExport={onExportTrimmed}
-              title="Save the piece as an STL or a 3MF where the part now stands — any alignment or move you applied comes with it"
+              title="Save the piece as STL or 3MF, alignment included"
             />
           )}
         </div>

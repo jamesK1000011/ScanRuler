@@ -11,9 +11,9 @@ import { useMeshTools } from '../../state/meshStore'
 import { count } from '../meshFormat'
 
 const BOOLEAN_OPS: { id: BooleanOp; label: string; title: string }[] = [
-  { id: 'subtract', label: 'Subtract', title: 'Take the solid out of the mesh — a bore cut out with the cylinder modelled in it' },
-  { id: 'add', label: 'Add', title: 'Add the solid to the mesh — a boss the scan is missing put back on' },
-  { id: 'intersect', label: 'Intersect', title: 'Keep only what the mesh and the solid share — the part trimmed to a box' },
+  { id: 'subtract', label: 'Subtract', title: 'Subtract the solid from the mesh' },
+  { id: 'add', label: 'Add', title: 'Add the solid to the mesh' },
+  { id: 'intersect', label: 'Intersect', title: 'Keep only where the mesh and solid overlap' },
 ]
 
 export function BooleanTool({ ready, busy, onBoolean }: { ready: boolean; busy: boolean; onBoolean: () => void }) {

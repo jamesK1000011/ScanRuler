@@ -156,7 +156,7 @@ export function TrimTool({
               data-test="trim-find-again"
               disabled={busy}
               onClick={m.findTrimBreakAgain}
-              title="Mark the break afresh, where the scan lies deeper in the body than the depth — any change made by hand goes"
+              title="Find the break again (clears hand edits)"
             >
               Find again
             </button>
@@ -260,7 +260,8 @@ export function TrimTool({
                     and along the joint's edges, where the break was carried out past the part.
                   </p>
                   <p>
-                    <b>Gap</b> in the view bar colours the face by it. Least:{' '}
+                    <b>Gap</b> in the view bar colours the face by it, against the offset — grey past
+                    the rim of the break. Least:{' '}
                     {len.fmt(made.report.slab / 2 + made.report.fit.min, 3)}, most:{' '}
                     {len.fmt(made.report.slab / 2 + made.report.fit.max, 3)}.
                   </p>
@@ -297,7 +298,7 @@ export function TrimTool({
             testId="export-trimmed-mesh"
             disabled={busy}
             onExport={onExport}
-            title="Save the piece as an STL or a 3MF where the part now stands — any alignment or move you applied comes with it"
+            title="Save the piece as STL or 3MF, alignment included"
           />
         </div>
       )}

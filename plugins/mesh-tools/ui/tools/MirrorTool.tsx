@@ -13,8 +13,8 @@ import { cutPlaneOf } from '../../core/cutPlane'
 import { useMeshTools, type MirrorMode } from '../../state/meshStore'
 
 const MODES: { id: MirrorMode; label: string; title: string }[] = [
-  { id: 'whole', label: 'Whole part', title: 'Reflect the whole part across the plane — a left-hand part made of a right-hand one' },
-  { id: 'symmetric', label: 'Symmetric', title: 'Keep one side of the part and reflect it onto the other, which it replaces' },
+  { id: 'whole', label: 'Whole part', title: 'Mirror the whole part across the plane' },
+  { id: 'symmetric', label: 'Symmetric', title: 'Keep one side and mirror it onto the other' },
 ]
 
 export function MirrorTool({ ready, busy, onMirror }: { ready: boolean; busy: boolean; onMirror: () => void }) {
@@ -135,7 +135,7 @@ export function MirrorTool({ ready, busy, onMirror }: { ready: boolean; busy: bo
                 onClick={() => m.setMirrorKeep(k)}
                 title={
                   k === 'plus'
-                    ? 'Keep the side the direction points to, and mirror it onto the other'
+                    ? 'Keep the side the arrow points to, mirror it over'
                     : 'Keep the other side, and mirror it onto this one'
                 }
               >

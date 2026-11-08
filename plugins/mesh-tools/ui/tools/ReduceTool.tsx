@@ -71,6 +71,10 @@ export function ReduceTool({
               to the scan — and wherever it strays past the tolerance the scan is pinned there and
               reduced again, until {SHARE} of each side lies within it.
             </p>
+            <p>
+              <b>Accuracy</b> in the view bar colours the scan by how far the reduced mesh strays from
+              it: green where it lies on it, a dark cap past the tolerance.
+            </p>
           </InfoDot>
         </div>
 
@@ -225,21 +229,21 @@ export function ReduceTool({
             A preview: nothing has changed yet. Too coarse? Tighten the tolerance and reduce again.
           </p>
           <div className="toolrow">
-            <button data-test="reduce-discard" disabled={busy} onClick={onDiscard} title="Put the reduced mesh away — the mesh it was made of is as it was">
+            <button data-test="reduce-discard" disabled={busy} onClick={onDiscard} title="Throw away the reduced mesh; the original is untouched">
               Discard
             </button>
             <ExportMeshButton
               testId="export-reduced-mesh"
               disabled={busy}
               onExport={onExport}
-              title="Save the reduced mesh as an STL or a 3MF where the part now stands — any alignment or move you applied comes with it"
+              title="Save the reduced mesh as STL or 3MF, alignment included"
             />
             <button
               className="primary"
               data-test="reduce-apply"
               disabled={busy}
               onClick={onApply}
-              title="Make the reduced mesh the edited copy, ready for Use for analysis — Ctrl+Z puts the mesh back"
+              title="Make the reduced mesh the edited copy (Ctrl+Z undoes)"
             >
               Apply
             </button>

@@ -68,14 +68,14 @@ export function EditedCopy({ busy, onUse, onDiscard, onExport }: { busy: boolean
           testId="export-edited"
           disabled={busy}
           onExport={onExport}
-          title="Save the copy as an STL or a 3MF where it now stands — any alignment applied to the scan comes with it"
+          title="Save the copy as STL or 3MF, alignment included"
         />
         <button
           className="primary"
           data-test="use-edited"
           disabled={busy}
           onClick={onUse}
-          title="Make the copy the scan every workspace measures — the elements are fitted again on it"
+          title="Make the copy the scan every workspace measures"
         >
           Use for analysis
         </button>

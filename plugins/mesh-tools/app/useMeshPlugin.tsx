@@ -32,13 +32,13 @@ const MESH_VIEWS: { id: MeshView; icon: IconName; label: string; title: string }
     id: 'reduced',
     icon: 'wsMesh',
     label: 'Reduced',
-    title: 'The reduced mesh with every triangle edge drawn — what goes to CAD',
+    title: 'The reduced mesh with its triangle edges drawn',
   },
   {
     id: 'deviation',
     icon: 'compare',
     label: 'Accuracy',
-    title: 'The scan coloured by how far the reduced mesh strays from it — green on it, a dark cap past the tolerance',
+    title: 'Scan coloured by how far the reduced mesh strays',
   },
   {
     id: 'scan',
@@ -53,19 +53,19 @@ const TRIM_VIEWS: { id: TrimView; icon: IconName; label: string; title: string }
     id: 'piece',
     icon: 'combine',
     label: 'Piece',
-    title: 'The piece cut to fit the break, its mating face in teal, over the scan ghosted — what goes to print',
+    title: 'The repair piece, mating face in teal, over the scan',
   },
   {
     id: 'gap',
     icon: 'compare',
     label: 'Gap',
-    title: 'The piece’s mating face coloured by how far it is from the part, against the offset — read where it lies over the break, grey past its rim',
+    title: 'Mating face coloured by its gap to the part',
   },
   {
     id: 'break',
     icon: 'scan',
     label: 'Break',
-    title: 'The scan with the break marked on it, and the bodies on offer — to put the break right, or pick another body',
+    title: 'The scan with the break marked, to fix it or pick a body',
   },
 ]
 
@@ -74,13 +74,13 @@ const WRAP_VIEWS: { id: WrapView; icon: IconName; label: string; title: string }
     id: 'wrap',
     icon: 'wsMesh',
     label: 'Wrap',
-    title: 'The wrap, amber where it bridges an opening rather than lying on the part',
+    title: 'The wrap, amber where it bridges an opening',
   },
   {
     id: 'inside',
     icon: 'compare',
     label: 'Inside',
-    title: 'The wrap see-through over the part — what is inside it goes with it',
+    title: 'The wrap see-through over the part',
   },
   {
     id: 'scan',
@@ -443,7 +443,7 @@ export function useMeshPlugin(host: PluginHost): PluginRuntime {
                 data-test={`trim-view-${v.id}`}
                 disabled={!trimMade}
                 onClick={() => setTrimView(v.id)}
-                title={trimMade ? v.title : 'Trim a body to the break first — the view keys show the piece'}
+                title={trimMade ? v.title : 'Trim a body to the break first'}
               >
                 <Icon name={v.icon} size={16} />
                 {v.label}
@@ -467,8 +467,8 @@ export function useMeshPlugin(host: PluginHost): PluginRuntime {
             }}
             title={
               hasCopy
-                ? 'Colour the edited copy by how far it is from the scan in use — what smoothing moved, where a patch stands off the surface; surface an edit added is grey'
-                : 'Edit the scan first — the deviation shows how far the edited copy is from the scan in use'
+                ? 'Colour the edited copy by how far it moved from the scan'
+                : 'Edit the scan first'
             }
           >
             <Icon name="compare" size={16} />

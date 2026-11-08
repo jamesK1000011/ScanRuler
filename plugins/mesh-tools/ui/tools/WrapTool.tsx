@@ -12,8 +12,8 @@ import { useMeshTools, wrapStale } from '../../state/meshStore'
 import { count, typedLen } from '../meshFormat'
 
 const EDGES: { id: WrapEdges; label: string; title: string }[] = [
-  { id: 'sharp', label: 'Sharp', title: 'Rebuild the part’s sharp edges and corners on the wrap — for a machined or moulded part. A wrap grown keeps its rounds' },
-  { id: 'smooth', label: 'Smooth', title: 'Leave the edges as the wrap’s grid rounds them, by a fraction of the gap — for an organic shape, or a scan' },
+  { id: 'sharp', label: 'Sharp', title: 'Rebuild sharp edges and corners, for machined parts' },
+  { id: 'smooth', label: 'Smooth', title: 'Leave edges slightly rounded, for organic shapes' },
 ]
 
 export function WrapTool({
@@ -253,7 +253,7 @@ export function WrapTool({
               data-test="wrap-apply"
               disabled={busy}
               onClick={onApply}
-              title="Make the wrap the edited copy, ready for Use for analysis — Ctrl+Z puts the mesh back"
+              title="Make the wrap the edited copy (Ctrl+Z undoes)"
             >
               Apply
             </button>

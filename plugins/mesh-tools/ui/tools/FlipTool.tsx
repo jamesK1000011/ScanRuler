@@ -79,7 +79,7 @@ export function FlipTool({
           data-confirm={1}
           disabled={!ready || busy || marked === 0}
           onClick={() => flip('marked')}
-          title="Turn the marked surface over — the triangles with all three corners marked"
+          title="Flip the marked surface to face the other way"
         >
           {label('marked', 'Flip marked')}
         </button>

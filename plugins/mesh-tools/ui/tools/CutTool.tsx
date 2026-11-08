@@ -111,7 +111,7 @@ export function CutTool({ ready, busy, onCut }: { ready: boolean; busy: boolean;
               onClick={() => m.setCutKeep(k)}
               title={
                 k === 'plus'
-                  ? 'Keep the side the direction points to — above the XY plane, outside a fitted face'
+                  ? 'Keep the side the arrow points to'
                   : 'Keep the other side'
               }
             >

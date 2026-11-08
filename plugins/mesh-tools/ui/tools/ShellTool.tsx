@@ -12,9 +12,9 @@ import { count, typedLen } from '../meshFormat'
 import { SurveyWait } from '../SurveyWait'
 
 const SIDES: { id: ThickenSide; label: string; title: string }[] = [
-  { id: 'in', label: 'Inward', title: 'The wall grows behind the surface — the scanned surface stays the outside' },
-  { id: 'out', label: 'Outward', title: 'The wall grows in front of the surface — the scanned surface becomes the inside' },
-  { id: 'both', label: 'Both sides', title: 'Half the thickness each way — the scanned surface runs down the middle of the wall' },
+  { id: 'in', label: 'Inward', title: 'Wall grows inward; the scan stays the outside' },
+  { id: 'out', label: 'Outward', title: 'Wall grows outward; the scan becomes the inside' },
+  { id: 'both', label: 'Both sides', title: 'Wall grows both ways, centred on the scan' },
 ]
 
 export function ShellTool({ ready, busy, onShell }: { ready: boolean; busy: boolean; onShell: (mode: 'hollow' | 'thicken') => void }) {
@@ -126,7 +126,7 @@ export function ShellTool({ ready, busy, onShell }: { ready: boolean; busy: bool
           <button data-test="shell-thicken-anyway" disabled={!ready || busy} onClick={() => onShell('thicken')} title="Thicken the surface as it is, a wall round every hole">
             Thicken as it is
           </button>
-          <button className="primary" data-test="shell-fill-first" data-confirm={1} disabled={busy} onClick={() => m.setTool('holes')} title="Go to Fill holes, to close the holes and hollow the part after">
+          <button className="primary" data-test="shell-fill-first" data-confirm={1} disabled={busy} onClick={() => m.setTool('holes')} title="Go to Fill holes, then come back to hollow">
             Fill holes first
           </button>
         </div>
