@@ -110,7 +110,36 @@ export const THEMES: Theme[] = [
   },
 ]
 
+THEMES.push({
+  id: 'brick',
+  name: 'Brick kit',
+  about: 'Huge step numbers, a light blue parts box, rounded type — a toy-brick kit’s manual.',
+  accent: '#0b5cad',
+  ink: '#151515',
+  muted: '#5b6470',
+  paper: '#ffffff',
+  rule: '#d3dbe6',
+  wash: '#e3eefa',
+  font: SANS,
+  heading: "'Nunito', 'Varela Round', 'Arial Rounded MT Bold', " + SANS,
+  mono: MONO,
+  size: 16,
+  balloon: 'filled',
+  badge: 'big',
+  sheetColour: true,
+})
+
 export const THEME_IDS = THEMES.map((t) => t.id)
+
+/** A theme and a layout chosen together, the way a known kind of manual
+ *  looks. Each only sets settings: any of them can be changed after. */
+export const PRESETS: { id: string; name: string; about: string; settings: Partial<AsmSettings> }[] = [
+  { id: 'standard', name: 'Standard', about: 'A step a page, words and parts list at the side.', settings: { theme: 'workshop', layout: 'one', words: 'show', partsBox: 'side', hardwarePage: false } },
+  { id: 'brick-kit', name: 'Brick kit', about: 'Steps packed by size, sub-assemblies framed, a parts box in the corner, no words on the pages, hardware at 1:1.', settings: { theme: 'brick', layout: 'auto', words: 'hide', partsBox: 'corner', hardwarePage: true } },
+  { id: 'flat-pack', name: 'Flat-pack', about: 'Two steps a page, black and white, pictures and pictograms instead of words, hardware at 1:1 first.', settings: { theme: 'picture', layout: 'two', words: 'hide', partsBox: 'corner', hardwarePage: true } },
+  { id: 'technical-order', name: 'Technical order', about: 'A step a page, warnings before the action, lettered sub-steps, the manual and version in each page’s head.', settings: { theme: 'technical', layout: 'one', words: 'show', partsBox: 'side', hardwarePage: false } },
+]
+export const PRESET_IDS = PRESETS.map((p) => p.id)
 
 const HEX = /^#[0-9a-fA-F]{6}$/
 
