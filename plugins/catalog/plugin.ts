@@ -9,10 +9,19 @@ import { registerCommands, registerGuide, registerStateSection, type ScanRulerPl
 import { catalogCommands } from './app/catalogCommands'
 import { catalogSection } from './app/projectSection'
 import { useCatalog } from './state/catalogStore'
+import { useCatalogPlugin } from './app/useCatalogPlugin'
 
 const plugin: ScanRulerPlugin = {
   id: 'catalog',
   name: 'Parts catalog',
+  workspace: {
+    id: 'catalog',
+    label: 'Catalog',
+    title: 'Name a standard part from what you measured, find its CAD on the catalogues and model libraries, and keep where each file came from',
+    icon: 'hole',
+    order: 37,
+  },
+  usePlugin: useCatalogPlugin,
   install() {
     registerProjectSection(catalogSection)
     registerCommands('catalog', catalogCommands)
