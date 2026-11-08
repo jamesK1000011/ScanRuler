@@ -103,6 +103,7 @@ export function readme(r: ReadmeInput): string {
   out.push('## Files', '', ...r.files.map((f) => `- \`${f}\``), '')
   if (s.printSettings) out.push('## Print settings', '', s.printSettings, '')
   if (r.fit && (r.fit.scaleXY || r.fit.holeOffset || r.fit.contourOffset)) {
+    // units-ok: the README quotes slicer settings, in millimetres
     out.push('## Fit on my printer', '', `Measured from a scan of a print (fit-comp): XY scale ${r.fit.scaleXY ?? '—'}, contour offset ${r.fit.contourOffset ?? '—'} mm, hole offset ${r.fit.holeOffset ?? '—'} mm. Your printer will differ; print a test first.`, '')
   }
   if (r.dfm) out.push('## Printability', '', `Checked for FDM printing (dfm-fdm): ${r.dfm.errors} errors, ${r.dfm.warnings} warnings open${r.dfm.waived ? `, ${r.dfm.waived} waived` : ''}.`, '')

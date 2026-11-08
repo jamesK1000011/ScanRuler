@@ -69,7 +69,7 @@ export function PackPanel() {
         <TextField label="Title" value={s.title} disabled={busy} onCommit={(title) => title.trim() && set({ title })} />
         <TextField label="Credit me as" value={s.author} disabled={busy} onCommit={(author) => set({ author })} />
         <TextField label="Summary" value={s.summary} rows={3} disabled={busy} onCommit={(summary) => set({ summary })} />
-        <TextField label="Print settings" value={s.printSettings} rows={3} disabled={busy} placeholder="PETG, 0.2 mm layers, 4 walls…" onCommit={(printSettings) => set({ printSettings })} />
+        <TextField label="Print settings" value={s.printSettings} rows={3} disabled={busy} placeholder="PETG, 0.2 mm layers, 4 walls…" onCommit={(printSettings) => set({ printSettings })} /* units-ok: example text of a slicer setting */ />
       </div>
 
       <div className="group">
