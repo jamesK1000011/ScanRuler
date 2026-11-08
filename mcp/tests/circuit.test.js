@@ -15,7 +15,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { extraTools } from '../src/extras/index.js'
-import { build, buildInTurn, builtPath, bunDirs, circuitsDir, circuitTools, e24Above, entryOf, files, findTsci, newProject, notchedOutline, readCircuitFile, TEMPLATES, templateValues } from '../src/extras/circuit.js'
+import { build, buildInTurn, builtPath, bunDirs, needsInstall, saidOf, circuitsDir, circuitTools, e24Above, entryOf, files, findTsci, newProject, notchedOutline, readCircuitFile, TEMPLATES, templateValues } from '../src/extras/circuit.js'
 import { attachCircuitAsks } from '../src/pageAsks.js'
 import { fakeTsci } from './fakeTsci.js'
 
@@ -27,10 +27,27 @@ async function setUp(mode = '') {
   await mkdir(bin)
   const tsci = await fakeTsci(bin, { mode })
   const log = join(dir, 'tsci.log')
+  const bun = await fakeBun(join(dir, 'fakebun'))
   // PATH keeps this node's folder so the fake's #!/usr/bin/env node runs.
-  const env = { SCANRULER_HOME: join(dir, 'home'), SCANRULER_TSCI: tsci, PATH: process.env.PATH, FAKE_TSCI_LOG: log, FAKE_TSCI_MODE: mode, NVM_DIR: join(dir, 'no-nvm') }
+  const env = { SCANRULER_HOME: join(dir, 'home'), SCANRULER_TSCI: tsci, PATH: process.env.PATH, FAKE_TSCI_LOG: log, FAKE_TSCI_MODE: mode, NVM_DIR: join(dir, 'no-nvm'), BUN_INSTALL: bun }
   return { dir, env, tsci, log, bin }
 }
+/** A Bun whose `install` puts a react package in the project, as the real
+ *  one would from the network; FAKE_BUN_FAIL makes it fail. Its log counts
+ *  the installs. */
+async function fakeBun(root) {
+  await mkdir(join(root, 'bin'), { recursive: true })
+  const b = join(root, 'bin', 'bun')
+  await writeFile(b, `#!/bin/sh
+echo "install $PWD" >> "${join(root, 'installs.log')}"
+if [ -n "$FAKE_BUN_FAIL" ]; then echo "error: GET https://registry.npmjs.org/react - 403"; exit 1; fi
+mkdir -p node_modules/react && echo '{"name":"react"}' > node_modules/react/package.json
+echo "3 packages installed"
+`)
+  await chmod(b, 0o755)
+  return root
+}
+
 const runs = async (log) => (existsSync(log) ? (await readFile(log, 'utf8')).trim().split('\n').map((l) => JSON.parse(l)) : [])
 
 test('the circuit tools are listed only when asked for, and take only their inputs', async () => {
@@ -339,4 +356,24 @@ test('a tsci that runs on Bun is run with Bun on the PATH, from a bare launchd P
   const ok = await circuitTools(env)
   assert.equal(ok.ready, true, ok.howTo)
   assert.equal(ok.tsci.version, '0.1.2446')
+})
+
+test('a project without its packages gets them installed once, before the build; a failed install says so', async () => {
+  const { env, dir } = await setUp()
+  const p = await newProject({ name: 'fresh', template: 'led' }, env)
+  assert.equal(needsInstall(p.project), true)
+  const r = await build({ project: 'fresh' }, env)
+  assert.equal(r.ok, true)
+  assert.equal(needsInstall(p.project), false)
+  await build({ project: 'fresh' }, env)
+  const installs = (await readFile(join(dir, 'fakebun', 'installs.log'), 'utf8')).trim().split('\n')
+  assert.equal(installs.length, 1)
+  await newProject({ name: 'offline', template: 'led' }, env)
+  await assert.rejects(build({ project: 'offline' }, { ...env, FAKE_BUN_FAIL: '1' }), /bun install in .*offline failed \(exit 1\): error: GET https:\/\/registry\.npmjs\.org\/react - 403 — it needs the network once/)
+})
+
+test('a failed build says its error lines, not only its last', () => {
+  const log = 'Building...\nerror: Cannot find module \'react/jsx-runtime\'\nFatal error [circuit_generation_failed]: Cannot find package\n\nBuild complete\n  Circuits  0 passed 1 failed\nBuild exiting with code 1: fatal circuit build errors occurred'
+  assert.match(saidOf(log), /^error: Cannot find module 'react\/jsx-runtime' \| Fatal error \[circuit_generation_failed\]/)
+  assert.equal(saidOf('a\nb'), 'a | b')
 })

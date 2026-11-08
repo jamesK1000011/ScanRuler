@@ -144,6 +144,29 @@ async function npmGlobalBin(env) {
 
 /** The environment a program found here runs in: its own folder and this
  *  Node's on the PATH, so a `#!/usr/bin/env node` script finds a node. */
+/** Whether a project's packages are missing: a package.json with no
+ *  node_modules beside it to give React's JSX runtime. */
+export function needsInstall(dir) {
+  return existsSync(join(dir, 'package.json')) && !existsSync(join(dir, 'node_modules', 'react', 'package.json'))
+}
+
+/** How to install a project's packages: Bun where it is (tsci runs on it),
+ *  else the npm beside this server's Node, else one on the PATH. */
+export function installerOf(env = process.env) {
+  const bun = bunDirs(env)[0]
+  if (bun) return { cmd: join(bun, 'bun'), args: ['install'], label: 'bun install' }
+  const npm = [join(dirname(process.execPath), 'npm'), ...(env.PATH ?? '').split(delimiter).map((d) => d && join(d, 'npm'))].find((p) => p && existsSync(p))
+  return npm ? { cmd: npm, args: ['install', '--no-audit', '--no-fund'], label: 'npm install' } : null
+}
+
+/** What a run said that matters: its error lines first, else its last. */
+export function saidOf(log) {
+  const lines = String(log ?? '').trim().split('\n').map((l) => l.trim()).filter(Boolean)
+  const errors = lines.filter((l) => /\berror\b|Error:|Cannot find|failed/i.test(l) && !/^Build (complete|exiting)/.test(l))
+  const pick = errors.length ? errors.slice(0, 4) : lines.slice(-6)
+  return pick.join(' | ').slice(0, 800) || 'no output'
+}
+
 /** Folders holding a `bun` this server can run. */
 export function bunDirs(env = process.env) {
   const h = env.HOME ?? homedir()
@@ -731,11 +754,26 @@ export async function build({ project, entry, outputs = [], routing = true, part
   try {
     if (fromJson) await copyFile(join(dir, ent), circuitJson)
     else {
+      // A board in .tsx needs the project's own packages (react's JSX
+      // runtime, tscircuit) — `tsci init` installs them; a project made here
+      // or copied in may not have them yet.
+      if (needsInstall(dir)) {
+        const inst = installerOf(env)
+        if (!inst) throw new Error(`The project has no node_modules, and neither Bun nor npm was found to install them. In Terminal: cd "${dir}" && npm install — then build again.`)
+        progress('install', `${inst.label} in the project (once)`)
+        commands.push({ args: inst.args, cwd: dir, program: inst.cmd })
+        const r = await run(inst.cmd, inst.args, { cwd: dir, env: tenv, timeoutMs: Math.max(timeoutMs, 600_000), signal })
+        log += `$ ${inst.label}\n${r.log}\n[exit ${r.code}${r.timedOut ? ', out of time' : ''}]\n\n`
+        if (r.code !== 0 || needsInstall(dir)) {
+          const failed = await finish({ ok: false, exitCode: r.code })
+          throw Object.assign(new Error(`${inst.label} in ${dir} failed (exit ${r.code}${r.timedOut ? ', out of time' : ''}): ${saidOf(r.log)} — it needs the network once. The log is ${join(job, 'build.log')}.`), { job: failed })
+        }
+      }
       const r = await step(['build', ent, ...buildFlags], 'build')
       const at = builtPath(dir, ent)
       const fresh = existsSync(at) && statSync(at).mtimeMs >= started - 2000 ? at : await newestCircuitJson(join(dir, 'dist'), started - 2000)
       if (!fresh) {
-        const tail = r.log.trim().split('\n').slice(-6).join(' | ')
+        const tail = saidOf(r.log)
         const failed = await finish({ ok: false, exitCode: r.code })
         throw Object.assign(new Error(`tsci build wrote no circuit.json (exit ${r.code}${r.timedOut ? ', out of time' : ''}): ${tail || 'no output'} — the log is ${join(job, 'build.log')}.`), { job: failed })
       }
