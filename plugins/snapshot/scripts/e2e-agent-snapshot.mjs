@@ -77,8 +77,13 @@ try {
 
   const waiting = call('snapshot_wait', { timeoutSeconds: 60 })
   await new Promise((r) => setTimeout(r, 1500))
-  await page.click('[data-test=snapshot-button]')
+  await page.keyboard.down('Alt')
+  await page.keyboard.down('Shift')
+  await page.keyboard.press('KeyS')
+  await page.keyboard.up('Shift')
+  await page.keyboard.up('Alt')
   await page.waitForFunction(() => document.querySelector('[data-test=snapshot-button] b')?.textContent === '2', { timeout: 30_000 })
+  check(true, 'Alt+Shift+S takes a shot as the button does')
   const waited = await waiting
   check(waited.json?.came === true && waited.json.index === 0, 'snapshot_wait answers when the person takes the next shot')
   const two = await ok('snapshot_list', {})

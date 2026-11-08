@@ -2,7 +2,7 @@
 // The camera button, bottom right over every workspace, and the card the
 // shot just taken comes up in: a note to go with it, Save, Copy, Discard.
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { saveFile } from '../../../src/app/exports'
 import { IconFrame } from '../../../src/ui/icons'
 import { fileName, takeShot } from '../app/capture'
@@ -34,6 +34,19 @@ export function ShotButton() {
   const { shots, open, busy, error, save } = useShots()
   const box = useRef<HTMLDivElement>(null)
   const shot = shots.find((s) => s.id === open)
+
+  // ⌥⇧S (Alt+Shift+S) takes a shot from anywhere but a text field: the
+  // key press is the person's own gesture, which screen capture needs.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey || e.code !== 'KeyS') return
+      if ((e.target as HTMLElement)?.closest?.('input, textarea, [contenteditable]')) return
+      e.preventDefault()
+      void takeShot(box.current)
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [])
 
   return (
     <>
@@ -104,7 +117,7 @@ export function ShotButton() {
       <button
         className="sn-shoot"
         data-test="snapshot-button"
-        title="Screenshot this tab for Claude — your browser asks which tab to share; choose this one"
+        title="Screenshot this tab for Claude (⌥⇧S / Alt+Shift+S) — your browser asks which tab to share; choose this one"
         aria-label="Screenshot this tab"
         disabled={busy}
         onClick={() => void takeShot(box.current)}
