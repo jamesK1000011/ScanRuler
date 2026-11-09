@@ -33,7 +33,7 @@ const sound = (r) => {
 }
 const mass = (r) => r?.steps?.reviewWaived?.figures?.mass ?? r?.steps?.review?.figures?.mass
 const wall = (r) => r?.steps?.review?.figures?.wall
-const findings = (r) => (r?.steps?.review?.findings ?? []).length
+const findings = (r) => (r?.steps?.review ? (r.steps.review.findings ?? []).length : '—')
 const yes = (v) => (v === null || v === undefined ? '—' : v ? 'yes' : 'no')
 
 const rows = [

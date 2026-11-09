@@ -94,7 +94,8 @@ export async function stdioClient({ command, args = [], env = {}, cwd, stderrFil
 
 /** The sums a scorecard shows for one side. */
 export function summary(trace, side) {
-  const rows = trace.filter((r) => r.side === side)
+  // The tool list is its own row on the scorecard: the brief's calls alone here.
+  const rows = trace.filter((r) => r.side === side && r.tool !== 'tools/list')
   const sum = (k) => rows.reduce((a, r) => a + (r[k] ?? 0), 0)
   return {
     calls: rows.length,

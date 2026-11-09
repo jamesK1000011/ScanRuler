@@ -60,9 +60,13 @@ class Tools(unittest.TestCase):
         self.assertGreater(r["figures"]["mass"], 20)
         self.assertLess(r["figures"]["mass"], 40)
         thin = [f for f in r["findings"] if f["source"] == "wall" and f["severity"] == "error"]
+        print("\nreview:", json.dumps(r["findings"]), "\nfigures:", json.dumps(r["figures"]))
         if thin:
             err, r2 = self.call("part_review", {"body": "Bin", "spec": {"minWall": 0.8, "massMax": 40}, "waive": [{"at": thin[0]["at"], "reason": "stacking lip"}]})
-            self.assertLess(len([f for f in r2["findings"] if f["severity"] == "error"]), len([f for f in r["findings"] if f["severity"] == "error"]))
+            print("waived:", json.dumps(r2["findings"]))
+            # The run waived comes back as info, not an error.
+            self.assertTrue(any(f["severity"] == "info" and "waived" in f["says"] for f in r2["findings"]), r2["findings"])
+            self.assertNotIn(thin[0]["at"], [f.get("at") for f in r2["findings"] if f["severity"] == "error"])
 
     def test_4_export_reads_back(self):
         err, s = self.call("export_file", {"body": "Bin", "format": "step"})
