@@ -16,7 +16,7 @@ describe('the review guide', () => {
     installPlugins()
     registerCoreCommands()
     const known = new Set(listCommands().map((c) => c.name.split('.').join('_')))
-    const named = [...new Set([...TEXT.matchAll(/`([a-z][a-z0-9]*_[a-z0-9_]+)`/g)].map((m) => m[1]))]
+    const named = [...new Set([...TEXT.matchAll(/`([a-z][a-z0-9]*_[a-z0-9_]+)(?=[ `])/g)].map((m) => m[1]))]
     expect(named.filter((n) => !known.has(n))).toEqual([])
     expect(named).toEqual(expect.arrayContaining(['part_review', 'part_spec', 'history_diff', 'reverse_body_check', 'dfm_check', 'mass_properties', 'hw_pauses', 'fea_results']))
   })
