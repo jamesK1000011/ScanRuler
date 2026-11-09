@@ -11,6 +11,7 @@ import { asmCommands } from './app/asmCommands'
 import { asmSection } from './app/projectSection'
 import { useAsm } from './state/asmStore'
 import { useAsmPlugin } from './app/useAsmPlugin'
+import { DOCS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'assembly-manual',
@@ -20,8 +21,9 @@ const plugin: ScanRulerPlugin = {
     label: 'Manual',
     title: 'Step-by-step build instructions, HTML and PDF',
     icon: 'manual',
-    order: 30,
+    order: 1,
     group: 'share',
+    host: DOCS,
   },
   usePlugin: useAsmPlugin,
   install() {

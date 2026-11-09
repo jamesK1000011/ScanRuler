@@ -12,6 +12,7 @@ import { patentCommands } from './app/patentCommands'
 import { patentSection } from './app/projectSection'
 import { usePatent } from './state/patentStore'
 import { usePatentPlugin } from './app/usePatentPlugin'
+import { DOCS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'patent-kit',
@@ -21,8 +22,9 @@ const plugin: ScanRulerPlugin = {
     label: 'Patent',
     title: 'Patent drawings with numerals, and a draft',
     icon: 'patent',
-    order: 31,
+    order: 2,
     group: 'share',
+    host: DOCS,
   },
   usePlugin: usePatentPlugin,
   install() {

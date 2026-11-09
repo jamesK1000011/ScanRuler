@@ -10,6 +10,7 @@ import { describeMass, massCommands } from './app/massCommands'
 import { massSection } from './app/projectSection'
 import { useMassPlugin } from './app/useMassPlugin'
 import { historyOf, useMass } from './state/massStore'
+import { ANALYZE } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'mass',
@@ -17,10 +18,11 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'mass',
     label: 'Mass',
-    title: 'Weight, balance and ballast as printed',
+    title: 'Weight, balance and inertia',
     icon: 'weight',
-    order: 21,
+    order: 2,
     group: 'make',
+    host: ANALYZE,
   },
   usePlugin: useMassPlugin,
   install() {

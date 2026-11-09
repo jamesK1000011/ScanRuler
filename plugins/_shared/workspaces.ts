@@ -7,6 +7,8 @@
 //   Electronics  KiCad (pcb) · tscircuit (circuit) · Printed wiring (printed)
 //   Fits         Design (fits) · Calibrate from a scan (fit-comp)
 //   Print        1 Check (dfm-fdm) · 2 Slice (slicer-loop) · 3 Send (printer-handoff)
+//   Analyze      Strength (fea) · Mass (mass)
+//   Docs         Manual (assembly-manual) · Patent (patent-kit)
 //
 // A page keeps its own workspace id — what project files, the undo history
 // and workspace.set name — so work saved before the tabs were merged opens
@@ -43,4 +45,24 @@ export const PRINT: WorkspaceHost = {
   group: 'make',
   steps: true,
   pages: ['dfm', 'slice', 'print'],
+}
+
+export const ANALYZE: WorkspaceHost = {
+  id: 'analyze',
+  label: 'Analyze',
+  title: 'Strength and mass of a part',
+  icon: 'strength',
+  order: 20,
+  group: 'make',
+  pages: ['fea', 'mass'],
+}
+
+export const DOCS: WorkspaceHost = {
+  id: 'docs',
+  label: 'Docs',
+  title: 'Build instructions and patent drawings',
+  icon: 'manual',
+  order: 30,
+  group: 'share',
+  pages: ['assembly', 'patent'],
 }

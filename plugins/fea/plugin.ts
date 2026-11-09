@@ -11,6 +11,7 @@ import { cancelSolve, describeFea, feaCommands } from './app/feaCommands'
 import { setupOf, useFea } from './state/feaStore'
 import { feaSection } from './app/projectSection'
 import { useFeaPlugin } from './app/useFeaPlugin'
+import { ANALYZE } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'fea',
@@ -18,10 +19,11 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'fea',
     label: 'Strength',
-    title: 'Will it hold? FEA of a printed part',
+    title: 'Will it hold? Stress under load (FEA)',
     icon: 'strength',
-    order: 20,
+    order: 1,
     group: 'make',
+    host: ANALYZE,
   },
   usePlugin: useFeaPlugin,
   install() {
