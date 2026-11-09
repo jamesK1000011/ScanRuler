@@ -8,6 +8,10 @@ that brings the part to a target.
 
 ## Weigh it
 
+0. A body with a material of its own (`material.set`; read the material
+   guide) is weighed in it — solid, or as printed when it is in a print
+   setup. What follows sets up the bodies with none, and the walls and
+   infill a print setup does not give.
 1. `mass.setup { material, infill, walls, lineMm }`. Ask what they print with,
    or take their slicer profile: infill in percent, walls as line count, line
    width in mm (0.42 for a 0.4 mm nozzle). `density` in g/cm³ overrides the

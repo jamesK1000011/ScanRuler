@@ -9,7 +9,7 @@ import { classClearance, fromPrintFit, fromReadings, itGrade, pair, phi, stack, 
 import { clearanceLabel, labelWidth } from '../core/kernel'
 import { planHinge, planPin, planSnap, planTest, type Ctx } from '../core/plans'
 import { materialOf, MATERIALS, snap, wedgeForce } from '../core/snap'
-import { MATERIALS as SHARED } from '../../_shared/materials'
+import { libraryMaterial, MATERIALS as SHARED } from '../../_shared/materials'
 import { readFileSync } from 'node:fs'
 import { stepMean, toleranceUnit } from '../core/fits'
 import { savedIn } from '../app/projectSection'
@@ -260,6 +260,9 @@ describe('red team: figures against their sources', () => {
   })
   it('the materials: shared ids and labels, the Strength workspace’s moduli, strain under printed yield', () => {
     const js = readFileSync(new URL('../../../mcp/src/extras/fea.js', import.meta.url), 'utf8')
+    // Nylon is Fits' own name for the library's polyamide.
+    expect(libraryMaterial('nylon')?.id).toBe('pa6-generic')
+    expect(materialOf('pa6')?.id).toBe('nylon')
     for (const m of MATERIALS) {
       if (m.id === 'nylon') continue
       expect(Object.keys(SHARED)).toContain(m.id)

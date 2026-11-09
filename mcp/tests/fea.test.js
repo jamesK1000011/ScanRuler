@@ -340,7 +340,7 @@ test('a cancel between the mesh and the solve stops it before CalculiX', { skip,
 })
 
 test('the materials: densities and the old tpu name', () => {
-  // Held to the page's table (plugins/_shared/materials.ts) by
+  // Held to the page's tables (plugins/_shared/materials/) by
   // plugins/fea/tests/fea.test.ts; the server ships on its own.
   for (const m of Object.values(MATERIALS)) assert.ok(m.density > 0.5 && m.density < 2.5 && m.label)
   assert.deepEqual(MATERIAL_ALIASES, { tpu: 'tpu-95a' })
@@ -447,4 +447,20 @@ test('the Jacobian check: a sound quadratic tet passes, one with a mid node push
   bent.xyz[k + 1] = 3
   bent.xyz[k + 2] = 3
   assert.equal(invertedElements(bent), 1)
+})
+
+test('a solid material sent whole: named and weighed as itself, judged by von Mises', () => {
+  const E = 210000, X = 235
+  const steel = materialOf('pla', { Exy: E, Ez: E, nuXY: 0.3, nuZ: 0.3, Gxy: 81000, Gz: 81000, Xt: X, Xc: X, Zt: X, Zc: X, S: X / Math.sqrt(3), Sz: X / Math.sqrt(3) }, { id: 'steel-s235jr', label: 'S235JR', density: 7.8 })
+  assert.equal(steel.id, 'steel-s235jr')
+  assert.equal(steel.label, 'S235JR')
+  assert.equal(steel.density, 7.8)
+  assert.equal(steel.bulk, true)
+  const j = judge([100, 0, 0, 0, 0, 0], steel, layerAxes([0, 0, 1]))
+  assert.equal(j.mode, 'yield (von Mises)')
+  assert.ok(Math.abs(j.sf - 2.35) < 1e-9)
+  // Pulled across the "layers" a solid is no weaker.
+  assert.ok(Math.abs(judge([0, 0, 100, 0, 0, 0], steel, layerAxes([0, 0, 1])).sf - 2.35) < 1e-9)
+  assert.throws(() => materialOf('pla', {}, { id: 'x', label: 'X', density: 900 }), /bulk/)
+  assert.equal(materialOf('pla').bulk, undefined)
 })

@@ -475,7 +475,7 @@ function rayHits(tris: ArrayLike<number>, t: number, o: V3, d: V3): boolean {
 }
 
 /** Printed materials' densities, g/cm³: the table every workspace shares
- *  (plugins/_shared/materials.ts), by id. */
+ *  (plugins/_shared/materials/), by id. */
 export const MATERIALS: Readonly<Record<string, { label: string; density: number }>> = SHARED_MATERIALS
 
 /** Fillers as packed into a pocket: the bulk density, g/cm³. Spheres pack

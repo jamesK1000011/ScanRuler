@@ -53,7 +53,7 @@ export const CLOSE = { badToken: 4001, origin: 4003, taken: 4009, noHello: 4008 
 export const MAX_PAYLOAD = 1024 ** 3
 
 /** What this server answers for the page beyond its commands (pageAsks.js). */
-export const SERVER_FEATURES = ['catalog.models', 'fea.solve', 'fea.encased', 'pcb.kicad', 'circuit.tsci']
+export const SERVER_FEATURES = ['catalog.models', 'fea.solve', 'fea.encased', 'fea.bulk', 'pcb.kicad', 'circuit.tsci']
 /** Before its hello is taken a connection is nobody in particular: what it
  *  may send is a hello — the page's command list, a few hundred KB — and
  *  only a few may be waiting to say it at once. */

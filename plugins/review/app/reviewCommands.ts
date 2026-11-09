@@ -118,7 +118,7 @@ const review: Command<ReviewIn> = {
   title: 'Is the part done?',
   // units-ok: the command's description, for the agent — in millimetres always.
   description:
-    'One verdict on a Reverse Engineer body — the one solid body shown by default — from the checks this build has: reverse.body.check (valid, closed), reverse.body.clearance (against every other body shown; minClearance as the least gap), mass.properties (encased parts included) and fea.results (the last strength solve, when it is of this body and still holds); and the printing checks — dfm.check on the body (printability and walls) and hw.pauses (pauses and roofs for parts encased mid-print). process says how the part is made (else the spec’s processes for the body): "fdm" or "print" — the printing checks judge it, under printing; not said — they run where the build has them and inform under ifPrinted, never moving the verdict; any other (laser-cut, machined, bought) — they are skipped as not printed. Answers process; verdict — pass, fix (an error to put right) or unknown (a check that must run did not, or part of the spec could not be judged: unjudged says which); findings, worst first (source: the command, severity, says, at); figures (volume mm³, mass g, wall mm, gap mm, safety); checks: each command ran, skipped (not in build, page only, or why) or failed (why); the spec judged against. The printing group carries its own checks, figures (pauses) and printerFit, the printer calibration in use. spec: a design spec for this review, over the one part.spec keeps with the project. Each command gives its details when run alone. Changes nothing.',
+    'One verdict on a Reverse Engineer body — the one solid body shown by default — from the checks this build has: reverse.body.check (valid, closed), reverse.body.clearance (against every other body shown; minClearance as the least gap), mass.properties (encased parts included) and fea.results (the last strength solve, when it is of this body and still holds); and the printing checks — dfm.check on the body (printability and walls) and hw.pauses (pauses and roofs for parts encased mid-print). process says how the part is made (else the spec’s processes for the body): "fdm" or "print" — the printing checks judge it, under printing; not said — they run where the build has them and inform under ifPrinted, never moving the verdict; any other (laser-cut, machined, bought) — they are skipped as not printed. Answers process; verdict — pass, fix (an error to put right) or unknown (a check that must run did not, or part of the spec could not be judged: unjudged says which); findings, worst first (source: the command, severity, says, at); figures (volume mm³, mass g, material and as — printed or solid — as weighed, wall mm, gap mm, safety); checks: each command ran, skipped (not in build, page only, or why) or failed (why); the spec judged against. The printing group carries its own checks, figures (pauses) and printerFit, the printer calibration in use. spec: a design spec for this review, over the one part.spec keeps with the project. Each command gives its details when run alone. Changes nothing.',
   input: obj({
     body: oneOf([str(undefined, { minLength: 1 }), num()], 'The body, by name or id; the one solid body shown by default.'),
     process: str('How the part is made: "fdm" or "print" for 3D printed; any other word (laser-cut, machined, bought) is not printed; the spec’s for the body by default.', { minLength: 1 }),
@@ -170,10 +170,17 @@ const review: Command<ReviewIn> = {
 
     // Its mass, the parts encased in it counted.
     const bounds = massBounds(spec)
-    const mass = await run.call<{ total?: { mass: number }; bodies?: { closed?: boolean }[] }>(checks, 'mass.properties', { bodies: [b.name] })
+    const mass = await run.call<{ total?: { mass: number }; bodies?: { closed?: boolean; material?: string; as?: string; assumed?: boolean }[] }>(checks, 'mass.properties', { bodies: [b.name] })
     if (mass?.total) {
       const g = mass.total.mass
       figures.mass = r1(g)
+      // What it was weighed in: the body's own material, or the one assumed.
+      const row = mass.bodies?.[0]
+      if (row?.material) {
+        figures.material = row.material
+        if (row.as) figures.as = row.as
+        if (row.assumed) find(findings, 'mass.properties', 'info', `No material set — weighed as ${row.material}${row.as === 'printed' ? ' as printed' : ''}. material.set gives the body its own.`)
+      }
       if (mass.bodies?.some((x) => x.closed === false)) find(findings, 'mass.properties', 'warning', 'The mesh is not closed: its volume and mass are not to trust.')
       if (bounds && (g < bounds.min - 1e-9 || g > bounds.max + 1e-9)) {
         const want = Number.isFinite(bounds.min) && Number.isFinite(bounds.max) ? `${r1(bounds.min)} to ${r1(bounds.max)} g` : Number.isFinite(bounds.min) ? `at least ${r1(bounds.min)} g` : `at most ${r1(bounds.max)} g`

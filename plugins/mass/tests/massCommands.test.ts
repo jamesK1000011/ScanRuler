@@ -4,8 +4,9 @@
 // named, a calibration that is one step and stays in range, a target with
 // a part dropped, a plan made again when the body changed, the walls round
 // the pocket counted, a pocket too narrow for BBs, feature names that don't
-// collide, a stale plan refused, weighings that overlap, and the parts
-// encased in the print counted.
+// collide, a stale plan refused, weighings that overlap, the parts
+// encased in the print counted, and each body weighed in its own material —
+// solid, or as printed only in a print setup.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/commands/registry', () => import('./massFakes'))
@@ -16,6 +17,7 @@ vi.mock('../../../src/plugins/api', () => import('./massFakes'))
 import { calls, handlers, sections } from './massFakes'
 import { describeMass, massCommands } from '../app/massCommands'
 import { useMass } from '../state/massStore'
+import { useAssigned } from '../../_shared/materials/assigned'
 
 type Run = (input: Record<string, unknown>, ctx: unknown) => Promise<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
 const run = (name: string, input: Record<string, unknown> = {}) => (massCommands as unknown as { name: string; run: Run }[]).find((c) => c.name === name)!.run(input, { progress() {} })
@@ -57,7 +59,11 @@ handlers['reverse.feature.add'] = async (i: { features: { name: string }[] }) =>
 }
 let encased: unknown = null
 sections.hw = () => ({ encased })
+let setups: unknown[] = []
+sections.setups = () => setups
 function fresh() {
+  setups = []
+  useAssigned.getState().reset()
   delete handlers['hw.masses']
   encased = null
   useMass.getState().reset()
@@ -208,5 +214,40 @@ describe('the Mass commands', () => {
     await run('setup', { infill: 50 })
     await c
     expect(useMass.getState().reading).toBe(null)
+  })
+  it('weigh each body in its own material: a metal solid, a filament as printed only in a print setup', async () => {
+    fresh()
+    bodies.push({ id: 2, name: 'Plate', visible: true, volume: 1000, faces: 6 })
+    geo[2] = box([30, 0, 0], [40, 10, 10])
+    // None set: as before, printed in the Mass setup's material, said so.
+    const none = await run('properties')
+    expect(none.note).toMatch(/No material set on Grip, Plate — assumed PLA as printed/)
+    expect(none.bodies[0].assumed).toBe(true)
+    useAssigned.getState().assign({ '2': 'steel-s235jr', '1': 'pla' })
+    const solid = await run('properties')
+    expect(solid.bodies[1]).toMatchObject({ body: 'Plate', material: 'S235JR', as: 'solid', density: 7.8 })
+    expect(solid.bodies[1].mass).toBeCloseTo(7.8, 3)
+    expect(solid.bodies[0]).toMatchObject({ material: 'PLA', as: 'solid' })
+    expect(solid.bodies[0].mass).toBeCloseTo(48000 * 1.24e-3, 2)
+    expect(solid.note).toBeUndefined()
+    expect(solid.density).toBeUndefined()
+    // In a print setup: walls and infill — the setup's where it gives them.
+    setups = [{ id: 'p1', type: 'print', name: 'Plate 1', bodies: ['1'], infill: 15, walls: 2 }]
+    const printed = await run('properties')
+    expect(printed.bodies[0].as).toBe('printed')
+    expect(printed.bodies[0].mass < solid.bodies[0].mass * 0.6).toBe(true)
+    expect(printed.bodies[1].mass).toBeCloseTo(7.8, 3)
+    // A body moved to a setup that does not print it weighs solid again.
+    setups = [{ id: 'c1', type: 'cut', name: 'Laser', bodies: ['1', '2'] }]
+    expect((await run('properties')).bodies[0].mass).toBeCloseTo(48000 * 1.24e-3, 2)
+    // A calibration is for a printed part.
+    await refused(run('calibrate', { grams: 9, body: 'Plate' }), /calibration scales a printed part/)
+  })
+  it('keep no reading once a body’s material changes', async () => {
+    fresh()
+    await run('properties')
+    expect(describeMass().reading?.stale).toBeUndefined()
+    useAssigned.getState().assign({ '1': 'aluminum-generic' })
+    expect(describeMass().reading?.stale).toBe(true)
   })
 })

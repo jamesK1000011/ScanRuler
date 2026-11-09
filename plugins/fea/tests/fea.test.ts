@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The FEA study kept with a project — cleaned on the way in — and the
-// range a field is coloured over.
+// The FEA study kept with a project — cleaned on the way in — the range a
+// field is coloured over, and the material a study solves in: the body's
+// own, as printed only in a print setup.
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import { feaSection } from '../app/projectSection'
 import { DEFAULT_SETUP, setupOf, useFea } from '../state/feaStore'
 import { rangeOf } from '../viewer/resultLayer'
 import { densityOf, MATERIAL_ALIASES, MATERIAL_IDS, materialId, MATERIALS } from '../../_shared/materials'
+import { PRINTED } from '../../_shared/materials/printed'
+import { useAssigned } from '../../_shared/materials/assigned'
+import { registerStateSection } from '../../../src/commands/stateSections'
+import { isotropicFigures, materialKeyOf, studyMaterial } from '../app/feaMaterial'
 
 describe('the study in a project', () => {
   test('round trip, and a hostile file cleaned', () => {
@@ -59,6 +64,79 @@ describe('the shared materials', () => {
     expect(server).toEqual(MATERIALS)
     const aliases = /export const MATERIAL_ALIASES = (\{[^}]*\})/.exec(js)?.[1]
     expect(aliases && Object.fromEntries([...aliases.matchAll(/'?([a-z0-9-]+)'?: '([a-z0-9-]+)'/g)].map((m) => [m[1], m[2]]))).toEqual(MATERIAL_ALIASES)
+  })
+  test('the server’s printing figures are the page’s print-process table', () => {
+    const js = readFileSync(new URL('../../../mcp/src/extras/fea.js', import.meta.url), 'utf8')
+    const block = js.slice(js.indexOf('export const MATERIALS = {'), js.indexOf('\n}\n', js.indexOf('export const MATERIALS = {')))
+    const server: Record<string, Record<string, number>> = {}
+    for (const m of block.matchAll(/^\s*'?([a-z0-9-]+)'?: \{(.*)\},?$/gm)) {
+      const figures: Record<string, number> = {}
+      for (const f of m[2].matchAll(/(Exy|Ez|nuXY|nuZ|Xt|Xc|Zt|Zc|S): ([0-9.]+)/g)) figures[f[1]] = Number(f[2])
+      server[m[1]] = figures
+    }
+    expect(server).toEqual(PRINTED)
+  })
+})
+
+describe('the material a study solves in', () => {
+  // The bodies and setups as the readout gives them, read through the
+  // shared readers.
+  let setups: unknown[] = []
+  registerStateSection('reverse', () => ({ bodies: [{ id: 4, name: 'Bracket' }, { id: 9, name: 'Clip' }] }))
+  registerStateSection('setups', () => setups)
+  const study = { material: 'petg', overrides: {} }
+
+  test('a steel body: solid, the same every way, its figures sent whole', () => {
+    setups = []
+    useAssigned.setState({ assigned: { '4': 'steel-s235jr' } })
+    const m = studyMaterial(4, study)
+    expect(m.as).toBe('solid')
+    expect(m.label).toBe('S235JR')
+    expect(m.density).toBe(7.8)
+    expect(m.job.bulk).toEqual({ id: 'steel-s235jr', label: 'S235JR', density: 7.8 })
+    expect(m.job.overrides.Exy).toBe(210000)
+    expect(m.job.overrides.Ez).toBe(210000)
+    expect(m.job.overrides.Gxy).toBe(81000)
+    expect(m.job.overrides.Xt).toBe(235)
+    expect(m.job.overrides.Zt).toBe(235)
+    expect(m.job.overrides.Sz).toBeCloseTo(235 / Math.sqrt(3), 6)
+    expect(m.assumed).toBeUndefined()
+  })
+  test('a PLA body: solid out of a setup, as printed in a print setup', () => {
+    useAssigned.setState({ assigned: { '9': 'pla' } })
+    setups = []
+    expect(studyMaterial(9, study).as).toBe('solid')
+    expect(studyMaterial(9, study).job.bulk?.id).toBe('pla')
+    setups = [{ id: 's1', type: 'print', name: 'Plate 1', bodies: ['9'] }]
+    const printed = studyMaterial(9, study)
+    expect(printed.as).toBe('printed')
+    expect(printed.job).toEqual({ id: 'pla', overrides: {} })
+    setups = [{ id: 's2', type: 'cut', name: 'Laser', bodies: [9] }]
+    expect(studyMaterial(9, study).as).toBe('solid')
+  })
+  test('no material set: the study’s, as printed, said so', () => {
+    setups = []
+    useAssigned.setState({ assigned: {} })
+    const m = studyMaterial(4, study)
+    expect(m.assumed).toBe(true)
+    expect(m.job).toEqual({ id: 'petg', overrides: {} })
+    expect(m.note).toMatch(/No material set on the body — assumed PETG as printed/)
+  })
+  test('a material without strength asks for it, and takes it from the overrides', () => {
+    useAssigned.setState({ assigned: { '4': { custom: { name: 'Mystery', density: 2, youngsMPa: 5000 } } } })
+    expect(() => studyMaterial(4, study)).toThrow(/Mystery has no strength/)
+    const m = studyMaterial(4, { material: 'pla', overrides: { Xt: 40, Xc: 40, Zt: 40, Zc: 40, S: 20, Sz: 20 } })
+    expect(m.job.overrides.Exy).toBe(5000)
+    expect(m.job.overrides.Zt).toBe(40)
+    expect(isotropicFigures({ youngsMPa: 1000, poisson: 0.25 }).missing).toEqual(['strength (Xt, Xc, Zt, Zc, S, Sz)'])
+  })
+  test('a result solved in another material is stale', () => {
+    setups = []
+    useAssigned.setState({ assigned: { '4': 'pla' } })
+    const before = materialKeyOf('Bracket')
+    useAssigned.setState({ assigned: { '4': 'aluminum-6061-t6' } })
+    expect(materialKeyOf('bracket') === before).toBe(false)
+    useAssigned.setState({ assigned: {} })
   })
 })
 

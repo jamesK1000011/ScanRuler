@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What the Mass commands reach outside the plugin, faked for their test:
 // the command registry (Reverse Engineer's export.stl and feature.add as a
-// test sets them), the schema builders, the session's state sections, and
+// test sets them), the schema builders, the session's state sections (the
+// setups among them), and
 // CommandError.
 
 export const handlers: Record<string, (input: never) => unknown> = {}
@@ -16,8 +17,8 @@ export async function runCommand(name: string, input: Record<string, unknown>): 
 const schema = (..._args: unknown[]) => ({})
 export const arr = schema, enumOf = schema, int = schema, num = schema, obj = schema, str = schema, vec3 = schema, anyObject = schema, bool = schema
 
-export const sections: { reverse?: () => unknown; hw?: () => unknown } = {}
-export const readStateSections = () => ({ reverse: sections.reverse?.(), hw: sections.hw?.() }) as Record<string, unknown>
+export const sections: { reverse?: () => unknown; hw?: () => unknown; setups?: () => unknown } = {}
+export const readStateSections = () => ({ reverse: sections.reverse?.(), hw: sections.hw?.(), setups: sections.setups?.() }) as Record<string, unknown>
 export const readStateSection = (id: string) => readStateSections()[id]
 
 export class CommandError extends Error {

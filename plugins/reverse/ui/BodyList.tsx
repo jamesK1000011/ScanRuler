@@ -21,6 +21,7 @@ import { useLength } from '../../../src/app/useUnits'
 import { Icon } from '../../../src/ui/icons'
 import { ShowAllButton } from '../../../src/ui/ShowAllButton'
 import { KeyIcon } from './reIcons'
+import { BodyMaterial } from './BodyMaterial'
 import { useDismiss } from '../../../src/ui/useDismiss'
 
 /** How far in a row stands for each component it is in, px. */
@@ -334,6 +335,7 @@ export function BodyList({ bodies, children }: { bodies: BodyInfo[]; children?: 
               {alone ? 'Show all' : 'Hide others'}
             </button>
           )}
+          <BodyMaterial ids={pickedBodies.filter((id) => bodies.some((b) => b.id === id && !b.surface))} />
           <button className="x" data-test="body-selection-clear" title="Let the rows go (Escape)" onClick={() => re.getState().setListSelection(NO_PICK)}>
             ✕
           </button>

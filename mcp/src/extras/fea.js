@@ -152,9 +152,9 @@ export async function feaTools(env = process.env) {
  *  and the between-layer shear strength an estimate (little is published:
  *  0.6 × the across-layer tensile strength). A start, not a datasheet:
  *  the person's own figures go in overrides. Ids, labels and densities
- *  (g/cm³, solid) are the page's shared table's (plugins/_shared/
- *  materials.ts); plugins/fea/tests/fea.test.ts holds the two to each
- *  other. */
+ *  (g/cm³, solid) are the page's shared library's, the figures its
+ *  printing table's (plugins/_shared/materials/index.ts and printed.ts);
+ *  plugins/fea/tests/fea.test.ts holds them to each other. */
 export const MATERIALS = {
   pla: { label: 'PLA', density: 1.24, Exy: 2680, Ez: 2160, nuXY: 0.35, nuZ: 0.33, Xt: 39, Xc: 60, Zt: 35, Zc: 55, S: 25 },
   petg: { label: 'PETG', density: 1.27, Exy: 2000, Ez: 1700, nuXY: 0.38, nuZ: 0.36, Xt: 42, Xc: 55, Zt: 30, Zc: 50, S: 26 },
@@ -170,10 +170,20 @@ export const MATERIAL_ALIASES = { tpu: 'tpu-95a' }
 
 /** A material whole: a preset, with the person's figures over it, and what
  *  follows from them — the shear moduli and the between-layer shear
- *  strength — where not given. */
+ *  strength — where not given. bulk: a solid material the page sends whole
+ *  (a metal, a sheet plastic: its figures in overrides, the same in every
+ *  direction), named and weighed as itself — { id, label, density g/cm³ }
+ *  in place of the preset's. */
 const FIGURES = { Exy: 'MPa', Ez: 'MPa', Gxy: 'MPa', Gz: 'MPa', nuXY: '', nuZ: '', Xt: 'MPa', Xc: 'MPa', Zt: 'MPa', Zc: 'MPa', S: 'MPa', Sz: 'MPa' }
 
-export function materialOf(name = 'pla', overrides = {}) {
+function bulkOf(bulk) {
+  if (bulk === undefined || bulk === null) return null
+  const ok = typeof bulk === 'object' && typeof bulk.id === 'string' && typeof bulk.label === 'string' && typeof bulk.density === 'number' && bulk.density > 0.01 && bulk.density < 25
+  if (!ok) throw new Error('The material sent whole (bulk) needs an id, a label and a density, g/cm³.')
+  return { id: bulk.id.slice(0, 80), label: bulk.label.slice(0, 80), density: bulk.density }
+}
+
+export function materialOf(name = 'pla', overrides = {}, bulk = undefined) {
   const id = typeof name === 'string' && Object.hasOwn(MATERIAL_ALIASES, name) ? MATERIAL_ALIASES[name] : name
   const base = typeof id === 'string' && Object.hasOwn(MATERIALS, id) ? MATERIALS[id] : null
   if (!base) throw new Error(`No material "${id}" — ${Object.keys(MATERIALS).join(', ')}, with overrides for your own figures.`)
@@ -184,15 +194,16 @@ export function materialOf(name = 'pla', overrides = {}) {
     if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`The material's ${k} must be a number.`)
     given[k] = v
   }
-  const m = { id, ...base, ...given }
+  const own = bulkOf(bulk)
+  const m = { id, ...base, ...(own ? { id: own.id, label: own.label, density: own.density, note: undefined, bulk: true } : {}), ...given }
   m.Gxy ??= m.Exy / (2 * (1 + m.nuXY))
   // Across the layers the shear stiffness follows the softer direction.
   m.Gz ??= Math.min(m.Exy, m.Ez) / (2 * (1 + m.nuZ))
   m.Sz ??= 0.6 * m.Zt
   for (const k of ['Exy', 'Ez', 'Gxy', 'Gz', 'Xt', 'Xc', 'Zt', 'Zc', 'S', 'Sz']) if (!(m[k] > 0)) throw new Error(`The material's ${k} must be more than 0 MPa.`)
   // Plausible for a solid: stiffness 1 MPa to 1000 GPa, strength under it.
-  for (const k of ['Exy', 'Ez', 'Gxy', 'Gz']) if (m[k] < 1 || m[k] > 1e6) throw new Error(`The material's ${k} (${m[k]} MPa) is not a stiffness a printed part has: 1 to 1,000,000 MPa.`)
-  for (const k of ['Xt', 'Xc', 'Zt', 'Zc', 'S', 'Sz']) if (m[k] > 1e4) throw new Error(`The material's ${k} (${m[k]} MPa) is not a strength a printed part has — is it in MPa?`)
+  for (const k of ['Exy', 'Ez', 'Gxy', 'Gz']) if (m[k] < 1 || m[k] > 1e6) throw new Error(`The material's ${k} (${m[k]} MPa) is not a stiffness a part has: 1 to 1,000,000 MPa.`)
+  for (const k of ['Xt', 'Xc', 'Zt', 'Zc', 'S', 'Sz']) if (m[k] > 1e4) throw new Error(`The material's ${k} (${m[k]} MPa) is not a strength a part has — is it in MPa?`)
   // Stable: the compliance matrix positive definite.
   const n21 = m.nuXY, n31 = (m.nuZ * m.Ez) / m.Exy
   if (!(m.nuXY > -1 && m.nuXY < 1) || 1 - n21 * n21 - 2 * m.nuZ * n31 - 2 * n21 * m.nuZ * n31 <= 0) throw new Error("The material's Poisson's ratios make it unstable: keep them nearer 0.3.")
@@ -722,10 +733,17 @@ function inAxes(s, ax) {
  *    strength S where they differ in sign;
  *  - layers pulled apart or sheared: the pull across them and the shear
  *    between them together, √((σ₃₃⁺/Zt)² + (τ/Sz)²);
- *  - layers crushed: compression across them on its own, −σ₃₃/Zc. */
+ *  - layers crushed: compression across them on its own, −σ₃₃/Zc.
+ *  A solid material sent whole (bulk) is judged by von Mises against its
+ *  strength (Xt) instead. */
 export function judge(s, m, ax) {
   const vm = Math.sqrt(0.5 * ((s[0] - s[1]) ** 2 + (s[1] - s[2]) ** 2 + (s[2] - s[0]) ** 2) + 3 * (s[3] ** 2 + s[4] ** 2 + s[5] ** 2))
   const a = inAxes(s, ax)
+  // A solid material, the same every way (bulk): yield by von Mises.
+  if (m.bulk) {
+    const sf = vm > 0 ? m.Xt / vm : Infinity
+    return { vm, across: a.s33, shear: Math.hypot(a.t13, a.t23), sf, mode: Number.isFinite(sf) ? 'yield (von Mises)' : null }
+  }
   // In-layer principal stresses.
   const c = (a.s11 + a.s22) / 2
   const r = Math.hypot((a.s11 - a.s22) / 2, a.t12)
@@ -756,7 +774,7 @@ export function judge(s, m, ax) {
  * @typedef {object} FeaJob
  * @property {string} step          The part as STEP text (read in mm whatever its units).
  * @property {number[]} build        The build direction (the layers' normal), part frame.
- * @property {{ id?: string, overrides?: object }} material
+ * @property {{ id?: string, overrides?: object, bulk?: { id: string, label: string, density: number } }} material
  * @property {{ name?: string, triangles: number[] }[]} fixtures  Faces held still.
  * @property {{ name?: string, triangles: number[], force?: number[], pressure?: number }[]} loads  N, or MPa.
  * @property {{ size?: number, fineness?: 'coarse' | 'medium' | 'fine' }} [mesh]
@@ -848,7 +866,7 @@ export async function solve(job, env = process.env, { signal, progress = () => {
   if (!tools.ready) throw new Error(tools.howTo)
   check()
   if (typeof job?.step !== 'string' || !/ISO-10303-21/.test(job.step.slice(0, 400))) throw new Error('The part must come as STEP.')
-  const material = materialOf(job.material?.id ?? 'pla', job.material?.overrides)
+  const material = materialOf(job.material?.id ?? 'pla', job.material?.overrides, job.material?.bulk)
   if (job.build !== undefined && !isVec(job.build)) throw new Error('The build direction is three numbers [x, y, z].')
   const axes = layerAxes(job.build ?? [0, 0, 1])
   const fixtures = Array.isArray(job.fixtures) ? job.fixtures : []
@@ -1102,7 +1120,7 @@ function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, siz
   return {
     solver: { gmsh: tools.gmsh.version, calculix: tools.ccx.version },
     mesh: { elements: mesh.elements.length / 10, nodes, size: r3(size) },
-    material: { id: material.id, label: material.label, density: material.density, Exy: material.Exy, Ez: material.Ez, Xt: material.Xt, Zt: material.Zt, Sz: r3(material.Sz) },
+    material: { id: material.id, label: material.label, density: material.density, ...(material.bulk ? { bulk: true } : {}), Exy: material.Exy, Ez: material.Ez, Xt: material.Xt, Zt: material.Zt, Sz: r3(material.Sz) },
     build: axes.z.map(r3),
     ...(gravity ? { gravity: (() => {
       const embedded = (gravity.points ?? []).reduce((t, p) => t + p.mass, 0)

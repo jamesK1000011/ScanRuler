@@ -15,7 +15,8 @@
 // to the way the parts move. Where µ · tan α′ ≥ 1 the hook locks: no pull
 // takes it apart without the beam being lifted by hand.
 
-import { MATERIAL_ALIASES } from '../../_shared/materials'
+import { libraryMaterial, MATERIAL_ALIASES } from '../../_shared/materials'
+import { PRINTED } from '../../_shared/materials/printed'
 
 export interface Material {
   id: string
@@ -37,9 +38,11 @@ export interface Material {
 }
 
 // Ids, labels and moduli as the other workspaces have them: the ids those
-// of plugins/_shared/materials.ts (nylon, unfilled, is Fits' own), the
-// moduli the in-plane ones of the Strength workspace's table (mcp/src/
-// extras/fea.js Exy), which plugins/fits/tests/fits.test.ts holds them to.
+// of the shared library (plugins/_shared/materials; nylon, unfilled, is
+// Fits' own, the library's pa6-generic by another name), the moduli the
+// in-plane printing figures (_shared/materials/printed.ts Exy), which the
+// Strength workspace's server table matches. These are print-process
+// figures: what a printed hook or press takes.
 //
 // The strains: two-thirds of what printed bars reach before they yield or
 // peak, flat, the lower where two sources differ — the margin Bayer's snap-fit guide keeps for polycarbonate
@@ -56,17 +59,20 @@ export interface Material {
 // them: typical, said so. Print a hook and try it; the material's own data
 // sheet comes first.
 export const MATERIALS: Material[] = [
-  { id: 'pla', label: 'PLA', modulus: 2680, strain: 0.014, upright: 0.5, friction: 0.35, basis: 'printed' },
-  { id: 'petg', label: 'PETG', modulus: 2000, strain: 0.02, upright: 0.4, friction: 0.35, basis: 'printed' },
-  { id: 'abs', label: 'ABS', modulus: 2000, strain: 0.016, upright: 0.3, friction: 0.6, basis: 'printed' },
-  { id: 'asa', label: 'ASA', modulus: 1950, strain: 0.017, upright: 0.4, friction: 0.6, basis: 'printed' },
+  { id: 'pla', label: 'PLA', modulus: PRINTED['pla'].Exy, strain: 0.014, upright: 0.5, friction: 0.35, basis: 'printed' },
+  { id: 'petg', label: 'PETG', modulus: PRINTED['petg'].Exy, strain: 0.02, upright: 0.4, friction: 0.35, basis: 'printed' },
+  { id: 'abs', label: 'ABS', modulus: PRINTED['abs'].Exy, strain: 0.016, upright: 0.3, friction: 0.6, basis: 'printed' },
+  { id: 'asa', label: 'ASA', modulus: PRINTED['asa'].Exy, strain: 0.017, upright: 0.4, friction: 0.6, basis: 'printed' },
   { id: 'nylon', label: 'Nylon (PA, unfilled)', modulus: 1200, strain: 0.04, upright: 0.5, friction: 0.45, basis: 'typical' },
-  { id: 'tpu-95a', label: 'TPU 95A', modulus: 26, strain: 0.15, upright: 0.5, friction: 0.6, basis: 'typical' },
+  { id: 'tpu-95a', label: 'TPU 95A', modulus: PRINTED['tpu-95a'].Exy, strain: 0.15, upright: 0.5, friction: 0.6, basis: 'typical' },
 ]
 export const MATERIAL_IDS = MATERIALS.map((m) => m.id)
 /** Every name a material is taken by: its id, and the older names (tpu). */
 export const MATERIAL_NAMES = [...MATERIAL_IDS, ...Object.keys(MATERIAL_ALIASES).filter((a) => MATERIAL_IDS.includes(MATERIAL_ALIASES[a]))]
-export const materialOf = (id: string): Material | undefined => MATERIALS.find((m) => m.id === (Object.hasOwn(MATERIAL_ALIASES, id) ? MATERIAL_ALIASES[id] : id))
+export const materialOf = (id: string): Material | undefined =>
+  MATERIALS.find((m) => m.id === (Object.hasOwn(MATERIAL_ALIASES, id) ? MATERIAL_ALIASES[id] : id)) ??
+  // The library's polyamide by any of its names is Fits' nylon.
+  (libraryMaterial(id)?.id === 'pa6-generic' ? MATERIALS.find((m) => m.id === 'nylon') : undefined)
 
 /** Snap-fit guides allow about 60 % of the one-time strain for a hook
  *  that is snapped together and apart again and again (Bayer, Table 2). */

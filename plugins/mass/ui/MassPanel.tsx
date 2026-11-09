@@ -97,7 +97,9 @@ export function MassPanel() {
           {r.bodies.length > 1 &&
             r.bodies.map((b) => (
               <div key={b.body} className="kv">
-                <span className="pl-aside">{b.body}</span>
+                <span className="pl-aside" title={b.material ? `${b.material}, ${b.as === 'printed' ? 'printed' : 'solid'}${b.assumed ? ' (none set)' : ''}` : undefined}>
+                  {b.body}
+                </span>
                 <span className="pl-aside">
                   {g(b.mass)} g at ({at(len, b.com)})
                 </span>

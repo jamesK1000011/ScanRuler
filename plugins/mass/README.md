@@ -52,9 +52,16 @@ print pause. Each control runs a command below.
 The study (setup, calibration, target) is saved with the project and is part
 of the undo history.
 
-The materials are the table Strength uses too (`plugins/_shared/materials.ts`):
-the same ids, labels and densities. `tpu` is still taken for `tpu-95a`, and the
-Strength workspace can take its own-weight load from `mass.properties`.
+Each body is weighed in its own material when one is set (`material.set`, the
+Materials plugin; the library is `plugins/_shared/materials/`): solid, or — when
+the body is in a print setup (`plugins/_shared/setups.ts`) — as printed, walls
+round the infill (the setup's where it gives them, else this setup's) with the
+calibration. A body with no material is weighed as before, printed in this
+setup's material (solid when a setup makes it some other way), and the answer's
+note says what was assumed. Each row of `mass.properties` says `material`, `as`
+and `density`. The filaments here are the table Strength uses too: the same
+ids, labels and densities. `tpu` is still taken for `tpu-95a`, and the Strength
+workspace can take its own-weight load from `mass.properties`.
 
 ## Tests
 

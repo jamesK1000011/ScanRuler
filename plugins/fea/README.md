@@ -74,9 +74,22 @@ in-layer and across-layer stiffness and strength (MPa).
 The figures are for solid print. Use `overrides` for your own, and lower them
 for thin walls and sparse infill.
 
+These are printing figures — process data, in `plugins/_shared/materials/printed.ts`
+— and apply only to a body in a print setup (`plugins/_shared/setups.ts`), or
+to a body with no material of its own, solved as before in the study's
+material and said so. A body set with `material.set` solves in its own
+material: printed as above when it is a filament in a print setup; otherwise
+as the solid material, the same in every direction — its Young's modulus,
+Poisson's ratio and shear modulus, judged by von Mises against its yield
+strength (its ultimate where the library has no yield, said so). The page
+sends those figures whole with the material's name and density (`bulk`); a
+server older than the page (no `fea.bulk` feature) solves the figures but
+judges them by the layer checks, and the answer says so.
+
 Ids, labels and densities are the table Mass uses too
-(`plugins/_shared/materials.ts`); the server's copy in `mcp/src/extras/fea.js`
-is held to it by `plugins/fea/tests/fea.test.ts`. `tpu` is still taken for `tpu-95a`.
+(`plugins/_shared/materials/`); the server's copy in `mcp/src/extras/fea.js`
+is held to it, densities and printing figures both, by
+`plugins/fea/tests/fea.test.ts`. `tpu` is still taken for `tpu-95a`.
 
 ## Own weight
 

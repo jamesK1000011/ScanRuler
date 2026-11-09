@@ -23,6 +23,13 @@ export interface MassSetup {
 
 export interface BodyMass {
   body: string
+  /** What it was weighed in, and whether as printed or solid; assumed: no
+   *  material of its own was set, so the Mass setup's was taken. */
+  material?: string
+  as?: 'printed' | 'solid'
+  assumed?: boolean
+  /** g/cm³, as weighed (the calibration on a printed one's). */
+  density?: number
   volume: number
   area: number
   mass: number

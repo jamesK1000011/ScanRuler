@@ -8,6 +8,10 @@ found. FreeCAD ships both.
 
 ## 1. Set it up
 
+- The body's own material comes first (`material.set`; read the material
+  guide): a metal or a cut plastic solves solid, the same every way,
+  against its yield; a filament in a print setup solves as printed, below.
+  `material` here is for a body with none set.
 - `fea.setup { body, build, material }`. **build** is the way the layers
   stack, in the part's frame: "+z" printed as it stands, "+x" stood on its
   −X end. Ask how it will be printed. If they haven't decided, solving it

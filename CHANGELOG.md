@@ -20,6 +20,26 @@ saves carry the same number as `appVersion`. How a release is cut is in
   on their page; the new tab's id `parts` opens its last page. Tab titles no
   longer assume a printer: Fits, Calibrate from a scan, Wear and BumpMesh
   say what they do for any part.
+- **A material for each part** (2026-11-08). What a part is made of is now
+  the part's own, as in FreeCAD and Fusion, whatever makes it: a printed
+  bracket, a laser-cut acrylic plate, a machined aluminium shaft, a bought
+  brass insert. `material.list`, `material.get`, `material.set` and
+  `material.clear` (the new Materials plugin, all headless) read the
+  library and put a material on a Reverse Engineer body, or one of your own
+  from a supplier's data sheet; it stays with the body through a rename and
+  is saved with the project. The bar under the body list has a Material
+  list for the bodies picked. The library is FreeCAD's material cards —
+  131 metals, plastics, woods, glass, concrete and graphite, the Machining
+  cards with cutting speeds and cutting force — each with its card, author
+  and licence (credited in the imprint and in
+  `plugins/_shared/materials/MATERIALS-LICENSES.md`), and the app's own:
+  the printing filaments, polycarbonate, HDPE, POM and brass. Mass weighs
+  each body in its material and Strength solves in it: solid — a metal
+  judged by von Mises against its yield — unless the body is in a print
+  setup, where the walls, infill and weaker layers apply. A body with no
+  material is weighed and solved as before, and the answer says what was
+  assumed. Part review names the material a part was weighed in; Fits
+  takes its moduli from the shared printing figures.
 - **A lighter start for agents** (2026-11-09). The MCP server's tool list
   and the Reverse engineer's guides cost an agent less before it does any
   work. `--tools lean` (`SCANRULER_MCP_TOOLS=lean`) lists the session,

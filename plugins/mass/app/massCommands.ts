@@ -9,9 +9,12 @@ import { runCommand, runWithin } from '../../../src/commands/registry'
 import { arr, enumOf, int, num, obj, str, vec3 } from '../../../src/commands/schema'
 import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { ballast, BB_GRAMS, boxInside, combine, FILLERS, freeName, inside, type M3, massOf, MATERIALS, pocketSize, readStl, type V3 } from '../core/mass'
+import { ballast, BB_GRAMS, boxInside, combine, FILLERS, freeName, inside, type M3, massOf, MATERIALS, pocketSize, type Print, readStl, type V3 } from '../core/mass'
 import { setupOf, useMass, type BodyMass, type EmbeddedMass, type Pocket } from '../state/massStore'
 import { MATERIAL_NAMES, materialId } from '../../_shared/materials'
+import { materialOfBody, useAssigned } from '../../_shared/materials/assigned'
+import { printFillOf } from '../../_shared/materials/printed'
+import { bodyKeyOf, setupFor, setupsOf } from '../../_shared/setups'
 
 const st = () => useMass.getState()
 const r3 = (x: number) => Math.round(x * 1000) / 1000
@@ -33,8 +36,9 @@ interface ReverseFeature {
 // would read it again.
 const reverse = () => (readStateSection('reverse') ?? {}) as { bodies?: ReverseBody[]; features?: ReverseFeature[] }
 const solids = (): ReverseBody[] => (reverse().bodies ?? []).filter((b) => !b.surface)
-/** The solid bodies as they stand: a reading or a plan of others is stale. */
-const bodiesKey = () => JSON.stringify(solids().map((b) => [b.id, b.name, b.visible, b.volume ?? null, b.faces ?? null]))
+/** The solid bodies as they stand, with their materials and setups: a
+ *  reading or a plan of others is stale. */
+const bodiesKey = () => JSON.stringify([solids().map((b) => [b.id, b.name, b.visible, b.volume ?? null, b.faces ?? null]), useAssigned.getState().assigned, setupsOf().map((s) => [s.id, s.type, s.bodies])])
 
 /** The encased parts as they stand (the Hardware workspace's list): a
  *  reading made with others is stale. */
@@ -75,6 +79,40 @@ async function encased(names: string[]): Promise<{ parts: EmbeddedMass[]; notes:
 const density = (scale = st().scale) => (st().density ?? MATERIALS[st().material]?.density ?? 1.24) * scale
 const print = (scale?: number) => ({ density: density(scale), infill: st().infill / 100, wallMm: st().walls * st().lineMm })
 
+/** How a body is weighed: in its own material — solid, or as printed when
+ *  it is in a print setup (its walls and infill the setup's where it says,
+ *  else the Mass setup's, and the calibration on the density) — or, with
+ *  no material set, as before materials were per part: printed in the Mass
+ *  setup's material (solid when a setup makes it some other way), said so. */
+interface How {
+  print: Print
+  material: string
+  as: 'printed' | 'solid'
+  assumed?: true
+}
+function howFor(b: ReverseBody, scale = st().scale): How {
+  const m = materialOfBody(b)
+  const setup = setupFor(bodyKeyOf(b))
+  const solid = setup !== null && setup.type !== 'print'
+  if (!m) {
+    const own = st().density !== undefined ? `${r3(st().density!)} g/cm³` : (MATERIALS[st().material]?.label ?? st().material)
+    return solid ? { print: { density: density(1), infill: 1, wallMm: 0 }, material: own, as: 'solid', assumed: true } : { print: print(scale), material: own, as: 'printed', assumed: true }
+  }
+  if (m.density === undefined) throw new CommandError('invalid_state', `${b.name} is ${m.name}, which has no density in the library: give one (material.set { body, material: { name, base: "${m.id}", density } }).`)
+  if (setup?.type !== 'print') return { print: { density: m.density, infill: 1, wallMm: 0 }, material: m.name, as: 'solid' }
+  const fill = printFillOf(setup, { infill: st().infill, walls: st().walls, lineWidth: st().lineMm })
+  return { print: { density: m.density * scale, infill: fill.infill / 100, wallMm: fill.walls * fill.lineWidth }, material: m.name, as: 'printed' }
+}
+const howsKey = (picked: ReverseBody[]) => JSON.stringify(picked.map((b) => howFor(b).print))
+
+/** What the answer says of bodies weighed with no material set. */
+function assumedNote(list: BodyMass[]): string[] {
+  const assumed = list.filter((b) => b.assumed)
+  if (!assumed.length) return []
+  const words = [...new Set(assumed.map((b) => `${b.material}${b.as === 'printed' ? ' as printed' : ''}`))].join('; ')
+  return [`No material set on ${assumed.map((b) => b.body).join(', ')} — assumed ${words} (mass.setup; material.set gives a body its own).`]
+}
+
 /** The meshes last read, each with the bodies as they stood then. */
 const meshes = new Map<number, { key: string; tris: Float64Array }>()
 
@@ -96,14 +134,16 @@ function bodiesNamed(names?: string[]): ReverseBody[] {
   return picked
 }
 
-async function measure(picked: ReverseBody[], how = print()): Promise<BodyMass[]> {
+async function measure(picked: ReverseBody[], scale?: number): Promise<BodyMass[]> {
   const key = bodiesKey()
+  const hows = picked.map((b) => howFor(b, scale))
   const out: BodyMass[] = []
-  for (const b of picked) {
+  for (const [i, b] of picked.entries()) {
     const tris = await trianglesOf(b)
     meshes.set(b.id, { key, tris })
-    const p = massOf(tris, how)
-    out.push({ body: b.name, volume: r3(p.volume), area: r3(p.area), mass: r3(p.mass), com: v3(p.com), inertia: p.inertia.map((row) => row.map(r3)) as BodyMass['inertia'], principal: { moments: v3(p.principal.moments), axes: p.principal.axes.map(v3) as [V3, V3, V3] }, closed: p.closed })
+    const how = hows[i]
+    const p = massOf(tris, how.print)
+    out.push({ body: b.name, material: how.material, as: how.as, ...(how.assumed ? { assumed: true } : {}), density: r3(how.print.density), volume: r3(p.volume), area: r3(p.area), mass: r3(p.mass), com: v3(p.com), inertia: p.inertia.map((row) => row.map(r3)) as BodyMass['inertia'], principal: { moments: v3(p.principal.moments), axes: p.principal.axes.map(v3) as [V3, V3, V3] }, closed: p.closed })
   }
   return out
 }
@@ -120,7 +160,7 @@ export function describeMass() {
   return {
     setup: setupOf(s),
     density: r3(density()),
-    ...(s.reading ? { reading: { at: s.reading.at, ...(s.reading.bodiesKey !== bodiesKey() || (s.reading.embedsKey ?? embedsKey()) !== embedsKey() ? { stale: true } : {}), total: { mass: r3(s.reading.total.mass), com: v3(s.reading.total.com) }, bodies: s.reading.bodies.map((b) => ({ body: b.body, mass: b.mass, com: b.com })), ...(s.reading.embedded?.length ? { embedded: s.reading.embedded.map((e) => ({ id: e.id, body: e.body, what: e.what, mass: e.mass, com: e.com })) } : {}) } } : {}),
+    ...(s.reading ? { reading: { at: s.reading.at, ...(s.reading.bodiesKey !== bodiesKey() || (s.reading.embedsKey ?? embedsKey()) !== embedsKey() ? { stale: true } : {}), total: { mass: r3(s.reading.total.mass), com: v3(s.reading.total.com) }, bodies: s.reading.bodies.map((b) => ({ body: b.body, ...(b.material ? { material: b.material, as: b.as } : {}), mass: b.mass, com: b.com })), ...(s.reading.embedded?.length ? { embedded: s.reading.embedded.map((e) => ({ id: e.id, body: e.body, what: e.what, mass: e.mass, com: e.com })) } : {}) } } : {}),
     ...(s.pocket ? { pocket: s.pocket } : {}),
   }
 }
@@ -137,7 +177,7 @@ const materials: Command<Record<string, never>> = {
 const setup: Command<{ material?: string; density?: number | null; infill?: number; walls?: number; lineMm?: number; filler?: string }> = {
   name: 'setup',
   title: 'How the part is printed',
-  description: 'The material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a) or its density (g/cm³; null for the material’s — a material picked alone also goes back to its own), the infill (percent), the walls (count) and line width (mm) — the walls taken as solid all round, the inside at the infill’s share — and the ballast filler (mass.materials lists them). Returns the setup and the density used.',
+  description: 'For a body with no material of its own (material.set gives one): the material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a) or its density (g/cm³; null for the material’s — a material picked alone also goes back to its own), the infill (percent), the walls (count) and line width (mm) — the walls taken as solid all round, the inside at the infill’s share; also the walls and infill of a printed body whose print setup does not give them — and the ballast filler (mass.materials lists them). Returns the setup and the density used.',
   input: obj({
     material: enumOf(MATERIAL_NAMES),
     density: { oneOf: [num('g/cm³.', { minimum: 0.01, maximum: 25 }), { type: 'null' }], description: 'The density in place of the material’s, g/cm³; null for the material’s.' },
@@ -159,7 +199,7 @@ const setup: Command<{ material?: string; density?: number | null; infill?: numb
 const properties: Command<{ bodies?: string[] }> = {
   name: 'properties',
   title: 'Weigh the part',
-  description: 'Mass (g), volume (mm³), surface (mm²), centre of mass (mm) and inertia about it (g·mm², with principal moments and axes) of each body — the shown solid bodies by default — printed as set up, and of them together. Parts encased in them (the Hardware workspace’s: a magnet, a nut dropped in at a pause) are listed under embedded with their mass and centre, and counted in the total; embeddedMass is theirs alone. closed: false means a mesh with holes or faces wound both ways, whose volume is not to trust. Reads the bodies as meshed now.',
+  description: 'Mass (g), volume (mm³), surface (mm²), centre of mass (mm) and inertia about it (g·mm², with principal moments and axes) of each body — the shown solid bodies by default — and of them together. Each body is weighed in its own material (material.set): solid, or as printed — walls and infill, the calibration — when it is in a print setup; each row says material, as (printed or solid) and density. A body with no material is weighed as set up here (mass.setup, printed), and the note says so. Parts encased in them (the Hardware workspace’s: a magnet, a nut dropped in at a pause) are listed under embedded with their mass and centre, and counted in the total; embeddedMass is theirs alone. closed: false means a mesh with holes or faces wound both ways, whose volume is not to trust. Reads the bodies as meshed now.',
   input: obj({ bodies: arr(str(undefined, { minLength: 1 }), 'Bodies by name.', { minItems: 1 }) }),
   readOnly: true,
   long: true,
@@ -168,22 +208,23 @@ const properties: Command<{ bodies?: string[] }> = {
 
 async function weigh(bodies?: string[]) {
   const picked = bodiesNamed(bodies)
-  const how = print()
+  const how = howsKey(picked)
   const key = bodiesKey()
   weighing++
   useMass.setState({ busy: 'Weighing…' })
   try {
-    const list = await measure(picked, how)
+    const list = await measure(picked)
     const eKey = embedsKey()
     const held = await encased(picked.map((b) => b.name))
     const total = combine([...list, ...held.parts])
     const reading = { at: new Date().toISOString(), bodiesKey: key, embedsKey: eKey, bodies: list, ...(held.parts.length ? { embedded: held.parts } : {}), total: { mass: r3(total.mass), com: v3(total.com), inertia: total.inertia.map((row) => row.map(r3)) as BodyMass['inertia'] } }
     // Set up otherwise while it weighed: this reading is not of the setup now.
-    if (JSON.stringify(print()) === JSON.stringify(how)) useMass.setState({ reading })
-    const notes = [...(list.some((b) => !b.closed) ? [`Not closed: ${list.filter((b) => !b.closed).map((b) => b.body).join(', ')} — its volume is not to trust.`] : []), ...held.notes]
+    if (howsKey(picked) === how) useMass.setState({ reading })
+    const notes = [...assumedNote(list), ...(list.some((b) => !b.closed) ? [`Not closed: ${list.filter((b) => !b.closed).map((b) => b.body).join(', ')} — its volume is not to trust.`] : []), ...held.notes]
     const { embedsKey: _k, ...out } = reading
     void _k
-    return { density: r3(how.density), ...out, ...(held.parts.length ? { embeddedMass: r3(held.parts.reduce((t, p) => t + p.mass, 0)) } : {}), ...(notes.length ? { note: notes.join(' ') } : {}) }
+    const densities = [...new Set(list.map((b) => b.density))]
+    return { ...(densities.length === 1 ? { density: densities[0] } : {}), ...out, ...(held.parts.length ? { embeddedMass: r3(held.parts.reduce((t, p) => t + p.mass, 0)) } : {}), ...(notes.length ? { note: notes.join(' ') } : {}) }
   } finally {
     if (--weighing === 0) useMass.setState({ busy: null })
   }
@@ -209,12 +250,14 @@ const calibrate: Command<{ grams?: number; body?: string; reset?: boolean }> = {
     if (grams === undefined) throw new CommandError('invalid_input', 'Give the weighed grams, or reset: true.')
     const picked = bodiesNamed(body ? [body] : undefined)
     if (picked.length > 1) throw new CommandError('invalid_input', `More than one body is shown: say which was printed (body): ${picked.map((b) => b.name).join(', ')}.`)
+    const how = howFor(picked[0], 1)
+    if (how.as !== 'printed') throw new CommandError('invalid_state', `${picked[0].name} is solid ${how.material}${how.assumed ? '' : ' (not in a print setup)'}: a calibration scales a printed part's density to the printer and spool. Weigh a printed part.`)
     weighing++
     useMass.setState({ busy: 'Weighing…' })
     let b: BodyMass
     let held: Awaited<ReturnType<typeof encased>>
     try {
-      ;[b] = await measure(picked, print(1))
+      ;[b] = await measure(picked, 1)
       held = await encased([b.body])
     } finally {
       if (--weighing === 0) useMass.setState({ busy: null })
@@ -278,7 +321,7 @@ const plan: Command<{ body?: string; filler?: string; width?: number; depth?: nu
     const name = body ?? (reading.bodies.length === 1 ? reading.bodies[0].body : null)
     if (!name) throw new CommandError('invalid_input', `Say which body the pocket goes in (body): ${reading.bodies.map((b) => b.body).join(', ')}.`)
     const into = solids().find((b) => b.name === name) ?? fail(name, solids())
-    const how = print()
+    const how = howFor(into).print
     const there = how.density * how.infill
     const r = ballast(reading.total, t, fill, there, {
       density: how.density * (1 - how.infill),

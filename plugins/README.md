@@ -21,7 +21,8 @@ not in this repository.
 | [wear-repair/](wear-repair/) | Wear repair (Analyze › Wear) — worn regions back onto the mirrored half or the CAD; a part pre-warped so it comes out true |
 | [assembly-manual/](assembly-manual/) | Assembly manual (Docs › Manual) — steps checked for a clear way in, drawn and written; HTML and PDF |
 | [patent-kit/](patent-kit/) | Patent kit (Docs › Patent) — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
-| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the materials, the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
+| [material/](material/) | Materials — what each part is made of (`material.*`), from FreeCAD's material cards and the app's own; Mass and Strength weigh and solve each body in its own |
+| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the material library and who has what (`materials/`, FreeCAD's cards credited in `materials/MATERIALS-LICENSES.md`), the setups reader (`setups.ts`), the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
 | [library-pack/](library-pack/) | Library pack (the Share tab) — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles (3D Measure's Scanner section) — the scan's noise, measured or from a profile you keep |
 | [review/](review/) | Part review — `part.review`: one verdict on a body from the other workspaces' checks (validity, clearance, mass, strength; printability and pauses for a printed part), and a design spec kept with the project |
