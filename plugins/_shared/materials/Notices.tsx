@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// What the imprint owes the material data the library ships.
+// What the imprint owes the material data the library ships. Registered by
+// index.ts, so it is there whenever the library is bundled — by Mass,
+// Strength, Fits or the Materials plugin, any of them alone.
 export function MaterialNotices() {
   return (
     <p>

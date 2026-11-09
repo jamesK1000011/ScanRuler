@@ -4,6 +4,7 @@
 // Imprint (Impressum) + privacy policy — German legal requirement
 // (§ 5 DDG / Art. 13 DSGVO). Opened from the status strip.
 
+import { sharedNotices } from '../plugins/notices'
 import { plugins } from '../plugins/registry'
 import { useStore } from '../state/store'
 import { APP_VERSION } from '../version'
@@ -18,8 +19,9 @@ export function ImprintModal() {
   useDismiss(open, () => close(false))
 
   if (!open) return null
-  // The plugins' notices on the third-party software they ship.
-  const notices = plugins().flatMap((p) => (p.notices ? [{ id: p.id, Notices: p.notices }] : []))
+  // The plugins' notices on the third-party software they ship, then those
+  // of shared libraries in the build, whichever plugins bundle them.
+  const notices = [...plugins().flatMap((p) => (p.notices ? [{ id: `plugin:${p.id}`, Notices: p.notices }] : [])), ...sharedNotices().map((n) => ({ id: `shared:${n.id}`, Notices: n.Notices }))]
   return (
     <div className="modalback" onClick={() => close(false)}>
       <div className="modal imprint" onClick={(e) => e.stopPropagation()}>

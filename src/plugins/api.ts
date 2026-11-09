@@ -88,6 +88,8 @@ export type { PanelSection, PanelSlot } from './panelSections'
 
 export { registerHostHeader } from './hostHeaders'
 export type { HostHeader, HostHeaderProps } from './hostHeaders'
+export { registerSharedNotice } from './notices'
+export type { SharedNotice } from './notices'
 
 /** A workspace's tab in the top bar. */
 export interface WorkspaceTab {
@@ -313,7 +315,9 @@ export interface ScanRulerPlugin {
   /** Its workspace's keys. */
   keyboard?: KeyboardContribution
   /** What the imprint owes the third-party software the plugin ships: one or
-   *  more paragraphs under "Third-party software". */
+   *  more paragraphs under "Third-party software". Data a shared module
+   *  ships, whichever plugin bundles it, registers its own instead
+   *  (registerSharedNotice). */
   notices?: ComponentType
   /** Run once at start-up, when the plugin is enabled: the place to register
    *  with the app's registries — the undo history, the project file, the

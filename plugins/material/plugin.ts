@@ -13,12 +13,10 @@ import { registerHistory } from '../../src/state/historyStore'
 import { describeMaterials, materialCommands } from './app/materialCommands'
 import { materialsSection } from './app/projectSection'
 import { useAssigned } from '../_shared/materials/assigned'
-import { MaterialNotices } from './ui/MaterialNotices'
 
 const plugin: ScanRulerPlugin = {
   id: 'material',
   name: 'Materials',
-  notices: MaterialNotices,
   install() {
     useAssigned.setState({ installed: true })
     registerProjectSection(materialsSection)

@@ -17,6 +17,12 @@
 
 import freecad from './freecad.json'
 import { FORK } from './fork'
+import { registerSharedNotice } from '../../../src/plugins/notices'
+import { MaterialNotices } from './Notices'
+
+// FreeCAD's cards are in the build whenever this module is: their credit
+// goes in the imprint from here, not from a plugin that may be left out.
+registerSharedNotice({ id: 'materials', Notices: MaterialNotices })
 
 export type Category = 'metal' | 'thermoplast' | 'wood' | 'glass' | 'aggregate' | 'carbon'
 

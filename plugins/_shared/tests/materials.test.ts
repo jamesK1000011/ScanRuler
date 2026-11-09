@@ -2,13 +2,16 @@
 // The material library: FreeCAD's cards as converted (a few figures read
 // back against the cards, their units turned), every entry credited with
 // its licence, the Machining cards given their bulk figures, the fork's
-// own entries beside them, the names a material is found by, and the
-// setups reader keyed by body id.
+// own entries beside them, the names a material is found by, the credit
+// in the imprint wherever the library is bundled, and the setups reader
+// keyed by body id.
 import { describe, expect, it } from 'vitest'
 import { LIBRARY, LIBRARY_ALIASES, libraryMaterial, MATERIAL_IDS, MATERIALS, searchLibrary } from '../materials'
 import { PRINTED, printFillOf } from '../materials/printed'
 import { resolveAssignment } from '../materials/assigned'
 import { isPrinted, setupFor, setupsOf } from '../setups'
+import { sharedNotices } from '../../../src/plugins/notices'
+import { MaterialNotices } from '../materials/Notices'
 
 describe('the library', () => {
   it('reads FreeCAD’s cards in the app’s units', () => {
@@ -63,6 +66,14 @@ describe('the library', () => {
   it('makes a custom material whole over its base', () => {
     expect(resolveAssignment({ custom: { name: 'My steel', base: 'steel-generic', yieldMPa: 400 } })).toMatchObject({ id: 'custom', name: 'My steel', custom: true, bulkFrom: 'steel-generic', density: 7.9, yieldMPa: 400 })
     expect(resolveAssignment('unobtainium')).toBe(null)
+  })
+})
+
+describe('the credit in the imprint', () => {
+  it('is registered by the library itself, once, so a build without the Materials plugin has it', () => {
+    const ours = sharedNotices().filter((n) => n.id === 'materials')
+    expect(ours.length).toBe(1)
+    expect(ours[0].Notices).toBe(MaterialNotices)
   })
 })
 

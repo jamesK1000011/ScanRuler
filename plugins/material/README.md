@@ -44,8 +44,11 @@ concrete, graphite; the Machining cards with cutting speeds and cutting
 force), and the fork's own: the printing filaments, polycarbonate, HDPE,
 POM and brass. Each entry keeps its source and licence;
 [MATERIALS-LICENSES.md](../_shared/materials/MATERIALS-LICENSES.md) credits
-FreeCAD and the cards' authors. `scripts/convert-fcmat.mjs` converts the
-cards again from a FreeCAD checkout.
+FreeCAD and the cards' authors, and the library puts its credit in the
+imprint itself (`Notices.tsx`, registered by `index.ts`), so it is there
+whenever the library is bundled — by Mass, Strength or Fits in a build
+without this plugin too. `scripts/convert-fcmat.mjs` converts the cards
+again from a FreeCAD checkout.
 
 ## Tests
 
