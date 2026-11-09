@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>ScanRuler for FreeCAD</name>
+  <description>ScanRuler's scan measuring (fits, alignment, deviation, wall thickness, sections, mesh tools), ported from ScanRuler by CNC Kitchen; tools for the Agent Link add-on.</description>
+  <version>0.1.0</version>
+  <date>2026-11-09</date>
+  <maintainer email="jamesK1000011@users.noreply.github.com">jamesK1000011</maintainer>
+  <license file="LICENSE">AGPL-3.0-only</license>
+  <url type="repository" branch="freecad-spike">https://github.com/jamesK1000011/ScanRuler</url>
+  <freecadmin>1.0.0</freecadmin>
+  <depend>Agent Link</depend>
+</package>

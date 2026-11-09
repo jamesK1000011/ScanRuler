@@ -57,12 +57,17 @@ jobs:
       - name: FreeCAD imports
         run: |
           echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+          # Both add-ons importable, as in FreeCAD's Mod folder: Agent Link
+          # from the fork, ScanRuler for FreeCAD from this repo.
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
       - name: PrusaSlicer, for the slice tool
         run: sudo apt-get update -qq && sudo apt-get install -y -qq prusa-slicer xvfb > /dev/null && (prusa-slicer --help | head -1 || true)
       - name: Agent Link tests
         run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests -v
+      - name: ScanRuler for FreeCAD tests
+        run: python -m unittest discover -s freecad/ScanRulerFC/tests -t freecad/ScanRulerFC -v
       - name: The brief, headless
         run: node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad --python python
       - name: Server log
