@@ -10,7 +10,7 @@ texture goes.
 ## Texture: giving a part a printable surface
 
 Open a part — a scan, or a model rebuilt in the Reverse engineer and exported
-as STL — and pick the **Texture** tab.
+as STL — and pick the **BumpMesh** tab.
 
 - **Layers**: up to four, bottom first, each with its own texture, settings
   and surface. A layer covers the ones below where it reaches, or adds onto
