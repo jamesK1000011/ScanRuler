@@ -83,6 +83,12 @@ export function runsHeadless(name: string): boolean {
   return commands.get(name)?.headless === true
 }
 
+/** What does a page command's work headless, where something does — see
+ *  Command.headlessInstead. */
+export function headlessInstead(name: string): string | null {
+  return commands.get(name)?.headlessInstead ?? null
+}
+
 // ---- Running ----------------------------------------------------------------
 
 /** How long a command may run, unless it says otherwise (Command.timeoutMs),

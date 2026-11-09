@@ -25,11 +25,28 @@ export interface HeadlessEngine {
   /** The names of the commands that need the page — what a server tells a
    *  caller of one to use the page mode for. */
   pageCommands(): string[]
+  /** What does the work of a command that needs the page here, where
+   *  something does (Command.headlessInstead) — what a server adds to its
+   *  refusal; null where nothing does. */
+  insteadOf(name: string): string | null
   /** Run a command; rejects with { code, message } as the page does. A
    *  command that needs the page is refused `unavailable`. */
   run(name: string, input: unknown, onProgress?: (text: string) => void): Promise<unknown>
+  /** Link the engine to the agent's server it runs in, as a page's link to
+   *  it: what it answers beyond the commands (features — the FEA solve,
+   *  KiCad, tscircuit), and the notices the plugins ask those with, handed
+   *  to `notice`; the answers come back as runs of their internal commands.
+   *  Returns the function that unlinks it. */
+  attach(server: EngineServer): () => void
   /** Every plugin stopped, the session let go. */
   stop(): Promise<void>
+}
+
+/** The agent's server an engine runs in, as attach() takes it. */
+export interface EngineServer {
+  version: string | null
+  features: string[]
+  notice(kind: string, data: Record<string, unknown>): void
 }
 
 type Listener = ((event: { data: unknown }) => void) | null
@@ -82,6 +99,8 @@ async function start(): Promise<HeadlessEngine> {
   const { installPlugins } = await import('../plugins/registry')
   const { CommandError } = await import('../commands/types')
   const { APP_VERSION } = await import('../version')
+  const { setNoticeOut } = await import('../commands/notice')
+  const { useAgentLink } = await import('../commands/agentLink')
   const session = createSession({ clientRef: { current: new MeshWorkerClient() }, sceneRef: { current: null } })
   const stops: (() => void)[] = [session.watch(), installCommandHost({ session })]
   const plugins = installPlugins()
@@ -93,11 +112,23 @@ async function start(): Promise<HeadlessEngine> {
     plugins: plugins.map((p) => p.id),
     listCommands: () => registry.listCommands().filter((c) => registry.runsHeadless(c.name)),
     pageCommands: () => registry.listCommands().flatMap((c) => (registry.runsHeadless(c.name) ? [] : [c.name])),
+    insteadOf: (name) => registry.headlessInstead(name),
     run: (name, input, onProgress) => {
       if (registry.listCommands().some((c) => c.name === name) && !registry.runsHeadless(name)) {
-        return Promise.reject(new CommandError('unavailable', `${name} needs the ScanRuler page — a scan, the viewport or the browser — and this session runs without one (headless). Use the page mode for it: the agent’s server started without an engine, paired with a ScanRuler tab.`))
+        const instead = registry.headlessInstead(name)
+        return Promise.reject(new CommandError('unavailable', `${name} needs the ScanRuler page — a scan, the viewport or the browser — and this session runs without one (headless). ${instead ? `Headless: ${instead} Or use` : 'Use'} the page mode for it: the agent’s server started without an engine, paired with a ScanRuler tab.`))
       }
       return registry.runCommand(name, input, onProgress)
+    },
+    attach: (server) => {
+      // Notices go out as a page's bridge sends them: never in the same
+      // turn as the run that sent them.
+      setNoticeOut((m) => setTimeout(() => server.notice(m.kind, m.data), 0))
+      useAgentLink.setState({ status: 'connected', detail: null, server: { version: server.version, features: [...server.features] } })
+      return () => {
+        setNoticeOut(null)
+        useAgentLink.setState({ status: 'off', detail: null, server: null })
+      }
     },
     stop: async () => {
       for (const stop of stops.reverse()) stop()

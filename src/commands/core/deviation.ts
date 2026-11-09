@@ -47,6 +47,7 @@ const openReference: Command<{ bytes: Uint8Array; name: string; units?: MeshUnit
     'Open the nominal part the scan is compared with — STEP from CAD, or STL, PLY, OBJ or 3MF — in place of the one there is; any alignment and map against the old one go, the elements measured on the scan stay. Returns the deviation state. Not undoable: a new reference starts a new history.',
   input: obj({ bytes: bytes('The file’s contents.'), name: fileNameSchema('"bracket.step"'), units: unitsSchema }, ['bytes', 'name']),
   history: false,
+  headlessInstead: 'a STEP file comes in as Reverse Engineer bodies with reverse.import.step; dfm.settings { target: "body" } then dfm.check checks a body for printing without a reference part, and reverse.body.clearance measures bodies against each other.',
   run: async ({ bytes: data, name, units }) => {
     const { session } = commandHost()
     onReference()

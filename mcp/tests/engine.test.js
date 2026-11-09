@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { after, before, test } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -30,8 +30,18 @@ function standIn() {
       { name: 'session.state', title: 'Read the session', description: 'The session.', input: obj(), readOnly: true, returnsFile: false, returnsImage: false },
       { name: 'demo.parameter_add', title: 'Add a parameter', description: 'A parameter.', input: obj({ name: { type: 'string' } }, ['name']), readOnly: false, returnsFile: false, returnsImage: false },
       { name: 'demo.export', title: 'Export', description: 'A file.', input: obj(), readOnly: true, returnsFile: true, returnsImage: false },
+      { name: 'demo.long', title: 'A long reading', description: 'Many rows.', input: obj(), readOnly: true, returnsFile: false, returnsImage: false },
     ],
-    pageCommands: () => ['view.render', 'scan.open'],
+    pageCommands: () => ['view.render', 'scan.open', 'dfm.check_scan'],
+    insteadOf: (name) => (name === 'dfm.check_scan' ? 'dfm.settings { target: "body" } checks a body instead.' : null),
+    attached: null,
+    notices: [],
+    attach(server) {
+      this.attached = server
+      return () => {
+        this.attached = null
+      }
+    },
     async run(name, input) {
       calls.push(name)
       if (name === 'session.state') return { parameters: [...parameters], viewport: false }
@@ -41,6 +51,11 @@ function standIn() {
         return { added: input.name }
       }
       if (name === 'demo.export') return { file: { name: 'part.step', mimeType: 'model/step', bytes: new TextEncoder().encode('ISO-10303-21;') } }
+      if (name === 'demo.long') return { rows: Array.from({ length: 4000 }, (_, i) => ({ i, text: 'a reading of the part, long enough to add up' })) }
+      if (name === 'demo.answer') {
+        this.notices.push(input)
+        return { taken: true }
+      }
       throw { code: 'unavailable', message: `${name} needs the page.` }
     },
     stopped: false,
@@ -87,7 +102,7 @@ test('headless: the server says so, lists the engine’s tools, and runs them in
   assert.match(client.getInstructions(), /headless/)
   assert.doesNotMatch(client.getInstructions(), /browser tab the user has open/)
   const names = (await client.listTools()).tools.map((t) => t.name)
-  assert.deepEqual(names.filter((n) => !n.startsWith('scanruler_')), ['session_state', 'demo_parameter_add', 'demo_export'])
+  assert.deepEqual(names.filter((n) => !n.startsWith('scanruler_')), ['session_state', 'demo_parameter_add', 'demo_export', 'demo_long'])
   const status = await call('scanruler_status')
   assert.equal(status.json.backend, 'headless')
   assert.equal(status.json.connected, true)
@@ -121,6 +136,46 @@ test('headless: a tool that needs the page answers unavailable, naming the page 
   assert.equal(batch.json.results[1].error.code, 'unavailable')
 })
 
+test('headless: a page tool with a headless stand-in names it in its refusal', async () => {
+  const refused = await call('dfm_check_scan', {})
+  assert.equal(refused.error, true)
+  assert.match(refused.text, /^unavailable: dfm_check_scan needs the ScanRuler page .* Headless: dfm\.settings \{ target: "body" \} checks a body instead\. Or start scanruler-mcp in page mode/)
+  assert.doesNotMatch((await call('view_render', {})).text, /Headless:/)
+})
+
+test('headless: the engine is linked to this server — its features, and its notices heard as a page’s', async () => {
+  assert.ok(engine.attached, 'the engine was linked')
+  assert.ok(engine.attached.features.includes('fea.solve'))
+  assert.ok(engine.attached.features.includes('pcb.kicad'))
+  const heard = new Promise((done) => link.once('notice', done))
+  engine.attached.notice('demo.ask', { req: 'r1' })
+  assert.deepEqual(await heard, { kind: 'demo.ask', data: { req: 'r1' } })
+  // Unlinked when the link closes.
+  const other = standIn()
+  const otherLink = new EngineLink(other, '/where/engine.mjs', { version: '1.2.3' })
+  assert.equal(other.attached.version, '1.2.3')
+  otherLink.close()
+  assert.equal(other.attached, null)
+})
+
+test('headless: an answer too long to carry goes to the output folder, and scanruler_read and _files reach it there', async () => {
+  const long = await call('demo_long', {})
+  assert.equal(long.json.truncated, true)
+  assert.match(long.json.note, /scanruler_read/)
+  assert.equal(dirname(long.json.file), dir)
+  const part = await call('scanruler_read', { path: long.json.file, limit: 100 })
+  assert.equal(part.error, false)
+  assert.ok(part.json.text.startsWith('{'))
+  assert.ok(part.json.nextOffset > 0)
+  const listed = await call('scanruler_files', {})
+  assert.equal(listed.json.folder, dir)
+  assert.ok(listed.json.files.some((f) => join(dir, f.name) === long.json.file))
+  const written = await call('scanruler_write', { path: 'report.md', text: '# Report\n' })
+  assert.equal(written.json.path, join(dir, 'report.md'))
+  assert.equal(await readFile(join(dir, 'report.md'), 'utf8'), '# Report\n')
+  assert.equal((await call('scanruler_write', { path: '../out.md', text: 'x' })).error, true)
+})
+
 test('an engine is looked for where it is, and a file that is none is refused', async () => {
   await assert.rejects(loadEngine(join(dir, 'missing.mjs')), /There is no ScanRuler engine at .*missing\.mjs\. Build one with "npm run build:engine"/)
   const notOne = join(dir, 'not-an-engine.mjs')
@@ -151,9 +206,9 @@ test('headless and compact: the server’s own tools listed, the engine’s read
   try {
     assert.match(small.getInstructions(), /headless/)
     assert.match(small.getInstructions(), /scanruler_tools/)
-    assert.deepEqual((await small.listTools()).tools.map((t) => t.name).sort(), ['scanruler_batch', 'scanruler_open', 'scanruler_status', 'scanruler_tools', 'scanruler_wait'])
+    assert.deepEqual((await small.listTools()).tools.map((t) => t.name).sort(), ['scanruler_batch', 'scanruler_files', 'scanruler_open', 'scanruler_read', 'scanruler_status', 'scanruler_tools', 'scanruler_wait', 'scanruler_write'])
     const listed = JSON.parse((await small.callTool({ name: 'scanruler_tools', arguments: {} })).content[0].text)
-    assert.deepEqual(Object.keys(listed.tools), ['session_state', 'demo_parameter_add', 'demo_export'])
+    assert.deepEqual(Object.keys(listed.tools), ['session_state', 'demo_parameter_add', 'demo_export', 'demo_long'])
     const batch = JSON.parse((await small.callTool({ name: 'scanruler_batch', arguments: { calls: [{ tool: 'demo_parameter_add', arguments: { name: 'c1' } }, { tool: 'session_state' }] } })).content[0].text)
     assert.deepEqual(batch.results[1].result.parameters, ['c1'])
   } finally {

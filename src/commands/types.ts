@@ -141,6 +141,10 @@ export interface Command<I = Record<string, unknown>> {
    *  app run headless offers it (src/headless/engine.ts). Off by default:
    *  a command is marked once it has been run so. */
   headless?: boolean
+  /** For a command that needs the page: what does its work in the app run
+   *  headless, where there is something — "dfm.settings { target: \"body\" }
+   *  checks a body instead". Said with the refusal there. */
+  headlessInstead?: string
   /** How long a run may take before its caller is answered `timeout` and
    *  the commands after it run — COMMAND_TIMEOUT_MS (registry.ts) unless
    *  set. */

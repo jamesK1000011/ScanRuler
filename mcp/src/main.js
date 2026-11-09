@@ -89,7 +89,7 @@ async function headless(file, { cwd, outDir, tools, trace, answerWithinMs, updat
   stdout.write = (...args) => process.stderr.write(...args)
   for (const name of ['log', 'info', 'warn', 'debug']) console[name] = (...args) => process.stderr.write(`${format(...args)}\n`)
   const engine = await loadEngine(file)
-  const link = new EngineLink(engine, file)
+  const link = new EngineLink(engine, file, { version: VERSION })
   log(`Running ScanRuler ${engine.version} headless from ${file}, with ${link.page.commands.length} commands.`)
   const server = createMcpServer({
     link,

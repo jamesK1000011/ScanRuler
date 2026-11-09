@@ -12,6 +12,7 @@
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { SERVER_FEATURES } from './link.js'
 import { toolName } from './tools.js'
 
 /** Where --headless looks: the engine built in the ScanRuler checkout this
@@ -28,10 +29,14 @@ export async function loadEngine(file) {
 }
 
 /** The engine, as the page link is to the server (link.js): always
- *  connected, its commands what a page would say it has. */
+ *  connected, its commands what a page would say it has — and, as a page
+ *  does, its plugins' asks of this server (the FEA solve, KiCad, tscircuit)
+ *  told as notices, answered by runs of their commands (pageAsks.js). */
 export class EngineLink extends EventEmitter {
-  /** @param {{ app: string, version: string, plugins: string[], listCommands(): object[], pageCommands(): string[], run(name: string, input: unknown, onProgress?: (text: string) => void): Promise<unknown>, stop(): Promise<void> }} engine */
-  constructor(engine, file) {
+  /** @param {{ app: string, version: string, plugins: string[], listCommands(): object[], pageCommands(): string[], insteadOf?(name: string): string | null, run(name: string, input: unknown, onProgress?: (text: string) => void): Promise<unknown>, attach?(server: { version: string | null, features: string[], notice(kind: string, data: object): void }): () => void, stop(): Promise<void> }} engine
+   *  @param {string} file
+   *  @param {{ version?: string | null }} [options] this server's version, as a page's welcome carries it */
+  constructor(engine, file, { version = null } = {}) {
     super()
     this.engine = engine
     this.file = file
@@ -39,6 +44,8 @@ export class EngineLink extends EventEmitter {
     this.role = 'headless'
     this.error = null
     this.page = { app: engine.app, version: engine.version, origin: null, plugins: engine.plugins, viewport: false, commands: engine.listCommands() }
+    // An engine built before it could be linked asks nothing of this server.
+    this.detach = engine.attach?.({ version, features: SERVER_FEATURES, notice: (kind, data) => this.emit('notice', { kind, data }) }) ?? null
   }
 
   get connected() {
@@ -57,6 +64,12 @@ export class EngineLink extends EventEmitter {
     return this.engine.pageCommands().find((name) => toolName({ name }) === tool) ?? null
   }
 
+  /** What does a page command's work headless, by the command's name —
+   *  null where nothing does, or the engine does not say. */
+  insteadOf(command) {
+    return this.engine.insteadOf?.(command) ?? null
+  }
+
   waitForPage() {
     return Promise.resolve(true)
   }
@@ -64,6 +77,8 @@ export class EngineLink extends EventEmitter {
   start() {}
 
   close() {
+    this.detach?.()
+    this.detach = null
     void this.engine.stop()
   }
 }

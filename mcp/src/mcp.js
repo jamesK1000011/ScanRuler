@@ -1003,7 +1003,7 @@ export function createMcpServer({
       bytes: Buffer.byteLength(body, 'utf8'),
       ...(object ? { keys: Object.keys(value) } : Array.isArray(value) ? { items: value.length } : {}),
       ...(Object.keys(brief).length ? { brief } : {}),
-      note: `The answer is ${Math.round(body.length / 1000)} k characters, past the ${Math.round(cap / 1000)} k an answer carries, so it was written whole to file as JSON: read what you need from there${headless ? '' : ' — scanruler_read { path: file } gives it in parts, where you cannot open the folder —'} or ask for less next time (${less}). ${where}`,
+      note: `The answer is ${Math.round(body.length / 1000)} k characters, past the ${Math.round(cap / 1000)} k an answer carries, so it was written whole to file as JSON: read what you need from there — scanruler_read { path: file } gives it in parts, where you cannot open the folder — or ask for less next time (${less}). ${where}`,
     }
   }
 
@@ -1039,6 +1039,14 @@ export function createMcpServer({
    *  Desktop in its own install folder); the scan's folder is where the
    *  agent's files are. */
   const pathBase = () => knownFolders()[0] ?? cwd
+  /** The folders scanruler_write, _files and _read work in: those above —
+   *  and, headless, the server's output folder after them, where an answer
+   *  too long to carry and a file given no path go: with no page there is
+   *  no scan's folder to write beside. */
+  const fileFolders = () => {
+    const known = knownFolders()
+    return headless && !known.some((f) => resolve(f) === resolve(outDir)) ? [...known, outDir] : known
+  }
 
   // The project file last opened or saved here, kept with the folders: what
   // a page that came back empty is pointed to.
@@ -1221,78 +1229,78 @@ export function createMcpServer({
   own.push(...extraTools({ text, failure, page: (name, input, binaryKey) => link.run(name, input, binaryKey) }))
 
   // A report beside the scan, written by this server: no grant of the
-  // browser's to save a file, and nowhere but the scan's folder.
-  if (!headless) {
-    own.push({
-      name: 'scanruler_write',
-      title: 'Write a text file beside the scan',
-      description: `Write a text file — a report, notes, a table of readings — next to the scan, as UTF-8: ${TEXT_KINDS.join(', ')} only, and only inside the folder this server last opened a scan or a project from (scan_open, project_load) or saved one into (saveTo), or a folder under it. A relative path is taken in that folder; an absolute one must lie in one of those folders, and a path may not climb out with "..". Hidden folders and files, and files agents and tools take instructions or settings from (CLAUDE.md, AGENTS.md, package.json and the like), are refused: pick another name. A file already there is replaced. Returns its path and size in bytes. Refused while this server has opened no scan or project from a folder — then open the scan with scan_open first, or write the file yourself.`,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', minLength: 1, description: `The file: a name in the scan’s folder ("report.md"), a path under it ("report/sigma.md"), or an absolute path in it — ${TEXT_KINDS.join(', ')}.` },
-          text: { type: 'string', description: 'What the file holds, as text.' },
-        },
-        required: ['path', 'text'],
-        additionalProperties: false,
+  // browser's to save a file, and nowhere but the scan's folder — headless,
+  // the output folder too (fileFolders).
+  const headlessFolder = headless ? ` Headless, ${outDir} — this server’s output folder — is one of those folders, the last.` : ''
+  own.push({
+    name: 'scanruler_write',
+    title: 'Write a text file beside the scan',
+    description: `Write a text file — a report, notes, a table of readings — next to the scan, as UTF-8: ${TEXT_KINDS.join(', ')} only, and only inside the folder this server last opened a scan or a project from (scan_open, project_load) or saved one into (saveTo), or a folder under it. A relative path is taken in that folder; an absolute one must lie in one of those folders, and a path may not climb out with "..". Hidden folders and files, and files agents and tools take instructions or settings from (CLAUDE.md, AGENTS.md, package.json and the like), are refused: pick another name. A file already there is replaced. Returns its path and size in bytes. Refused while this server has opened no scan or project from a folder — then open the scan with scan_open first, or write the file yourself.${headlessFolder}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', minLength: 1, description: `The file: a name in the scan’s folder ("report.md"), a path under it ("report/sigma.md"), or an absolute path in it — ${TEXT_KINDS.join(', ')}.` },
+        text: { type: 'string', description: 'What the file holds, as text.' },
       },
-      annotations: { readOnlyHint: false, openWorldHint: false },
-      call: async (args) => {
-        try {
-          return text(await writeText(args?.path, args?.text))
-        } catch (e) {
-          return failure(e)
-        }
+      required: ['path', 'text'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+    call: async (args) => {
+      try {
+        return text(await writeText(args?.path, args?.text))
+      } catch (e) {
+        return failure(e)
+      }
+    },
+  })
+  own.push({
+    name: 'scanruler_files',
+    title: 'List the files beside the scan',
+    description: `The files in the folder this server last opened a scan or a project from, or saved one into — kept when the server restarts — or in a folder under it (path): each file's name, size in bytes and kind (mesh, project, step, picture, drawing, text or other), newest first, and the folders in it. Where scanruler_write's reports and the files saved beside the scan are; up to ${FILES_LISTED} entries. Refused while no scan or project has been opened from a folder.${headlessFolder}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', minLength: 1, description: 'A folder under the scan’s folder, relative to it or absolute; or one of the folders scanruler_status lists. Leave out for the scan’s folder.' },
       },
-    })
-    own.push({
-      name: 'scanruler_files',
-      title: 'List the files beside the scan',
-      description: `The files in the folder this server last opened a scan or a project from, or saved one into — kept when the server restarts — or in a folder under it (path): each file's name, size in bytes and kind (mesh, project, step, picture, drawing, text or other), newest first, and the folders in it. Where scanruler_write's reports and the files saved beside the scan are; up to ${FILES_LISTED} entries. Refused while no scan or project has been opened from a folder.`,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', minLength: 1, description: 'A folder under the scan’s folder, relative to it or absolute; or one of the folders scanruler_status lists. Leave out for the scan’s folder.' },
-        },
-        additionalProperties: false,
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    call: async (args) => {
+      try {
+        return text(await listFiles(args?.path))
+      } catch (e) {
+        return failure(e)
+      }
+    },
+  })
+  own.push({
+    name: 'scanruler_read',
+    title: 'Read a text file beside the scan',
+    description: `A text file read part by part: ${TEXT_FILES.join(', ')}, in the folder this server last opened a scan or a project from, or saved one into, in a folder under it, or in one of the folders scanruler_status lists — or an answer too long to carry (truncated: true, file), wherever it was written. A relative path is taken in the first of those folders, and a path may not climb out with "..". Returns { text, offset, nextOffset, size }, in bytes of the file: nextOffset, when there, is where to read on from; without it the text reaches the file's end. An answer holds at most ${Math.round(answerCap / 1000)} k characters. Refused for any other kind of file, and, but for such an answer, while no scan or project has been opened from a folder.${headlessFolder}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', minLength: 1, description: 'The file: a name in the scan’s folder, a path under it ("scanruler-work/report.json"), or an absolute path.' },
+        offset: { type: 'integer', minimum: 0, description: 'Where to start, in bytes: the last answer’s nextOffset. The file’s start by default.' },
+        limit: { type: 'integer', minimum: 1, description: 'The most bytes to read, a whole character at least; as many as an answer holds by default, and never more.' },
       },
-      annotations: { readOnlyHint: true, openWorldHint: false },
-      call: async (args) => {
-        try {
-          return text(await listFiles(args?.path))
-        } catch (e) {
-          return failure(e)
-        }
-      },
-    })
-    own.push({
-      name: 'scanruler_read',
-      title: 'Read a text file beside the scan',
-      description: `A text file read part by part: ${TEXT_FILES.join(', ')}, in the folder this server last opened a scan or a project from, or saved one into, in a folder under it, or in one of the folders scanruler_status lists — or an answer too long to carry (truncated: true, file), wherever it was written. A relative path is taken in the first of those folders, and a path may not climb out with "..". Returns { text, offset, nextOffset, size }, in bytes of the file: nextOffset, when there, is where to read on from; without it the text reaches the file's end. An answer holds at most ${Math.round(answerCap / 1000)} k characters. Refused for any other kind of file, and, but for such an answer, while no scan or project has been opened from a folder.`,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', minLength: 1, description: 'The file: a name in the scan’s folder, a path under it ("scanruler-work/report.json"), or an absolute path.' },
-          offset: { type: 'integer', minimum: 0, description: 'Where to start, in bytes: the last answer’s nextOffset. The file’s start by default.' },
-          limit: { type: 'integer', minimum: 1, description: 'The most bytes to read, a whole character at least; as many as an answer holds by default, and never more.' },
-        },
-        required: ['path'],
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: true, openWorldHint: false },
-      call: async (args) => {
-        try {
-          return text(await readText(args?.path, args?.offset, args?.limit))
-        } catch (e) {
-          return failure(e)
-        }
-      },
-    })
-  }
+      required: ['path'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    call: async (args) => {
+      try {
+        return text(await readText(args?.path, args?.offset, args?.limit))
+      } catch (e) {
+        return failure(e)
+      }
+    },
+  })
 
   /** scanruler_files' list — see its description. */
   const listFiles = async (path) => {
-    const folders = knownFolders()
+    const folders = fileFolders()
     if (folders.length === 0) {
       throw { code: 'invalid_state', message: 'This server has opened no scan or project from a folder, so it has none to list. Open the scan with scan_open (or a project with project_load) by its path first.' }
     }
@@ -1334,7 +1342,7 @@ export function createMcpServer({
     if (!Number.isInteger(limit) || limit < 1) throw { code: 'invalid_input', message: 'limit: give a whole number of bytes, 1 or more.' }
     if (fileKind(path) !== 'text') throw { code: 'invalid_input', message: `path: only ${TEXT_FILES.join(', ')} files are read, as text — not "${extname(path).toLowerCase() || 'no extension'}".` }
     if (path.split(/[\\/]/).includes('..')) throw { code: 'invalid_input', message: 'path: ".." is not taken — give a path in the scan’s folder or under it.' }
-    const folders = knownFolders()
+    const folders = fileFolders()
     const target = resolve(folders[0] ?? outDir, path)
     if (!spilled.has(target)) {
       if (folders.length === 0) throw { code: 'invalid_state', message: 'This server has opened no scan or project from a folder, so it has none to read from. Open the scan with scan_open (or a project with project_load) by its path first.' }
@@ -1398,7 +1406,7 @@ export function createMcpServer({
     const kind = extname(path).toLowerCase()
     if (!TEXT_KINDS.includes(kind)) throw { code: 'invalid_input', message: `path: only ${TEXT_KINDS.join(', ')} files are written — not "${kind || 'no extension'}".` }
     if (path.split(/[\\/]/).includes('..')) throw { code: 'invalid_input', message: 'path: ".." is not taken — give a path in the scan’s folder or under it.' }
-    const folders = knownFolders()
+    const folders = fileFolders()
     if (folders.length === 0) {
       throw { code: 'invalid_state', message: 'This server has opened no scan or project from a folder, so it has none to write into. Open the scan with scan_open (or a project with project_load) by its path first — its folder is where the file goes — or write the file yourself.' }
     }
@@ -1537,7 +1545,10 @@ export function createMcpServer({
   const runPageTool = async (name, given, onProgress, { timings = false, ms = false, batched = false, job, deferred = false, whole = false, within } = {}) => {
     const command = commands().find((c) => toolName(c) === name)
     const needsPage = !command && headless ? link.pageCommand(name) : null
-    if (needsPage) return failure({ code: 'unavailable', message: `${name} needs the ScanRuler page — a scan, the viewport or the browser — and this server runs ScanRuler headless, with none. Start scanruler-mcp in page mode (without --engine or --headless) and pair it with a ScanRuler tab for it.` })
+    if (needsPage) {
+      const instead = link.insteadOf?.(needsPage) ?? null
+      return failure({ code: 'unavailable', message: `${name} needs the ScanRuler page — a scan, the viewport or the browser — and this server runs ScanRuler headless, with none. ${instead ? `Headless: ${instead} Or start` : 'Start'} scanruler-mcp in page mode (without --engine or --headless) and pair it with a ScanRuler tab for it.` })
+    }
     if (!command) return failure({ code: 'unknown_command', message: `There is no tool ${name}.` })
     if (leftOut(command)) {
       return failure({ code: 'unknown_command', message: `There is no tool ${name} here: this server was started with --tools ${selection.text}, which leaves the ${namespaceOf(command)}_ tools out. A server started with --tools full, or with a list that has ${namespaceOf(command)}, offers it.` })
