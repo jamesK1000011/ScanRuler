@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Printability checks a body as it is now** (2026-11-08). Print › Check
+  and `dfm.check` can check a Reverse engineer body directly (target `body`,
+  with `body` by name or id; the one solid body shown by default; the
+  panel's A body button). The body is meshed at each check, so edits since
+  are read, rather than an STL exported earlier. A reference part made with
+  Compare in Deviation now records the bodies it came from and their
+  stamps; checking it after one has changed says "Checked an older copy"
+  (`stale` in the answer, a warning in the panel and the report).
+  `reverse.export.stl` and the bodies in the session state carry each
+  body's stamp.
 - **Printability: a part not on the stage** (2026-11-08). `dfm.check` on a
   part that is open but not drawn now answers `invalid_state` (or `busy`
   while it is still opening), not `unavailable`, which is kept for a session

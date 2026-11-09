@@ -14,7 +14,20 @@ export interface DfmSettings {
   nozzle: string | null
   /** A published guide's numbers, stacked over the profiles. */
   guide: string | null
-  target: 'scan' | 'reference'
+  /** The scan, the reference part, or a Reverse Engineer body as it
+   *  stands now. */
+  target: 'scan' | 'reference' | 'body'
+  /** For target body: which, by name or id; null for the one shown. */
+  body: string | number | null
+}
+
+/** What the last check read: the part's name, the body's stamp when it was
+ *  a body, and why it was an older copy when it was one. */
+export interface Checked {
+  target: DfmSettings['target']
+  part: string
+  stamp?: string
+  stale?: string
 }
 
 export interface Waiver {
@@ -30,7 +43,7 @@ export interface NumberedFinding extends Finding {
   waived?: string
 }
 
-export const DEFAULT_DFM: DfmSettings = { up: '+z', printer: null, material: null, nozzle: '0.4', guide: null, target: 'scan' }
+export const DEFAULT_DFM: DfmSettings = { up: '+z', printer: null, material: null, nozzle: '0.4', guide: null, target: 'scan', body: null }
 
 interface DfmState {
   settings: DfmSettings
@@ -41,13 +54,14 @@ interface DfmState {
   findings: NumberedFinding[]
   skipped: { rule: string; why: string }[]
   checkedAt: string | null
+  checked: Checked | null
   set(p: Partial<DfmSettings>): void
   setOverride(rule: string, o: Override | null): void
   addGuide(g: Guide): void
   removeGuide(id: string): void
   waive(w: Waiver): void
   unwaive(rule: string, at: [number, number, number]): boolean
-  result(findings: NumberedFinding[], skipped: { rule: string; why: string }[]): void
+  result(findings: NumberedFinding[], skipped: { rule: string; why: string }[], checked?: Checked | null): void
   replace(s: Pick<DfmState, 'settings' | 'overrides' | 'waivers'> & { guides?: Guide[] }): void
   reset(): void
 }
@@ -62,6 +76,7 @@ export const useDfm = create<DfmState>((set, get) => ({
   findings: [],
   skipped: [],
   checkedAt: null,
+  checked: null,
   set: (p) => set({ settings: { ...get().settings, ...p } }),
   setOverride: (rule, o) => {
     const next = { ...get().overrides }
@@ -77,7 +92,7 @@ export const useDfm = create<DfmState>((set, get) => ({
     set({ waivers: get().waivers.filter((x) => !(x.rule === rule && x.at.join() === at.join())) })
     return get().waivers.length < before
   },
-  result: (findings, skipped) => set({ findings, skipped, checkedAt: new Date().toISOString() }),
+  result: (findings, skipped, checked = null) => set({ findings, skipped, checked, checkedAt: new Date().toISOString() }),
   replace: (s) => set(s),
-  reset: () => set({ settings: { ...DEFAULT_DFM }, overrides: {}, waivers: [], guides: [], findings: [], skipped: [], checkedAt: null }),
+  reset: () => set({ settings: { ...DEFAULT_DFM }, overrides: {}, waivers: [], guides: [], findings: [], skipped: [], checkedAt: null, checked: null }),
 }))

@@ -20,6 +20,7 @@ import { featureToJson } from './projectSection'
 import { reverseSession, type ReverseSession } from './reSession'
 import { useStore } from '../../../src/state/store'
 import { fittedOf } from './reFitMarks'
+import { meshStamp } from '../core/meshStamp'
 
 /** A box round some points, or null for none. */
 export function boundsOf(points: ArrayLike<number>): { min: Vec3; max: Vec3; size: Vec3 } | null {
@@ -216,6 +217,7 @@ export function bodiesOut(session: ReverseSession | null = reverseSession()) {
       closed: b.closed,
       ...(b.surface ? { surface: true } : {}),
       bounds: mesh ? boundsOf(mesh.positions) : null,
+      ...(mesh ? { stamp: meshStamp(mesh) } : {}),
     }
   })
 }

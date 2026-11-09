@@ -5,7 +5,8 @@ On screen: step 1, **Check**, of the **Print** tab (Check → Slice → Send),
 laid out as a pre-print check sheet: the verdict and findings first. Its
 workspace id is still `dfm`.
 
-Checks the part (open as the scan, or the reference part) for FDM printing,
+Checks the part (open as the scan, the reference part, or a Reverse engineer
+body as it stands now) for FDM printing,
 from the Print tab's Check step or an agent.
 The rules come from a pack you can read and change. Every finding gives its
 place, its value against the limit, the rule, and where that rule's number
@@ -30,7 +31,7 @@ says which layer set it.
 
 | Command | Changes | What |
 |---|---|---|
-| `dfm.settings` | settings | Nozzle, material, printer, up axis, scan or reference |
+| `dfm.settings` | settings | Nozzle, material, printer, up axis, scan, reference or body |
 | `dfm.profiles` | nothing | The pack and the profiles there are |
 | `dfm.rules` | the project's rules | The rules in force and which layer set each number; set or clear the project's own change |
 | `dfm.check` | findings | Runs the checks |

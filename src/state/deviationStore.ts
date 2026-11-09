@@ -64,6 +64,12 @@ export const BAND_CHOICES = [5, 7, 9, 11, 15, 21] as const
  *  read as "chosen" on top of any of it. */
 export const MARK_COLOR = '#b5179e'
 
+/** Who made a reference (a workspace's id, `by`) and from what. */
+export interface NominalMadeFrom {
+  by: string
+  parts: { id: number; name: string; stamp: string }[]
+}
+
 interface DeviationState extends ProbeSlice {
   source: DeviationSource
 
@@ -79,6 +85,10 @@ interface DeviationState extends ProbeSlice {
    *  file the person chose — and goes with the scan it was made on: another
    *  scan opened lets it go, where a file opened as the reference is kept. */
   nominalFromSession: boolean
+  /** What a reference made from the session's work was made from, each
+   *  part with a stamp that changes when the part does: a reading of the
+   *  reference can then say it is of an older copy. Null for a file. */
+  nominalMadeFrom: NominalMadeFrom | null
 
   alignStatus: AlignStatus
   align: AlignResult | null
@@ -348,6 +358,7 @@ export const useDeviation = create<DeviationState>()((set, get) => ({
   nominalBusy: false,
   nominalStep: null,
   nominalFromSession: false,
+  nominalMadeFrom: null,
 
   // The pinned readings and their actions, shared with the thickness store.
   ...probeSlice(set),
@@ -469,6 +480,7 @@ export const useDeviation = create<DeviationState>()((set, get) => ({
       nominalTriangles,
       nominalStep: step,
       nominalFromSession: fromSession,
+      nominalMadeFrom: null,
       showNominal: true,
     }),
 
@@ -482,6 +494,7 @@ export const useDeviation = create<DeviationState>()((set, get) => ({
       nominalTriangles: 0,
       nominalStep: null,
       nominalFromSession: false,
+      nominalMadeFrom: null,
     }),
 
   // Showing the reference again for the duration: the whole point of streaming

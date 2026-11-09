@@ -33,6 +33,7 @@ import { failures } from './reCommandAnswers'
 import { bodiesOut, edgeOut, faceOut, idleParametersOut } from './reReadout'
 import { bodyRef, featureRef, whereIn } from './reSchemas'
 import { compareInDeviation, type ReverseSession } from './reSession'
+import { meshStamp } from '../core/meshStamp'
 import { nearestOnBodies } from '../core/notes'
 import { compareFeature } from './reCompareFeature'
 import { volumeInView } from './reVolumeCompare'
@@ -1064,7 +1065,12 @@ export const stl: Command<{ bodies?: Ref[]; resolution?: MeshResolution['id']; c
     const missing = notBuilt()
     return {
       file: { name: f.name, mimeType: f.mimeType, bytes: f.bytes },
-      bodies: picked.map((b) => ({ id: b.id, name: b.name })),
+      // The stamp each body stood at (core/meshStamp): a copy's reader can
+      // tell it from the body's own stamp in the state once it changes.
+      bodies: picked.map((b) => {
+        const m = s.meshes.get(b.id)
+        return { id: b.id, name: b.name, ...(m ? { stamp: meshStamp(m) } : {}) }
+      }),
       chord,
       angleDeg: Math.round(angleDeg * 100) / 100,
       triangles: f.triangles,

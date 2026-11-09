@@ -262,6 +262,11 @@ export function DfmPanel() {
         </div>
         {!scan && s.target === 'scan' && <p className="hint">Open a scan, or switch to the reference part.</p>}
         <Busy text={v.busy} />
+        {st.checked?.stale && (
+          <Status tone="warn" testId="dfm-stale">
+            {st.checked.stale}
+          </Status>
+        )}
         {st.checkedAt && (
           <Status tone={errors ? 'bad' : warnings ? 'warn' : 'ok'} testId="dfm-verdict">
             {errors ? 'Fix before printing' : warnings ? 'Printable with care' : 'No findings'} — {errors} error{errors === 1 ? '' : 's'}, {warnings} warning{warnings === 1 ? '' : 's'}
@@ -389,6 +394,9 @@ export function DfmPanel() {
           </button>
           <button className={s.target === 'reference' ? 'on' : ''} disabled={busy} onClick={() => void run('settings', { target: 'reference' })}>
             The reference part
+          </button>
+          <button className={s.target === 'body' ? 'on' : ''} disabled={busy} title="A Reverse engineer body as it is now" onClick={() => void run('settings', { target: 'body' })}>
+            A body
           </button>
         </div>
       </div>

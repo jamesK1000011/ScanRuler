@@ -32,6 +32,7 @@ import { matchEdge, matchFace, matchTolerance, splitEdges, tangentChain, transfo
 import { PreviewFailure } from '../core/reClient'
 import { symmetryPlaneRef } from '../core/symmetryPlane'
 import type { SymmetryPlane } from '../../../src/core/symmetry'
+import { meshStamp } from '../core/meshStamp'
 import { COMPARE_CHORD_MM, COMPARE_REFERENCE_NAME, compareReferenceStl, mergeMeshes as mergeCompared } from '../core/compare'
 import { entityPolyline, type EntityInput, type Sketch } from '../core/sketch'
 import { threadFaceReading } from '../core/thread'
@@ -1435,7 +1436,7 @@ export function useReverseWorkspace({
    *  bodies' viewport meshes merged — the map on the bodies reads them in
    *  place of the comparison's far finer mesh, at the spacings they serve
    *  (VIEW_MESH_MAP_SPACING) — or null. */
-  const compareReference = async (bodyIds?: number[]): Promise<{ file: File; mapMesh: { positions: Float32Array; indices: Uint32Array } | null } | null> => {
+  const compareReference = async (bodyIds?: number[]): Promise<{ file: File; mapMesh: { positions: Float32Array; indices: Uint32Array } | null; madeFrom: { id: number; name: string; stamp: string }[] } | null> => {
     const re = useReverse.getState()
     const ids = bodyIds ?? re.bodies.filter((b) => b.visible && !b.surface).map((b) => b.id)
     const client = session.client()
@@ -1452,7 +1453,13 @@ export function useReverseWorkspace({
       }
       const shown = ids.flatMap((id) => session.meshes.get(id) ?? [])
       const mapMesh = shown.length === ids.length ? mergeCompared(shown) : null
-      return { file: new File([stl], COMPARE_REFERENCE_NAME, { type: 'model/stl' }), mapMesh: mapMesh && mapMesh.indices.length >= 3 ? mapMesh : null }
+      // Each body with the stamp of the mesh it stood as: a check of the
+      // reference later can say the body has changed since.
+      const madeFrom = ids.flatMap((id) => {
+        const m = session.meshes.get(id), b = useReverse.getState().bodies.find((x) => x.id === id)
+        return m && b ? [{ id, name: b.name, stamp: meshStamp(m) }] : []
+      })
+      return { file: new File([stl], COMPARE_REFERENCE_NAME, { type: 'model/stl' }), mapMesh: mapMesh && mapMesh.indices.length >= 3 ? mapMesh : null, madeFrom: madeFrom.length === ids.length ? madeFrom : [] }
     } catch (e) {
       useStore.getState().setError(`The bodies could not be meshed for the comparison: ${message(e)}`)
       return null

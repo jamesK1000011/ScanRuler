@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Checking a part for FDM printing
 
-`dfm.check` reads the part open as the scan (or the reference part) for
-what goes wrong on an FDM printer. Every finding says:
+`dfm.check` reads the part open as the scan (or the reference part, or a
+Reverse engineer body) for what goes wrong on an FDM printer. Every finding says:
 
 - where it is
 - how much, against which limit
@@ -47,6 +47,17 @@ Nothing is a hidden constant.
 | tall-thin | height over the base's least width | over 8× |
 | trapped-volume | closed cavities inside the part | over 1 mm³ |
 | mesh-health | edges not shared by exactly two triangles | any |
+
+## Checking a body
+
+A body built or imported in Reverse engineer: `dfm.settings { target:
+"body", body: "<name>" }` (body may be left out when one solid body is
+shown), then `dfm.check`. The body is meshed as it stands at each check, so
+edits since the last check are read. Don't export the body and open the file
+as the reference part to check it: that copy goes stale at the next edit.
+A reference part made with Compare in Deviation remembers the bodies it came
+from. If one has changed since, the check's `stale` says an older copy was
+checked.
 
 ## Reading the findings
 

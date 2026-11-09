@@ -5,7 +5,7 @@
 // where it is meant.
 
 import { commandHost, requireScene } from '../../../src/commands/host'
-import { anyObject, arr, bool, enumOf, obj, str } from '../../../src/commands/schema'
+import { anyObject, arr, bool, enumOf, num, obj, str } from '../../../src/commands/schema'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { useDeviation } from '../../../src/state/deviationStore'
 import { useStore } from '../../../src/state/store'
@@ -15,7 +15,8 @@ import { arrayToBuild, buildFrame, fromBuild, UPS, type Up } from '../core/frame
 import { CONSIDERATIONS, CONSIDERATIONS_CITE } from '../core/considerations'
 import { paramProblem, stack, validateGuide, type Guide, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
-import { atKey, useDfm, type DfmSettings, type NumberedFinding } from '../state/dfmStore'
+import { atKey, useDfm, type Checked, type DfmSettings, type NumberedFinding } from '../state/dfmStore'
+import { bodyTriangles, pickBody, reverseBodies, staleReference } from './body'
 
 const PACK = pack as RulePack
 const glob = (g: Record<string, Profile>) => Object.values(g).sort((a, b) => a.id.localeCompare(b.id))
@@ -67,18 +68,21 @@ function weld(src: ArrayLike<number>, index: ArrayLike<number> | null): { positi
 export const settings: Command<Partial<DfmSettings>> = {
   name: 'settings',
   title: 'What the part is printed on',
-  description: `Choose the profiles the rules are stacked from — nozzle (${NOZZLES.map((p) => p.id).join(', ')}; 0.4 by default), material (${MATERIALS.map((p) => p.id).join(', ')}), printer (${PRINTERS.map((p) => p.id).join(', ')}), and a published guide stacked over them (${SHIPPED_GUIDES.map((g) => g.id).join(', ')}, or one imported with dfm.guides) — which way of the part stands up on the bed (up, +z by default), and what is checked: the scan (default) or the reference part. null clears a profile. Call with nothing to read them. Kept with the project.`,
+  description: `Choose the profiles the rules are stacked from — nozzle (${NOZZLES.map((p) => p.id).join(', ')}; 0.4 by default), material (${MATERIALS.map((p) => p.id).join(', ')}), printer (${PRINTERS.map((p) => p.id).join(', ')}), and a published guide stacked over them (${SHIPPED_GUIDES.map((g) => g.id).join(', ')}, or one imported with dfm.guides) — which way of the part stands up on the bed (up, +z by default), and what is checked: the scan (default), the reference part, or a Reverse Engineer body as it stands now (target body; body names it, by name or id — the one solid body shown by default). null clears a profile. Call with nothing to read them. Kept with the project.`,
   input: obj({
     up: enumOf(UPS, 'Which way of the part stands up on the bed.'),
     nozzle: { oneOf: [enumOf(NOZZLES.map((p) => p.id)), { type: 'null' }], description: 'The nozzle profile, or null.' },
     material: { oneOf: [enumOf(MATERIALS.map((p) => p.id)), { type: 'null' }], description: 'The material profile, or null.' },
     printer: { oneOf: [enumOf(PRINTERS.map((p) => p.id)), { type: 'null' }], description: 'The printer profile, or null.' },
     guide: { oneOf: [str(), { type: 'null' }], description: 'A published guide whose numbers stack over the profiles (dfm.guides lists them), or null.' },
-    target: enumOf(['scan', 'reference'], 'What is checked.'),
+    target: enumOf(['scan', 'reference', 'body'], 'What is checked.'),
+    body: { oneOf: [str(undefined, { minLength: 1 }), num(), { type: 'null' }], description: 'For target body: the body, by name or id; null for the one solid body shown.' },
   }),
   history: false,
   run: async (p) => {
     if (p.guide && !guidesNow().some((g) => g.id === p.guide)) throw new CommandError('not_found', `No guide "${p.guide}" — have ${guidesNow().map((g) => g.id).join(', ')}.`)
+    // A body named is looked for now, while the name can still be put right.
+    if (p.body !== undefined && p.body !== null && reverseBodies()) pickBody(p.body)
     if (Object.keys(p).length) useDfm.getState().set(p)
     return { settings: useDfm.getState().settings }
   },
@@ -142,7 +146,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target) against the rules in force: thin walls (from the wall thickness, measured on the scan), overhangs past the angle — and flat undersides held on one side only, which print in air — flat ceilings bridging further than the limit, upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. Kept until the next check; dfm.report writes them out.',
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (from the wall thickness, measured on the scan), overhangs past the angle — and flat undersides held on one side only, which print in air — flat ceilings bridging further than the limit, upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
   input: obj({ only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }), detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.') }),
   history: false,
   timeoutMs: 5 * 60_000,
@@ -152,7 +156,9 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
     let mesh: { positions: Float64Array; indices: Uint32Array }
     let thickness: Float32Array | null = null
     const skippedExtra: { rule: string; why: string }[] = []
+    let checked: Checked
     if (s.target === 'scan') {
+      checked = { target: 'scan', part: useStore.getState().fileName ?? 'part' }
       if (!useStore.getState().fileName) throw new CommandError('no_scan', 'There is no part open — open it with scan.open (or import.open), or set target: reference.')
       const sm = requireScene('Checking the part').scanMesh()
       if (!sm) throw notOnStage(useStore.getState().busy, 'The part')
@@ -173,12 +179,23 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
           if (/^Measuring wall thickness/.test(useStore.getState().statusText ?? '')) useStore.getState().setStatus('')
         }
       }
+    } else if (s.target === 'body') {
+      const body = pickBody(s.body)
+      ctx.progress(`Meshing ${body.name}`)
+      const { soup, stamp } = await bodyTriangles(body)
+      const w = weld(soup, null)
+      mesh = { positions: arrayToBuild(frame, w.positions), indices: w.indices }
+      checked = { target: 'body', part: body.name, ...(stamp ? { stamp } : {}) }
+      skippedExtra.push({ rule: 'thin-wall', why: 'wall thickness is measured on the scan only — open the part as the scan to check it' })
     } else {
-      if (!useDeviation.getState().nominalName) throw new CommandError('invalid_state', 'No reference part is open — deviation.open_reference, or set target: scan.')
+      const dev = useDeviation.getState()
+      if (!dev.nominalName) throw new CommandError('invalid_state', 'No reference part is open — deviation.open_reference, or set target: scan or body.')
       const g = requireScene('Checking the part').nominalGeometry()
-      if (!g) throw notOnStage(useDeviation.getState().nominalBusy, 'The reference part')
+      if (!g) throw notOnStage(dev.nominalBusy, 'The reference part')
       const w = weld(g.getAttribute('position').array as ArrayLike<number>, g.getIndex()?.array ?? null)
       mesh = { positions: arrayToBuild(frame, w.positions), indices: w.indices }
+      const stale = staleReference(dev.nominalMadeFrom)
+      checked = { target: 'reference', part: dev.nominalName, ...(stale ? { stale } : {}) }
       skippedExtra.push({ rule: 'thin-wall', why: 'wall thickness is measured on the scan only — open the part as the scan to check it' })
     }
     const inForce = effective().filter((x) => !only || only.includes(x.id))
@@ -196,11 +213,14 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
         return { ...f, id: `F${i + 1}`, at, ...(w ? { waived: w.reason } : {}) }
       })
     const allSkipped = [...skippedExtra.filter((x) => !only || only.includes(x.rule)), ...skipped.filter((x) => !skippedExtra.some((y) => y.rule === x.rule))]
-    useDfm.getState().result(numbered, allSkipped)
+    useDfm.getState().result(numbered, allSkipped, checked)
     const open = numbered.filter((f) => !f.waived)
     const count = (sev: string) => open.filter((f) => f.severity === sev).length
     return {
       target: s.target,
+      part: checked.part,
+      ...(checked.stamp ? { stamp: checked.stamp } : {}),
+      ...(checked.stale ? { stale: checked.stale } : {}),
       profiles: layers().map((l) => l.name),
       verdict: count('error') ? 'fix before printing' : count('warning') ? 'printable with care' : 'no findings',
       errors: count('error'),
@@ -263,10 +283,10 @@ export const report: Command<{ format?: 'md' | 'json' }> = {
   run: async ({ format = 'md' }) => {
     const st = useDfm.getState()
     if (!st.checkedAt) throw new CommandError('invalid_state', 'Nothing checked yet — run dfm.check.')
-    const name = (st.settings.target === 'scan' ? useStore.getState().fileName : useDeviation.getState().nominalName) ?? 'part'
+    const name = st.checked?.part ?? (st.settings.target === 'scan' ? useStore.getState().fileName : useDeviation.getState().nominalName) ?? 'part'
     const stem = name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '_')
     let text: string
-    if (format === 'json') text = JSON.stringify({ part: name, checkedAt: st.checkedAt, settings: st.settings, profiles: layers().map((l) => l.name), rules: effective(), findings: st.findings, skipped: st.skipped }, null, 2)
+    if (format === 'json') text = JSON.stringify({ part: name, checkedAt: st.checkedAt, ...(st.checked?.stamp ? { stamp: st.checked.stamp } : {}), ...(st.checked?.stale ? { stale: st.checked.stale } : {}), settings: st.settings, profiles: layers().map((l) => l.name), rules: effective(), findings: st.findings, skipped: st.skipped }, null, 2)
     else {
       const open = st.findings.filter((f) => !f.waived), waived = st.findings.filter((f) => f.waived)
       const row = (f: NumberedFinding) => `| ${f.id} | ${f.severity} | ${f.rule} | ${f.value} ${f.unit} (limit ${f.limit}) | ${f.at.join(', ')} | ${f.says} |`
@@ -275,6 +295,7 @@ export const report: Command<{ format?: 'md' | 'json' }> = {
         '',
         `Checked ${st.checkedAt.slice(0, 16).replace('T', ' ')} UTC against ${PACK.label}, with ${layers().map((l) => l.name).join(', ')}.`,
         '',
+        ...(st.checked?.stale ? [`> ${st.checked.stale}`, ''] : []),
         `**${open.filter((f) => f.severity === 'error').length} errors, ${open.filter((f) => f.severity === 'warning').length} warnings, ${open.filter((f) => f.severity === 'info').length} notes, ${waived.length} waived.**`,
         '',
         ...(open.length ? ['| Id | Severity | Rule | Value | Where (mm) | What to do |', '| --- | --- | --- | --- | --- | --- |', ...open.map(row), ''] : ['No open findings.', '']),

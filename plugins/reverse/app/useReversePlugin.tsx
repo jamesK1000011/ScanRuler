@@ -139,14 +139,14 @@ export function useReversePlugin(host: PluginHost): PluginRuntime {
   const compareInDeviation = async (bodyIds?: number[]) => {
     const made = await reverse.compareReference(bodyIds)
     if (!made) throw new Error(useStore.getState().errorText ?? 'There is nothing to compare.')
-    const { file, mapMesh } = made
+    const { file, mapMesh, madeFrom } = made
     const nominalVersion = clientRef.current!.nominalVersion
     // Built here, in millimetres: no units to ask about. Made from the
     // bodies, not opened by the person: the search distance the last
     // comparison was read under stands, and the reference goes with the
     // scan when another is opened.
     // units-ok: the units the reference file is written in, not a word on screen.
-    await host.openReference(file, 'mm', { fromSession: true })
+    await host.openReference(file, 'mm', { fromSession: true, ...(madeFrom.length ? { madeFrom: { by: 'reverse', parts: madeFrom } } : {}) })
     if (clientRef.current!.nominalVersion === nominalVersion || useDeviation.getState().nominalName !== file.name) throw new Error('The bodies could not be opened as the reference part.')
     // The map on the bodies reads their viewport meshes at the spacings
     // those are fine enough for (core/compare VIEW_MESH_MAP_SPACING): the

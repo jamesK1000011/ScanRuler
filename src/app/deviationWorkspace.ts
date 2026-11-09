@@ -15,7 +15,7 @@ import type { MeshWorkerClient, ReferenceDeviationResult } from '../core/workerC
 import type { SceneManager } from '../viewer/SceneManager'
 import { useStore } from '../state/store'
 import { clearHistory } from '../state/historyStore'
-import { useDeviation, type MapSide } from '../state/deviationStore'
+import { useDeviation, type MapSide, type NominalMadeFrom } from '../state/deviationStore'
 import { rigidToColumnMajor } from '../core/deviation/rigid'
 import { useMark } from '../state/markStore'
 import { buildDeviationReport, buildElementReport } from '../core/deviation/report'
@@ -42,6 +42,8 @@ export const PICK_MARK_TOOL_STATUS =
  *  opened. A file the person opens starts the search distance over. */
 export interface ReferenceOptions {
   fromSession?: boolean
+  /** What the reference was made from (deviationStore NominalMadeFrom). */
+  madeFrom?: NominalMadeFrom
 }
 
 export function deviationWorkspace({
@@ -86,6 +88,7 @@ export function deviationWorkspace({
       prepared.view.commit()
       const { mesh, source } = prepared
       useDeviation.getState().finishNominalLoad(source.name, mesh.vertexCount, mesh.triangleCount, mesh.step ?? null, !!options.fromSession)
+      if (options.madeFrom) useDeviation.setState({ nominalMadeFrom: options.madeFrom })
     } else {
       sceneRef.current?.clearNominal()
       useDeviation.getState().nominalFailed()
