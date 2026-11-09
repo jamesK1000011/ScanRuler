@@ -7,7 +7,12 @@ workspace id is still `dfm`.
 
 Checks the part (open as the scan, the reference part, or a Reverse engineer
 body as it stands now) for FDM printing,
-from the Print tab's Check step or an agent.
+from the Print tab's Check step or an agent. A body is meshed at each check,
+so edits since are read; it is named by `dfm.settings { body }`, else the
+one solid body shown. A reference part made with Compare in Deviation
+records the bodies it came from: checked after one of them has changed, the
+answer says it checked an older copy (`stale`, a warning in the panel and
+the report).
 The rules come from a pack you can read and change. Every finding gives its
 place, its value against the limit, the rule, and where that rule's number
 comes from. Profiles stack in this order: the default pack, then a nozzle, a
@@ -26,6 +31,13 @@ says which layer set it.
 | tall-thin | height over the base's least width |
 | trapped-volume | closed shells with negative signed volume (cavities) |
 | mesh-health | edges not shared by exactly two triangles |
+
+On a body or the reference part the answer's `wall` gives the thinnest
+wall read, where, and the limit, with the sharp edges apart; a uniformly
+thin skin is still an error. A rule that can't run on the part says so in
+`skipped`. A part that is open but not drawn yet answers `busy` while it
+opens and `invalid_state` after; `unavailable` is kept for a session with
+no viewport.
 
 ## Commands (`dfm.*`)
 
@@ -58,8 +70,15 @@ The agent guide is `guide.read { topic: "dfm-fdm" }`.
 
 ## In the panel
 
-Pick nozzle, material, printer and guide; click a rule to change its
-numbers for this project or switch it off (Reset takes it back); click a
-finding to turn the view to it, or waive it with a reason. *Beyond the
-numbers* lists the review questions, after ISO/ASTM 52910 (named, not
-reproduced).
+**Check** runs it; the verdict and findings come first, with the thinnest
+wall and, when the reference is an older copy of a body, the warning. Click
+a finding to turn the view to it, read why, or *Waive…* it with a reason
+(*Unwaive* takes it back). *Printed on*: which way stands up, nozzle,
+material, printer and guide, and what to check — *The scan*, *The
+reference part* or *A body* (the one solid body shown: hide the others in
+Reverse engineer to choose). Click a rule in *Rules in force* to change its
+numbers for this project or switch it off (Reset takes it back). *Guides*:
+*Compare on the stage*, *Import JSON…*, *Export rules*, and remove an
+imported one. *Design review* — *Show the questions* — lists the review
+questions no rule measures, after ISO/ASTM 52910 (named, not reproduced).
+*Save the report (.md)* writes it out.
