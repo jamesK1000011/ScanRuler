@@ -262,6 +262,11 @@ export function DfmPanel() {
         </div>
         {!scan && s.target === 'scan' && <p className="hint">Open a scan, or switch to the reference part.</p>}
         <Busy text={v.busy} />
+        {st.checked?.wall && (
+          <p className="hint" data-test="dfm-wall">
+            {st.checked.wall.least === null ? 'No thin wall found' : `Thinnest wall ${len.fmt(st.checked.wall.least, 2)}`} — the limit is {len.fmt(st.checked.wall.limit, 2)}
+          </p>
+        )}
         {st.checked?.stale && (
           <Status tone="warn" testId="dfm-stale">
             {st.checked.stale}

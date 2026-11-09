@@ -11,7 +11,8 @@ import { useDeviation } from '../../../src/state/deviationStore'
 import { useStore } from '../../../src/state/store'
 import { useThickness } from '../../../src/state/thicknessStore'
 import { runChecks } from '../core/checks'
-import { arrayToBuild, buildFrame, fromBuild, UPS, type Up } from '../core/frame'
+import { leastWall, probeWalls, type WallSamples } from '../core/wall'
+import { arrayToBuild, buildFrame, fromBuild, UPS, type BuildFrame, type Up } from '../core/frame'
 import { CONSIDERATIONS, CONSIDERATIONS_CITE } from '../core/considerations'
 import { paramProblem, stack, validateGuide, type Guide, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
@@ -136,6 +137,20 @@ export const rules: Command<{ action?: 'list' | 'set' | 'clear'; rule?: string; 
   },
 }
 
+/** The least wall read on a CAD part and where (in the part's frame),
+ *  against the limit, with how it was read. */
+function wallReading(w: WallSamples, limit: number, frame: BuildFrame) {
+  const l = leastWall(w)
+  const at = [0, 0, 0]
+  if (l) fromBuild(frame, l.at[0], l.at[1], l.at[2], at)
+  return {
+    ...(l ? { least: r(l.least), at: at.map((v) => r(v)), thin: l.least < limit } : { least: null, over: w.reach }),
+    limit,
+    spacing: r(w.spacing),
+    samples: w.thickness.length,
+  }
+}
+
 /** Open but not drawn: still coming in (busy), or not on the stage at all
  *  (invalid_state). Not unavailable — that is a session with no viewport,
  *  which requireScene answers. */
@@ -146,7 +161,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (from the wall thickness, measured on the scan), overhangs past the angle — and flat undersides held on one side only, which print in air — flat ceilings bridging further than the limit, upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — wall gives the least wall read, where, and the limit), overhangs past the angle — and flat undersides held on one side only, which print in air — flat ceilings bridging further than the limit, upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
   input: obj({ only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }), detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.') }),
   history: false,
   timeoutMs: 5 * 60_000,
@@ -186,7 +201,6 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
       const w = weld(soup, null)
       mesh = { positions: arrayToBuild(frame, w.positions), indices: w.indices }
       checked = { target: 'body', part: body.name, ...(stamp ? { stamp } : {}) }
-      skippedExtra.push({ rule: 'thin-wall', why: 'wall thickness is measured on the scan only — open the part as the scan to check it' })
     } else {
       const dev = useDeviation.getState()
       if (!dev.nominalName) throw new CommandError('invalid_state', 'No reference part is open — deviation.open_reference, or set target: scan or body.')
@@ -196,11 +210,20 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
       mesh = { positions: arrayToBuild(frame, w.positions), indices: w.indices }
       const stale = staleReference(dev.nominalMadeFrom)
       checked = { target: 'reference', part: dev.nominalName, ...(stale ? { stale } : {}) }
-      skippedExtra.push({ rule: 'thin-wall', why: 'wall thickness is measured on the scan only — open the part as the scan to check it' })
     }
     const inForce = effective().filter((x) => !only || only.includes(x.id))
+    // A body or a reference is CAD: its walls are read at samples over its
+    // faces — round an insert or a magnet's pocket too — where the scan's
+    // are read by the thickness map.
+    let wall: WallSamples | null = null
+    const thinRule = inForce.find((x) => x.id === 'thin-wall' && !x.disabled)
+    if (s.target !== 'scan' && thinRule) {
+      ctx.progress('Reading the wall thickness')
+      const minMm = thinRule.params.minMm
+      wall = probeWalls(mesh.positions, mesh.indices, { spacing: minMm / 2, reach: Math.max(8 * minMm, 5) })
+    }
     ctx.progress(`Checking ${inForce.filter((x) => !x.disabled).length} rules`)
-    const { findings, skipped } = runChecks({ ...mesh, thickness }, inForce.map((x) => (x.id === 'thin-wall' && !thickness ? { ...x, disabled: true } : x)))
+    const { findings, skipped } = runChecks({ ...mesh, thickness, wall }, inForce.map((x) => (x.id === 'thin-wall' && !thickness && !wall ? { ...x, disabled: true } : x)))
     // Back into the part's own frame for the places.
     const tmp = [0, 0, 0]
     const waivers = useDfm.getState().waivers
@@ -213,6 +236,8 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
         return { ...f, id: `F${i + 1}`, at, ...(w ? { waived: w.reason } : {}) }
       })
     const allSkipped = [...skippedExtra.filter((x) => !only || only.includes(x.rule)), ...skipped.filter((x) => !skippedExtra.some((y) => y.rule === x.rule))]
+    const reading = wall && thinRule ? wallReading(wall, thinRule.params.minMm, frame) : null
+    if (reading) checked = { ...checked, wall: { least: reading.least, limit: reading.limit } }
     useDfm.getState().result(numbered, allSkipped, checked)
     const open = numbered.filter((f) => !f.waived)
     const count = (sev: string) => open.filter((f) => f.severity === sev).length
@@ -227,6 +252,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
       warnings: count('warning'),
       info: count('info'),
       waived: numbered.length - open.length,
+      ...(reading ? { wall: reading } : {}),
       findings: numbered.map(({ says, ...f }) => (detail === 'full' ? { ...f, says } : { id: f.id, rule: f.rule, severity: f.severity, value: f.value, limit: f.limit, unit: f.unit, at: f.at, ...(f.areaMm2 !== undefined ? { areaMm2: f.areaMm2 } : {}), ...(f.waived ? { waived: f.waived } : {}), says })),
       ...(allSkipped.length ? { skipped: allSkipped } : {}),
     }

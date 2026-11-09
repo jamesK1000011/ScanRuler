@@ -39,7 +39,7 @@ Nothing is a hidden constant.
 
 | Rule | Reads | Default |
 |---|---|---|
-| thin-wall | the wall thickness at each point (the Thickness workspace's measure, scan only) | under 0.8 mm (2 × 0.4 mm lines) |
+| thin-wall | the wall thickness: on a scan, the Thickness workspace's map; on a body or the reference part, rays into the material from samples over the faces | under 0.8 mm (2 × 0.4 mm lines) |
 | overhang | faces leaning past the angle from vertical, and flat undersides held up on one side only (a ledge prints in air) | 50° |
 | bridge | flat ceilings held on both sides, and how far they span at their narrowest | 10 mm |
 | small-hole | upright round holes | under Ø2 mm |
@@ -64,8 +64,11 @@ checked.
 - **A flat underside held on one side** is a ledge: it needs support or a
   chamfer. Held on both sides, it is a bridge, and only too long a span is a
   finding.
-- **Thin walls come from the scan's thickness map.** On a coarse CAD mesh,
-  open the part as the scan, so the map has points to measure.
+- **Thin walls.** On a scan they come from its thickness map. On a body or
+  the reference part they are read from samples laid over the faces, so a
+  skin over an insert or a magnet pocket is found even where the mesh has no
+  vertex. `wall` in the answer gives the thinnest wall read, where, and the
+  limit; `least: null` means every wall is thicker than the check reaches.
 - **small-hole** reads upright holes only. A sideways hole is an overhang at
   its top.
 - **The numbers are rules of thumb** for a typical printer. A tuned printer

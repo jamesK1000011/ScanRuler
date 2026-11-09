@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'vitest'
 import { runChecks } from '../core/checks'
 import { CONSIDERATIONS } from '../core/considerations'
+import { probeWalls } from '../core/wall'
 import { stack, validateGuide, validatePack, type Guide, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
 import petg from '../rules/materials/petg.json'
@@ -43,6 +44,16 @@ describe('the plate', () => {
   test('without a thickness map the thin-wall rule says it was skipped', async () => {
     const { skipped } = runChecks(await plate(), rules())
     expect(skipped.map((s) => s.rule)).toEqual(['thin-wall'])
+  })
+  test('read as CAD, with no thickness map, the fin is the one thin wall', async () => {
+    const p = await plate()
+    const wall = probeWalls(p.positions, p.indices, { spacing: 0.4, reach: 6.4 })
+    const thin = runChecks({ ...p, wall }, rules()).findings.filter((f) => f.rule === 'thin-wall')
+    expect(thin).toHaveLength(1)
+    expect(thin[0].value).toBeCloseTo(0.5, 2)
+    expect(thin[0].at[0]).toBeGreaterThan(29.9)
+    expect(thin[0].at[0]).toBeLessThan(30.6)
+    expect(thin[0].at[2]).toBeGreaterThan(4)
   })
   test('a wider bridge limit lets the tunnel pass', async () => {
     const { findings } = runChecks(await plate(), rules([{ name: 'project', overrides: { bridge: { params: { maxMm: 20 } } } }]))

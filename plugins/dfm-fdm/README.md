@@ -18,7 +18,7 @@ says which layer set it.
 
 | Rule | Reads |
 |---|---|
-| thin-wall | the scan's wall thickness map (the worker's thickness measure) |
+| thin-wall | the scan's wall thickness map (the worker's thickness measure); on a body or the reference part, rays into the material from samples over the faces (core/wall.ts) |
 | overhang | faces leaning past the angle, and flat undersides held up on one side only |
 | bridge | flat ceilings held on both sides, by their narrowest span (convex-hull width) |
 | small-hole | upright round holes, by circle fit |

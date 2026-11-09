@@ -6,12 +6,16 @@
 // triangles a check flags, so one ledge is one finding, not a thousand.
 
 import type { EffectiveRule } from './rules'
+import { thinRuns, type WallSamples } from './wall'
 
 export interface Part {
   positions: Float64Array
   indices: Uint32Array
   /** Wall thickness at each vertex, mm (0 or less: not measured). */
   thickness?: Float32Array | null
+  /** Or, on a CAD mesh, the wall read at samples laid over its faces
+   *  (wall.ts probeWalls). */
+  wall?: WallSamples | null
 }
 
 export interface Finding {
@@ -209,6 +213,16 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
       }
       case 'thinWall': {
         const th = part.thickness
+        if ((!th || th.length !== m.p.length / 3) && part.wall) {
+          // Both faces of a wall are within its thickness of each other, and
+          // a sample within its spacing of the next: one run per wall.
+          for (const run of thinRuns(part.wall, P.minMm, 1.5 * Math.max(part.wall.spacing, P.minMm))) {
+            if (run.area < (P.minAreaMm2 ?? 0)) continue
+            // units-ok: the agent's readout, in millimetres always
+            add(rule, { value: r(run.least), limit: P.minMm, unit: 'mm', at: [r(run.at[0]), r(run.at[1]), r(run.at[2])], areaMm2: r(run.area, 1), says: `a wall ${r(run.least)} mm thick over ${r(run.area, 1)} mm² — under ${P.minMm} mm: thicken it, or print it with a finer nozzle` })
+          }
+          break
+        }
         if (!th || th.length !== m.p.length / 3) {
           skipped.push({ rule: rule.id, why: 'no wall thickness measured for this mesh' })
           break

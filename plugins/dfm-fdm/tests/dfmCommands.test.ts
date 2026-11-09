@@ -2,7 +2,8 @@
 // The dfm commands against a stage and app faked in dfmFakes: a part not on
 // the stage told apart from a session with no viewport; a body checked as it
 // stands after an edit, picked by name or as the one shown; and a reference
-// part made from a body that has changed since, checked as an older copy.
+// part made from a body that has changed since, checked as an older copy;
+// and a body's walls read, a magnet's thin skin found.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/commands/host', () => import('./dfmFakes'))
@@ -21,9 +22,9 @@ import { useDfm } from '../state/dfmStore'
 type Run = (input: Record<string, unknown>, ctx: unknown) => Promise<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
 const run = (name: string, input: Record<string, unknown> = {}) => (dfmCommands as unknown as { name: string; run: Run }[]).find((c) => c.name === name)!.run(input, { progress() {} })
 
-function box(min: number[], max: number[]): number[] {
+function box(min: number[], max: number[], inward = false): number[] {
   const [x0, y0, z0] = min, [x1, y1, z1] = max
-  const q = (a: number[], b: number[], c: number[], d: number[]) => [...a, ...b, ...c, ...a, ...c, ...d]
+  const q = (a: number[], b: number[], c: number[], d: number[]) => (inward ? [...a, ...d, ...c, ...a, ...c, ...b] : [...a, ...b, ...c, ...a, ...c, ...d])
   return [
     ...q([x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0]),
     ...q([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]),
@@ -106,7 +107,7 @@ describe('a body', () => {
     const after = await run('check')
     expect(after.stamp).toBe('b2')
     expect(after.findings.find((f: { rule: string }) => f.rule === 'tall-thin')?.value).toBe(15)
-    expect(useDfm.getState().checked).toEqual({ target: 'body', part: 'Grip', stamp: 'b2' })
+    expect(useDfm.getState().checked).toEqual({ target: 'body', part: 'Grip', stamp: 'b2', wall: { least: 4, limit: 0.8 } })
   })
   it('is the one shown, or the one named; a body not there is refused', async () => {
     fresh()
@@ -162,5 +163,32 @@ describe('a reference part made from a body', () => {
     deviation.nominalMadeFrom = null
     bodies = [{ id: 1, name: 'Grip', visible: true, stamp: 'zz' }]
     expect((await run('check')).stale).toBe(undefined)
+  })
+})
+
+describe('the walls of a body', () => {
+  it('are read, and a magnet sealed under a thin skin is found', async () => {
+    fresh()
+    await run('settings', { target: 'body' })
+    const solid = await run('check')
+    expect([solid.wall.least, solid.wall.over, solid.wall.limit]).toEqual([null, 6.4, 0.8])
+    expect(solid.wall.spacing).toBeGreaterThanOrEqual(0.4)
+    expect(solid.wall.samples).toBeLessThanOrEqual(150_000)
+    expect(useDfm.getState().checked?.wall).toEqual({ least: null, limit: 0.8 })
+    geo[1] = [...box([0, 0, 0], [30, 20, 6]), ...box([5, 5, 2], [15, 15, 5.6], true)]
+    const r = await run('check')
+    expect(r.wall.least).toBe(0.4)
+    expect(r.wall.thin).toBe(true)
+    const thin = r.findings.filter((f: { rule: string }) => f.rule === 'thin-wall')
+    expect(thin).toHaveLength(1)
+    expect(thin[0].value).toBe(0.4)
+    expect(r.skipped?.some((x: { rule: string }) => x.rule === 'thin-wall') ?? false).toBe(false)
+  })
+  it('are not read when the rule is off or not asked for', async () => {
+    fresh()
+    await run('settings', { target: 'body' })
+    expect((await run('check', { only: ['overhang'] })).wall).toBe(undefined)
+    await run('rules', { action: 'set', rule: 'thin-wall', disabled: true })
+    expect((await run('check')).wall).toBe(undefined)
   })
 })

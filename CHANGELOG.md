@@ -7,6 +7,13 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Printability reads the walls of a body** (2026-11-08). The thin-wall
+  rule used to run on a scan only, so a body's walls — the skin round an
+  insert or over a magnet pocket — were never checked. On a body or the
+  reference part, `dfm.check` now lays samples over the faces and reads
+  the wall behind each along the face's normal, against the profile's
+  minimum; the answer's `wall` gives the thinnest wall and where, and the
+  panel shows it.
 - **Printability checks a body as it is now** (2026-11-08). Print › Check
   and `dfm.check` can check a Reverse engineer body directly (target `body`,
   with `body` by name or id; the one solid body shown by default; the

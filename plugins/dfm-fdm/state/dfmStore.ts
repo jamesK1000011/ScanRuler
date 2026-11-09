@@ -28,6 +28,8 @@ export interface Checked {
   part: string
   stamp?: string
   stale?: string
+  /** On a CAD part: the least wall read (null: none within reach), mm. */
+  wall?: { least: number | null; limit: number }
 }
 
 export interface Waiver {
