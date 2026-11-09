@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Texturing a part for printing
 
-The Texture workspace gives a part's surface a real, printable texture — the
+The BumpMesh workspace (CNC Kitchen's surface-texture tool) gives a part's surface a real, printable texture — the
 mesh itself is displaced, not painted — with BumpMesh's engine (CNC Kitchen's
 texturing tool, the same code its Export button runs, so a result here is the
 result BumpMesh gives). ScanRuler supplies the part and, above all, the

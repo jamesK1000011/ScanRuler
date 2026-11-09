@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Texture
 
-The Texture workspace, as a plugin — see [../README.md](../README.md) for what
+The BumpMesh workspace (the plugin's id is `texture`), as a plugin — see [../README.md](../README.md) for what
 a plugin is. It runs **BumpMesh** (CNC Kitchen's surface-texture tool) on the
 part ScanRuler has open: the same engine BumpMesh's Export button runs — the
 result is BumpMesh's to the bit — with ScanRuler's regions for where the

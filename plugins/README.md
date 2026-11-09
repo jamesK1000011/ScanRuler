@@ -9,7 +9,7 @@ not in this repository.
 |---|---|
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
-| [texture/](texture/) | The Texture workspace — a printable surface texture with BumpMesh's engine, masked by paint or by a Reverse body's CAD faces |
+| [texture/](texture/) | The BumpMesh workspace — CNC Kitchen's BumpMesh surface textures, made printable, masked by paint or by a Reverse body's CAD faces |
 | [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
 | [fit-comp/](fit-comp/) | Print fit — the Fits tab's Calibrate from a scan page: a scanned print against its CAD, to slicer settings, a compensated model and the printer's one calibration |
 | [fits/](fits/) | Fits (the Fits tab's Design page) — hole and shaft sizes for slip and press fits, snap-fit hooks, print-in-place hinges, pins, tolerance stacks; calibrated with a test coupon |

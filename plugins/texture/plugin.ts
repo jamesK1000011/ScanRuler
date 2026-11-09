@@ -22,8 +22,8 @@ const plugin: ScanRulerPlugin = {
   name: 'Texture',
   workspace: {
     id: 'texture',
-    label: 'Texture',
-    title: 'A printable surface texture, with BumpMesh’s engine',
+    label: 'BumpMesh',
+    title: 'Printable surface textures — BumpMesh by CNC Kitchen',
     icon: 'surface',
     order: 14,
     group: 'model',
@@ -57,7 +57,7 @@ const plugin: ScanRulerPlugin = {
       actions: [
         {
           store: useTexture,
-          label: 'Texture',
+          label: 'BumpMesh',
           names: ['setLayerSettings', 'setTexture', 'setMask', 'setMaskMode', 'setOutput', 'addLayer', 'removeLayer', 'setActive', 'setVisible', 'setBlend'],
         },
       ],
@@ -66,7 +66,7 @@ const plugin: ScanRulerPlugin = {
     registerGuide({
       id: 'texture',
       title: 'Texturing a part for printing',
-      when: 'giving a part a printable surface texture with the Texture workspace (BumpMesh’s engine): choosing textures, depth and tile size for the printer, painting where it goes from ScanRuler’s regions, keeping fit surfaces untouched, previewing, exporting and proving the result',
+      when: 'giving a part a printable surface texture with the BumpMesh workspace (CNC Kitchen’s surface-texture tool): choosing textures, depth and tile size for the printer, painting where it goes from ScanRuler’s regions, keeping fit surfaces untouched, previewing, exporting and proving the result',
       text: () => import('./guides/texture.md?raw').then((m) => m.default),
     })
   },
