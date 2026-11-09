@@ -4,6 +4,6 @@
 
 import importlib
 
-NAMES = ["fam_scan"]
+NAMES = ["fam_scan", "fam_sections", "fam_meshtools", "fam_flat"]
 
 FAMILIES = [importlib.import_module(f"{__package__}.{n}") for n in NAMES]
