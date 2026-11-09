@@ -21,7 +21,10 @@ saved on one opens on it.
 
 The project file's `setups` part: `{ version: 1, setups, selected }`, each
 setup `{ id, type, name, bodies, …its type's settings }` — `id` S1, S2 …,
-`bodies` the bodies' names — written with none too. A setup of a type not
+`bodies` the bodies' keys: a Reverse Engineer body's id as text, which a
+rename leaves alone, as the materials are kept (a name kept from an older
+project matches its body too, and becomes its id at the setup's next
+change); the answers name the bodies. Written with none too. A setup of a type not
 in the build is kept as it was and written back. A project from before
 setups (no `setups` part) opens with one print setup holding the bodies it
 printed (the review spec's `processes` "fdm" or "print", and the body Check
@@ -45,7 +48,7 @@ guide is `guide.read { topic: "setups" }`.
 
 The workspaces read the setups through this plugin's part of the session,
 never by importing it: `setupsOf()`, `setupFor(body, type?)`,
-`setupValue(body, key, type = 'print')` (a setting, or null — the
+`isPrinted(body)`, `bodyKeyOf(body)`, `setupValue(body, key, type = 'print')` (a setting, or null — the
 workspace's own then), `sharedSetupValue(bodies, key)` and
 `machineTolerance({ body } | { setup })`. Without this plugin every body is
 in no setup and every workspace goes by its own settings.

@@ -32,12 +32,14 @@ const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 function Parts({ setup }: { setup: Setup }) {
   const [, setTick] = useState(0)
   const all = solids()
-  const gone = setup.bodies.filter((b) => !all.some((x) => same(x.name, b)))
+  // A body is held by its id, or by its name from an older project.
+  const holds = (b: Body) => setup.bodies.some((x) => x === String(b.id) || same(x, b.name))
+  const gone = setup.bodies.filter((k) => !all.some((x) => k === String(x.id) || same(k, x.name)))
   if (!all.length && !gone.length) return <p className="hint">No parts yet: build or import a body first.</p>
   return (
     <div className="setup-parts" onFocus={() => setTick((t) => t + 1)} data-test="setup-parts">
       {all.map((b) => {
-        const on = setup.bodies.some((x) => same(x, b.name))
+        const on = holds(b)
         return (
           <label key={b.id} className="checkrow" title={on ? 'Made by this setup' : 'Make it by this setup'}>
             <input type="checkbox" checked={on} onChange={() => void run('set', { id: setup.id, [on ? 'remove' : 'add']: [b.name] })} />
@@ -49,7 +51,7 @@ function Parts({ setup }: { setup: Setup }) {
       {gone.map((b) => (
         <label key={b} className="checkrow" title="No body has this name now">
           <input type="checkbox" checked onChange={() => void run('set', { id: setup.id, remove: [b] })} />
-          {b} (not found)
+          {/^\d+$/.test(b) ? `Body ${b}` : b} (not found)
         </label>
       ))}
     </div>

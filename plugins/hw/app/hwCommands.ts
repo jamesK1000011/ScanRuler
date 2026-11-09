@@ -921,7 +921,7 @@ export function pausesOf(a: PausesIn = {}) {
   const S = settings()
   // The bodies printed: their print setups' layers when they all say the
   // same; the layers given win, then the settings.
-  const printed: string[] = a.bodies?.length ? a.bodies : [...new Set(st().embeds.map((e) => e.body as string))]
+  const printed: string[] = a.bodies?.length ? a.bodies : [...new Set<string>(st().embeds.map((e) => e.body))]
   const fromSetup = { height: sharedSetupValue<number>(printed, 'layerHeight'), first: sharedSetupValue<number>(printed, 'firstLayer') }
   const layers = { height: a.layerHeight ?? fromSetup.height?.value ?? S.layerHeight, first: a.firstLayer ?? fromSetup.first?.value ?? S.firstLayer }
   const setupsUsed = [...new Set([...(a.layerHeight === undefined ? (fromSetup.height?.setups ?? []) : []), ...(a.firstLayer === undefined ? (fromSetup.first?.setups ?? []) : [])].map((x) => x.name))]

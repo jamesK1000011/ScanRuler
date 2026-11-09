@@ -9,7 +9,7 @@
 import { arr, anyObject, bool, num, obj, oneOf, str } from '../../../src/commands/schema'
 import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { bodyKeyOf, setupsFor, setupTypeOf, setupTypes, settingsOf, type Setup, type SetupType } from '../../_shared/setups'
+import { bodyKeyOf, bodyNameOf, setupsFor, setupTypeOf, setupTypes, settingsOf, type BodyKey, type Setup, type SetupType } from '../../_shared/setups'
 import { clashes, nameFor, nextId, settingsOver } from '../core/setups'
 import { useSetups } from '../state/setupsStore'
 
@@ -21,8 +21,8 @@ const invalid = (m: string): never => {
 }
 const same = (a: string, b: string) => a === b || a.toLowerCase() === b.toLowerCase()
 
-/** A setup in brief, as the answers carry it. */
-export const brief = (s: Setup) => ({ id: s.id, type: s.type, name: s.name, bodies: s.bodies, settings: settingsOf(s), ...(setupTypeOf(s.type) ? {} : { note: 'its type is not in this build: kept as it is' }) })
+/** A setup in brief, as the answers carry it: its bodies by name. */
+export const brief = (s: Setup) => ({ id: s.id, type: s.type, name: s.name, bodies: s.bodies.map(bodyNameOf), settings: settingsOf(s), ...(setupTypeOf(s.type) ? {} : { note: 'its type is not in this build: kept as it is' }) })
 
 function setupNamed(ref: string): Setup {
   const s = st().setups.find((x) => x.id === ref || same(x.name, ref))
@@ -42,31 +42,36 @@ interface Body {
   surface?: boolean
 }
 
-/** The bodies named, by name or Reverse Engineer id, as their names —
- *  checked against Reverse Engineer's bodies when it is in the build. */
-function bodiesNamed(refs: readonly (string | number)[]): string[] {
+/** The bodies named, by name or Reverse Engineer id, as their keys (the
+ *  id, which a rename leaves) — checked against Reverse Engineer's bodies
+ *  when it is in the build; without it, by name as given. */
+function bodiesNamed(refs: readonly (string | number)[]): BodyKey[] {
   const all = (readStateSection('reverse') as { bodies?: Body[] } | undefined)?.bodies
-  const out: string[] = []
+  const out: BodyKey[] = []
   for (const ref of refs) {
-    let name = bodyKeyOf(ref)
+    let key = String(ref)
     if (all) {
-      const b = all.find((x) => x.id === ref || same(x.name, String(ref)))
+      const b = all.find((x) => x.id === ref || x.name === ref) ?? all.find((x) => same(x.name, String(ref)))
       if (!b) invalid(`No body "${ref}" — there are ${all.filter((x) => !x.surface).map((x) => x.name).join(', ') || 'none'}.`)
       if (b!.surface) invalid(`${b!.name} is a surface, not a part.`)
-      name = b!.name
+      key = bodyKeyOf(b!)
     } else if (typeof ref === 'number') invalid(`A body by id needs Reverse Engineer, which this build has not: name it.`)
-    if (!out.some((x) => same(x, name))) out.push(name)
+    if (!out.includes(key)) out.push(key)
   }
   return out
 }
+
+/** A setup's bodies as keys: a name kept from an older project becomes
+ *  its body's id once that body is there to say it. */
+const keyed = (bodies: readonly string[]): BodyKey[] => [...new Set(bodies.map((b) => bodyKeyOf(b)))]
 
 function nameOk(name: string | undefined): void {
   if (name !== undefined && (!name.trim() || name.trim().length > 60)) invalid('name: 1 to 60 characters.')
 }
 
 function noClash(type: string, bodies: string[], except?: string): void {
-  const c = clashes(st().setups, type, bodies, except)
-  if (c.length) invalid(`${c.map((x) => `${x.body} is in ${x.setup.name} (${x.setup.id})`).join('; ')} — a body is in one ${type} setup at most: take it out there (setup.set { id, bodies }) first.`)
+  const c = clashes(st().setups.map((s) => ({ ...s, bodies: keyed(s.bodies) })), type, bodies, except)
+  if (c.length) invalid(`${c.map((x) => `${bodyNameOf(x.body)} is in ${x.setup.name} (${x.setup.id})`).join('; ')} — a body is in one ${type} setup at most: take it out there (setup.set { id, bodies }) first.`)
 }
 
 function put(setups: Setup[], selected?: string | null): void {
@@ -158,12 +163,13 @@ const set: Command<SetIn> = {
     nameOk(name)
     if (bodies !== undefined && (more !== undefined || fewer !== undefined)) invalid('Give bodies (the whole list), or add and remove — not both.')
     if (name !== undefined && st().setups.some((x) => x.id !== s.id && same(x.name, name.trim()))) invalid(`There is a setup named ${name} already.`)
-    let names = s.bodies
+    let names = keyed(s.bodies)
     if (bodies !== undefined) names = bodiesNamed(bodies)
-    if (more?.length) names = [...names, ...bodiesNamed(more).filter((b) => !names.some((x) => same(x, b)))]
+    if (more?.length) names = [...names, ...bodiesNamed(more).filter((b) => !names.includes(b))]
     if (fewer?.length) {
-      const out = fewer.map(bodyKeyOf)
-      names = names.filter((b) => !out.some((x) => same(x, b)))
+      // Taken out by name or id, whether its body is still there or not.
+      const out = fewer.map((f) => bodyKeyOf(f))
+      names = names.filter((b) => !out.includes(b) && !fewer.some((f) => same(String(f), b)))
     }
     noClash(s.type, names, s.id)
     const next = settings === undefined ? settingsOf(s) : settingsOver(setupTypeOf(s.type), settingsOf(s), settings)
@@ -197,9 +203,8 @@ const of: Command<{ body: string | number }> = {
   readOnly: true,
   headless: true,
   run: async ({ body }) => {
-    const name = bodyKeyOf(body)
     const in_ = setupsFor(body)
-    return { body: name, setups: in_.map(brief), ...(in_.length ? {} : { none: 'in no setup: how it is made is not recorded' }) }
+    return { body: bodyNameOf(bodyKeyOf(body)), setups: in_.map(brief), ...(in_.length ? {} : { none: 'in no setup: how it is made is not recorded' }) }
   },
 }
 

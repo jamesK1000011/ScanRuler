@@ -84,7 +84,8 @@ describe('setup.*', () => {
     expect(a.added).toEqual({ id: 'S1', type: 'print', name: 'Print', bodies: ['Grip', 'Case'], settings: { nozzle: '0.6', layerHeight: 0.28 } })
     expect(useSetups.getState().selected).toBe('S1')
     await run('setup.set', { id: 'Print', name: 'PETG print', remove: ['case'], settings: { layerHeight: null, walls: 3 } })
-    expect(useSetups.getState().setups).toEqual([{ id: 'S1', type: 'print', name: 'PETG print', bodies: ['Grip'], nozzle: '0.6', walls: 3 }])
+    // Kept by id, which a rename leaves alone.
+    expect(useSetups.getState().setups).toEqual([{ id: 'S1', type: 'print', name: 'PETG print', bodies: ['1'], nozzle: '0.6', walls: 3 }])
     await run('setup.add', { type: 'print', name: 'Case print', bodies: ['Case'] })
     await run('setup.remove', { id: 'S1' })
     expect(useSetups.getState().setups.map((s) => s.id)).toEqual(['S2'])
@@ -93,7 +94,7 @@ describe('setup.*', () => {
     expect(useSetups.getState().setups.map((s) => s.id)).toEqual(['S1', 'S2'])
     await run('history.undo')
     await run('history.undo')
-    expect(useSetups.getState().setups).toEqual([{ id: 'S1', type: 'print', name: 'Print', bodies: ['Grip', 'Case'], nozzle: '0.6', layerHeight: 0.28 }])
+    expect(useSetups.getState().setups).toEqual([{ id: 'S1', type: 'print', name: 'Print', bodies: ['1', '2'], nozzle: '0.6', layerHeight: 0.28 }])
     await run('history.undo')
     expect(useSetups.getState().setups).toEqual([])
     await run('history.redo')
@@ -112,6 +113,17 @@ describe('setup.*', () => {
     expect((await refused('setup.set', { id: 'S1' })).message).toMatch(/Give something to change/)
     expect((await refused('setup.set', { id: 'S1', bodies: ['Case'], add: ['Grip'] })).message).toMatch(/not both/)
     expect((await refused('setup.add', { type: 'print', name: 'print' })).message).toMatch(/named print already/)
+  })
+
+  it('a body kept by name from an older project is its body, and becomes its id once changed', async () => {
+    fresh()
+    useSetups.getState().replace([{ id: 'S1', type: 'print', name: 'Print', bodies: ['grip'] }])
+    expect(setupFor(1)?.id).toBe('S1')
+    expect((await refused('setup.add', { type: 'print', bodies: ['Grip'] })).message).toMatch(/Grip is in Print/)
+    await run('setup.set', { id: 'S1', add: ['Case'] })
+    expect(useSetups.getState().setups[0].bodies).toEqual(['1', '2'])
+    await run('setup.set', { id: 'S1', remove: ['Grip'] })
+    expect(useSetups.getState().setups[0].bodies).toEqual(['2'])
   })
 
   it('setup.of and setup.list say how a body is made and what kinds there are', async () => {
