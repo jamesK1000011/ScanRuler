@@ -22,6 +22,7 @@ import { readPrinterFit } from '../../_shared/readPrinterFit'
 const st = () => useGen.getState()
 const IDS = GENERATORS.map((g) => g.id)
 const r2 = (x: number) => Math.round(x * 100) / 100
+const r3 = (x: number) => Math.round(x * 1000) / 1000 + 0
 
 function generator(id?: string): Generator {
   const g = generatorOf(id ?? st().generator)
@@ -173,11 +174,38 @@ const reverseBodies = () => (readStateSections().reverse as { bodies?: ReverseBo
 
 const printerFitIn = bool('false: build with the defaults as they are, not moved by the printer’s fit calibration; the setting by default.')
 
+/** Hardware the part takes in its holes (a Gridfinity bin's magnets),
+ *  recorded with the Hardware workspace inside this step: hw.pauses then
+ *  plans the pause for it, and its mass counts in the part's. Said in the
+ *  notes where that workspace is not in the build or would not take it. */
+async function recordEmbeds(g: Generator, v: Record<string, Value>, fresh: ReverseBody[], partOf: (GenPart | undefined)[], bodies: string[], move?: [number, number, number]) {
+  const encased: { id?: string; body: string; what: string; count: number }[] = []
+  const notes: string[] = []
+  const [dx, dy, dz] = move ?? [0, 0, 0]
+  for (const e of g.embeds?.(v) ?? []) {
+    const i = fresh.findIndex((_, k) => partOf[k]?.name === e.part)
+    if (i < 0) {
+      notes.push(`${e.what}: no body came in for ${e.part}, so no pause is planned for them.`)
+      continue
+    }
+    const at = e.centres.map(([x, y, z]) => [r3(x + dx), r3(y + dy), r3(z + dz)])
+    try {
+      const r = (await runWithin('hw.record', { body: bodies[i], top: r3(e.top + dz), what: e.what, span: e.span, kind: e.kind, size: e.size, at })) as { recorded?: { id?: string } }
+      encased.push({ ...(r?.recorded?.id ? { id: r.recorded.id } : {}), body: bodies[i], what: e.what, count: at.length })
+      notes.push(`${e.note} hw.pauses gives the layer; hw.unembed drops the pause.`)
+    } catch (err) {
+      if (err instanceof CommandError && err.code === 'unknown_command') notes.push(`No pause is planned for ${e.what}: the Hardware workspace is not in this build.`)
+      else notes.push(`${e.what} not recorded for a pause: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  return { encased, notes }
+}
+
 const make: Command<{ generator?: string; params?: Record<string, unknown>; name?: string; board?: Record<string, unknown>; printerFit?: boolean }> = {
   name: 'make',
   title: 'Make the part in Reverse Engineer',
   description:
-    'Build the part and bring it into Reverse Engineer as bodies of their own — an Import feature saved with the project, to cut, fillet, check and export like any other (reverse.feature.add, reverse.export.stl). Values as set (gen.set) unless given here; name names the bodies (the generator’s names otherwise, with 2, 3 … after a name taken). Each part stands on z = 0, centred on the origin; a lid lies beside its box. board_box is made round its board where the board is (the board’s bottom at z = 0), its lid beside it. Holes, gaps and margins not set follow the printer’s fit calibration from Fits. Returns the bodies, each part’s volume (mm³) and size (mm), and printerFit: the calibration used, with what it set.',
+    'Build the part and bring it into Reverse Engineer as bodies of their own — an Import feature saved with the project, to cut, fillet, check and export like any other (reverse.feature.add, reverse.export.stl). Values as set (gen.set) unless given here; name names the bodies (the generator’s names otherwise, with 2, 3 … after a name taken). Each part stands on z = 0, centred on the origin; a lid lies beside its box. board_box is made round its board where the board is (the board’s bottom at z = 0), its lid beside it. Holes, gaps and margins not set follow the printer’s fit calibration from Fits. Magnet holes (Gridfinity magnets: true) are recorded with the Hardware workspace in the same step, so hw.pauses plans the pause to drop the magnets in and their mass counts in the part’s (encased). Returns the bodies, each part’s volume (mm³) and size (mm), and printerFit: the calibration used, with what it set.',
   input: obj({ generator: genIn, params: paramsIn, name: str('What to call the bodies (up to 60 characters).', { minLength: 1 }), board: boardIn_, printerFit: printerFitIn }),
   long: true,
   timeoutMs: 300_000,
@@ -218,8 +246,9 @@ const make: Command<{ generator?: string; params?: Record<string, unknown>; name
         bodies.push(want)
       }
       const parts = fresh.map((_, i) => partOf[i]).filter((p): p is GenPart => !!p)
+      const held = await recordEmbeds(g, v, fresh, partOf, bodies, a.move)
       useGen.setState({ made: { generator: g.id, params: v, parts: parts.length === fresh.length ? parts : a.parts, bodies } })
-      return { generator: g.id, values: v, ...fitUsed(g, params, fit), bodies, parts: a.parts.map(partOut), ...(g.plan && b ? { plan: g.plan(v, b) } : {}), status: `${g.label}: ${bodies.join(', ')} in Reverse Engineer.` }
+      return { generator: g.id, values: v, ...fitUsed(g, params, fit), bodies, parts: a.parts.map(partOut), ...(g.plan && b ? { plan: g.plan(v, b) } : {}), ...(held.encased.length ? { encased: held.encased } : {}), ...(held.notes.length ? { note: held.notes.join(' ') } : {}), status: `${g.label}: ${bodies.join(', ')} in Reverse Engineer.` }
     })
   },
 }

@@ -25,6 +25,26 @@ const LIP_H = 4.4
 const OUTER_R = 3.75
 /** How far in from the outside the lip's foot comes: 0.7 + 1.9 mm. */
 const LIP_IN = 2.6
+/** The magnets: 6 × 2 mm discs, in 6.5 × 2.4 mm holes ±13 mm from each
+ *  cell's centre. */
+export const MAGNET = { size: '6x2', t: 2, hole: 2 * MAGNET_R, depth: 2.4, at: 13 } as const
+/** A baseplate's floor under its pockets, with magnets: 0.6 mm under each. */
+const BASE_FLOOR = 3
+
+/** The magnets a bin or baseplate takes, as built (centred on the origin,
+ *  on z = 0): each one's centre, resting on the bottom of its hole, the
+ *  holes' top and their width (with the fit's holes). A bin's holes open onto the bed, so a magnet dropped in at
+ *  the pause sits on the bed and is printed over; a baseplate's open into
+ *  the pockets above. None without magnets. */
+export function magnetsOf(kind: 'bin' | 'baseplate', p: { x: number; y: number; magnets: boolean; holes?: number }): { centres: [number, number, number][]; top: number; span: number } | null {
+  if (!p.magnets) return null
+  const bottom = kind === 'bin' ? 0 : BASE_FLOOR - MAGNET.depth
+  const centres: [number, number, number][] = []
+  for (let i = 0; i < p.x; i++)
+    for (let j = 0; j < p.y; j++)
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) centres.push([(i - (p.x - 1) / 2) * GRID + sx * MAGNET.at, (j - (p.y - 1) / 2) * GRID + sy * MAGNET.at, bottom + MAGNET.t / 2])
+  return { centres, top: bottom + MAGNET.depth, span: MAGNET.hole + (p.holes ?? 0) }
+}
 
 export interface BinParams {
   /** Cells across (X) and deep (Y). */
@@ -159,7 +179,7 @@ export function bin(k: GenKernel, p: BinParams): H {
   for (const [cx, cy] of centres)
     for (const sx of [-1, 1])
       for (const sy of [-1, 1]) {
-        if (p.magnets) holes.push(k.translate(k.makeCylinder(MAGNET_R + (p.holes ?? 0) / 2, 2.41), cx + sx * 13, cy + sy * 13, -0.01))
+        if (p.magnets) holes.push(k.translate(k.makeCylinder(MAGNET_R + (p.holes ?? 0) / 2, MAGNET.depth + 0.01), cx + sx * MAGNET.at, cy + sy * MAGNET.at, -0.01))
         if (p.screws) holes.push(k.translate(k.makeCylinder(SCREW_R + (p.holes ?? 0) / 2, 6.01), cx + sx * 13, cy + sy * 13, -0.01))
       }
   if (holes.length) body = k.cutAll(body, holes)
@@ -176,7 +196,7 @@ export function baseplate(k: GenKernel, p: BaseParams): H {
   const D = p.y * GRID
   const T = 4.65
   // With magnets, a floor under the pockets holds them, 0.6 mm under each.
-  const floor = p.magnets ? 3 : 0
+  const floor = p.magnets ? BASE_FLOOR : 0
   let plate = prism(k, 0, 0, W, D, 4, 0, T + floor)
   const pockets: H[] = []
   for (let i = 0; i < p.x; i++)
@@ -191,7 +211,7 @@ export function baseplate(k: GenKernel, p: BaseParams): H {
           [floor + T + 0.01, 0, 4],
         ]),
       )
-      if (p.magnets) for (const sx of [-1, 1]) for (const sy of [-1, 1]) pockets.push(k.translate(k.makeCylinder(MAGNET_R + (p.holes ?? 0) / 2, 2.41), cx + sx * 13, cy + sy * 13, floor - 2.4))
+      if (p.magnets) for (const sx of [-1, 1]) for (const sy of [-1, 1]) pockets.push(k.translate(k.makeCylinder(MAGNET_R + (p.holes ?? 0) / 2, MAGNET.depth + 0.01), cx + sx * MAGNET.at, cy + sy * MAGNET.at, floor - MAGNET.depth))
     }
   plate = k.cutAll(plate, pockets)
   return plate

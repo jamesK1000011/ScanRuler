@@ -11,7 +11,7 @@ export const calls: { name: string; input: Record<string, unknown> }[] = []
 export async function runCommand(name: string, input: Record<string, unknown>): Promise<unknown> {
   calls.push({ name, input })
   const h = handlers[name]
-  if (!h) throw new Error(`No command ${name}.`)
+  if (!h) throw new CommandError('unknown_command', `There is no command "${name}".`)
   return h(input as never)
 }
 

@@ -104,6 +104,27 @@ describe('Gridfinity, to the specification', () => {
     expect(at(holed, 21 + 13, 13, 1)).toBe(0)
     expect(at(holed, 21 + 13 + 3.4, 13, 1)).toBeGreaterThan(0)
   })
+  it('the magnets recorded for their pause sit in their holes: a bin’s closed over at the top given, a baseplate’s on its floor', () => {
+    const bin = generatorOf('gridfinity_bin')!
+    const v = valuesOf(bin, { x: 2, magnets: true })
+    const [e] = bin.embeds!(v)
+    const s = bin.build(k, v)[0].shape
+    expect(e.centres.length).toBe(8)
+    for (const c of e.centres) {
+      expect(at(s, c[0], c[1], c[2])).toBe(0)
+      expect(at(s, c[0], c[1], e.top - 0.15)).toBe(0)
+      expect(at(s, c[0], c[1], e.top + 0.15)).toBeGreaterThan(0)
+    }
+    const base = generatorOf('gridfinity_baseplate')!
+    const w = valuesOf(base, { x: 1, y: 1, magnets: true })
+    const [f] = base.embeds!(w)
+    const p = base.build(k, w)[0].shape
+    for (const c of f.centres) {
+      expect(at(p, c[0], c[1], c[2])).toBe(0)
+      expect(at(p, c[0], c[1], c[2] - 1.3)).toBeGreaterThan(0)
+    }
+    expect(bin.embeds!(valuesOf(bin, { magnets: false }))).toEqual([])
+  })
   it('the base is 4.75 mm: 0.8 at 45°, 1.8 straight, 2.15 at 45°, from a 35.6 mm foot', () => {
     const b = build('gridfinity_bin', { lip: false, units: 2, wall: 0 })[0].shape
     expect(at(b, 35.6 / 2 - 0.35, 0, 0.1)).toBeGreaterThan(0)

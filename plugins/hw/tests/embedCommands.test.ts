@@ -484,4 +484,21 @@ describe('the encased parts’ mass (hw.masses)', () => {
     expect(bad.length).toBe(1)
     expect(bad[0].solid).toBe(undefined)
   })
+  test('a pocket recorded with what is in it — as Generate records a bin’s magnets — has its mass and its pause', async () => {
+    const at = [[5, 5, 1], [-5, 5, 1], [5, -5, 1], [-5, -5, 1]]
+    const r = await run('record', { body: 'Block', top: 2.4, what: '4 6x2 magnets', span: 6.5, kind: 'magnet', size: '6x2', at })
+    expect(r.recorded).toEqual({ id: 'E1', body: 'Block', what: '4 6x2 magnets', top: 2.4, roof: null, count: 4 })
+    const m = (await run('masses')).parts[0]
+    expect(m.mass).toBeCloseTo((7.5 * Math.PI * 9 * 2) / 1000, 5)
+    expect(m.centres).toEqual(at)
+    expect((await run('pauses')).pauses[0]).toMatchObject({ layer: 13, z: 2.4, note: 'Insert 4 6x2 magnets' })
+    // What one weighs alone: a point of that mass at each centre.
+    await run('record', { body: 'Block', top: 6, what: 'a lead slug', grams: 12, at: [[0, 0, 5]] })
+    expect((await run('masses')).parts[1]).toMatchObject({ what: 'a lead slug', mass: 12, material: 'as weighed', centres: [[0, 0, 5]] })
+    await refused(run('record', { body: 'Block', top: 3, what: 'x', kind: 'magnet', size: '6x2' }), /at: each one’s centre/)
+    await refused(run('record', { body: 'Block', top: 3, what: 'x', kind: 'magnet', size: '7x7', at }), /no magnet "7x7"/)
+    await refused(run('record', { body: 'Block', top: 3, what: 'x', kind: 'magnet', size: '6x2', at, count: 3 }), /count: 3, but at gives 4/)
+    await refused(run('record', { body: 'Block', top: 3, what: 'x', at }), /go with kind/)
+    await refused(run('record', { from: 'mass', kind: 'magnet' }), /from the Mass plan/)
+  })
 })

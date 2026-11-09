@@ -30,6 +30,8 @@ export interface GenPart {
 
 export interface GenAnswer {
   parts: GenPart[]
+  /** How far the parts were moved to stand clear of the bodies there. */
+  move?: [number, number, number]
   step?: string
   stl?: Uint8Array
 }
@@ -69,11 +71,12 @@ self.onmessage = async (e: MessageEvent<GenAsk>) => {
         return { name, volume: k.getVolume(shape), box: { min: [b.xmin, b.ymin, b.zmin], max: [b.xmax, b.ymax, b.zmax] } }
       })
       const all = made.length === 1 ? made[0].shape : k.makeCompound(made.map((m) => m.shape))
-      if (out === 'step') post({ id, result: { parts, step: k.exportStep(all) } satisfies GenAnswer })
+      const moved = move ? { move } : {}
+      if (out === 'step') post({ id, result: { parts, ...moved, step: k.exportStep(all) } satisfies GenAnswer })
       else if (out === 'stl') {
         const stl = k.exportStl(all, chord ?? 0.02, false)
-        post({ id, result: { parts, stl } satisfies GenAnswer }, [stl.buffer as ArrayBuffer])
-      } else post({ id, result: { parts } satisfies GenAnswer })
+        post({ id, result: { parts, ...moved, stl } satisfies GenAnswer }, [stl.buffer as ArrayBuffer])
+      } else post({ id, result: { parts, ...moved } satisfies GenAnswer })
     } finally {
       k.releaseAll()
     }

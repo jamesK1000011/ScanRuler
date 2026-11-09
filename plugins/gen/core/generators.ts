@@ -5,7 +5,7 @@
 
 import { box, BOX_DEFAULTS, checkBox, lid, type BoxParams } from './enclosure'
 import { BOARD_BOX_DEFAULTS, boardBox, boardBoxPlan, boardLid, checkBoardBox, type BoardBoxParams, type BoardSpec } from './boardBox'
-import { BASE_DEFAULTS, baseplate, bin, BIN_DEFAULTS, checkBin, type BaseParams, type BinParams } from './gridfinity'
+import { BASE_DEFAULTS, baseplate, bin, BIN_DEFAULTS, checkBin, MAGNET, magnetsOf, type BaseParams, type BinParams } from './gridfinity'
 import type { GenPart } from './genWorker'
 import type { GenKernel, H } from './kernel'
 
@@ -41,7 +41,31 @@ export interface Generator {
   build(k: GenKernel, p: Record<string, Value>, board?: BoardSpec | null): { name: string; shape: H }[]
   /** Where its pieces go, worked out without building: for a check. */
   plan?(p: Record<string, Value>, board: BoardSpec): unknown
+  /** Hardware that goes into its holes (magnets), as built: recorded with
+   *  the Hardware workspace for its pause and its mass. */
+  embeds?(p: Record<string, Value>): GenEmbed[]
 }
+
+/** Parts that go into a generated part's holes. */
+export interface GenEmbed {
+  /** The part they go in, by name. */
+  part: string
+  kind: 'magnet'
+  /** As the Hardware workspace's table has it. */
+  size: string
+  what: string
+  /** Each one's centre, as built, mm. */
+  centres: [number, number, number][]
+  /** The holes' top, Z as built, mm. */
+  top: number
+  /** The holes' width, mm. */
+  span: number
+  /** How they go in, for the answer. */
+  note: string
+}
+
+const magnetEmbeds = (part: string, m: ReturnType<typeof magnetsOf>, note: string): GenEmbed[] =>
+  m ? [{ part, kind: 'magnet', size: MAGNET.size, what: `${m.centres.length} ${MAGNET.size} magnets`, centres: m.centres, top: m.top, span: m.span, note }] : []
 
 const int = (key: string, label: string, min: number, max: number, tip: string, unit?: string): Param => ({ key, label, kind: 'int', min, max, step: 1, tip, ...(unit ? { unit } : {}) })
 const num = (key: string, label: string, min: number, max: number, step: number, tip: string): Param => ({ key, label, kind: 'num', min, max, step, length: true, tip })
@@ -76,6 +100,7 @@ export const GENERATORS: Generator[] = [
     defaults: { ...BIN_DEFAULTS },
     check: (p) => checkBin(p as unknown as BinParams),
     build: (k, p) => [{ name: binName(p as unknown as BinParams), shape: bin(k, p as unknown as BinParams) }],
+    embeds: (p) => magnetEmbeds(binName(p as unknown as BinParams), magnetsOf('bin', p as unknown as BinParams), 'The magnet holes open onto the bed: press the magnets in after printing, or drop them in at the pause and they are printed over.'),
   },
   {
     id: 'gridfinity_baseplate',
@@ -92,6 +117,7 @@ export const GENERATORS: Generator[] = [
     defaults: { ...BASE_DEFAULTS },
     check: (p) => (Number.isInteger(p.x) && Number.isInteger(p.y) && (p.x as number) >= 1 && (p.y as number) >= 1 && (p.x as number) <= 20 && (p.y as number) <= 20 ? null : 'x and y are whole cells, 1 to 20.'),
     build: (k, p) => [{ name: `Gridfinity baseplate ${p.x}x${p.y}`, shape: baseplate(k, p as unknown as BaseParams) }],
+    embeds: (p) => magnetEmbeds(`Gridfinity baseplate ${p.x}x${p.y}`, magnetsOf('baseplate', p as unknown as BaseParams), 'The magnet holes open into the pockets above: drop the magnets in at the pause or after printing.'),
   },
   {
     id: 'project_box',

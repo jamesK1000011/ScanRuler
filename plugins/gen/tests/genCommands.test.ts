@@ -3,7 +3,8 @@
 // Reverse Engineer and a worker faked in genFakes: builds one at a time,
 // a stop that ends those waiting too, bodies named after the part that
 // stands where they do whatever order the file gave them, names that
-// don't collide, and a name of spaces refused.
+// don't collide, a name of spaces refused, and a bin's magnets recorded
+// with the Hardware workspace for their pause.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/commands/registry', () => import('./genFakes'))
@@ -39,9 +40,9 @@ handlers['reverse.body.set'] = async (i: { body: number; name: string }) => {
   return {}
 }
 let pending: GenPart[] | null = null
-function finish(parts: GenPart[]) {
+function finish(parts: GenPart[], move?: [number, number, number]) {
   pending = parts
-  builds.shift()!.done({ parts, step: 'ISO-10303-21;' })
+  builds.shift()!.done({ parts, step: 'ISO-10303-21;', ...(move ? { move } : {}) })
 }
 function fresh() {
   useGen.getState().reset()
@@ -125,5 +126,42 @@ describe('the Generate commands', () => {
     expect(builds[0].ask.board).toEqual(board)
     builds.shift()!.done({ parts: [part('tiny box', 0)] })
     expect((await again).plan.openings).toEqual([])
+  })
+  it('record a bin’s magnets with the Hardware workspace, in the same step, where it stands', async () => {
+    fresh()
+    const asked: Record<string, any>[] = [] // eslint-disable-line @typescript-eslint/no-explicit-any
+    handlers['hw.record'] = async (i: Record<string, unknown>) => {
+      asked.push(i)
+      return { recorded: { id: `E${asked.length}` } }
+    }
+    const m = run('make', { generator: 'gridfinity_bin', params: { x: 2, y: 1, magnets: true } })
+    await tick()
+    finish([part('Gridfinity bin 2x1x3', 0)], [0, 50, 0])
+    const r = await m
+    expect(asked.length).toBe(1)
+    const a = asked[0]
+    expect([a.body, a.top, a.kind, a.size, a.what, a.span]).toEqual(['Gridfinity bin 2x1x3', 2.4, 'magnet', '6x2', '8 6x2 magnets', 6.5])
+    // Four a cell, 13 off its centre, resting on the bed (2 thick); moved 50 in Y clear of what stood there.
+    expect(a.at.length).toBe(8)
+    expect(a.at.map((c: number[]) => c.join(',')).sort()).toEqual(['-34,37,1', '-34,63,1', '-8,37,1', '-8,63,1', '34,37,1', '34,63,1', '8,37,1', '8,63,1'])
+    expect(r.encased).toEqual([{ id: 'E1', body: 'Gridfinity bin 2x1x3', what: '8 6x2 magnets', count: 8 }])
+    expect(r.note).toContain('hw.pauses')
+    // A baseplate's sit on its 0.6 floor, their holes' top at 3.
+    const b = run('make', { generator: 'gridfinity_baseplate', params: { x: 1, y: 1, magnets: true } })
+    await tick()
+    finish([part('Gridfinity baseplate 1x1', 0)])
+    await b
+    expect([asked[1].top, asked[1].at[0][2], asked[1].at.length]).toEqual([3, 1.6, 4])
+    // Without magnets, nothing recorded; without the Hardware workspace, said so.
+    const c = run('make', { generator: 'gridfinity_bin', params: { x: 1, y: 1, magnets: false } })
+    await tick()
+    finish([part('Gridfinity bin 1x1x3', 0)])
+    expect((await c).encased).toBe(undefined)
+    expect(asked.length).toBe(2)
+    delete handlers['hw.record']
+    const d = run('make', { generator: 'gridfinity_bin', params: { x: 1, y: 1, magnets: true } })
+    await tick()
+    finish([part('Gridfinity bin 1x1x3', 0)])
+    expect((await d).note).toContain('Hardware workspace is not in this build')
   })
 })

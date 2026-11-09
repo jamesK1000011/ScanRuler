@@ -815,20 +815,61 @@ interface RecordIn {
   roof?: number | null
   count?: number
   from?: 'mass'
+  kind?: EmbedKind
+  size?: string
+  at?: V3[]
+  axis?: V3
+  grams?: number
+}
+
+/** A part recorded with its pocket, as a solid: the table's hardware
+ *  (kind and size, grams in place of its figure), or what grams weighs at
+ *  each centre. None without one or the other. */
+function recordedSolid(a: RecordIn, span: number): EmbedSolid | undefined {
+  if (a.kind === undefined && a.grams === undefined) {
+    if (a.at !== undefined || a.size !== undefined || a.axis !== undefined) invalid('at, size and axis go with kind (or grams): what is in the pocket.')
+    return undefined
+  }
+  if (a.kind === 'object') invalid('kind: nut, magnet, bearing or insert — for anything else give grams.')
+  if (a.kind !== undefined && a.size === undefined) invalid(`size: the ${a.kind}’s (hw.list gives them).`)
+  if (a.kind === undefined && a.size !== undefined) invalid('size: give kind too.')
+  const at = a.at ?? invalid('at: each one’s centre (part frame, mm), for its mass.')
+  if (!at.length || at.length > 10000 || !at.every((c) => Array.isArray(c) && c.length === 3 && c.every((x) => Number.isFinite(x)))) invalid('at: one centre [x, y, z] or more.')
+  if (a.count !== undefined && a.count !== at.length) invalid(`count: ${a.count}, but at gives ${at.length} centres.`)
+  const axis = unit(a.axis ?? [0, 0, 1]) ?? invalid('axis: a direction, not zero.')
+  const t: V3 = Math.abs(axis[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]
+  const u = unit([axis[1] * t[2] - axis[2] * t[1], axis[2] * t[0] - axis[0] * t[2], axis[0] * t[1] - axis[1] * t[0]])!
+  const v: V3 = [axis[1] * u[2] - axis[2] * u[1], axis[2] * u[0] - axis[0] * u[2], axis[0] * u[1] - axis[1] * u[0]]
+  const part = a.kind !== undefined ? partSolid(a.kind, a.size, undefined, a.grams) : { material: 'as weighed', mass: a.grams!, length: 0, moments: [0, 0, 0] as [number, number, number], reach: span / 2 }
+  if (!part) return invalid(`There is no ${a.kind} "${a.size}" (sizes: ${sizesOf(a.kind as Kind).join(', ')}).`)
+  return { material: part.material, mass: r6(part.mass), centres: at.map((c) => c.map(r3) as V3), inertia: inertiaOf(part, axis, u, v).map((row) => row.map(r6)) as EmbedSolid['inertia'], reach: r3(part.reach) }
 }
 
 const recordCmd: Command<RecordIn> = {
   name: 'record',
   title: 'Record an encased part',
-  description: 'Record a pocket already in a body for a pause: its body, top (Z of the pocket’s top, part frame, mm), what goes in, and span (its roof’s shortest span), roof (material over it) and count if known. from: "mass" takes the ballast pocket the Mass workspace planned (mass.ballast) — its body, top, and the filler — before or after mass.apply cuts it. hw.pauses lists it with the rest.',
-  input: obj({ body: str('The body, by name.', { minLength: 1 }), top: num('Z of the pocket’s top, part frame, mm.'), what: str('What goes in.', { minLength: 1 }), span: num('Its roof’s shortest span, mm.', { minimum: 0 }), roof: oneOf([num('mm', { minimum: 0 }), { type: 'null' }], 'Material over it, mm.'), count: int('How many.', { minimum: 1, maximum: 10000 }), from: enumOf(['mass'], 'The Mass workspace’s planned ballast pocket.') }),
+  description: 'Record a pocket already in a body for a pause: its body, top (Z of the pocket’s top, part frame, mm), what goes in, and span (its roof’s shortest span), roof (material over it) and count if known. What goes in counts in the part’s mass (hw.masses) when given: kind and size (nut, magnet, bearing, insert, as hw.list has them) or grams (what one weighs), with at, each one’s centre (part frame, mm; count is how many), and axis, the way the hole runs (+Z by default). from: "mass" takes the ballast pocket the Mass workspace planned (mass.ballast) — its body, top, and the filler — before or after mass.apply cuts it. hw.pauses lists it with the rest.',
+  input: obj({
+    body: str('The body, by name.', { minLength: 1 }),
+    top: num('Z of the pocket’s top, part frame, mm.'),
+    what: str('What goes in.', { minLength: 1 }),
+    span: num('Its roof’s shortest span, mm.', { minimum: 0 }),
+    roof: oneOf([num('mm', { minimum: 0 }), { type: 'null' }], 'Material over it, mm.'),
+    count: int('How many.', { minimum: 1, maximum: 10000 }),
+    from: enumOf(['mass'], 'The Mass workspace’s planned ballast pocket.'),
+    kind: enumOf(['nut', 'magnet', 'bearing', 'insert'], 'The hardware in it, with size: for its mass.'),
+    size: str('As hw.list gives it: "6x2" for a magnet.', { minLength: 1 }),
+    at: { type: 'array', items: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 }, minItems: 1, maxItems: 10000, description: 'Each one’s centre, part frame, mm.' },
+    axis: vec3('The way the hole runs; +Z by default.'),
+    grams: num('What one weighs, g: in place of the table’s, or for a part not in it.', { exclusiveMinimum: 0, maximum: 100000 }),
+  }),
   label: () => 'record encased part',
   run: async (a) => {
     let r: Omit<Embed, 'id'>
     const S = settings()
     const minRoof = r3(S.roofLayers * S.layerHeight)
     if (a.from === 'mass') {
-      for (const k of ['body', 'top', 'span', 'roof', 'count'] as const) if (a[k] !== undefined) invalid(`${k}: from the Mass plan — leave it out.`)
+      for (const k of ['body', 'top', 'span', 'roof', 'count', 'kind', 'size', 'at', 'axis', 'grams'] as const) if (a[k] !== undefined) invalid(`${k}: from the Mass plan — leave it out.`)
       const m = readStateSections().mass as { pocket?: { body: string; at: number[]; size: number[]; count?: number; fillerMass?: number }; setup?: { filler?: string } } | undefined
       if (m === undefined) invalid('The Mass workspace is not in this build.')
       const pk = (m!.pocket ?? invalid('Mass has no ballast pocket planned: mass.ballast first (record it before mass.apply clears the plan, or give body and top).')) as { body: string; at: number[]; size: number[]; count?: number; fillerMass?: number; fits?: boolean; why?: string }
@@ -844,7 +885,8 @@ const recordCmd: Command<RecordIn> = {
       if (!Number.isFinite(a.top)) invalid('top: a number.')
       const bodies = ((readStateSections().reverse as { bodies?: { name: string }[] } | undefined)?.bodies ?? []).map((b) => b.name)
       if (bodies.length && !bodies.includes(a.body!)) invalid(`There is no body "${a.body}" (bodies: ${bodies.join(', ')}).`)
-      r = { body: a.body!, kind: 'cavity', label: a.what!.trim(), what: a.what!.trim(), top: r3(a.top!), roof: a.roof ?? null, minRoof, span: r3(a.span ?? 0), count: a.count ?? 1, features: [] }
+      const solid = recordedSolid(a, r3(a.span ?? 0))
+      r = { body: a.body!, kind: a.kind ?? 'cavity', label: a.kind ? `${a.size} ${a.kind}` : a.what!.trim(), what: a.what!.trim(), top: r3(a.top!), roof: a.roof ?? null, minRoof, span: r3(a.span ?? 0), count: solid ? solid.centres.length : (a.count ?? 1), features: [], ...(solid ? { solid } : {}) }
     }
     const bed = baseOf(r.body)
     if (bed !== null) r.bedZ = bed

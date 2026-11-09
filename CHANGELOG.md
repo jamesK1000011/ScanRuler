@@ -7,6 +7,15 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Gridfinity magnets get their pause** (2026-11-08). A Gridfinity bin or
+  baseplate made with `magnets: true` cut the holes but told the Hardware
+  workspace nothing, so no print pause was planned and the magnets' weight
+  was missing. `gen.make` now records them with `hw.record` in the same undo
+  step — size 6x2, each one's centre where the part was placed — so
+  `hw.pauses` lists them and Mass counts them; the answer lists them under
+  `encased`, and says so where the Hardware workspace isn't in the build.
+  `hw.record` takes what is in a pocket (`kind` and `size`, or `grams`, with
+  `at` and `axis`) for its mass.
 - **Strength counts encased parts in the own weight** (2026-11-08). A
   steel magnet or nut sealed in a pocket is a void in the FEA mesh, so its
   weight was left out of the own-weight load. `fea.solve` now adds each

@@ -11,6 +11,12 @@ and brought into Reverse Engineer as bodies to finish, check and export.
   `wall: 0` the bin is a solid block, for cutting your own pocket.
 - **Gridfinity baseplate.** A grid of pockets, open underneath, or on a
   3 mm floor with magnet holes.
+
+With magnets, `gen.make` records the magnets with the Hardware workspace in
+the same undo step (`hw.record` with the magnet's size and each one's
+centre), so `hw.pauses` plans a pause to drop them in and `mass.properties`
+counts their weight. A bin's holes open onto the bed (a magnet dropped in at
+the pause is printed over); a baseplate's open into its pockets.
 - **Project box.** A rounded box and a lid whose lip drops inside at a set
   clearance, with optional M3 corner bosses. The lid is laid out beside the
   box, top down, so it prints flat.

@@ -378,7 +378,9 @@ export function partSolid(kind: string, size?: string, object?: ObjectSpec, gram
     const mg = magnetOf(size ?? '')
     if (!mg) return null
     s = ring(mg.d, 0, mg.t, PART_MATERIALS.ndfeb.density)
-    ;[length, reach, material] = [mg.t, reachOf(mg.d / 2, mg.t), PART_MATERIALS.ndfeb.label]
+    length = mg.t
+    reach = reachOf(mg.d / 2, mg.t)
+    material = PART_MATERIALS.ndfeb.label
   } else if (kind === 'nut') {
     const m = metricOf(size ?? '')
     if (!m) return null
@@ -388,27 +390,36 @@ export function partSolid(kind: string, size?: string, object?: ObjectSpec, gram
     const hex = prism((Math.sqrt(3) / 2) * sf * sf, ((5 * Math.sqrt(3)) / 144) * sf ** 4, ((5 * Math.sqrt(3)) / 144) * sf ** 4, m.nut.m, PART_MATERIALS.steel.density)
     const bore = ring(m.d, 0, m.nut.m, PART_MATERIALS.steel.density)
     s = { m: hex.m - bore.m, moments: [0, 1, 2].map((k) => hex.moments[k] - bore.moments[k]) as [number, number, number] }
-    ;[length, reach, material] = [m.nut.m, reachOf(sf / Math.sqrt(3), m.nut.m), PART_MATERIALS.steel.label]
+    length = m.nut.m
+    reach = reachOf(sf / Math.sqrt(3), m.nut.m)
+    material = PART_MATERIALS.steel.label
   } else if (kind === 'bearing') {
     const b = bearingOf(size ?? '')
     if (!b) return null
     const r = ring(b.od, b.bore, b.width, PART_MATERIALS.steel.density)
     s = { m: r.m * BEARING_FILL, moments: r.moments.map((x) => x * BEARING_FILL) as [number, number, number] }
-    ;[length, reach, material] = [b.width, reachOf(b.od / 2, b.width), PART_MATERIALS.steel.label]
+    length = b.width
+    reach = reachOf(b.od / 2, b.width)
+    material = PART_MATERIALS.steel.label
   } else if (kind === 'insert') {
     const ins = insertOf(size ?? '')
     const thread = metricOf((size ?? '').split(' ')[0])
     if (!ins || !thread) return null
     s = ring(ins.od, thread.d, ins.length, PART_MATERIALS.brass.density)
-    ;[length, reach, material] = [ins.length, reachOf(ins.od / 2, ins.length), PART_MATERIALS.brass.label]
+    length = ins.length
+    reach = reachOf(ins.od / 2, ins.length)
+    material = PART_MATERIALS.brass.label
   } else if (kind === 'object' && object && grams !== undefined) {
     if (object.shape === 'box') {
       const [w, l, h] = object.size
       s = prism(w * l, (w * l ** 3) / 12, (l * w ** 3) / 12, h, 1)
-      ;[length, reach, angleDeg] = [h, Math.hypot(w, l, h) / 2, object.angleDeg]
+      length = h
+      reach = Math.hypot(w, l, h) / 2
+      angleDeg = object.angleDeg
     } else {
       s = ring(object.diameter, 0, object.height, 1)
-      ;[length, reach] = [object.height, reachOf(object.diameter / 2, object.height)]
+      length = object.height
+      reach = reachOf(object.diameter / 2, object.height)
     }
     material = 'as weighed'
   } else return null
