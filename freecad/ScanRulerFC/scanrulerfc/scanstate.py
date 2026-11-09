@@ -20,6 +20,29 @@ class Scan:
         self.F = np.asarray(faces, dtype=np.int64)
         self._normals = None
         self._areas = None
+        # The scan as read, the factor it was scaled by and the alignment
+        # applied after it: V = R·(k·V0) + t.
+        self.V0 = self.V.copy()
+        self.k = 1.0
+        self.R = np.eye(3)
+        self.t = np.zeros(3)
+        self.version = 0
+        self._graph = None
+
+    def set_pose(self, k, R, t):
+        self.k, self.R, self.t = float(k), np.asarray(R, dtype=float), np.asarray(t, dtype=float)
+        self.V = (self.k * self.V0) @ self.R.T + self.t
+        self._normals = self._areas = self._graph = None
+        self.version += 1
+
+    def graph(self):
+        """The scan's mesh graph (adjacency, vertex normals) in its current
+        pose."""
+        if self._graph is None:
+            from .meshgraph import MeshGraph
+
+            self._graph = MeshGraph(self.V, self.F)
+        return self._graph
 
     @property
     def tri(self):
@@ -52,8 +75,15 @@ class Scan:
         }
 
 
+def fresh():
+    return {"scan": None, "elements": [], "dimensions": [], "next": 1, "dimNext": 1, "counters": {}, "marked": None, "scaled": None}
+
+
 def state(session):
-    return session.family_state.setdefault(KEY, {"scan": None, "elements": [], "dimensions": [], "next": 1})
+    st = session.family_state.setdefault(KEY, fresh())
+    for k, v in fresh().items():
+        st.setdefault(k, v)
+    return st
 
 
 def scan_of(session):
