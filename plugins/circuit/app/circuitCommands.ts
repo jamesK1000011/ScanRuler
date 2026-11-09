@@ -491,4 +491,8 @@ const progress: Command<{ req: string; phase: string; detail?: string }> = {
 }
 
 export { setupOf }
-export const circuitCommands = [tools, newProject, buildCmd, filesCmd, open, stats, resistance, set, bodies, clear, stopCmd, answer, progress] as Command<never>[]
+/** Every one runs without the page (Command.headless): tscircuit's command
+ *  line is asked of the agent's server the engine runs in, as the page asks
+ *  it, and the board's solids are built in this thread (plugin.ts
+ *  headless). */
+export const circuitCommands = ([tools, newProject, buildCmd, filesCmd, open, stats, resistance, set, bodies, clear, stopCmd, answer, progress] as Command<never>[]).map((c) => ({ ...c, headless: true }))

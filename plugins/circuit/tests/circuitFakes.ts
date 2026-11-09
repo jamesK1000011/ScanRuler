@@ -4,7 +4,7 @@
 // the Circuit commands themselves), the schema builders, the session's
 // state sections, CommandError, the line to the agent's server — asks
 // answered as the test says — and the solids worker's client.
-import type { SolidsAnswer, SolidsAsk } from '../core/circuitWorker'
+import type { SolidsAnswer, SolidsAsk } from '../core/circuitSolids'
 
 export const handlers: Record<string, (input: never) => unknown> = {}
 export const calls: { name: string; input: Record<string, unknown> }[] = []

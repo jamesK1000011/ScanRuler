@@ -8,6 +8,7 @@
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerHistory } from '../../src/state/historyStore'
+import { buildInThread } from './app/circuitClient'
 import { circuitCommands, describeCircuit } from './app/circuitCommands'
 import { circuitSection } from './app/projectSection'
 import { useCircuitPlugin } from './app/useCircuitPlugin'
@@ -41,6 +42,14 @@ const plugin: ScanRulerPlugin = {
       when: 'asked to design a circuit board or PCB in code, to build or export a tscircuit project (Gerbers, BOM, pick-and-place, KiCad, STEP), to fit a board to an enclosure, to bring a board into the model as solids, or to estimate a trace’s resistance in copper or a conductive filament',
       text: () => import('./guides/circuit.md?raw').then((m) => m.default),
     })
+  },
+  // The app run without a browser (src/headless/engine.ts): the board's
+  // solids built in this thread, on a kernel of their own, as the worker
+  // builds them.
+  async headless() {
+    const { localBuilder } = await import('./core/circuitLocal')
+    buildInThread(localBuilder())
+    return () => buildInThread(null)
   },
 }
 

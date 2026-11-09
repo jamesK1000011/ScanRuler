@@ -1,57 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Electronics › tscircuit's own CAD kernel, in a worker: the board's solids
-// built off the page's thread and handed back as a STEP file with each
-// part's figures. It loads OCCT from the same wasm file as Reverse Engineer
-// and makes no other request.
+// built off the page's thread (circuitSolids.ts) and handed back as a STEP
+// file with each part's figures. It loads OCCT from the same wasm file as
+// Reverse Engineer and makes no other request.
 
 import wasmUrl from 'occt-wasm/dist/occt-wasm.wasm?url'
-import { clearOf, type Box3 } from '../../_shared/clear'
-import { buildSolids, partOf, type BoardKernel, type Part, type SolidOptions } from './boardSolids'
-import type { CircuitBoard } from './circuitJson'
+import { solidsBuild, type SolidsAsk, type SolidsKernel } from './circuitSolids'
 
-export interface SolidsAsk {
-  id: number
-  board: CircuitBoard
-  options: SolidOptions
-  out: 'step' | 'info'
-  /** The box round the bodies standing: the board is moved clear of it. */
-  avoid?: Box3 | null
-}
+export type { SolidsAnswer, SolidsAsk } from './circuitSolids'
 
-export interface SolidsAnswer {
-  parts: Part[]
-  notes: string[]
-  step?: string
-}
-
-type Kernel = BoardKernel & { releaseAll(): void }
-
-let kernel: Promise<Kernel> | null = null
+let kernel: Promise<SolidsKernel> | null = null
 
 self.onmessage = async (e: MessageEvent<SolidsAsk>) => {
-  const { id, board, options, out, avoid } = e.data
+  const { id, ...ask } = e.data
   const post = (m: unknown) => (self as unknown as Worker).postMessage(m)
   try {
-    kernel ??= import('occt-wasm').then((m) => m.OcctKernel.init({ wasm: wasmUrl }) as unknown as Promise<Kernel>)
+    kernel ??= import('occt-wasm').then((m) => m.OcctKernel.init({ wasm: wasmUrl }) as unknown as Promise<SolidsKernel>)
     const k = await kernel.catch((err) => {
       // Not loaded: the next build tries again.
       kernel = null
       throw err
     })
-    try {
-      const made = buildSolids(k, board, options)
-      if (!made.parts.length) throw new Error('Nothing to build: every part is switched off, or the board has none of them.')
-      // Clear of the bodies standing, where it would land in them; board,
-      // copper and keep-outs move together.
-      const move = clearOf(made.parts.map((p) => partOf(k, p).box), avoid ?? null)
-      if (move) made.parts = made.parts.map((p) => ({ ...p, shape: k.translate(p.shape, ...move) }))
-      const parts = made.parts.map((p) => partOf(k, p))
-      const answer: SolidsAnswer = { parts, notes: made.notes }
-      if (out === 'step') answer.step = k.exportStep(made.parts.length === 1 ? made.parts[0].shape : k.makeCompound(made.parts.map((p) => p.shape)))
-      post({ id, result: answer })
-    } finally {
-      k.releaseAll()
-    }
+    post({ id, result: solidsBuild(k, ask) })
   } catch (err) {
     post({ id, error: err instanceof Error ? err.message : String(err) })
   }

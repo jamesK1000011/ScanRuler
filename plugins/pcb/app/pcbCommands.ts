@@ -465,4 +465,7 @@ const progress: Command<{ req: string; phase: string; detail?: string }> = {
   run: async (p) => ({ taken: progressed(p) }),
 }
 
-export const pcbCommands = [tools, open, importCmd, set, plan, enclosure, fab, drc, close, stopCmd, answer, progress] as Command<never>[]
+/** Every one runs without the page (Command.headless): kicad-cli is asked
+ *  of the agent's server the engine runs in, as the page asks it, and the
+ *  board and its box are Reverse Engineer's and Generate's bodies. */
+export const pcbCommands = ([tools, open, importCmd, set, plan, enclosure, fab, drc, close, stopCmd, answer, progress] as Command<never>[]).map((c) => ({ ...c, headless: true }))
