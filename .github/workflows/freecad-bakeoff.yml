@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The FreeCAD spike and the bake-off, on GitHub's machines: FreeCAD from
+# conda-forge runs the Agent Link add-on headless (its tests, then the
+# brief); ScanRuler builds and runs the same brief in headless Chrome; its
+# Deviation workspace compares the two bins; the scorecard goes to the run's
+# summary page. Nothing here needs the Mac.
+name: FreeCAD bake-off
+
+on:
+  push:
+    branches: [freecad-spike]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bakeoff-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  freecad:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: fc
+          create-args: >-
+            -c conda-forge
+            freecad
+            python=3.11
+          cache-environment: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: FreeCAD imports
+        run: |
+          echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+          export FREECAD_LIB=$CONDA_PREFIX/lib
+          python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
+      - name: Agent Link tests
+        run: python -m unittest discover -s freecad/tests -v
+      - name: The brief, headless
+        run: node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad --python python
+      - name: Server log
+        if: always()
+        run: tail -n 80 bakeoff-out/freecad/server.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: freecad-side
+          path: bakeoff-out/freecad/
+          if-no-files-found: warn
+
+  scanruler:
+    needs: freecad
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix mcp ci
+      - run: npm run build
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: freecad-side
+          path: bakeoff-out/freecad
+      - name: The brief and the deviation, in headless Chrome
+        env:
+          APP_URL: http://localhost:4173/
+          CHROME: /usr/bin/google-chrome
+          OUT_DIR: ${{ github.workspace }}/bakeoff-out/scanruler
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:4173/ >/dev/null && break; sleep 1; done
+          node scripts/bakeoff/run-scanruler.mjs --out bakeoff-out/scanruler --freecad bakeoff-out/freecad
+      - name: Scorecard
+        if: always()
+        run: node scripts/bakeoff/score.mjs --out bakeoff-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bakeoff
+          path: bakeoff-out/
+          if-no-files-found: warn
