@@ -173,6 +173,10 @@ def least_wall(shape, spacing=3.0, reach=12.0, cap=600):
             break
         u0, u1, v0, v1 = f.ParameterRange
         k = max(1, int(math.sqrt(n)))
+        # How far apart this face's points land: the run-joining in
+        # thin_runs goes by it, since a big face is sampled sparsely.
+        bb = f.BoundBox
+        step = max(bb.XLength, bb.YLength, bb.ZLength) / k
         taken = 0
         for i in range(k):
             for j in range(k):
@@ -196,12 +200,12 @@ def least_wall(shape, spacing=3.0, reach=12.0, cap=600):
                     nrm = nrm * -1
                     if not solid.isInside(p - nrm * 0.05, 1e-6, False):
                         continue
-                samples.append((p, nrm))
+                samples.append((p, nrm, step))
                 taken += 1
         budget -= taken
     least = None
     readings = []
-    for p, nrm in samples:
+    for p, nrm, step in samples:
         a = p - nrm * 1e-3
         b = p - nrm * reach
         ray = Part.LineSegment(a, b).toShape()
@@ -214,7 +218,7 @@ def least_wall(shape, spacing=3.0, reach=12.0, cap=600):
         if not ds:
             continue
         t = ds[0]
-        readings.append((t, vec(p)))
+        readings.append((t, vec(p), step))
         if least is None or t < least[0]:
             least = (t, p)
     if least is None:
@@ -224,10 +228,11 @@ def least_wall(shape, spacing=3.0, reach=12.0, cap=600):
 
 def thin_runs(readings, limit, link):
     """The readings under `limit` joined into runs, one per thin place: two
-    within `link` of each other are one run. Each run: its least and where,
+    are one run when within 1.6 of their faces' sample spacing (or `link`,
+    the least) of each other. Each run: its least and where,
     and how many readings it holds. A lip thin all the way round is one run,
     so one waiver covers it."""
-    thin = [(t, p) for (t, p) in readings if t < limit]
+    thin = [(t, p, st) for (t, p, st) in readings if t < limit]
     parent = list(range(len(thin)))
 
     def root(i):
@@ -239,10 +244,11 @@ def thin_runs(readings, limit, link):
     for i in range(len(thin)):
         for j in range(i + 1, len(thin)):
             a, b = thin[i][1], thin[j][1]
-            if (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 <= link * link:
+            reach = max(link, 1.6 * max(thin[i][2], thin[j][2]))
+            if (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 <= reach * reach:
                 parent[root(i)] = root(j)
     runs = {}
-    for i, (t, p) in enumerate(thin):
+    for i, (t, p, _) in enumerate(thin):
         r = runs.setdefault(root(i), {"least": t, "at": p, "count": 0, "points": []})
         r["count"] += 1
         r["points"].append(p)

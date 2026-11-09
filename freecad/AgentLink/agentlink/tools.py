@@ -151,7 +151,7 @@ class Session:
                     open_runs.append((k, run))
             for k, run in open_runs[:3]:
                 find("wall", sev, f"W{k} wall {run['least']:.2f} mm, under {min_wall} mm{by}, over {run['count']} readings: it prints as a single line.", run["at"])
-            least_open = open_runs[0][1]["least"] if open_runs else min((t for t, _ in w["readings"] if t >= min_wall), default=least)
+            least_open = open_runs[0][1]["least"] if open_runs else min((r[0] for r in w["readings"] if r[0] >= min_wall), default=least)
         elif "minWall" in spec:
             unjudged.append("minWall: no wall reading")
 
