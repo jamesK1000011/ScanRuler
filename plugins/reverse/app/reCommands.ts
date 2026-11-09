@@ -87,10 +87,12 @@ function withNotes(command: Command<never>): Command<never> {
 
 /** The commands that run with no page — no scan, no viewport — in the app
  *  run headless (src/headless/engine.ts): modelling, parameters, the bodies
- *  described and checked, notes, and the files. */
+ *  described, checked, named and measured against each other, notes, and
+ *  the files. */
 const HEADLESS = new Set([
   'feature.list', 'feature.add', 'feature.schema', 'feature.update', 'feature.remove', 'feature.move', 'feature.suppress', 'feature.clear', 'feature.rollback', 'sketch.edit', 'build',
-  'body.describe', 'body.check', 'body.section', 'body.probe', 'body.fillet_try', 'export.step', 'export.stl', 'import.step', 'plane.describe',
+  'body.describe', 'body.check', 'body.section', 'body.probe', 'body.fillet_try', 'body.clearance', 'body.set', 'body.names', 'body.selected_faces', 'body.face_triangles',
+  'export.step', 'export.stl', 'import.step', 'plane.describe',
   'parameter.list', 'parameter.add', 'parameter.set', 'parameter.rename', 'parameter.remove',
   'note.list', 'note.add', 'note.resolve', 'plan.set', 'plan.update', 'plan.tick', 'plan.replace',
 ])
