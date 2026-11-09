@@ -16,6 +16,21 @@ Everything is in millimetres.
 
 ## What is ported
 
+- **scan, elements, align, dimensions** (3D Measure): `scan_open`, `scan_info`, `scan_nearest`, `scan_query`, `scan_segment`; `element_fit` (plane, sphere, cylinder, cone, torus, circle, point; ScanRuler's patch → LMedS → region growing → clipped Gaussian fit), `element_fit_marked`, `element_construct` (28 methods), `element_list`, `element_rename`, `element_remove`, `element_set_visible`; `align_datum` (3-2-1), `align_symmetry`, `align_clear`, `scan_scale`; `dimension_add` (sizes and GD&T), `dimension_set_limit`, `dimension_set_basic`, `dimension_remove`, `report_get`, `export_csv`. Not ported yet: `align_auto`.
+- **deviation** — `deviation_open_reference` (STEP, IGES, BREP tessellated
+  finely; STL, PLY, OBJ, OFF, 3MF; or a solid in the document),
+  `deviation_align` (auto, points, local: ScanRuler's prealign, Horn's
+  absolute orientation and point-to-plane ICP; the scan's vertices are moved
+  onto the reference), `deviation_measure`, `deviation_settings`,
+  `deviation_set_target`, `deviation_hotspots`, `deviation_volume`,
+  `deviation_export` (coloured PLY, CSV, NPY, the text report).
+- **thickness** — `thickness_measure`, `thickness_settings`.
+
+The maths is numpy only (`dev_*.py`, `wall_thickness.py`): nearest points
+and rays go through a two-level tree of triangle leaves, every query of a
+pass at once. Not ported yet: the deviation map read on the reference
+(`on: "reference"`), and closing a scan's holes with the reference before
+the volume error (an open scan reads `unsure` there instead).
 - **Sections** (`sections` group): `section_cut`, `section_get`,
   `section_list`, `section_remove`, `section_fit` (ScanRuler's
   `reverse_section_fit`: lines and arcs with residuals) and
