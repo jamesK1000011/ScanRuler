@@ -16,9 +16,12 @@ Circuit JSON.
   from Generate's project box.
 - **Builds** with `tsci build` and `tsci export`, each in a job folder of its
   own: circuit.json, Gerbers, BOM, pick-and-place, `.kicad_pcb`, STEP, GLB,
-  SVG, with the build's DRC and routing errors. Every flag and format is
-  checked against the installed `tsci --help` first and refused by name when
-  it is not there.
+  SVG. Every flag and format is checked against the installed `tsci --help`
+  first and refused by name when it is not there. An error in the
+  circuit.json — DRC, routing, placement, source — fails the build: `ok` is
+  false, the answer says why and lists the errors, the panel shows them,
+  and the board is not opened on its own (`circuit.open { job }` opens it
+  to look at). Warnings stay warnings.
 - **Circuit JSON read directly**, without tscircuit: each element checked,
   those that do not check left out and listed.
 - **Figures**: size, layers, trace lengths and the narrowest trace, the
@@ -56,7 +59,14 @@ bundled; `tsci` is run as a program.
 | `circuit.clear` | Close the board |
 | `circuit.stop` | Stop a build or the solids |
 
-Every panel control runs one of these. With `SCANRULER_MCP_EXTRAS=circuit`
+Every panel control runs one of these: *Check* for `tsci`; a new project
+from a template (*Make project*), *Build* and *Stop*, with the last build
+shown — built or failed, its files and its first errors; *Open file…*,
+*Open build* and *Close* for the board, with its figures; the conductor and
+*Estimate* for the resistance; and the solids' settings and *Into Reverse
+Engineer*. A board that makes no solids says the likely cause.
+
+With `SCANRULER_MCP_EXTRAS=circuit`
 the agent's server also offers `circuit_tools`, `circuit_new`,
 `circuit_build`, `circuit_files` and `circuit_read` directly
 (`mcp/src/extras/circuit.js`).
