@@ -15,6 +15,7 @@ import { InfoDot } from '../../../src/ui/InfoDot'
 import { useLength, type BoundLength } from '../../../src/app/useUnits'
 import { Busy, Notes, Status } from '../../_shared/ui/kit'
 import { UPS } from '../core/frame'
+import { reverseBodies } from '../app/body'
 import { useDfm } from '../state/dfmStore'
 import './dfm.css'
 
@@ -226,6 +227,45 @@ function RuleRow({ r }: { r: Json }) {
   )
 }
 
+/** Which Reverse engineer body is checked: the solid bodies shown, read
+ *  from that workspace's state each time the list is opened. With one, it
+ *  is the default; with several, one must be chosen. */
+function BodyPick({ body, busy }: { body: string | number | null; busy: boolean }) {
+  const [, setTick] = useState(0)
+  const all = reverseBodies()
+  if (!all) return null
+  const solids = all.filter((b) => !b.surface)
+  const shown = solids.filter((b) => b.visible)
+  const chosen = body === null ? undefined : solids.find((b) => b.id === body || b.name === body)
+  const list = chosen && !chosen.visible ? [...shown, chosen] : shown
+  const lone = shown.length === 1 ? shown[0] : solids.length === 1 ? solids[0] : null
+  return (
+    <label className="field" title="The body to check: a solid body shown in Reverse engineer">
+      <span>Body</span>
+      <select
+        data-test="dfm-body"
+        value={chosen ? String(chosen.id) : ''}
+        disabled={busy}
+        onFocus={() => setTick((t) => t + 1)}
+        onChange={(e) => {
+          const b = solids.find((x) => String(x.id) === e.target.value)
+          void run('settings', { body: b ? b.name : null })
+        }}
+      >
+        <option value="">{lone ? lone.name : solids.length ? 'Choose a body' : 'No solid body'}</option>
+        {list
+          .filter((b) => b !== lone || chosen)
+          .map((b) => (
+            <option key={b.id} value={String(b.id)}>
+              {b.name}
+              {b.visible ? '' : ' (hidden)'}
+            </option>
+          ))}
+      </select>
+    </label>
+  )
+}
+
 export function DfmPanel() {
   const len = useLength()
   const st = useDfm()
@@ -413,6 +453,7 @@ export function DfmPanel() {
             A body
           </button>
         </div>
+        {s.target === 'body' && <BodyPick body={s.body} busy={busy} />}
       </div>
 
       <div className="group">

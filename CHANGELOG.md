@@ -56,7 +56,9 @@ saves carry the same number as `appVersion`. How a release is cut is in
   feet, flaring at its ends, was reported as "held up on one side only";
   it is a 6 mm bridge. The bridge's span is now the longest such line, not
   the ceiling's narrowest width, so a ceiling held at its two ends only is
-  a bridge of its length.
+  a bridge of its length. With *A body* chosen, Print › Check has a Body
+  list of the solid bodies shown, so one can be picked when there are
+  several.
 - **Printability checks a body as it is now** (2026-11-08). Print › Check
   and `dfm.check` can check a Reverse engineer body directly (target `body`,
   with `body` by name or id; the one solid body shown by default; the

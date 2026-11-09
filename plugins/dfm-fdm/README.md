@@ -75,8 +75,8 @@ wall and, when the reference is an older copy of a body, the warning. Click
 a finding to turn the view to it, read why, or *Waive…* it with a reason
 (*Unwaive* takes it back). *Printed on*: which way stands up, nozzle,
 material, printer and guide, and what to check — *The scan*, *The
-reference part* or *A body* (the one solid body shown: hide the others in
-Reverse engineer to choose). Click a rule in *Rules in force* to change its
+reference part* or *A body*, picked
+in *Body* from the solid bodies shown (the only one by default). Click a rule in *Rules in force* to change its
 numbers for this project or switch it off (Reset takes it back). *Guides*:
 *Compare on the stage*, *Import JSON…*, *Export rules*, and remove an
 imported one. *Design review* — *Show the questions* — lists the review
