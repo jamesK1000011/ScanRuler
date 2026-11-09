@@ -24,11 +24,22 @@ here with a parser of ScanRuler's own (`mcp/src/extras/kicadBoard.js`).
   brought in as bodies: the board named after its file, the edge
   connectors after their references. Measures the parts' reach above and
   below the board and each connector's 3D box. KiCad's placement file
-  checks the connectors' places and gives their rotations.
+  checks the connectors' places and gives their rotations. A part with no
+  3D model comes in as a grey placeholder box, named "board R1
+  (placeholder)": its footprint's courtyard (else fab outline, else pads),
+  as tall as the file says or 3 mm. The reach, the enclosure and a
+  clearance check see the box; the import and the panel name the parts it
+  stands for. A board that gives no STEP back says the likely cause and
+  what to do.
 - **Enclosure.** Generate's `board_box` (plugins/gen/core/boardBox.ts):
   standoffs under the holes with heat-set insert holes or self-tapping
   pilots (figures copied from the hardware table), room above and below
-  the parts, openings in the walls, and a lid on a lip.
+  the parts, openings in the walls, and a lid on a lip. `pcb.plan` (the
+  panel's *Preview*) gives the box's size, the standoffs and the openings,
+  with the sizes it guessed, before anything is made. Its holes, the gap to
+  the board, the lid clearance and the opening margins follow the
+  printer's fit calibration from Fits unless set (`printerFit`; `false`
+  builds with Generate's defaults).
 - **Fab package.** Gerbers, Excellon drill files (plated and unplated
   apart), the placement CSV, the parts list from the schematic (KiCad 8+)
   and the DRC report, in a job folder under the ScanRuler folder's
@@ -74,7 +85,12 @@ Wanted flags are passed only where listed.
 | `pcb.close` | Puts the board away |
 | `pcb.stop` | Stops kicad-cli |
 
-Every panel control runs one of these. With `SCANRULER_MCP_EXTRAS=pcb` the
+Every panel control runs one of these: *Check* for kicad-cli; the board
+file's path (opened when entered, put away when cleared); the connectors'
+openings ticked on or off; *Import*, with the placeholders it made named;
+the enclosure's values, *Preview*, *Make enclosure* and *Defaults*; the
+file names (board house or KiCad's own), *Fab package* and *Check rules*;
+*Stop*. With `SCANRULER_MCP_EXTRAS=pcb` the
 server also offers `kicad_tools`, `kicad_board`, `kicad_drc` and
 `kicad_fab`, which work without a ScanRuler page.
 
@@ -91,12 +107,12 @@ The board file's path, what was read of it (outline, holes, connectors),
 what the import measured, and the settings. An enclosure can be made again
 without KiCad. The bodies are Reverse Engineer's, saved with it.
 
-## Later
+## Beside it
 
-Two things are left for later. Board design (tscircuit) would hand
-`pcb.open` a board in the same shape (`KicadBoard`, core/boardSpec.ts).
-Printed conductive circuits would start from the outline and holes read
-here. Generate's `board_box` takes any board in its `BoardSpec` shape.
+The Electronics tab's other pages are tscircuit (`circuit`: boards written
+as code, built here and brought in as solids) and Printed wiring
+(`printed`: traces or copper channels inside a printed part). Generate's
+`board_box` takes any board in its `BoardSpec` shape (core/boardSpec.ts).
 
 ## Tests
 
