@@ -23,6 +23,26 @@ holes are teardropped point up, and an upright stepped hole can keep a
 sacrificial bridge layer. `hw.check` reads a round hole on a body and says
 what it fits, and how loose or tight.
 
+## The panel
+
+Hardware is a tab of the Model group. Its panel runs the commands below:
+
+- **Kind** and **Size** (with the head, clearance class, through or a
+  depth, a nut's sunk depth and side slot, a bearing's relief, as the kind
+  takes); **Encase** closes it under a roof (roof layers, what goes in, for
+  the printer's screen), or encases a box or cylinder of your own.
+- **Where** — the body, the flat face by its index, and a pattern (one
+  hole, bolt circle, rectangle, grid) with its counts and steps.
+- **Plan** shows every step and the features without cutting; **Cut** cuts
+  them (`hw.apply`). A plan made before a setting changed is planned again.
+- **Settings** — *Printer fits*, each kind's allowance (shown as sized by
+  the calibration), the default clearance, head margin and sink, bridge
+  layer, insert and magnet extra, teardrop; *Defaults*.
+- **Check a hole** — a round face by its index: what it fits.
+- **Pauses** — layer height and first layer, *List pauses*, *From Mass*
+  (the ballast pocket planned there), and each encased part, its × taking
+  it off the list.
+
 The figures were taken from the standards' published tables, and the
 geometry is ScanRuler's own; no CAD package's code is used.
 
@@ -38,7 +58,7 @@ geometry is ScanRuler's own; no CAD package's code is used.
 | `hw.check` | What a round hole on a body, or a diameter, fits |
 | `hw.clear` | Put the plan and the check away |
 | `hw.embed` | An encased pocket planned: sunk under its roof, its top on a layer boundary, its pause |
-| `hw.record` | A pocket cut another way (or Mass's ballast) recorded for its pause |
+| `hw.record` | A pocket cut another way (or Mass's ballast, or Generate's Gridfinity magnets) recorded for its pause, with what goes in (`kind` and `size`, or `grams`) for its mass |
 | `hw.pauses` | The pause layers, merged per layer, and `slicer_slice`'s `pauses` |
 | `hw.masses` | The encased parts as solids — mass, centres, inertia — for Mass and Strength |
 | `hw.unembed` | Forget an encased part (its cut stays) |

@@ -148,8 +148,11 @@ pauses, the part is dropped in, and the layers above close over it.
 3. `hw.apply` cuts it and records it: E1, E2… A sealed pocket is a void in
    the body. `reverse.body.check` reports it as one, which is expected here.
 4. `hw.record { body, top, what }` records a pocket cut some other way.
-   `hw.record { from: "mass" }` takes the ballast pocket the Mass workspace
-   planned. Record it before `mass.apply`, which clears the plan.
+   For its weight to count, say what goes in: `kind` and `size` as
+   `hw.list` has them, or `grams`, with `at` (each one's centre) and
+   `axis`. `hw.record { from: "mass" }` takes the ballast pocket the Mass
+   workspace planned. Record it before `mass.apply`, which clears the plan.
+   Generate records a Gridfinity part's magnets itself.
 5. `hw.pauses` lists the pauses: for each, the layer to pause before (from
    1), the height above the bed, the Z the slicer shows for that layer, and
    what goes in. Parts on one layer are merged.
