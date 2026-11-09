@@ -217,7 +217,7 @@ async function runScenario(sc) {
   const args = [values.engine ? '--engine' : '--headless', ...(values.engine ? [engineFile] : []), '--trace', traceDir, '--out', filesDir, '--no-update']
   if (values['trace-args']) args.push('--trace-args')
   if (values['answer-within'] !== undefined) args.push('--answer-within', values['answer-within'])
-  const env = { SCANRULER_MCP_CONFIG_DIR: configDir, SCANRULER_MCP_NO_UPDATE: '1', SCANRULER_HOME: homeDir, ...(extras !== 'none' ? { SCANRULER_MCP_EXTRAS: extras } : { SCANRULER_MCP_EXTRAS: '' }) }
+  const env = { SCANRULER_MCP_CONFIG_DIR: configDir, SCANRULER_MCP_NO_UPDATE: '1', SCANRULER_HOME: homeDir, ...(process.env.SCANRULER_MCP_TOOLS ? { SCANRULER_MCP_TOOLS: process.env.SCANRULER_MCP_TOOLS } : {}), ...(extras !== 'none' ? { SCANRULER_MCP_EXTRAS: extras } : { SCANRULER_MCP_EXTRAS: '' }) }
   log(`\n== ${sc.id}. ${sc.title}`)
   const rows = []
   const result = { id: sc.id, title: sc.title, rows, server: null, tools: null }
