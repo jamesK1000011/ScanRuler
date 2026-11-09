@@ -314,7 +314,7 @@ Example: `{ note: 4 }`
 
 Also: `on` is `{ face: { body, index, kind, …, madeBy } }`, `{ edge: … }`, `{ corner: { body, point } }` or `{ scan: true }`; a pick no longer on the bodies says `gone`, with what it was. `view_set { frame: { at, size } }` looks at one; the pins are in `view_render` pictures, numbered.
 
-**`reverse_plan_set`** `{ archetype, regions: [{ name, function?, route?, at?: [x, y, z] | { min, max } }], target?: { withinT, side?, tolerance? } }` — the plan before the first feature (archetypes: scan-to-cad §0); `withinT` by class 90 / 85 / 75 %. Set again to change it, ticks kept. Saved with the project. The final compare answers `plan`, `loops` and, short of it, `next`.
+**`reverse_plan_set`** `{ archetype, regions: [{ name, function?, route?, at?: [x, y, z] | { min, max } }], target?: { withinT, side?, tolerance? } }` — the plan before the first feature (archetypes: scan-to-cad §0); `withinT` by class 90 / 85 / 75 %. Set again to change it, ticks kept; pass the plan's `target` back unless changing it — the person can set it in the panel's Accuracy target (`target.by: "given"`), and theirs stands. Saved with the project. The final compare answers `plan`, `loops` and, short of it, `next`.
 Example: `{ archetype: "smoothSolidCasting", regions: [{ name: "+X swage", at: [55, 5, 22] }], target: { withinT: 85, tolerance: 0.2 } }`
 
 **`reverse_plan_tick`** `{ region, feature? } | { region, skip }` — a region built, or skipped with the reason.
