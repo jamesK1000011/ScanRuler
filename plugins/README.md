@@ -10,20 +10,20 @@ not in this repository.
 | [reverse/](reverse/) | The Reverse engineer workspace — scan to solid STEP body |
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
 | [texture/](texture/) | The BumpMesh workspace — CNC Kitchen's BumpMesh surface textures, made printable, masked by paint or by a Reverse body's CAD faces |
-| [thread-match/](thread-match/) | Thread identification — names a scanned thread, or says which measurement would |
+| [thread-match/](thread-match/) | Thread identification (3D Measure's Thread section) — names a scanned thread, or says which measurement would |
 | [fit-comp/](fit-comp/) | Print fit — the Fits tab's Calibrate from a scan page: a scanned print against its CAD, to slicer settings, a compensated model and the printer's one calibration |
 | [fits/](fits/) | Fits (the Fits tab's Design page) — hole and shaft sizes for slip and press fits, snap-fit hooks, print-in-place hinges, pins, tolerance stacks; calibrated with a test coupon |
-| [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML, and .blend through Blender |
-| [dfm-fdm/](dfm-fdm/) | Printability check (Print › 1 Check) — FDM rules from editable profiles, with findings you can waive |
+| [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML in the Open pickers and dropped, and .blend through Blender |
+| [dfm-fdm/](dfm-fdm/) | Printability check (Print › 1 Check) — FDM rules from editable profiles on a scan, a reference part or a Reverse engineer body as it is now, with findings you can waive |
 | [printer-handoff/](printer-handoff/) | Printer hand-off (Print › 3 Send) — the guide for the MCP server's printer tools, and the start requests; a print starts only on your Start |
 | [catalog/](catalog/) | Parts catalog — standard parts by size, catalogue links, Sketchfab/Thingiverse/Cults3D search, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing (Print › 2 Slice) — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras; the step shows the pauses and corrections that go in |
-| [wear-repair/](wear-repair/) | Wear repair — worn regions back onto the mirrored half or the CAD; prints pre-warped |
+| [wear-repair/](wear-repair/) | Wear repair (a tab of its own, after Mesh Tools) — worn regions back onto the mirrored half or the CAD; prints pre-warped |
 | [assembly-manual/](assembly-manual/) | Assembly manual — steps checked for a clear way in, drawn and written; HTML and PDF |
 | [patent-kit/](patent-kit/) | Patent kit — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
 | [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the materials, the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
-| [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
+| [scanner-profiles/](scanner-profiles/) | Scanner profiles (3D Measure's Scanner section) — the scan's noise, measured or from a profile you keep |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
 | [fea/](fea/) | Strength — FEA of a printed part, weaker across its layers; Gmsh and CalculiX on your computer |
 | [mass/](mass/) | Mass and balance — weight, balance point and inertia as printed; ballast pockets to hit a target |
@@ -31,7 +31,6 @@ not in this repository.
 | [hw/](hw/) | Hardware — holes for screws, nut traps, heat-set inserts, magnets and bearings, sized for printing and cut into Reverse Engineer bodies |
 | [pcb/](pcb/) | Boards (Electronics › KiCad) — KiCad boards brought in as solids, an enclosure round them, Gerbers, drills and DRC through kicad-cli |
 | [printed/](printed/) | Printed circuits (Electronics › Printed wiring) — traces of conductive filament as a body of their own, or channels for copper wire, tape or paint, in a Reverse Engineer body; each net's resistance along and through the layers |
-| [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, made to size as solids |
 | [circuit/](circuit/) | Circuit (Electronics › tscircuit) — boards as code with tscircuit, built on this computer; Circuit JSON read, measured, and brought into Reverse Engineer as board, copper and keep-out solids |
 
 ## The rules
