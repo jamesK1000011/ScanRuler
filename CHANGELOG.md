@@ -7,6 +7,32 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Cut and mill setups: parts cut from sheet and machined** (2026-11-09).
+  Two new kinds of setup on the Make tab, each with a page of its own.
+  **Cut** — laser, waterjet, plasma, or a router cutting through: a part
+  is checked as a sheet part (`cut.check`) — two parallel flat sides and
+  edges square to them, every face that is not (a step, a chamfer, a
+  rounded edge) named; its thickness against the sheet's; narrow webs and
+  slots against the least feature and the kerf; round holes against the
+  least feature and, on a laser or plasma, the thickness; a router's
+  inside corners against its cutter; whether it fits the sheet, turned if
+  need be; the material against the machine. `cut.export` writes the
+  parts' profiles — read exactly off the kernel's section as lines, arcs
+  and circles — laid out in rows over as many sheets as needed, as DXF or
+  SVG, drawn edges or kerf-compensated. **Mill** — basic CNC milling, no
+  toolpaths: `mill.check` finds faces no tool direction reaches
+  (undercuts), square inside corners and rounds under the least tool,
+  small or deep holes, narrow or deep floors, faces past the tool's reach,
+  a stock too small and walls thin for the material; `mill.export` hands
+  the parts over as STEP with a setup sheet (JSON and Markdown: stock,
+  directions, tools, IT grade, findings). Each setting is optional — the
+  kerf, least feature and the rest come from the machine and the part's
+  material where unset, and the answers say what was assumed (`cut.rules`
+  gives the figures and why). `part.review` judges a part in either by its
+  check; `fit.set { setup }` now sizes Fits' parts for a cut setup's kerf
+  (holes and outlines moved a kerf unless the path is compensated) and a
+  mill setup's IT grade, which it refused before. All commands run
+  headless.
 - **Make › Order: a circuit board ordered from a board house** (2026-11-09).
   A new kind of setup, **PCB order** (`type: "pcb"`), holds a board from
   Electronics — KiCad or tscircuit, brought in as a body — and its order:

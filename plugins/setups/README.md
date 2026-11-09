@@ -67,10 +67,15 @@ each of its three pages' plugins, so any of them alone brings it.
 | `settings` | By key: `schema` (for the agent), `check(value)` (why not, or null), `normalize(value)` |
 | `checks` | What `part.review` runs on a body in it: `{ command, input?(body) }`; findings read from each answer's `findings` (`severity`, `says`, `at`, `waived`) |
 | `outputs` | What it puts out, in words, for `setup.list` |
-| `tolerance(setup)` | The machine's tolerance: `{ kind: 'print', fit }`, `{ kind: 'kerf', kerf }`, `{ kind: 'it', grade }` — Fits sizes with `print` today and refuses the others until their sizing is added in `plugins/fits/app/fitsCommands.ts` (`calibrationNow`) |
+| `tolerance(setup)` | The machine's tolerance, which Fits sizes with (`calibrationNow` in `plugins/fits/app/fitsCommands.ts`): `{ kind: 'print', fit }` (the printer calibration), `{ kind: 'kerf', kerf, compensated?, tolerance? }` (a cut: a hole a kerf larger and an outline a kerf smaller unless compensated, ± a cut lands within), `{ kind: 'it', grade }` (machined to size within an ISO 286 IT grade) |
 | `Settings` | Its settings on the Make tab, a component given `{ setup }`; changes run `setup.set` |
 
-The print setup's type is `plugins/_shared/printSetup.ts`; the PCB order
-setup's (`pcb`: a board made by a board house, its page Order) is
+The print setup's type is `plugins/_shared/printSetup.ts`; the cut setup's
+`plugins/cut/app/cutSchemas.ts` (page Cut), the mill setup's
+`plugins/mill/app/millSchemas.ts` (page Mill); the PCB order setup's (`pcb`:
+a board made by a board house, its page Order) is
 `plugins/pcb-order/app/orderSetup.ts`, with no tolerance — and the board's
-enclosure is a part of its own, in a print, cut or mill setup.
+enclosure is a part of its own, in a print, cut or mill setup. A kind with
+one page can make its settings of `plugins/_shared/ui/SetupFields.tsx` and
+its page of `SetupPage.tsx`: its setups, their parts, a Check running its
+check on each, the findings and its files.

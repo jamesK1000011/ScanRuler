@@ -8,8 +8,9 @@
 //   Fits         Design (fits) · Hardware (hw) · Calibrate from a scan (fit-comp)
 //   Electronics  KiCad (pcb) · tscircuit (circuit) · Printed wiring (printed)
 //   Make         a setup's pages — a print setup's 1 Check (dfm-fdm) · 2 Slice
-//                (slicer-loop) · 3 Send (printer-handoff); a PCB order
-//                setup's Order (pcb-order); see setups.ts
+//                (slicer-loop) · 3 Send (printer-handoff); a cut setup's Cut
+//                (cut); a mill setup's Mill (mill); a PCB order setup's
+//                Order (pcb-order); see setups.ts
 //   Analyze      Strength (fea) · Mass (mass) · Wear (wear-repair)
 //   Docs         Manual (assembly-manual) · Patent (patent-kit)
 //
@@ -68,7 +69,7 @@ export const MAKE: WorkspaceHost = {
   order: 22,
   group: 'make',
   steps: true,
-  pages: ['dfm', 'slice', 'print', 'pcbo'],
+  pages: ['dfm', 'slice', 'print', 'cut', 'mill', 'pcbo'],
 }
 
 export const ANALYZE: WorkspaceHost = {

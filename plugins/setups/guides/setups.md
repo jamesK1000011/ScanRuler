@@ -31,6 +31,11 @@ Each answer that used a setup's value says so (`setup`, a mass row's `as`, `laye
 
 ## 4. Other kinds
 
+- A **cut** setup (`type: "cut"`): parts laser-, waterjet-, plasma- or router-cut from sheet — the machine, the sheet's thickness and size, the kerf, the least feature, whether the file is kerf-compensated. Its page is Cut; the **cut** guide.
+- A **mill** setup (`type: "mill"`): parts machined on a CNC mill — the axes, the tool directions, the stock, the least tool, the reach, the IT grade sizes hold. Its page is Mill; the **mill** guide.
+
+Each setting is optional there too: unset, it comes from the machine and the part's material, and the answers list what was assumed. `fit_set { setup }` sizes Fits' parts for a cut setup's kerf or a mill setup's IT grade as for a printer.
+
 A board ordered from a board house is a **PCB order** setup (`type: "pcb"`, page Order): the board's body, the fab, layers, thickness, finish, quantity and assembly — see the **pcb-order** guide. Only the board goes in it; its enclosure is a part of its own, in a print (or cut, or mill) setup.
 
 ## 5. The review follows the setup
