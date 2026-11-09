@@ -4,7 +4,7 @@
 // rule and where that rule's number comes from — and waived with a reason
 // where it is meant.
 
-import { commandHost, sceneOf } from '../../../src/commands/host'
+import { commandHost, requireScene } from '../../../src/commands/host'
 import { anyObject, arr, bool, enumOf, obj, str } from '../../../src/commands/schema'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { useDeviation } from '../../../src/state/deviationStore'
@@ -132,6 +132,12 @@ export const rules: Command<{ action?: 'list' | 'set' | 'clear'; rule?: string; 
   },
 }
 
+/** Open but not drawn: still coming in (busy), or not on the stage at all
+ *  (invalid_state). Not unavailable — that is a session with no viewport,
+ *  which requireScene answers. */
+const notOnStage = (loading: boolean, what: string) =>
+  loading ? new CommandError('busy', `${what} is still opening — check again once it is in.`) : new CommandError('invalid_state', `${what} is not on the stage.`)
+
 export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
@@ -143,14 +149,13 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
   run: async ({ only, detail = 'brief' }, ctx) => {
     const s = useDfm.getState().settings
     const frame = buildFrame(s.up as Up)
-    const scene = sceneOf()
     let mesh: { positions: Float64Array; indices: Uint32Array }
     let thickness: Float32Array | null = null
     const skippedExtra: { rule: string; why: string }[] = []
     if (s.target === 'scan') {
       if (!useStore.getState().fileName) throw new CommandError('no_scan', 'There is no part open — open it with scan.open (or import.open), or set target: reference.')
-      const sm = scene?.scanMesh()
-      if (!sm) throw new CommandError('unavailable', 'The part is not on the stage.')
+      const sm = requireScene('Checking the part').scanMesh()
+      if (!sm) throw notOnStage(useStore.getState().busy, 'The part')
       mesh = { positions: arrayToBuild(frame, sm.positions), indices: sm.indices }
       const wantThin = !only || only.includes('thin-wall')
       if (wantThin) {
@@ -170,8 +175,8 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
       }
     } else {
       if (!useDeviation.getState().nominalName) throw new CommandError('invalid_state', 'No reference part is open — deviation.open_reference, or set target: scan.')
-      const g = scene?.nominalGeometry()
-      if (!g) throw new CommandError('unavailable', 'The reference part is not on the stage.')
+      const g = requireScene('Checking the part').nominalGeometry()
+      if (!g) throw notOnStage(useDeviation.getState().nominalBusy, 'The reference part')
       const w = weld(g.getAttribute('position').array as ArrayLike<number>, g.getIndex()?.array ?? null)
       mesh = { positions: arrayToBuild(frame, w.positions), indices: w.indices }
       skippedExtra.push({ rule: 'thin-wall', why: 'wall thickness is measured on the scan only — open the part as the scan to check it' })

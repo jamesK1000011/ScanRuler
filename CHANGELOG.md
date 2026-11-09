@@ -7,6 +7,10 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Printability: a part not on the stage** (2026-11-08). `dfm.check` on a
+  part that is open but not drawn now answers `invalid_state` (or `busy`
+  while it is still opening), not `unavailable`, which is kept for a session
+  with no viewport.
 - **No slicer changes from a poor fit** (2026-11-08). Calibrate from a
   scan's guide says a run that fits poorly (over 4: warping, a lifted
   corner, a poor alignment) should not be turned into offsets; now it
