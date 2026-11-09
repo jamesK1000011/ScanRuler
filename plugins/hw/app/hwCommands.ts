@@ -1051,4 +1051,7 @@ const unembed: Command<{ id?: string; all?: boolean }> = {
   },
 }
 
-export const hwCommands = [list, set, plan, pattern, embed, apply, check, clearPlan, recordCmd, pauses, masses, unembed] as Command<never>[]
+/** Every one runs without the page (Command.headless): the holes are
+ *  planned and cut through Reverse Engineer's commands, which model with no
+ *  scan and no viewport. */
+export const hwCommands = ([list, set, plan, pattern, embed, apply, check, clearPlan, recordCmd, pauses, masses, unembed] as Command<never>[]).map((c) => ({ ...c, headless: true }))
