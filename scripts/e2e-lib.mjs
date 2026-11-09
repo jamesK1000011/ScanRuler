@@ -431,12 +431,14 @@ export const freePort = () =>
  *  is mcp/tests/client.js's, imported by the script once it has checked the
  *  server's dependencies are there — on a free port, with a token and a
  *  config folder of its own, writing files to OUT_DIR and pairing with the
- *  app at APP_URL. The options, for a second copy on the same port. */
+ *  app at APP_URL, every tool listed from the start (--tools full; lean is
+ *  the server's default), as the scripts check them listed. The options,
+ *  for a second copy on the same port. */
 export async function launchAgent(startAgent) {
   const port = await freePort()
   const token = `e2e-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`
   const options = {
-    args: ['--port', String(port), '--out', OUT_DIR, '--app', APP_URL],
+    args: ['--port', String(port), '--out', OUT_DIR, '--app', APP_URL, '--tools', 'full'],
     env: { SCANRULER_MCP_TOKEN: token, SCANRULER_MCP_CONFIG_DIR: mkdtempSync(join(tmpdir(), 'scanruler-mcp-')) },
   }
   const agent = await startAgent(options)

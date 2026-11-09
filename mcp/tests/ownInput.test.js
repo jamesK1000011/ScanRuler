@@ -12,7 +12,7 @@ import { createMcpServer } from '../src/mcp.js'
 
 test('scanruler_wait refuses a timeoutSeconds its schema does not take', async () => {
   const link = new PageLink({ token: 'a-token-for-the-input-tests' })
-  const server = createMcpServer({ link, version: '0.0.0', cwd: '.', outDir: '.', connectHelp: () => 'Pair it.', serverInfo: () => ({}), pageTimeoutMs: 50 })
+  const server = createMcpServer({ link, version: '0.0.0', cwd: '.', outDir: '.', connectHelp: () => 'Pair it.', serverInfo: () => ({}), pageTimeoutMs: 50, tools: 'full' })
   const [a, b] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test', version: '0.0.0' })
   await Promise.all([server.connect(a), client.connect(b)])

@@ -80,7 +80,7 @@ async function copy({ answerWithinMs = LIMIT_MS, answers = answer } = {}) {
   const http = httpServer({})
   link.attach(http)
   await new Promise((resolve) => http.listen(0, '127.0.0.1', resolve))
-  const server = createMcpServer({ link, version: '0.0.0', cwd: '.', outDir: '.', connectHelp: () => 'Pair it.', serverInfo: () => ({}), pageTimeoutMs: 50, answerWithinMs })
+  const server = createMcpServer({ link, version: '0.0.0', cwd: '.', outDir: '.', connectHelp: () => 'Pair it.', serverInfo: () => ({}), pageTimeoutMs: 50, answerWithinMs, tools: 'full' })
   const [a, b] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test', version: '0.0.0' })
   await Promise.all([server.connect(a), client.connect(b)])

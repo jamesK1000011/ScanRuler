@@ -13,7 +13,7 @@ import { openInBrowser } from './browser.js'
 import { configDir, loadConfig, loadFolders, loadLastProject, loadRemembered, saveFolders, saveLastProject, saveRemembered } from './config.js'
 import { CHECKOUT_ENGINE, EngineLink, loadEngine } from './engine.js'
 import { originAllowed, originOf } from './link.js'
-import { ANSWER_WITHIN_MS, createMcpServer, parseToolMode } from './mcp.js'
+import { ANSWER_WITHIN_MS, DEFAULT_TOOL_MODE, createMcpServer, parseToolMode } from './mcp.js'
 import { SharedLink } from './relay.js'
 import { createTrace } from './trace.js'
 import { httpServer } from './serve.js'
@@ -39,10 +39,13 @@ Usage: scanruler-mcp [options]
                          no page: modelling and files only
   --headless             the same, with the engine built in the ScanRuler checkout
                          this server is part of
-  --tools <mode>         full (the default) lists each of ScanRuler's commands as a tool;
-                         lean lists the session, guide, history, project and view tools
-                         and the server's own, the rest by group once scanruler_tools
-                         enables it — a fraction of full's size, for any agent;
+  --tools <mode>         lean (the default) lists the session, guide, history, project
+                         and view tools and the server's own, the rest by group once
+                         scanruler_tools enables it — a tool not listed still runs by
+                         name or through scanruler_batch; an eighth of full's size;
+                         full lists each of ScanRuler's commands as a tool from the
+                         start — for a client that does not list the tools again when
+                         told they changed;
                          compact lists the server's own and the commands that return a
                          picture, the rest read through scanruler_tools and run through
                          scanruler_batch — for a small context window; or namespaces,
@@ -153,9 +156,9 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const port = Number(values.port ?? process.env.SCANRULER_MCP_PORT ?? DEFAULT_PORT)
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`--port ${values.port} is not a port.`)
-  // full, lean, compact, or namespaces; refused here when mixed or empty, kept
-  // as given for the status to report.
-  const tools = parseToolMode(values.tools ?? (process.env.SCANRULER_MCP_TOOLS || 'full'), values.tools === undefined ? 'SCANRULER_MCP_TOOLS' : '--tools').text
+  // lean (the default), full, compact, or namespaces; refused here when mixed
+  // or empty, kept as given for the status to report.
+  const tools = parseToolMode(values.tools ?? (process.env.SCANRULER_MCP_TOOLS || DEFAULT_TOOL_MODE), values.tools === undefined ? 'SCANRULER_MCP_TOOLS' : '--tools').text
   const within = values['answer-within'] ?? process.env.SCANRULER_MCP_ANSWER_WITHIN
   const answerWithinMs = within === undefined || within === '' ? ANSWER_WITHIN_MS : Number(within) * 1000
   if (!Number.isFinite(answerWithinMs) || answerWithinMs < 0) {

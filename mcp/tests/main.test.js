@@ -54,7 +54,11 @@ test('a copy on a port another program holds stays up, lists its tools, and says
   try {
     agent = await start(port)
     const { tools } = await agent.client.listTools()
-    assert.ok(tools.some((t) => t.name === 'scan_open'))
+    // Lean by default: the session's tools listed, a group's once enabled.
+    assert.ok(tools.some((t) => t.name === 'session_state'))
+    assert.ok(tools.some((t) => t.name === 'scanruler_tools'))
+    assert.equal(tools.some((t) => t.name === 'scan_open'), false)
+    assert.equal((await status(agent)).server.tools, 'lean')
     const said = await until('the copy to say the port is taken', async () => {
       const s = await status(agent)
       return s.server.error ? s : null
@@ -95,6 +99,22 @@ test('copies on one port: the second sends its calls through the first, and take
     for (const page of pages) page.page.close()
     await first?.close()
     await second?.close()
+  }
+})
+
+test('--tools full, or SCANRULER_MCP_TOOLS=full, lists every command as a tool from the start', { timeout: 30_000 }, async () => {
+  const env = { SCANRULER_MCP_TOKEN: TOKEN, SCANRULER_MCP_CONFIG_DIR: await mkdtemp(join(tmpdir(), 'scanruler-mcp-')) }
+  for (const how of [{ args: ['--tools', 'full'] }, { env: { SCANRULER_MCP_TOOLS: 'full' } }]) {
+    const agent = await startAgent({ args: ['--port', String(await freePort()), ...(how.args ?? [])], env: { ...env, ...how.env }, stderr: 'pipe' })
+    try {
+      const { tools } = await agent.client.listTools()
+      assert.ok(tools.some((t) => t.name === 'scan_open'))
+      assert.equal(tools.some((t) => t.name === 'scanruler_tools'), false, 'full has no scanruler_tools')
+      assert.equal((await status(agent)).server.tools, 'full')
+      assert.equal((await status(agent)).server.toolsNote, undefined)
+    } finally {
+      await agent.close()
+    }
   }
 })
 

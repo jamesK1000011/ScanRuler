@@ -44,6 +44,7 @@ async function serverWith(kept, options = {}) {
     pageTimeoutMs: 50,
     remembered: { load: () => kept, save: (commands) => saved.push(commands) },
     listWaitMs: 50,
+    tools: 'full',
     ...options,
   })
   const [a, b] = InMemoryTransport.createLinkedPair()

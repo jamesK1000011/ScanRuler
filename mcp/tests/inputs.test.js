@@ -57,6 +57,7 @@ before(async () => {
     serverInfo: () => ({}),
     pageTimeoutMs: 50,
     answerCap: 5_000,
+    tools: 'full',
     folderStore: { load: () => loadFolders(store), save: (folders) => saveFolders(folders, store), loadProject: () => loadLastProject(store), saveProject: (p) => saveLastProject(p, store) },
   })
   const [a, b] = InMemoryTransport.createLinkedPair()

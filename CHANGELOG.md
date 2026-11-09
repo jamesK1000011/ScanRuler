@@ -7,6 +7,17 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Agents: lean tool list by default** (2026-11-09). The agent helper
+  (`scanruler-mcp`) now lists lean unless told otherwise: the session,
+  guide, history, project and view tools and its own, the rest in groups
+  that `scanruler_tools { enable: [...] }` lists — measured headless, 32 kB
+  of tool definitions against 266 kB in full, for the same results. A tool
+  not listed still runs by name or through `scanruler_batch`, and the
+  server's instructions say so. For a client that does not list the tools
+  again when told they changed, `--tools full` (or `SCANRULER_MCP_TOOLS=full`)
+  lists every tool from the start, as before; in lean, the status
+  (`server.toolsNote`), `scanruler_tools` and a call to a tool that is not
+  there name it.
 - **Scanner noise, one figure, used where scans are read** (2026-11-09).
   The 3D Measure section once called Scanner, and its scanner profiles,
   are now **Scanner noise** and *scanners* — 2D Measure's scanner profiles,

@@ -13,7 +13,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { EngineLink } from '../src/engine.js'
-import { createMcpServer, parseToolMode } from '../src/mcp.js'
+import { DEFAULT_TOOL_MODE, FULL_WAY_BACK, createMcpServer, parseToolMode } from '../src/mcp.js'
 
 const obj = (properties = {}, required = []) => ({ type: 'object', properties, required, additionalProperties: false })
 const command = (name, readOnly = true) => ({ name, title: name, description: `${name}, for the test.`, input: obj({ n: { type: 'number' } }), readOnly, returnsFile: false, returnsImage: false })
@@ -71,6 +71,7 @@ test('lists the tools every task uses, the rest by group once enabled', async ()
   assert.deepEqual(on.enabled, ['demo', 'scan'])
   assert.deepEqual(on.listed, ['demo_add', 'demo_list', 'scan_query'])
   assert.deepEqual(on.unknown, ['nothing'])
+  assert.ok(on.unknownNote.includes('--tools full'), 'an unknown group says how to list every tool')
   const now = await names()
   for (const n of ['demo_add', 'demo_list', 'scan_query']) assert.ok(now.includes(n), n)
   await new Promise((r) => setTimeout(r, 10))
@@ -88,4 +89,35 @@ test('a group not listed still runs, directly or batched, and its definitions ar
   assert.equal(batch.results[0].ok, true)
   const defs = await tools({ names: ['scan_query', 'scanruler_status'] })
   assert.deepEqual(defs.tools.map((t) => t.name), ['scan_query', 'scanruler_status'])
+})
+
+test('lean is the default, and says how to have every tool listed', async () => {
+  assert.equal(DEFAULT_TOOL_MODE, 'lean')
+  assert.match(FULL_WAY_BACK, /--tools full \(or SCANRULER_MCP_TOOLS=full\)/)
+  const dir = await mkdtemp(join(tmpdir(), 'scanruler-mcp-lean-default-'))
+  const own = new EngineLink(standIn(), '/where/engine.mjs')
+  const server = createMcpServer({ link: own, version: '0.0.0', cwd: dir, outDir: dir, connectHelp: () => '', serverInfo: () => ({}) })
+  const [a, b] = InMemoryTransport.createLinkedPair()
+  const other = new Client({ name: 'test', version: '0.0.0' })
+  await Promise.all([server.connect(a), other.connect(b)])
+  try {
+    const listed = (await other.listTools()).tools.map((t) => t.name)
+    assert.ok(listed.includes('session_state') && listed.includes('scanruler_tools'))
+    assert.equal(listed.includes('demo_add'), false, 'a group is not listed until enabled')
+    const instructions = other.getInstructions()
+    assert.match(instructions, /A tool not listed still runs: call it by name/)
+    assert.match(instructions, /scanruler_tools \{ enable: \["reverse"\] \}/)
+    assert.match(instructions, /--tools full/)
+    const description = (await other.listTools()).tools.find((t) => t.name === 'scanruler_tools').description
+    assert.match(description, /enable: groups/)
+    assert.ok(description.includes(FULL_WAY_BACK))
+    const status = JSON.parse((await other.callTool({ name: 'scanruler_status', arguments: {} })).content[0].text)
+    assert.ok(status.server.toolsNote.includes(FULL_WAY_BACK))
+    const refused = await other.callTool({ name: 'nothing_here', arguments: {} })
+    assert.equal(refused.isError, true)
+    assert.ok(refused.content[0].text.includes('--tools full'))
+  } finally {
+    await other.close()
+    own.close()
+  }
 })

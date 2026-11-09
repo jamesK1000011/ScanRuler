@@ -34,6 +34,7 @@ test('a link out of the scan folder is refused; "..notes.md" is read', async () 
     serverInfo: () => ({}),
     pageTimeoutMs: 50,
     folderStore: { load: () => [scans], save: () => {} },
+    tools: 'full',
   })
   const [a, b] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test', version: '0.0.0' })

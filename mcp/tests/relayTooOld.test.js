@@ -65,6 +65,7 @@ const status = async () => {
     connectHelp: () => 'Pair it.',
     serverInfo: () => ({ name: 'scanruler-mcp', version: '0.4.1', role, ...(role === 'relay' ? { holder: { version: null } } : {}) }),
     pageTimeoutMs: 50,
+    tools: 'full',
   })
   const [a, b] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test', version: '0.0.0' })

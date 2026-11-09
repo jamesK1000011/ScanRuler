@@ -82,6 +82,7 @@ before(async () => {
     connectHelp: () => 'No page connects to this one.',
     serverInfo: () => ({ backend: 'headless', engine: link.file }),
     remembered: null,
+    tools: 'full',
   })
   const [a, b] = InMemoryTransport.createLinkedPair()
   client = new Client({ name: 'test', version: '0.0.0' })

@@ -215,6 +215,13 @@ you accept; then the browser asks whether the site may reach *apps and services
 on this device*; click **Allow**. After that, ask for what you want measured,
 naming files by their full path.
 
+The helper lists a lean set of tools by default — the session, guides, undo,
+project and view — and the agent turns on the rest by group as a task needs
+them (`scanruler_tools`); a tool not listed still runs by name. If your agent
+does not pick up tools turned on mid-chat, start the helper with `--tools
+full` (add `"--tools", "full"` to its args, or set `SCANRULER_MCP_TOOLS=full`)
+to list every tool from the start.
+
 **With an agent connected, your data no longer stays on your computer.** The
 helper runs on your own machine and the tab talks to it on `127.0.0.1`, so
 ScanRuler itself sends nothing anywhere. But what the agent reads (measurements,

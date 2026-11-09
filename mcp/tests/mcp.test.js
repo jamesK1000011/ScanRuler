@@ -41,6 +41,7 @@ async function serve(options = {}) {
     connectHelp: () => 'Open ScanRuler and pair it.',
     serverInfo: () => ({ port }),
     pageTimeoutMs: 50,
+    tools: 'full',
     ...options,
   })
   const [a, b] = InMemoryTransport.createLinkedPair()

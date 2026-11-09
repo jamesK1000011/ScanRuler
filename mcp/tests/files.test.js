@@ -48,6 +48,7 @@ async function copy(store = config) {
     serverInfo: () => ({}),
     pageTimeoutMs: 50,
     folderStore: { load: () => loadFolders(store), save: (folders) => saveFolders(folders, store) },
+    tools: 'full',
   })
   const [a, b] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'test', version: '0.0.0' })

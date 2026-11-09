@@ -28,7 +28,7 @@ before(async () => {
   http = httpServer({})
   link.attach(http)
   await new Promise((resolve) => http.listen(0, '127.0.0.1', resolve))
-  const server = createMcpServer({ link, version: '0.0.0', cwd: '.', outDir: '.', connectHelp: () => 'Pair it.', serverInfo: () => ({}), pageTimeoutMs: 2_000 })
+  const server = createMcpServer({ link, version: '0.0.0', cwd: '.', outDir: '.', connectHelp: () => 'Pair it.', serverInfo: () => ({}), pageTimeoutMs: 2_000, tools: 'full' })
   const [a, b] = InMemoryTransport.createLinkedPair()
   client = new Client({ name: 'test', version: '0.0.0' })
   await Promise.all([server.connect(a), client.connect(b)])

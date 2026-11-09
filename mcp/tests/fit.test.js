@@ -52,7 +52,7 @@ before(async () => {
   await new Promise((resolve) => http.listen(0, '127.0.0.1', resolve))
   // As the server says of itself when run from npm.
   const serverInfo = () => ({ name: 'scanruler-mcp', version: '0.4.0', port: 7317, role: 'holder', tools: 'full', outDir: dir, config: join(dir, 'config.json') })
-  const server = createMcpServer({ link, version: '0.4.0', cwd: dir, outDir: dir, connectHelp: () => 'Pair it.', serverInfo, pageTimeoutMs: 50 })
+  const server = createMcpServer({ link, version: '0.4.0', cwd: dir, outDir: dir, connectHelp: () => 'Pair it.', serverInfo, pageTimeoutMs: 50, tools: 'full' })
   const [a, b] = InMemoryTransport.createLinkedPair()
   client = new Client({ name: 'test', version: '0.0.0' })
   await Promise.all([server.connect(a), client.connect(b)])
