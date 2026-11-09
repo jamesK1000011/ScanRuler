@@ -9,22 +9,26 @@
 import { registerCommands, registerGuide, type ScanRulerPlugin } from '../../src/plugins/api'
 import { askCommand } from './app/askCommand'
 import { usePrinterPlugin } from './app/usePrinterPlugin'
-import { PRINT } from '../_shared/workspaces'
+import { MAKE } from '../_shared/workspaces'
+import { PRINT_SETUP } from '../_shared/printSetup'
+import { registerSetupType } from '../_shared/setups'
 
 const plugin: ScanRulerPlugin = {
   id: 'printer-handoff',
   name: 'Printer hand-off',
   workspace: {
-    // The Print tab's last step, after Check and Slice.
+    // A print setup's last step on the Make tab, after Check and Slice.
     id: 'print',
     label: 'Send',
     title: 'Start requests: a print starts only on your Start',
     icon: 'printer',
     order: 3,
-    host: PRINT,
+    host: MAKE,
   },
   usePlugin: usePrinterPlugin,
   install() {
+    // The print setup, whose pages these are: any of them alone brings it.
+    registerSetupType(PRINT_SETUP)
     registerCommands('printer', [askCommand])
     registerGuide({
       id: 'printer-handoff',

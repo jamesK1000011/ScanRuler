@@ -14,18 +14,19 @@ not in this repository.
 | [fit-comp/](fit-comp/) | Print fit — the Fits tab's Calibrate from a scan page: a scanned part against its CAD, to slicer settings, a compensated model and the printer's one calibration |
 | [fits/](fits/) | Fits (the Fits tab's Design page) — hole and shaft sizes for slip and press fits, snap-fit hooks, print-in-place hinges, pins, tolerance stacks; calibrated with a test coupon |
 | [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML in the Open pickers and dropped, and .blend through Blender |
-| [dfm-fdm/](dfm-fdm/) | Printability check (Print › 1 Check) — FDM rules from editable profiles on a scan, a reference part or a Reverse engineer body as it is now, with findings you can waive |
-| [printer-handoff/](printer-handoff/) | Printer hand-off (Print › 3 Send) — the guide for the MCP server's printer tools, and the start requests; a print starts only on your Start |
+| [dfm-fdm/](dfm-fdm/) | Printability check (Make › a print setup's 1 Check) — FDM rules from editable profiles on a scan, a reference part or a Reverse engineer body as it is now, with findings you can waive |
+| [printer-handoff/](printer-handoff/) | Printer hand-off (Make › a print setup's 3 Send) — the guide for the MCP server's printer tools, and the start requests; a print starts only on your Start |
 | [catalog/](catalog/) | Parts catalog (Parts › Catalog) — standard parts by size, catalogue links, Sketchfab/Thingiverse/Cults3D search, downloads brought in with their licence |
-| [slicer-loop/](slicer-loop/) | Slicing (Print › 2 Slice) — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras; the step shows the pauses and corrections that go in |
+| [slicer-loop/](slicer-loop/) | Slicing (Make › a print setup's 2 Slice) — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras; the step shows the pauses and corrections that go in |
 | [wear-repair/](wear-repair/) | Wear repair (Analyze › Wear) — worn regions back onto the mirrored half or the CAD; a part pre-warped so it comes out true |
 | [assembly-manual/](assembly-manual/) | Assembly manual (Docs › Manual) — steps checked for a clear way in, drawn and written; HTML and PDF |
 | [patent-kit/](patent-kit/) | Patent kit (Docs › Patent) — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
 | [material/](material/) | Materials — what each part is made of (`material.*`), from FreeCAD's material cards and the app's own; Mass and Strength weigh and solve each body in its own |
-| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the material library and who has what (`materials/`, FreeCAD's cards credited in `materials/MATERIALS-LICENSES.md`), the setups reader (`setups.ts`), the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
+| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the material library and who has what (`materials/`, FreeCAD's cards credited in `materials/MATERIALS-LICENSES.md`), the setups' shapes, readers and kinds (`setups.ts`, the print setup's in `printSetup.ts`), the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
+| [setups/](setups/) | Setups — how each part is made (`setup.*`): a process and the bodies made by it, with its settings; the Make tab's list over the chosen setup's pages |
 | [library-pack/](library-pack/) | Library pack (the Share tab) — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles (3D Measure's Scanner section) — the scan's noise, measured or from a profile you keep |
-| [review/](review/) | Part review — `part.review`: one verdict on a body from the other workspaces' checks (validity, clearance, mass, strength; printability and pauses for a printed part), and a design spec kept with the project |
+| [review/](review/) | Part review — `part.review`: one verdict on a body from the other workspaces' checks (validity, clearance, mass, strength, the wall; printability and pauses for a part in a print setup, a setup's own checks for another kind), and a design spec kept with the project |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
 | [fea/](fea/) | Strength (Analyze › Strength) — FEA of a printed part, weaker across its layers; Gmsh and CalculiX on your computer |
 | [mass/](mass/) | Mass and balance (Analyze › Mass) — weight, balance point and inertia as printed; ballast pockets to hit a target |
@@ -85,6 +86,7 @@ it allows. `?plugins=none` in the address runs the app without any.
 | — `registerSheetPlanes` | `src/commands/sectionLayers.ts` | planes the workspace names, which `section.render { plane: { sketch } }` cuts in their own frame — its sketches' planes |
 | — `registerMapReport` | `src/commands/mapReports.ts` | which map a `view.render` picture of the plugin's workspace shows, or why none (`map`, `mapWhy`, `mapNote`) — the bodies' live map |
 | — `registerPanelSection` | `src/plugins/panelSections.ts` | a section of one of the app's own panels, for a plugin with no workspace that works on what one of the app's holds: `measure`, the 3D Measure panel after its tolerances (thread-match's Thread, scanner-profiles' Scanner) — its controls run the plugin's commands |
+| — `registerHostHeader` | `src/plugins/hostHeaders.ts` | a header over the pages of a shared tab (`WorkspaceHost`), drawn in place of the plain strip of its pages and drawing the pages it offers with `PageTabs` (src/ui/PageStrip.tsx): the Make tab's setups (setups) |
 | — `registerModelFormat` | `src/app/modelFormats.ts` | model formats the plugin reads, offered by the scan's and the reference's Open pickers beside the app's own, and the opener a file picked in one goes to |
 | `worker.ts` | `plugins/<id>/worker.ts` | operations in the mesh worker (`MeshWorkerClient.pluginCall`) |
 | `MapLegend` `marks` | `src/ui/MapLegend.tsx` | a value called out on a map's ramp — a line across it and its figure, and with `to` the stretch from it hatched along the ramp: a band read differently inside the scale |
@@ -109,7 +111,7 @@ the same one:
 | Parts | Catalog (`catalog`) · Generate (`gen`) |
 | Fits | Design (`fits`) · Hardware (`hw`) · Calibrate from a scan (`fit-scan`, fit-comp) |
 | Electronics | KiCad (`pcb`) · tscircuit (`circuit`) · Printed wiring (`printed`) |
-| Print | 1 Check (`dfm`) · 2 Slice (`slice`) · 3 Send (`print`) |
+| Make (was Print) | a print setup's 1 Check (`dfm`) · 2 Slice (`slice`) · 3 Send (`print`), under the list of setups (setups) |
 | Analyze | Strength (`fea`) · Mass (`mass`) · Wear (`wear`, wear-repair) |
 | Docs | Manual (`assembly`) · Patent (`patent`) |
 

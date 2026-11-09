@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Printer hand-off
 
-On screen: step 3, **Send**, of the **Print** tab (Check → Slice → Send).
-Its workspace id is `print`, which is also the tab's: `workspace.set
-{ workspace: "print" }` opens Send.
+On screen: step 3, **Send**, of a print setup on the **Make** tab (Check →
+Slice → Send; the tab was Print, its id now `make`). Its workspace id is
+`print`: `workspace.set { workspace: "print" }` opens Send.
 
 A sliced job onto the printers set up on this computer. The tools are the
 MCP server's (`mcp/src/extras/printer.js`, `printers/`), listed when

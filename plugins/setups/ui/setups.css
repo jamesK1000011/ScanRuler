@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The Make tab's head: the setups over the chosen one's pages, on the
+   panel's colour as the page strip is. */
+
+.makehead {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 15px 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+/* The page strip inside the head: the head carries its padding and rule. */
+.makehead .pagestrip {
+  padding: 0;
+  border: none;
+}
+
+.setup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+}
+
+.setup-list li.on {
+  border-color: var(--line);
+  background: var(--well);
+}
+
+.setup-list li > button:first-child {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+}
+
+.setup-list li.on b {
+  color: var(--accent-d);
+}
+
+.setup-list small,
+.setup-settings small,
+.setup-fit {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.setup-details,
+.setup-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 6px;
+}
+
+.setup-settings input[type='number'] {
+  width: 84px;
+}
+
+.setup-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

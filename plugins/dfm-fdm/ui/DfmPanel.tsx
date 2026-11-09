@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Printability, the Print tab's Check step — a pre-print check sheet: the
+// Printability, a print setup's Check step on the Make tab — a pre-print check sheet: the
 // check and its findings first — each with its value against the limit,
 // where it is, why, and a waiver with a reason — then what the part is
 // printed on (nozzle, material, printer, a published guide), the rules in

@@ -3,27 +3,31 @@
 // The work is the MCP server's (slicer_* tools in mcp/src/extras, listed
 // when SCANRULER_MCP_EXTRAS names "slicer"): a page cannot start a program.
 // What the page carries is the guide an agent reads before slicing, and the
-// Print tab's Slice step — between Check and Send — showing what the
+// Make tab's Slice step for a print setup — between Check and Send — showing what the
 // project adds to a slice.
 
 import { registerGuide, type ScanRulerPlugin } from '../../src/plugins/api'
-import { PRINT } from '../_shared/workspaces'
+import { MAKE } from '../_shared/workspaces'
+import { PRINT_SETUP } from '../_shared/printSetup'
+import { registerSetupType } from '../_shared/setups'
 import { useSlicePlugin } from './app/useSlicePlugin'
 
 const plugin: ScanRulerPlugin = {
   id: 'slicer-loop',
   name: 'Slicing',
   workspace: {
-    // The Print tab's second step.
+    // A print setup's second step on the Make tab.
     id: 'slice',
     label: 'Slice',
     title: 'Slice with OrcaSlicer, Bambu Studio or PrusaSlicer',
     icon: 'slice',
     order: 2,
-    host: PRINT,
+    host: MAKE,
   },
   usePlugin: useSlicePlugin,
   install() {
+    // The print setup, whose pages these are: any of them alone brings it.
+    registerSetupType(PRINT_SETUP)
     registerGuide({
       id: 'slicer-loop',
       title: 'Slicing with OrcaSlicer, Bambu Studio or PrusaSlicer',

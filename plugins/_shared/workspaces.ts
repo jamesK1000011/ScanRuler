@@ -7,7 +7,8 @@
 //   Parts        Catalog (catalog) · Generate (gen)
 //   Fits         Design (fits) · Hardware (hw) · Calibrate from a scan (fit-comp)
 //   Electronics  KiCad (pcb) · tscircuit (circuit) · Printed wiring (printed)
-//   Print        1 Check (dfm-fdm) · 2 Slice (slicer-loop) · 3 Send (printer-handoff)
+//   Make         a setup's pages — a print setup's 1 Check (dfm-fdm) · 2 Slice
+//                (slicer-loop) · 3 Send (printer-handoff); see setups.ts
 //   Analyze      Strength (fea) · Mass (mass) · Wear (wear-repair)
 //   Docs         Manual (assembly-manual) · Patent (patent-kit)
 //
@@ -54,10 +55,14 @@ export const FITS: WorkspaceHost = {
   pages: ['fits', 'hw', 'fit-scan'],
 }
 
-export const PRINT: WorkspaceHost = {
-  id: 'print',
-  label: 'Print',
-  title: 'Check, slice and send a part to the printer',
+// The tab was Print; its pages keep their ids (dfm, slice, print), so a
+// project saved on one opens on it, and workspace.set "print" still opens
+// Send. Over the pages stands the list of setups (plugins/setups): what is
+// made, how, of which parts — the pages are the chosen setup's type's.
+export const MAKE: WorkspaceHost = {
+  id: 'make',
+  label: 'Make',
+  title: 'How each part is made: setups, then check and send',
   icon: 'printer',
   order: 22,
   group: 'make',

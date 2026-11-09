@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The Print tab's Slice step, between Check and Send. Slicing is the agent's
+// A print setup's Slice step on the Make tab, between Check and Send. Slicing is the agent's
 // server's (slicer_* tools: OrcaSlicer, Bambu Studio and PrusaSlicer on this
 // computer); a page cannot start a program. What the page holds that goes
 // into a slice is shown here: the pauses for parts dropped in mid-print

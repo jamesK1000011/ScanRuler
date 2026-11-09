@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Slicing
 
-On screen: step 2, **Slice**, of the **Print** tab (Check → Slice → Send),
+On screen: step 2, **Slice**, of a print setup on the **Make** tab (Check →
+Slice → Send; the tab was Print),
 workspace id `slice`. Slicing itself is the agent's server's; the page shows
 what the project adds to a slice — Hardware's pauses (`hw.pauses`) and the
 slicer changes from a scanned print (`fit.suggest`) — each where its plugin

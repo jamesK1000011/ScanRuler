@@ -81,6 +81,14 @@ export type { JsonSchema } from '../commands/schema'
 export { registerPanelSection } from './panelSections'
 export type { PanelSection, PanelSlot } from './panelSections'
 
+// ---- Host headers ---------------------------------------------------------------
+// registerHostHeader({ host, Header }) draws a plugin's own header over the
+// pages of a shared tab (WorkspaceHost), in place of the plain strip of its
+// pages — the Make tab's setups, with the pages of the one chosen.
+
+export { registerHostHeader } from './hostHeaders'
+export type { HostHeader, HostHeaderProps } from './hostHeaders'
+
 /** A workspace's tab in the top bar. */
 export interface WorkspaceTab {
   /** The workspace's id — the shell store's `workspace` while it is open,

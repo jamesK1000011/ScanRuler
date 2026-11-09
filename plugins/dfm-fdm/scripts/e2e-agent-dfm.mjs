@@ -141,7 +141,7 @@ try {
   await ok('workspace_set', { workspace: 'dfm' })
   await page.bringToFront()
   await page.waitForSelector('[data-test=dfm-panel]', { timeout: 30_000 })
-  check((await page.$eval('[data-test=workspace-print]', (b) => b.getAttribute('aria-selected'))) === 'true' && (await page.$eval('[data-test=page-dfm]', (b) => b.getAttribute('aria-selected'))) === 'true', 'dfm opens the Print tab at its Check step')
+  check((await page.$eval('[data-test=workspace-make]', (b) => b.getAttribute('aria-selected'))) === 'true' && (await page.$eval('[data-test=page-dfm]', (b) => b.getAttribute('aria-selected'))) === 'true', 'dfm opens the Make tab at its Check step')
   const agentCount = (await ok('dfm_check', {})).json?.findings?.length
   await page.click('[data-test=dfm-check]')
   await page.waitForFunction((n) => document.querySelectorAll('[data-test=dfm-finding]').length === n, { timeout: 120_000 }, agentCount)
