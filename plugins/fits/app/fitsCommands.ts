@@ -31,16 +31,22 @@ const ctx = (): Ctx => ({ settings: st().settings, cal: calibrationNow() })
 
 /** The calibration fits are sized with: the tolerance of the machine of
  *  the setup chosen (fit.set { setup }) — a print setup's printer
- *  calibration — else Fits' own. A setup of a kind Fits has no sizing for
- *  yet (a cut's kerf, a milled part's IT grade) is refused, not guessed:
- *  that sizing plugs in here, from the setup type's tolerance. */
+ *  calibration; a cut setup's kerf (a hole cut on the drawn line comes out
+ *  a kerf larger and an outline a kerf smaller, so both are modelled a
+ *  kerf the other way, unless the path is compensated — then as drawn),
+ *  with the ± a cut lands within; a milled setup's IT grade (machined to
+ *  size, each size within its grade's zone) — else Fits' own. */
 function calibrationNow(): Calibration {
   const id = st().settings.machine
   if (!id) return st().calibration
   if (!setupsOf().some((x) => x.id === id)) throw new CommandError('invalid_state', `There is no setup ${id} to size the fits for now: fit.set { setup: null } sizes them with Fits’ calibration, or choose another.`)
   const t = machineTolerance({ setup: id })
   if (!t) throw new CommandError('unavailable', `Setup ${id} gives no tolerance to size fits with (its kind is not in this build, or has none): fit.set { setup: null } sizes them with Fits’ calibration.`)
-  if (t.kind !== 'print') throw new CommandError('unavailable', `Fits sizes for a printer so far: setup ${id}’s ${t.kind === 'kerf' ? 'kerf' : 'IT grade'} is not taken yet.`)
+  if (t.kind === 'kerf') {
+    const k = t.compensated ? 0 : Math.round(t.kerf * 1e4) / 1e4
+    return { hole: -k, shaft: -k, source: 'kerf', ...(t.tolerance !== undefined ? { tolerance: t.tolerance } : {}) }
+  }
+  if (t.kind === 'it') return { hole: 0, shaft: 0, source: 'it', grade: t.grade }
   if (!t.fit) return st().calibration
   return { hole: t.fit.hole, shaft: t.fit.shaft, source: t.fit.source, ...(t.fit.at ? { at: t.fit.at } : {}), ...(t.fit.profile ? { profile: t.fit.profile } : {}) }
 }
@@ -52,7 +58,8 @@ function sizedFor(): string {
   const s = setupsOf().find((x) => x.id === id)
   try {
     const cal = calibrationNow()
-    return `${s ? `${s.name} (${s.id})` : id}: ${printerFitOf(cal)?.label ?? 'the typical printer'}`
+    const what = cal.source === 'kerf' ? (cal.hole === 0 ? 'cut with the kerf compensated' : `cut on the drawn line, kerf ${-cal.hole}`) + (cal.tolerance !== undefined ? `, ±${cal.tolerance}` : '') : cal.source === 'it' ? `machined to IT${cal.grade}` : (printerFitOf(cal)?.label ?? 'the typical printer')
+    return `${s ? `${s.name} (${s.id})` : id}: ${what}`
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
   }
@@ -344,7 +351,7 @@ interface SetIn {
 const set: Command<SetIn> = {
   name: 'set',
   title: 'Fits settings',
-  description: 'tolerance: ± a printed size lands within, mm (0.15) — the stack’s default and the pair’s range. material: what parts are printed in (pla, petg, abs, asa, nylon, tpu-95a) — the snap hook’s and a press’s strain limit. setup: the setup (setup.list, by id or name) whose machine the fits are sized for — a print setup’s printer calibration, its own or else Fits’; null for Fits’ own calibration (the default); sizedFor in the answer says which. tool: the panel’s page. reset: true for the defaults (the calibration stays; fit.calibrate { reset } for that). Saved with the project.',
+  description: 'tolerance: ± a printed size lands within, mm (0.15) — the stack’s default and the pair’s range. material: what parts are printed in (pla, petg, abs, asa, nylon, tpu-95a) — the snap hook’s and a press’s strain limit. setup: the setup (setup.list, by id or name) whose machine the fits are sized for — a print setup’s printer calibration, its own or else Fits’; a cut setup’s kerf (holes modelled a kerf small and shafts a kerf big unless its path is compensated, held to the cut’s ±); a mill setup’s IT grade (as drawn, each size within the grade’s zone); null for Fits’ own calibration (the default); sizedFor in the answer says which. tool: the panel’s page. reset: true for the defaults (the calibration stays; fit.calibrate { reset } for that). Saved with the project.',
   input: obj({
     tolerance: len('± a printed size lands within', { minimum: 0.005, maximum: 2 }),
     material: enumOf(MATERIAL_NAMES),

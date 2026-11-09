@@ -56,10 +56,12 @@ beforeAll(async () => {
   registerStateSection('reverse', () => ({ bodies }))
   registerStateSection('setups', () => ({ setups }))
   registerSetupType(PRINT_SETUP)
-  registerSetupType({ id: 'cut', label: 'Cut', title: 'Laser-cut', pages: [], settings: {}, tolerance: () => ({ kind: 'kerf', kerf: 0.15 }) })
+  registerSetupType({ id: 'cut', label: 'Cut', title: 'Laser-cut', pages: [], settings: {}, tolerance: (s) => ({ kind: 'kerf', kerf: 0.15, compensated: s.compensate === true, tolerance: 0.05 }) })
+  registerSetupType({ id: 'mill', label: 'Mill', title: 'Milled', pages: [], settings: {}, tolerance: () => ({ kind: 'it', grade: 7 }) })
   registerStateSection('fit', () => (printFit ? { last: printFit, ...(printFitSettings ? { settings: printFitSettings } : {}) } : {}))
 })
 
+const r4 = (x: number) => Math.round(x * 1e4) / 1e4 + 0
 const run = (name: string, input: Json = {}) => runCommand(`fit.${name}`, input) as Promise<Json>
 async function refused(name: string, input: Json, re: RegExp) {
   let m = ''
@@ -188,9 +190,25 @@ describe('fit.* commands', () => {
     // A print setup with no calibration of its own: Fits’ own, the typical printer.
     setups[0] = { id: 'S1', type: 'print', name: 'PETG print', bodies: [] }
     expect((await run('pair', { nominal: 8, class: 'close' })).model.hole).toBe(8.2)
-    // A kind Fits has no sizing for yet is refused, not guessed.
+    // A cut on the drawn line: the hole modelled a kerf small, the shaft a
+    // kerf big, held to the cut's ±.
+    const cut = await run('set', { setup: 'S2' })
+    expect(cut.sizedFor).toBe('Plates (S2): cut on the drawn line, kerf 0.15, ±0.05')
+    const p = await run('pair', { nominal: 8, class: 'close' })
+    expect(p.model.hole).toBe(7.85)
+    expect(p.model.shaft).toBe(r4(p.printed.shaft + 0.15))
+    expect(p.tolerance).toBe(0.05)
+    // Compensated: as drawn.
+    setups[1] = { ...setups[1], compensate: true }
+    expect((await run('pair', { nominal: 8, class: 'close' })).model.hole).toBe(8)
+    // Milled to IT7: as drawn, each size within IT7's zone at its size.
+    setups.push({ id: 'S3', type: 'mill', name: 'Shafts', bodies: [] })
+    expect((await run('set', { setup: 'S3' })).sizedFor).toBe('Shafts (S3): machined to IT7')
+    const m = await run('pair', { nominal: 8, class: 'close' })
+    expect(m.model).toEqual(m.printed)
+    expect(m.iso.grade).toBe(7)
+    expect(m.tolerance).toBe(0.0072)
     await run('set', { setup: 'S2' })
-    await refused('pair', { nominal: 8, class: 'close' }, /kerf is not taken yet/)
     // Gone: said so.
     setups = []
     await refused('pair', { nominal: 8, class: 'close' }, /no setup S2/)

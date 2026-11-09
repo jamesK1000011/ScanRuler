@@ -70,12 +70,14 @@ export interface SetupSetting {
 }
 
 /** What a machine holds a made size to, for Fits to size a fit with. A
- *  print setup's is its printer calibration; a cut setup's will be the
- *  kerf, a milled one's an IT grade — the kinds to come are named so Fits
- *  can say it has no sizing for them yet. */
+ *  print setup's is its printer calibration; a cut setup's its kerf — a
+ *  hole cut on the drawn line comes out a kerf larger, an outline a kerf
+ *  smaller, unless the path is compensated — with the ± a cut size lands
+ *  within; a milled one's an ISO 286 IT grade, its parts machined to
+ *  size. */
 export type MachineTolerance =
   | { kind: 'print'; fit: PrinterFit | null }
-  | { kind: 'kerf'; kerf: number }
+  | { kind: 'kerf'; kerf: number; compensated?: boolean; tolerance?: number }
   | { kind: 'it'; grade: number }
 
 /** A command part.review runs on a body in a setup of the type. */

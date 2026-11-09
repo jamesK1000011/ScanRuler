@@ -101,10 +101,13 @@ The calibration is the printer's: a print setup (plugins/setups) may keep
 one of its own (`setup.set { settings: { fit: "fits" } }` keeps Fits' as
 it stands), which Hardware and the review use for a body in it.
 `fit.set { setup }` sizes Fits' own parts for a setup's machine — its
-tolerance as the setup's type gives it; a print setup's printer
-calibration today, a cut's kerf or a milled part's IT grade refused until
-sizing for them is added (`calibrationNow` in app/fitsCommands.ts).
-`sizedFor` in the readout says which.
+tolerance as the setup's type gives it (`calibrationNow` in
+app/fitsCommands.ts): a print setup's printer calibration; a cut setup's
+kerf — a hole cut on the drawn line comes out a kerf larger and an outline
+a kerf smaller, so holes are modelled a kerf small and shafts a kerf big
+(as drawn when the path is kerf-compensated), with the cut's ± in place of
+Fits' tolerance; a mill setup's IT grade — modelled as drawn, each size's
+range its grade's zone at that size. `sizedFor` in the readout says which.
 
 No FreeCAD or other CAD package code is used.
 

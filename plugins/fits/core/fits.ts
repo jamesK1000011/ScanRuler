@@ -54,7 +54,14 @@ export interface Calibration {
   hole: number
   /** How much bigger a shaft prints than modelled, diametral. */
   shaft: number
-  source: 'default' | 'entered' | 'measured' | 'print-fit'
+  /** kerf: a cut setup's kerf; it: a milled setup's IT grade — a machine's
+   *  tolerance taken for one sizing, never kept as Fits' own. */
+  source: 'default' | 'entered' | 'measured' | 'print-fit' | 'kerf' | 'it'
+  /** A milled setup's IT grade: each size then lands within its grade's
+   *  zone at that size, in place of a ± tolerance. */
+  grade?: number
+  /** ± a made size lands within, over Fits' own tolerance: a cut's. */
+  tolerance?: number
   /** Readings it came from, and their spread (standard deviation). */
   n?: number
   spread?: number
@@ -114,6 +121,14 @@ export function itGrade(d: number, tol: number): { grade: number | null; units: 
   return { grade: g ? g[0] : null, units: Math.round(units) }
 }
 
+/** ± half the zone of an IT grade at a size, mm — ISO 286-1's standard
+ *  tolerance unit times the grade's multiple, unrounded. */
+export function itTolerance(d: number, grade: number): number {
+  const k = IT.find(([g]) => g === grade)?.[1]
+  if (k === undefined) throw new RangeError(`IT${grade}: grades 5 to 18.`)
+  return (k * toleranceUnit(d)) / 1000 / 2
+}
+
 // ---- a hole and a shaft -----------------------------------------------------------------
 
 export interface PairIn {
@@ -160,8 +175,10 @@ export function pair(p: PairIn, cal: Calibration, tol: number, overrides: Partia
   const hole = basis === 'hole' ? D : D + c
   const shaft = basis === 'hole' ? D - c : D
   if (shaft <= 0.2) throw new RangeError(`A clearance of ${r4(c)} leaves no shaft at ${D}.`)
-  const tolH = p.bought === 'hole' ? BOUGHT_TOLERANCE : tol
-  const tolS = p.bought === 'shaft' ? BOUGHT_TOLERANCE : tol
+  // A milled part's sizes land within its grade's zone at this size.
+  const made = cal.grade !== undefined ? itTolerance(D, cal.grade) : (cal.tolerance ?? tol)
+  const tolH = p.bought === 'hole' ? BOUGHT_TOLERANCE : made
+  const tolS = p.bought === 'shaft' ? BOUGHT_TOLERANCE : made
   const model = { hole: hole + (p.bought === 'hole' ? 0 : cal.hole), shaft: shaft - (p.bought === 'shaft' ? 0 : cal.shaft) }
   if (model.shaft <= 0.2) throw new RangeError('The shaft modelled would be next to nothing: check the calibration.')
   const wc = tolH + tolS
@@ -189,7 +206,7 @@ export function pair(p: PairIn, cal: Calibration, tol: number, overrides: Partia
   }
   if (c > 0 && c < 0.1) notes.push('Under 0.1 as printed is tighter than most printers hold: expect to sand or ream.')
   const def = p.cls ? CLASS_DEFS[p.cls] : null
-  const it = itGrade(D, tol)
+  const it = cal.grade !== undefined ? { grade: cal.grade, units: IT.find(([g]) => g === cal.grade)![1] } : itGrade(D, made)
   return {
     nominal: D,
     cls: p.cls ?? null,

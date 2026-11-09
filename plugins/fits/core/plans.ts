@@ -4,7 +4,7 @@
 // how it will go — and the resolved sizes parts.ts builds from. Pure, so
 // the commands, the panel and the tests share it.
 
-import { classClearance, pair, type Calibration, type ClassOverride, type FitClass, type PairOut } from './fits'
+import { classClearance, itTolerance, pair, type Calibration, type ClassOverride, type FitClass, type PairOut } from './fits'
 import { couponPitch, hingeSegments, SEAT_GAP, type CouponGeo, type HingeGeo, type Layout, type PinGeo, type SnapGeo } from './parts'
 import { materialOf, snap, type SnapIn, type SnapOut } from './snap'
 
@@ -103,7 +103,11 @@ export interface PairArgs {
 
 export function planPair(a: PairArgs, ctx: Ctx): PairOut & { tolerance: number } {
   const m = materialOf(ctx.settings.material)
-  return { ...pair(a, ctx.cal, ctx.settings.tolerance, ctx.settings.classes, m?.strain), tolerance: ctx.settings.tolerance }
+  const out = pair(a, ctx.cal, ctx.settings.tolerance, ctx.settings.classes, m?.strain)
+  // The ± the sizes were held to: a milled part's grade at this size, a
+  // cut's, else Fits' own.
+  const tolerance = ctx.cal.grade !== undefined ? Math.round(itTolerance(a.nominal, ctx.cal.grade) * 1e4) / 1e4 : (ctx.cal.tolerance ?? ctx.settings.tolerance)
+  return { ...out, tolerance }
 }
 
 // ---- the snap-fit hook ----------------------------------------------------------------------
