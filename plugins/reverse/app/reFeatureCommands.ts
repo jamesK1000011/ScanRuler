@@ -1174,7 +1174,7 @@ export const importStep: Command<{ bytes: Uint8Array; name: string; detail?: Det
     const id = await change(() => {
       re().startFeature('import', { file: re().addStepFile(name, text), name: name.replace(/\.(step|stp)$/i, '') })
       const made = re().commitFeature()
-      if (made === null) throw new CommandError('failed', `${name} could not be imported.`)
+      if (made === null) throw new CommandError('failed', `${name} was not added — the import did not take. Import it again; if it still fails, reload the page and try once more.`)
       return made
     })
     return featureAnswer(session(), id, {}, detail, before)

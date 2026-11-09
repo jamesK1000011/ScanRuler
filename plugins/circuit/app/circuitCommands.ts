@@ -414,7 +414,7 @@ const bodies: Command<{ parts?: Partial<Record<'board' | 'copperTop' | 'copperBo
     } finally {
       useCircuit.setState({ busy: false, status: '' })
     }
-    if (!a.step) throw new CommandError('failed', 'The board gave no STEP.')
+    if (!a.step) throw new CommandError('failed', 'The board made no solids — its outline may not close, or the parts switched on may be empty. Check the outline, or switch on more parts, then try again.')
     ctx.signal?.throwIfAborted()
     const before = reverseBodies()
     const had = new Set(before.map((b) => b.id))

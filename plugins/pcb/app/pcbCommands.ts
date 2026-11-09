@@ -145,7 +145,7 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
     const subs = subst ?? st().subst
     ctx.progress('kicad-cli: exporting the board as STEP…')
     const { result, bytes: step } = await ask('import', { path: p, components: withParts, subst: subs, dnp: dnp === true }, 'Exporting the board…', ctx)
-    if (!step?.byteLength) throw new CommandError('failed', 'kicad-cli gave no STEP.')
+    if (!step?.byteLength) throw new CommandError('failed', 'No STEP came back for the board. Import again; if it still fails, export the STEP in KiCad (File › Export › STEP) to see what KiCad says.')
     const r = result as { board: unknown; kicad?: string; warnings?: string[]; unmodelled?: unknown; step?: { name?: string } }
     const board = kept(r.board)
     ctx.signal?.throwIfAborted()

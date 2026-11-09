@@ -22,6 +22,9 @@ saves carry the same number as `appVersion`. How a release is cut is in
     measures. Each pair gets a verdict — an overlap always fails, and with
     `min` a gap under it fails too — and the answer says whether every
     pair passed. The gaps and overlaps are given as before.
+  - Three bare failures now say the likely cause and what to do next: a
+    KiCad import with no STEP back, a tscircuit board that made no solids,
+    and a STEP import that did not take.
 - **Scanner in 3D Measure** (2026-11-08). The 3D Measure panel has a
   Scanner section: choose this project's scanner profile or the noise
   measured from the scan, Measure noise on the open scan, Save as profile,

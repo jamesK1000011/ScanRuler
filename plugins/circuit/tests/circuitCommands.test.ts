@@ -154,6 +154,9 @@ describe('the Circuit commands', () => {
     expect(calls.find((c) => c.name === 'reverse.import.step')!.input.name).toBe('blinky.circuit.step')
     expect(useCircuit.getState().made?.notes).toEqual(['a note'])
     await fails(run('bodies', { parts: { board: false, copperTop: false, copperBottom: false, keepouts: false } }), /every part is off/)
+    // Built to nothing: says what to check, not only that it failed.
+    setSolidsAnswer({ parts: [], notes: [] } as never)
+    await fails(run('bodies'), /^The board made no solids — its outline may not close, or the parts switched on may be empty\. Check the outline, or switch on more parts, then try again\.$/)
   })
   it('stop a build waiting on the server', async () => {
     fresh()

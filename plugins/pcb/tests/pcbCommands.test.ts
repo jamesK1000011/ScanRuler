@@ -138,6 +138,15 @@ describe('pcb commands', () => {
     expect(bare.placeholders).toBe(undefined)
     expect(calls.filter((c) => c.name === 'reverse.import.step').length).toBe(1)
   })
+  it('import: no STEP back says what to do next', async () => {
+    const keep = server.import
+    server.import = () => ({ result: { board: BOARD, warnings: [] } })
+    let m = ''
+    await run('import', { path: PATH }).catch((e: Error) => (m = e.message))
+    server.import = keep
+    expect(m).toBe('No STEP came back for the board. Import again; if it still fails, export the STEP in KiCad (File › Export › STEP) to see what KiCad says.')
+    expect(calls.some((c) => c.name === 'reverse.import.step')).toBe(false)
+  })
   it('enclosure: through gen.make with the board measured, settings merged', async () => {
     await run('import', { path: PATH })
     await run('set', { enclosure: { standoff: 7 } })
