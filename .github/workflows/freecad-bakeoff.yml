@@ -9,7 +9,7 @@ name: FreeCAD bake-off
 
 on:
   push:
-    branches: [freecad-spike]
+    branches: [freecad-spike, 'freecad-spike-*']
   workflow_dispatch:
 
 permissions:
@@ -28,11 +28,16 @@ jobs:
         shell: bash -el {0}
     steps:
       - uses: actions/checkout@v5
+      # Which branch of the fork to test: scripts/bakeoff/addon-ref, so a
+      # branch here (freecad-spike-<family>) can test that family's branch.
+      - name: The add-on's branch
+        id: ref
+        run: echo "ref=$(cat scripts/bakeoff/addon-ref 2>/dev/null || echo agent-link)" >> "$GITHUB_OUTPUT"
       - name: The add-on, from the FreeCAD fork
         uses: actions/checkout@v5
         with:
           repository: jamesK1000011/FreeCAD
-          ref: agent-link
+          ref: ${{ steps.ref.outputs.ref }}
           path: freecad-addon
           sparse-checkout: src/Mod/AgentLink
       - uses: mamba-org/setup-micromamba@v2
@@ -42,6 +47,9 @@ jobs:
             -c conda-forge
             freecad
             python=3.11
+            calculix
+            gmsh
+            numpy
           cache-environment: true
       - uses: actions/setup-node@v5
         with:
