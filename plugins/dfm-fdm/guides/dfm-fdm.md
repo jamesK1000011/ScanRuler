@@ -60,6 +60,15 @@ A reference part made with Compare in Deviation remembers the bodies it came
 from. If one has changed since, the check's `stale` says an older copy was
 checked.
 
+A magnet, nut or bearing encased at a print pause (`hw_embed`, or
+`hw_record` — Generate's Gridfinity magnets are recorded so) sits in a
+closed pocket on purpose. On a body, `dfm_check` finds those parts with
+`hw_masses` and reports a trapped volume at one as info with `encased:
+"E1"` — "pocket for E1: …, filled at the pause". Leave it: no vent, no
+waiver. A cavity with no `encased` is one the Hardware workspace knows
+nothing of: vent it, or record it with `hw_record { body, top, what, kind,
+size, at }` if a part goes in it.
+
 A body in a print setup (`setup_of { body }`; the **setups** guide) is
 checked with that setup's nozzle, printer and way up where it sets them —
 the answer's `setup` says which. Change them on the setup (`setup_set`);

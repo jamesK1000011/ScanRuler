@@ -240,7 +240,9 @@ const review: Command<ReviewIn> = {
         // spec either way.
         if (typeof wall?.least === 'number') figures.wall = r2(wall.least)
         for (const f of (dfm.findings as Json[] | undefined) ?? []) {
-          if (f.waived) continue
+          // Waived, or the pocket of a part encased at a pause (encased:
+          // E1): meant, so not counted against the part.
+          if (f.waived || f.encased) continue
           find(pFindings, 'dfm.check', f.severity as Severity, `${f.id} ${f.rule}: ${f.value} ${f.unit ?? ''} against ${f.limit}${typeof f.says === 'string' ? ` — ${f.says}` : ''}`, at(f.at))
         }
         if (spec.minWall !== undefined) {

@@ -29,7 +29,7 @@ says which layer set it.
 | small-hole | upright round holes, by circle fit |
 | bed-contact | flat area on the bed over the footprint's convex-hull area |
 | tall-thin | height over the base's least width |
-| trapped-volume | closed shells with negative signed volume (cavities) |
+| trapped-volume | closed shells with negative signed volume (cavities); on a body, one that is the pocket of a part encased at a print pause is info, not a cavity to vent (below) |
 | mesh-health | edges not shared by exactly two triangles |
 
 On a body or the reference part the answer's `wall` gives the thinnest
@@ -39,6 +39,20 @@ under one line is an error, one of a single line a warning. A rule that can't ru
 `skipped`. A part that is open but not drawn yet answers `busy` while it
 opens and `invalid_state` after; `unavailable` is kept for a session with
 no viewport.
+
+On a body, a cavity that is the pocket of a part encased at a print pause
+— cut by `hw.embed`, or recorded with `hw.record`, as Generate records its
+Gridfinity magnets — is meant: the part dropped in at the pause fills it.
+`dfm.check` reads where those parts sit from the Hardware workspace's
+read-only `hw.masses` (each one's centre and reach, part frame), run through
+the command registry, never imported (core/encased.ts, app/body.ts). A
+trapped volume whose middle lies within a part's reach (plus 1 mm, for the
+pocket's clearance) of one of its centres comes back as info, whatever the
+rule's severity, with `encased` naming the part and says "pocket for E1:
+6x2 magnet, filled at the pause"; `part.review` does not count it. Any other
+cavity is reported as before, and so is every cavity in a build with no
+Hardware workspace, or for a part recorded without where it is (`hw.record`
+with no `at`).
 
 A body in a print setup (`setup.of`; plugins/setups) is checked with what
 that setup sets of its nozzle, printer and way up, over `dfm.settings`;

@@ -137,6 +137,20 @@ describe('part.review', () => {
     expect(r.findings[0].says).toMatch(/Case/)
   })
 
+  it('does not count the pocket of a part encased at a pause, which the check names', async () => {
+    good()
+    answers['dfm.check'] = {
+      wall: { least: 1.6, at: [1, 2, 3], limit: 0.8 },
+      findings: [
+        { id: 'F1', rule: 'trapped-volume', severity: 'info', value: 61.2, limit: 1, unit: 'mm³', at: [10, 10, 3], encased: 'E1', says: 'pocket for E1: 6x2 magnet ×8, filled at the pause' },
+        { id: 'F2', rule: 'trapped-volume', severity: 'info', value: 20, limit: 1, unit: 'mm³', at: [0, 0, 20], says: 'a closed cavity of 20 mm³ inside the part' },
+      ],
+    }
+    const r = await review()
+    expect(r.verdict).toBe('pass')
+    expect(r.findings.map((f: Json) => String(f.says).slice(0, 12))).toEqual(['F2 trapped-v'])
+  })
+
   it('with the process not said, the printing checks inform and do not move the verdict', async () => {
     good()
     answers['dfm.check'] = { wall: { least: 0.6, limit: 0.8 }, findings: [{ id: 'F1', rule: 'thin-wall', severity: 'error', value: 0.6, limit: 0.8, unit: 'mm', at: [1, 1, 1] }] }

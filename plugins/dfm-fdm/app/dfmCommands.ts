@@ -17,7 +17,8 @@ import { CONSIDERATIONS, CONSIDERATIONS_CITE } from '../core/considerations'
 import { paramProblem, stack, validateGuide, type Guide, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
 import pack from '../rules/fdm-default.json'
 import { atKey, useDfm, type Checked, type DfmSettings, type NumberedFinding } from '../state/dfmStore'
-import { bodyTriangles, pickBody, reverseBodies, staleReference } from './body'
+import { bodyTriangles, encasedIn, pickBody, reverseBodies, staleReference } from './body'
+import { asEncased, type EncasedPart } from '../core/encased'
 import { ownedBy, setupFor, writeOwned, type Owned } from '../../_shared/setups'
 import { materialOfBody } from '../../_shared/materials/assigned'
 import { historyAsync } from '../../../src/state/historyStore'
@@ -251,7 +252,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. body: that Reverse Engineer body, whatever the target, the settings left as they are. A body in a print setup (setup.of) is checked with what the setup sets of its nozzle, printer and way up, over these settings; setup in the answer names it and what it set. A body with a material of its own (material.set) is checked with that material’s profile, the settings’ material only for a part with none; material: a profile for this check alone, over both. The answer’s material says which profile and from where (check, part or settings), and the note when the part’s material has no profile here. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities (on a body, a cavity that is the pocket of a part encased at a print pause — hw.embed, hw.record, Generate’s magnets, placed as hw.masses gives them — is meant: it comes back as info, encased naming the part, “pocket for E1: …, filled at the pause”), and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. body: that Reverse Engineer body, whatever the target, the settings left as they are. A body in a print setup (setup.of) is checked with what the setup sets of its nozzle, printer and way up, over these settings; setup in the answer names it and what it set. A body with a material of its own (material.set) is checked with that material’s profile, the settings’ material only for a part with none; material: a profile for this check alone, over both. The answer’s material says which profile and from where (check, part or settings), and the note when the part’s material has no profile here. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
   input: obj({
     only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }),
     detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.'),
@@ -333,14 +334,21 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
     const { findings, skipped } = runChecks({ ...mesh, thickness, wall }, inForce.map((x) => (x.id === 'thin-wall' && !thickness && !wall ? { ...x, disabled: true } : x)))
     // Back into the part's own frame for the places.
     const tmp = [0, 0, 0]
+    const placed = findings.map((f) => {
+      fromBuild(frame, f.at[0], f.at[1], f.at[2], tmp)
+      return { ...f, at: [r(tmp[0]), r(tmp[1]), r(tmp[2])] as [number, number, number] }
+    })
+    // A body's cavity that is the pocket of a part encased at a pause
+    // (Hardware: hw.embed, hw.record — Generate's magnets) is meant: it is
+    // filled at the pause. Said as info naming the part, not as air to vent.
+    const encased: EncasedPart[] = checked.target === 'body' && placed.some((f) => f.rule === 'trapped-volume') ? await encasedIn(checked.part) : []
     const waivers = useDfm.getState().waivers
-    const numbered: NumberedFinding[] = findings
+    const numbered: NumberedFinding[] = placed
+      .map((f) => asEncased(f, encased))
       .sort((a, b) => ['error', 'warning', 'info'].indexOf(a.severity) - ['error', 'warning', 'info'].indexOf(b.severity))
       .map((f, i) => {
-        fromBuild(frame, f.at[0], f.at[1], f.at[2], tmp)
-        const at: [number, number, number] = [r(tmp[0]), r(tmp[1]), r(tmp[2])]
-        const w = waivers.find((x) => x.rule === f.rule && x.at.join() === atKey(at).join())
-        return { ...f, id: `F${i + 1}`, at, ...(w ? { waived: w.reason } : {}) }
+        const w = waivers.find((x) => x.rule === f.rule && x.at.join() === atKey(f.at).join())
+        return { ...f, id: `F${i + 1}`, ...(w ? { waived: w.reason } : {}) }
       })
     const allSkipped = [...skippedExtra.filter((x) => !only || only.includes(x.rule)), ...skipped.filter((x) => !skippedExtra.some((y) => y.rule === x.rule))]
     const reading = wall && thinRule ? wallReading(wall, thinRule.params.minMm, wallLine(thinRule), frame) : null
@@ -364,7 +372,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
       info: count('info'),
       waived: numbered.length - open.length,
       ...(reading ? { wall: reading } : {}),
-      findings: numbered.map(({ says, ...f }) => (detail === 'full' ? { ...f, says } : { id: f.id, rule: f.rule, severity: f.severity, value: f.value, limit: f.limit, unit: f.unit, at: f.at, ...(f.areaMm2 !== undefined ? { areaMm2: f.areaMm2 } : {}), ...(f.waived ? { waived: f.waived } : {}), says })),
+      findings: numbered.map(({ says, ...f }) => (detail === 'full' ? { ...f, says } : { id: f.id, rule: f.rule, severity: f.severity, value: f.value, limit: f.limit, unit: f.unit, at: f.at, ...(f.areaMm2 !== undefined ? { areaMm2: f.areaMm2 } : {}), ...(f.encased ? { encased: f.encased } : {}), ...(f.waived ? { waived: f.waived } : {}), says })),
       ...(allSkipped.length ? { skipped: allSkipped } : {}),
     }
   },

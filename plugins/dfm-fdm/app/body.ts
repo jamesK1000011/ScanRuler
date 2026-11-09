@@ -9,6 +9,7 @@ import { readStateSection } from '../../../src/commands/stateSections'
 import { CommandError } from '../../../src/plugins/api'
 import type { NominalMadeFrom } from '../../../src/state/deviationStore'
 import { readBinaryStl } from '../core/stl'
+import type { EncasedPart } from '../core/encased'
 
 export interface ReverseBody {
   id: number
@@ -75,4 +76,24 @@ export function staleReference(made: NominalMadeFrom | null): string | null {
   if (!changed.length) return null
   const one = changed.length === 1
   return `Checked an older copy: ${changed.map((p) => p.name).join(', ')} changed since the reference part was made. Check the body itself to see ${one ? 'it' : 'them'} as ${one ? 'it is' : 'they are'} now.`
+}
+
+/** The parts encased in a body at a print pause, where each sits — read
+ *  from the Hardware workspace's own read-only list (hw.masses: each one's
+ *  centre and reach, part frame), run here so this plugin stands without it.
+ *  None where the workspace is not in the build or cannot say; a part
+ *  recorded without where it is (no at) is not among them. */
+export async function encasedIn(body: string): Promise<EncasedPart[]> {
+  try {
+    const r = (await runCommand('hw.masses', { bodies: [body] })) as { parts?: { id?: unknown; body?: unknown; what?: unknown; count?: unknown; centres?: unknown; reach?: unknown }[] }
+    const point = (c: unknown): c is [number, number, number] => Array.isArray(c) && c.length === 3 && c.every((v) => typeof v === 'number' && Number.isFinite(v))
+    return (r?.parts ?? [])
+      .filter((p) => p.body === body && typeof p.id === 'string' && Array.isArray(p.centres))
+      .map((p) => ({ id: p.id as string, what: String(p.what ?? 'an encased part'), ...(typeof p.count === 'number' ? { count: p.count } : {}), centres: (p.centres as unknown[]).filter(point), reach: typeof p.reach === 'number' ? p.reach : 0 }))
+      .filter((p) => p.centres.length > 0)
+  } catch {
+    // No Hardware workspace (unknown_command), or one that could not say:
+    // the cavities are reported as they are.
+    return []
+  }
 }

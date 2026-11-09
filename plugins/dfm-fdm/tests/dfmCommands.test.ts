@@ -334,3 +334,45 @@ describe('dfm.wall: the wall alone, however the part is made', () => {
     expect(r.over).toBe(8)
   })
 })
+
+describe('a pocket for a part encased at a pause', () => {
+  // A 6×2 magnet's pocket the Hardware workspace recorded (as Generate's
+  // Gridfinity magnets are), and a cavity it knows nothing of.
+  const magnetPocket = () => box([-3.2, -3.2, 10], [3.2, 3.2, 12.2], true)
+  const stray = () => box([8, -2, 20], [12, 2, 24], true)
+  const hwMasses = (i: { bodies: string[] }) => ({ parts: i.bodies.includes('Grip') ? [{ id: 'E1', body: 'Grip', what: '6x2 magnet', count: 1, centres: [[0, 0, 11]], reach: 3.162 }] : [] })
+  const trapped = (r: Record<string, any>) => r.findings.filter((f: { rule: string }) => f.rule === 'trapped-volume') // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  it('is info naming the part, filled at the pause; a cavity elsewhere is reported as before', async () => {
+    fresh()
+    geo[1] = [...box([-20, -15, 0], [20, 15, 40]), ...magnetPocket(), ...stray()]
+    handlers['hw.masses'] = hwMasses as never
+    const r = await run('check', { body: 'Grip', detail: 'full' })
+    expect(calls.find((c) => c.name === 'hw.masses')?.input).toEqual({ bodies: ['Grip'] })
+    const found = trapped(r)
+    expect(found.length).toBe(2)
+    const pocket = found.find((f: { encased?: string }) => f.encased === 'E1')
+    expect(pocket.severity).toBe('info')
+    expect(pocket.says).toMatch(/^pocket for E1: 6x2 magnet, filled at the pause/)
+    const other = found.find((f: { encased?: string }) => f.encased === undefined)
+    expect(other.at).toEqual([10, 0, 22])
+    expect(other.says).toMatch(/add a vent/)
+    expect(useDfm.getState().findings.find((f) => f.id === pocket.id)?.encased).toBe('E1')
+  })
+  it('stays as it was raised by a project’s rule, but the encased pocket is info all the same', async () => {
+    fresh()
+    geo[1] = [...box([-20, -15, 0], [20, 15, 40]), ...magnetPocket(), ...stray()]
+    handlers['hw.masses'] = hwMasses as never
+    useDfm.setState({ overrides: { 'trapped-volume': { severity: 'error' } } as never })
+    const r = await run('check', { body: 'Grip' })
+    expect(trapped(r).map((f: { severity: string; encased?: string }) => [f.severity, f.encased ?? null])).toEqual([['error', null], ['info', 'E1']])
+    expect(r.errors).toBe(1)
+  })
+  it('is reported as any cavity where the build has no Hardware workspace', async () => {
+    fresh()
+    geo[1] = [...box([-20, -15, 0], [20, 15, 40]), ...magnetPocket()]
+    delete handlers['hw.masses']
+    const r = await run('check', { body: 'Grip' })
+    expect(trapped(r).map((f: { encased?: string }) => f.encased ?? null)).toEqual([null])
+  })
+})

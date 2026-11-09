@@ -30,6 +30,9 @@ export interface Finding {
   areaMm2?: number
   count?: number
   says: string
+  /** A trapped volume that is the pocket of a part encased at a pause
+   *  (encased.ts): that part's id, E1 …. */
+  encased?: string
 }
 
 const BED = 0.1

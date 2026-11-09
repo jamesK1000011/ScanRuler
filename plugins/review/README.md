@@ -21,6 +21,8 @@ kind's own checks (its type's `checks`) judge it, under `made`; for a part
 in no setup they run and inform (`ifPrinted`) without moving the verdict.
 `process` overrides the setup for one review, and the spec's `processes`
 stand in for a body in no setup; `processFrom` says which decided.
+A `dfm.check` finding waived, or the pocket of a part encased at a pause
+(`encased`, E1 …), is not counted.
 
 The wall is the part's, however it is made: a printed part's is read by
 `dfm.check`, any other's by `dfm.wall` alone, so a spec's `minWall` judges

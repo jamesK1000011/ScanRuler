@@ -7,6 +7,14 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Check: a pocket for an encased part is not a trapped volume**
+  (2026-11-09). Checking a body, Printability took the pocket of a part
+  dropped in at a print pause — a magnet embedded with a roof, Generate's
+  Gridfinity magnets — for a closed cavity to vent. It now reads where the
+  Hardware workspace's encased parts sit (`hw.masses`) and reports a cavity
+  at one as info naming it ("pocket for E1: 6x2 magnet, filled at the
+  pause"); `part.review` does not count it. Other cavities are reported as
+  before.
 - **Agents: lean tool list by default** (2026-11-09). The agent helper
   (`scanruler-mcp`) now lists lean unless told otherwise: the session,
   guide, history, project and view tools and its own, the rest in groups
