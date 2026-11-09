@@ -7,6 +7,31 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Setups: how each part is made, and the Make tab** (2026-11-09). A
+  build mixes processes part by part — printed brackets, laser-cut plates,
+  machined parts, boards, bought parts — and, as in Fusion, a setup now
+  records one: a process and the bodies made by it, with that process's
+  settings, as many as the project needs (`setup.list`, `setup.add`,
+  `setup.set`, `setup.remove`, `setup.of`; each change one undo step, all
+  headless, saved with the project). The Print tab is now **Make**: the
+  setups over its pages — add, rename, remove, the parts made by each, its
+  settings — and under them the chosen setup's pages, a print setup's
+  Check · Slice · Send. The pages keep their ids, so projects open where
+  they were saved and `workspace.set "print"` still opens Send; a project
+  from before setups opens with a print setup holding the bodies it
+  printed. A print setup gathers what was scattered: the printer and
+  nozzle (`dfm.check`), the way up (the check, and the strength study's
+  build direction), the layers (`hw.pauses`, an encased pocket's roof), the
+  walls, infill and line width (`mass.properties`) and the printer's fit
+  calibration (`fit`, which holes are sized with). Each is optional: unset,
+  every workspace goes by its own setting as before, and every answer that
+  used a setup's value says so. `fit.set { setup }` sizes Fits' parts for a
+  setup's machine. `part.review` reads how a part is made from its setup —
+  printing checks for a part in a print setup, a setup kind's own checks
+  for another — with `process` still taken as an override, and reads the
+  wall of every part, however made: `dfm.wall` reads a body's least wall
+  alone, for a part not printed. Other kinds of setup (cut, mill, a board
+  ordered) plug in through `registerSetupType`.
 - **Fewer tabs in the top bar** (2026-11-09). Workspaces that do one job
   now share a tab, as pages: **Parts** holds Catalog and Generate (a part
   got without modelling it — found, or generated to size); **Fits** gains

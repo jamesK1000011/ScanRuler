@@ -96,7 +96,10 @@ function howFor(b: ReverseBody, scale = st().scale): How {
   const solid = setup !== null && setup.type !== 'print'
   if (!m) {
     const own = st().density !== undefined ? `${r3(st().density!)} g/cm³` : (MATERIALS[st().material]?.label ?? st().material)
-    return solid ? { print: { density: density(1), infill: 1, wallMm: 0 }, material: own, as: 'solid', assumed: true } : { print: print(scale), material: own, as: 'printed', assumed: true }
+    if (solid) return { print: { density: density(1), infill: 1, wallMm: 0 }, material: own, as: 'solid', assumed: true }
+    // In a print setup, its walls and infill even with no material set.
+    const fill = printFillOf(setup, { infill: st().infill, walls: st().walls, lineWidth: st().lineMm })
+    return { print: { density: density(scale), infill: fill.infill / 100, wallMm: fill.walls * fill.lineWidth }, material: own, as: 'printed', assumed: true }
   }
   if (m.density === undefined) throw new CommandError('invalid_state', `${b.name} is ${m.name}, which has no density in the library: give one (material.set { body, material: { name, base: "${m.id}", density } }).`)
   if (setup?.type !== 'print') return { print: { density: m.density, infill: 1, wallMm: 0 }, material: m.name, as: 'solid' }

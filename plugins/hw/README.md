@@ -18,7 +18,8 @@ bodies as named sketch and extrude-cut features that stay editable there:
 
 Every diameter gets a printing allowance (0.2 mm by default; by kind),
 moved by the printer's fit calibration from Fits where there is one
-(`printerFit`, plugins/_shared/printerFit.ts). Level
+(`printerFit`, plugins/_shared/printerFit.ts) — for a body in a print
+setup that keeps a calibration of its own (plugins/setups), that one. Level
 holes are teardropped point up, and an upright stepped hole can keep a
 sacrificial bridge layer. `hw.check` reads a round hole on a body and says
 what it fits, and how loose or tight.
@@ -79,7 +80,9 @@ pocket's top. Layer n runs from `firstLayer + (n − 2) × layerHeight` (0 for
 the first) to `firstLayer + (n − 1) × layerHeight`, above the bed. A
 pocket's top above the bed is its Z less its body's lowest point (the
 slicer sets an object's lowest point on the bed), or the lowest of the
-bodies exported together. The
+bodies exported together. For bodies in print setups that agree on them,
+`layerHeight` and `firstLayer` are the setups' (the answer's `layers.from`
+says so); the layers given to `hw.pauses` still win. The
 cuts are Reverse Engineer features, saved and undone there.
 
 `hw.apply` makes its change through `reverse.feature.add` with `runWithin`

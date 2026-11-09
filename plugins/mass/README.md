@@ -10,7 +10,10 @@ thing, a handle that has to sit right in the hand, or a counterweight.
   volume, centre of mass and inertia. The walls are a layer of
   walls × line width inside the surface, at full density (each face's slab,
   less the overlap at convex edges and plus the gap at concave ones), and
-  the inside is at the infill's share.
+  the inside is at the infill's share. A body in a print setup
+  (plugins/setups) is weighed with the walls, infill and line width the
+  setup sets, where it sets them — with its own material or, with none
+  set, the Mass setup's; each row's `as` says printed or solid.
 - **Encased parts:** magnets, nuts, bearings and inserts the Hardware
   workspace encases or records (`hw.masses`; Generate's Gridfinity magnets
   among them) are added to the total — their mass, centre and inertia —

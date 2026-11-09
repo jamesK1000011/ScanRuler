@@ -18,6 +18,7 @@ import { paramProblem, stack, validateGuide, type Guide, type Layer, type Overri
 import pack from '../rules/fdm-default.json'
 import { atKey, useDfm, type Checked, type DfmSettings, type NumberedFinding } from '../state/dfmStore'
 import { bodyTriangles, pickBody, reverseBodies, staleReference } from './body'
+import { setupFor } from '../../_shared/setups'
 
 const PACK = pack as RulePack
 const glob = (g: Record<string, Profile>) => Object.values(g).sort((a, b) => a.id.localeCompare(b.id))
@@ -45,7 +46,28 @@ function layers(s: DfmSettings = useDfm.getState().settings): Layer[] {
   return out
 }
 
-export const effective = () => stack(PACK, layers())
+export const effective = (s?: DfmSettings) => stack(PACK, layers(s))
+
+/** The settings a body is checked with: over Check's own, what the print
+ *  setup the body is in sets — its nozzle, printer and way up — and which
+ *  setup that is; null for a body in none. A profile the setup names that
+ *  Check has not is said, and Check's own kept. */
+export function fromSetup(s: DfmSettings, body: string): { settings: DfmSettings; setup: { id: string; name: string; sets: string[]; notes?: string[] } } | null {
+  const setup = setupFor(body, 'print')
+  if (!setup) return null
+  const over: Partial<DfmSettings> = {}
+  const notes: string[] = []
+  const profile = (key: 'nozzle' | 'printer', list: Profile[]) => {
+    const v = setup[key]
+    if (typeof v !== 'string') return
+    if (list.some((p) => p.id === v)) over[key] = v
+    else notes.push(`${setup.name}’s ${key} ${v} has no profile here (${list.map((p) => p.id).join(', ')}): Check’s own (${s[key] ?? 'none'}) is used.`)
+  }
+  profile('nozzle', NOZZLES)
+  profile('printer', PRINTERS)
+  if (typeof setup.up === 'string' && (UPS as readonly string[]).includes(setup.up)) over.up = setup.up as Up
+  return { settings: { ...s, ...over }, setup: { id: setup.id, name: setup.name, sets: Object.keys(over), ...(notes.length ? { notes } : {}) } }
+}
 
 function weld(src: ArrayLike<number>, index: ArrayLike<number> | null): { positions: Float64Array; indices: Uint32Array } {
   const count = index ? index.length : src.length / 3
@@ -175,7 +197,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. body: that Reverse Engineer body, whatever the target, the settings left as they are. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. body: that Reverse Engineer body, whatever the target, the settings left as they are. A body in a print setup (setup.of) is checked with what the setup sets of its nozzle, printer and way up, over these settings; setup in the answer names it and what it set. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
   input: obj({
     only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }),
     detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.'),
@@ -187,7 +209,11 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
     // A body asked for is checked as target body would check it, the
     // settings left as they are.
     const set = useDfm.getState().settings
-    const s = asked === undefined ? set : { ...set, target: 'body' as const, body: asked }
+    const base = asked === undefined ? set : { ...set, target: 'body' as const, body: asked }
+    // A body in a print setup is checked as that setup prints it.
+    const picked = base.target === 'body' ? pickBody(base.body) : null
+    const made = picked ? fromSetup(base, picked.name) : null
+    const s = made ? made.settings : base
     const frame = buildFrame(s.up as Up)
     let mesh: { positions: Float64Array; indices: Uint32Array }
     let thickness: Float32Array | null = null
@@ -217,7 +243,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
         }
       }
     } else if (s.target === 'body') {
-      const body = pickBody(s.body)
+      const body = picked!
       ctx.progress(`Meshing ${body.name}`)
       const { soup, stamp } = await bodyTriangles(body)
       const w = weld(soup, null)
@@ -234,7 +260,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
       const stale = staleReference(dev.nominalMadeFrom)
       checked = { target: 'reference', part: dev.nominalName, ...(stale ? { stale } : {}) }
     }
-    const inForce = effective().filter((x) => !only || only.includes(x.id))
+    const inForce = effective(s).filter((x) => !only || only.includes(x.id))
     // A body or a reference is CAD: its walls are read at samples over its
     // faces — round an insert or a magnet's pocket too — where the scan's
     // are read by the thickness map.
@@ -269,7 +295,8 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
       part: checked.part,
       ...(checked.stamp ? { stamp: checked.stamp } : {}),
       ...(checked.stale ? { stale: checked.stale } : {}),
-      profiles: layers().map((l) => l.name),
+      profiles: layers(s).map((l) => l.name),
+      ...(made ? { setup: made.setup } : {}),
       verdict: count('error') ? 'fix before printing' : count('warning') ? 'printable with care' : 'no findings',
       errors: count('error'),
       warnings: count('warning'),
@@ -434,8 +461,47 @@ export const considerations: Command<Record<string, never>> = {
   },
 }
 
+/** The spacing the wall is sampled at, for a limit: half of it, as the
+ *  check samples; 1 mm read at 0.5 when no limit is given. */
+const WALL_DEFAULT = 1
+
+export const wall: Command<{ body?: string | number; min?: number }> = {
+  name: 'wall',
+  title: 'The least wall of a body',
+  // units-ok: the command's description, for the agent — in millimetres always.
+  description:
+    'Read the wall thickness of a Reverse Engineer body as it stands — however it is made: printed, cut, machined — by rays into the material from samples over its faces, as dfm.check reads a body’s: the least wall (mm) and where (at, the part’s frame), whether it is under min (thin), and the knife edges a taper runs out to (sharpEdges), which are not thin walls. None of the printing rules, and nothing kept: the last dfm.check stays as it was. body: by name or id, the one solid body shown by default. min: the least wall wanted, mm — it sets how fine the samples are (half of it); 1 by default. Changes nothing.',
+  input: obj({
+    body: oneOf([str(undefined, { minLength: 1 }), num()], 'The body, by name or id; the one solid body shown by default.'),
+    min: num('The least wall wanted, mm; 1 by default.', { minimum: 0.05, maximum: 50 }),
+  }),
+  readOnly: true,
+  long: true,
+  timeoutMs: 5 * 60_000,
+  run: async ({ body: asked, min = WALL_DEFAULT }, ctx) => {
+    const body = pickBody(asked ?? null)
+    ctx.progress(`Meshing ${body.name}`)
+    const { soup, stamp } = await bodyTriangles(body)
+    const w = weld(soup, null)
+    ctx.progress('Reading the wall thickness')
+    // Read as the part stands: the way up does not change a wall.
+    const samples = probeWalls(w.positions, w.indices, { spacing: min / 2, reach: Math.max(8 * min, 5) })
+    const l = leastWall(samples, { edges: false })
+    const edges = sharpEdges(samples, min, 1.5 * Math.max(samples.spacing, min)).map((e) => ({ at: e.at.map((v) => r(v)), length: r(e.length, 1) }))
+    return {
+      body: body.name,
+      ...(stamp ? { stamp } : {}),
+      ...(l ? { least: r(l.least), at: l.at.map((v) => r(v)), thin: l.least < min } : { least: null, over: samples.reach }),
+      min,
+      ...(edges.length ? { sharpEdges: edges } : {}),
+      spacing: r(samples.spacing),
+      samples: samples.thickness.length,
+    }
+  },
+}
+
 /** Every one runs without the page (Command.headless) — dfm.check on a
  *  body only (target body): the scan and the reference part are read off
  *  the viewport. */
-export const dfmCommands = ([settings, profiles, rules, check, explain, waive, report, guides, considerations] as Command<never>[]).map((c) => ({ ...c, headless: true }))
+export const dfmCommands = ([settings, profiles, rules, check, wall, explain, waive, report, guides, considerations] as Command<never>[]).map((c) => ({ ...c, headless: true }))
 

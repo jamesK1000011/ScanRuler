@@ -243,6 +243,18 @@ describe('the Mass commands', () => {
     // A calibration is for a printed part.
     await refused(run('calibrate', { grams: 9, body: 'Plate' }), /calibration scales a printed part/)
   })
+  it('weigh a body with no material, in a print setup, with the setup’s walls and infill', async () => {
+    fresh()
+    const own = await run('properties')
+    setups = [{ id: 'S1', type: 'print', name: 'Grip print', bodies: ['1'], infill: 100 }]
+    const solid = await run('properties')
+    expect(solid.bodies[0]).toMatchObject({ as: 'printed', assumed: true })
+    expect(solid.total.mass).toBeCloseTo(48000 * 1.24e-3, 1)
+    expect(solid.total.mass > own.total.mass).toBe(true)
+    // Its name kept from an older project counts the same.
+    setups = [{ id: 'S1', type: 'print', name: 'Grip print', bodies: ['Grip'], infill: 100 }]
+    expect((await run('properties')).total.mass).toBe(solid.total.mass)
+  })
   it('keep no reading once a body’s material changes', async () => {
     fresh()
     await run('properties')

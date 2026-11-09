@@ -5,7 +5,7 @@
 // the worker. The coupon made, its bodies named and kept clear of names
 // taken; a hook planned then made; the plan refused before one; the
 // calibration from readings, from Print fit and from classes felt; the
-// settings; inputs refused.
+// settings; the fits sized for a setup's machine; inputs refused.
 import { beforeAll, describe, expect, it } from 'vitest'
 import { registerCommands, runCommand } from '../../../src/commands/registry'
 import { registerStateSection } from '../../../src/commands/stateSections'
@@ -15,6 +15,8 @@ import type { Kernel } from '../core/kernel'
 import { fitsCommands, refreshAnswers } from '../app/fitsCommands'
 import { setBuilder } from '../app/fitsClient'
 import { useFits } from '../state/fitsStore'
+import { PRINT_SETUP } from '../../_shared/printSetup'
+import { registerSetupType, type Setup } from '../../_shared/setups'
 
 type Json = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -24,6 +26,7 @@ let nextId = 1
 let last: FitsAnswer | null = null
 let printFit: Json | undefined
 let printFitSettings: Json | undefined
+let setups: Setup[] = []
 
 const fake = (name: string, run: (i: Json) => unknown, readOnly = false): Command => ({ name, title: name, description: name, input: { type: 'object' }, readOnly, run: async (i) => run(i as Json) })
 
@@ -51,6 +54,9 @@ beforeAll(async () => {
     }),
   ])
   registerStateSection('reverse', () => ({ bodies }))
+  registerStateSection('setups', () => ({ setups }))
+  registerSetupType(PRINT_SETUP)
+  registerSetupType({ id: 'cut', label: 'Cut', title: 'Laser-cut', pages: [], settings: {}, tolerance: () => ({ kind: 'kerf', kerf: 0.15 }) })
   registerStateSection('fit', () => (printFit ? { last: printFit, ...(printFitSettings ? { settings: printFitSettings } : {}) } : {}))
 })
 
@@ -65,6 +71,7 @@ function fresh() {
   bodies = [{ id: 99, name: 'Fit test holes 8', bounds: { min: [0, 0, 0], max: [1, 1, 1] } }]
   last = null
   printFit = undefined
+  setups = []
 }
 
 describe('fit.* commands', () => {
@@ -166,6 +173,30 @@ describe('fit.* commands', () => {
     expect(s.worst).toEqual({ min: 0.1, max: 0.3, spread: 0.1 })
     expect(s.verdict).toMatch(/holds/)
     await refused('stack', { items: [{ nominal: 1, tol: 0.1, plus: 0.2 }] }, /not both/)
+  })
+  it('fit.set { setup } sizes the fits with that setup’s machine: a print setup’s printer calibration', async () => {
+    fresh()
+    setups = [
+      { id: 'S1', type: 'print', name: 'PETG print', bodies: [], fit: { hole: 0.4, shaft: 0.1, source: 'measured', at: '2026-11-08' } },
+      { id: 'S2', type: 'cut', name: 'Plates', bodies: [] },
+    ]
+    await refused('set', { setup: 'Nope' }, /No setup "Nope"/)
+    const s = await run('set', { setup: 'petg print' })
+    expect(s.settings.machine).toBe('S1')
+    expect(s.sizedFor).toMatch(/^PETG print \(S1\): printer fits from 2026-11-08/)
+    expect((await run('pair', { nominal: 8, class: 'close' })).model.hole).toBe(8.4)
+    // A print setup with no calibration of its own: Fits’ own, the typical printer.
+    setups[0] = { id: 'S1', type: 'print', name: 'PETG print', bodies: [] }
+    expect((await run('pair', { nominal: 8, class: 'close' })).model.hole).toBe(8.2)
+    // A kind Fits has no sizing for yet is refused, not guessed.
+    await run('set', { setup: 'S2' })
+    await refused('pair', { nominal: 8, class: 'close' }, /kerf is not taken yet/)
+    // Gone: said so.
+    setups = []
+    await refused('pair', { nominal: 8, class: 'close' }, /no setup S2/)
+    const back = await run('set', { setup: null })
+    expect(back.settings.machine).toBe(undefined)
+    expect(back.sizedFor).toBe('Fits’ calibration')
   })
   it('the answers on show follow the calibration', async () => {
     fresh()

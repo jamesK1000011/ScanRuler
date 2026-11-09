@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Printability check
 
-On screen: step 1, **Check**, of the **Print** tab (Check → Slice → Send),
-laid out as a pre-print check sheet: the verdict and findings first. Its
-workspace id is still `dfm`.
+On screen: step 1, **Check**, of a print setup on the **Make** tab (Check →
+Slice → Send; the tab was Print), laid out as a pre-print check sheet: the
+verdict and findings first. Its workspace id is still `dfm`.
 
 Checks the part (open as the scan, the reference part, or a Reverse engineer
 body as it stands now) for FDM printing,
-from the Print tab's Check step or an agent. A body is meshed at each check,
+from a print setup's Check step or an agent. A body is meshed at each check,
 so edits since are read; it is named by `dfm.settings { body }`, else the
 one solid body shown. A reference part made with Compare in Deviation
 records the bodies it came from: checked after one of them has changed, the
@@ -40,6 +40,11 @@ under one line is an error, one of a single line a warning. A rule that can't ru
 opens and `invalid_state` after; `unavailable` is kept for a session with
 no viewport.
 
+A body in a print setup (`setup.of`; plugins/setups) is checked with what
+that setup sets of its nozzle, printer and way up, over `dfm.settings`;
+the answer's `setup` names it and what it set. A profile the setup names
+that Check has not is said in `setup.notes`, and Check's own is used.
+
 ## Commands (`dfm.*`)
 
 | Command | Changes | What |
@@ -48,6 +53,7 @@ no viewport.
 | `dfm.profiles` | nothing | The pack and the profiles there are |
 | `dfm.rules` | the project's rules | The rules in force and which layer set each number; set or clear the project's own change |
 | `dfm.check` | findings | Runs the checks |
+| `dfm.wall` | nothing | The least wall of a body alone, however the part is made — what `part.review` reads for a part not printed |
 | `dfm.explain` | nothing | One finding with its rule in full |
 | `dfm.waive` | waivers | Accepts a finding with a reason, kept with the project |
 | `dfm.report` | nothing | Markdown or JSON |

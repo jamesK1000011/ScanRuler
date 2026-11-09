@@ -4,10 +4,13 @@
 // the last strength solve, and for a part made by 3D printing the printing
 // checks — run here by name through the command registry, never imported,
 // so a build without any of them stands and says which it lacks. A build
-// mixes processes, part by part: the printing checks judge only a part
-// said to be printed, inform on one whose process is not said, and are
-// passed over for any other. One small verdict; the details are a call
-// away in each command. part.spec keeps a design spec with the project.
+// mixes processes, part by part, and how each part is made is its setup
+// (plugins/_shared/setups.ts): the printing checks judge a part in a print
+// setup, inform on one in no setup, and are passed over for any other —
+// whose own setup type's checks judge it instead. The wall is the part's
+// however it is made: read for every part. One small verdict; the details
+// are a call away in each command. part.spec keeps a design spec with the
+// project.
 
 import { sceneOf } from '../../../src/commands/host'
 import { listCommands, runCommand, runsHeadless } from '../../../src/commands/registry'
@@ -15,6 +18,7 @@ import { anyObject, bool, num, obj, oneOf, str } from '../../../src/commands/sch
 import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { readPrinterFit } from '../../_shared/readPrinterFit'
+import { setupFor, setupTypeOf, type Setup } from '../../_shared/setups'
 import { line, massBounds, processOf, r1, r2, specOf, specOver, verdictOf, worstFirst, type Finding, type ReviewSpec, type Severity } from '../core/spec'
 import { useReview } from '../state/reviewStore'
 
@@ -35,7 +39,7 @@ const specSchema = obj(
     massTarget: num('g; with massTol, ± g (5 % by default).', { minimum: 0 }),
     massTol: num('± g about massTarget.', { minimum: 0 }),
     minSafety: num('The least safety factor of the last strength solve.', { minimum: 0 }),
-    processes: anyObject('How each body is made, by its name: "fdm" or "print" for 3D printed; any other word (laser-cut, machined, bought) is not printed; "" drops a body’s.'),
+    processes: anyObject('How each body in no setup is made, by its name — setups (setup.add) say it for the bodies in them: "fdm" or "print" for 3D printed; any other word (laser-cut, machined, bought) is not printed; "" drops a body’s.'),
   },
   [],
   'What the part is judged against; each key optional.',
@@ -118,10 +122,10 @@ const review: Command<ReviewIn> = {
   title: 'Is the part done?',
   // units-ok: the command's description, for the agent — in millimetres always.
   description:
-    'One verdict on a Reverse Engineer body — the one solid body shown by default — from the checks this build has: reverse.body.check (valid, closed), reverse.body.clearance (against every other body shown; minClearance as the least gap), mass.properties (encased parts included) and fea.results (the last strength solve, when it is of this body and still holds); and the printing checks — dfm.check on the body (printability and walls) and hw.pauses (pauses and roofs for parts encased mid-print). process says how the part is made (else the spec’s processes for the body): "fdm" or "print" — the printing checks judge it, under printing; not said — they run where the build has them and inform under ifPrinted, never moving the verdict; any other (laser-cut, machined, bought) — they are skipped as not printed. Answers process; verdict — pass, fix (an error to put right) or unknown (a check that must run did not, or part of the spec could not be judged: unjudged says which); findings, worst first (source: the command, severity, says, at); figures (volume mm³, mass g, material and as — printed or solid — as weighed, wall mm, gap mm, safety); checks: each command ran, skipped (not in build, page only, or why) or failed (why); the spec judged against. The printing group carries its own checks, figures (pauses) and printerFit, the printer calibration in use. spec: a design spec for this review, over the one part.spec keeps with the project. Each command gives its details when run alone. Changes nothing.',
+    'One verdict on a Reverse Engineer body — the one solid body shown by default — from the checks this build has: reverse.body.check (valid, closed), reverse.body.clearance (against every other body shown; minClearance as the least gap), mass.properties (encased parts included) and fea.results (the last strength solve, when it is of this body and still holds); and the printing checks — dfm.check on the body (printability and walls) and hw.pauses (pauses and roofs for parts encased mid-print). How the part is made is its setup (setup.of): in a print setup — the printing checks judge it, under printing, with that setup’s printer, nozzle, layers and fit calibration; in a setup of another kind — they are skipped as not printed, and that kind’s own checks judge it, under made; in none — they run where the build has them and inform under ifPrinted, never moving the verdict. process overrides the setup ("fdm" or "print" printed; any other word — laser-cut, machined, bought — not printed); the spec’s processes stand in for a body in no setup. The wall is read however the part is made (dfm.wall for a part not printed), so minWall is judged for every part. Answers process and processFrom (given, the setup, the spec’s processes, or not said); verdict — pass, fix (an error to put right) or unknown (a check that must run did not, or part of the spec could not be judged: unjudged says which); findings, worst first (source: the command, severity, says, at); figures (volume mm³, mass g, material and as — printed or solid — as weighed, wall mm, gap mm, safety); checks: each command ran, skipped (not in build, page only, or why) or failed (why); the spec judged against. The printing group carries its own checks, figures (pauses) and printerFit, the printer calibration in use. spec: a design spec for this review, over the one part.spec keeps with the project. Each command gives its details when run alone. Changes nothing.',
   input: obj({
     body: oneOf([str(undefined, { minLength: 1 }), num()], 'The body, by name or id; the one solid body shown by default.'),
-    process: str('How the part is made: "fdm" or "print" for 3D printed; any other word (laser-cut, machined, bought) is not printed; the spec’s for the body by default.', { minLength: 1 }),
+    process: str('How the part is made, over its setup: "fdm" or "print" for 3D printed; any other word (laser-cut, machined, bought) is not printed; its setup’s by default.', { minLength: 1 }),
     spec: specSchema,
   }),
   readOnly: true,
@@ -137,7 +141,12 @@ const review: Command<ReviewIn> = {
     }
     const all = bodies()
     const b = pick(all, ref)
-    const proc = processOf(asked ?? spec.processes?.[b.name])
+    // How it is made: the process given, else its setup — a print setup's
+    // part is printed, any other setup's made its way — else the spec's
+    // word for it (from before setups), else not said.
+    const setup: Setup | null = setupFor(b.name)
+    const proc = asked !== undefined ? processOf(asked) : setup ? (setup.type === 'print' ? processOf('print') : { kind: 'other' as const, as: setupTypeOf(setup.type)?.label.toLowerCase() ?? setup.type }) : processOf(spec.processes?.[b.name])
+    const procFrom = asked !== undefined ? 'given' : setup ? `setup ${setup.name} (${setup.id})` : spec.processes?.[b.name] ? 'the spec’s processes' : 'not said'
     const run = new Run()
     const checks: Checks = {}
     const findings: Finding[] = []
@@ -215,7 +224,14 @@ const review: Command<ReviewIn> = {
     if (proc.kind === 'other') {
       pChecks['dfm.check'] = 'skipped: not printed'
       pChecks['hw.pauses'] = 'skipped: not printed'
-      if (spec.minWall !== undefined) run.unjudged.push(`minWall: the wall is read by the printing checks, which do not run for ${proc.as}`)
+      // The wall alone, read however the part is made.
+      const w = await run.call<{ least?: number | null; at?: number[] }>(checks, 'dfm.wall', { body: b.id, ...(spec.minWall !== undefined ? { min: spec.minWall } : {}) })
+      if (typeof w?.least === 'number') figures.wall = r2(w.least)
+      if (spec.minWall !== undefined) {
+        if (!w) run.unjudged.push('minWall: the wall reading did not run')
+        else if (typeof w.least !== 'number') run.unjudged.push('minWall: no wall reading')
+        else if (w.least < spec.minWall) find(findings, 'dfm.wall', 'error', `Least wall ${r2(w.least)} mm, under the spec’s ${spec.minWall} mm.`, at(w.at))
+      }
     } else {
       const dfm = await run.call<Json>(pChecks, 'dfm.check', { body: b.id })
       if (dfm) {
@@ -240,11 +256,32 @@ const review: Command<ReviewIn> = {
         if (hw.unplaced) find(pFindings, 'hw.pauses', 'warning', hw.unplaced)
       }
     }
-    const fit = readPrinterFit()
+    const fit = readPrinterFit(b.name)
     const printerFit = fit ? fit.label : 'none — the typical printer assumed'
 
-    const judged = proc.kind === 'printed' ? [...findings, ...pFindings] : findings
-    const missing = [...(checks['reverse.body.check'] === 'ran' ? [] : ['reverse.body.check']), ...(proc.kind === 'printed' && pChecks['dfm.check'] !== 'ran' ? ['dfm.check'] : [])]
+    // A setup of another kind judges the part by its own type's checks:
+    // each answer's findings read as they come (severity, says, at).
+    const made: { setup: string; checks: Checks } | null = setup && setup.type !== 'print' && asked === undefined ? { setup: `${setup.name} (${setup.id})`, checks: {} } : null
+    const mFindings: Finding[] = []
+    if (made) {
+      const type = setupTypeOf(setup!.type)
+      if (!type) made.checks[setup!.type] = 'skipped: not in build'
+      for (const c of type?.checks ?? []) {
+        const out = await run.call<{ findings?: Json[] }>(made.checks, c.command, c.input ? c.input({ id: b.id, name: b.name }) : { body: b.name })
+        for (const f of out?.findings ?? []) {
+          if (f.waived) continue
+          const sev = (['error', 'warning', 'info'] as const).find((x) => x === f.severity) ?? 'info'
+          find(mFindings, c.command, sev, typeof f.says === 'string' ? f.says : String(f.rule ?? 'finding'), at(f.at))
+        }
+      }
+    }
+
+    const judged = proc.kind === 'printed' ? [...findings, ...pFindings] : [...findings, ...mFindings]
+    const missing = [
+      ...(checks['reverse.body.check'] === 'ran' ? [] : ['reverse.body.check']),
+      ...(proc.kind === 'printed' && pChecks['dfm.check'] !== 'ran' ? ['dfm.check'] : []),
+      ...(made ? Object.entries(made.checks).filter(([, v]) => v !== 'ran').map(([k]) => k) : []),
+    ]
     const shown = worstFirst(judged, FINDINGS)
     const saved = useReview.getState().spec
     const informed = worstFirst(pFindings, IF_PRINTED)
@@ -252,6 +289,7 @@ const review: Command<ReviewIn> = {
     return {
       body: b.name,
       process: proc.kind === 'other' ? proc.as : proc.kind,
+      processFrom: procFrom,
       verdict: verdictOf(judged, missing, run.unjudged),
       findings: shown.findings,
       ...(shown.more > 0 ? { more: shown.more } : {}),
@@ -263,6 +301,7 @@ const review: Command<ReviewIn> = {
         : proc.kind === 'unknown'
           ? { ifPrinted: { checks: pChecks, findings: informed.findings, ...(informed.more > 0 ? { more: informed.more } : {}), ...pFig, printerFit } }
           : { printing: { checks: pChecks } }),
+      ...(made ? { made } : {}),
       ...(Object.keys(spec).length > 0 ? { spec: { ...spec, from: given === undefined ? 'project' : saved ? 'given over the project’s' : 'given' } } : {}),
     }
   },
@@ -273,7 +312,7 @@ const keep: Command<{ spec?: Json; clear?: boolean }> = {
   title: 'Keep a design spec',
   // units-ok: the command's description, for the agent — in millimetres always.
   description:
-    'Keep a design spec with the project, which every part.review after judges the part against: minWall and minClearance (mm), massMin, massMax or massTarget ± massTol (g), minSafety, and processes — how each body is made, by its name ("fdm" or "print" for 3D printed; laser-cut, machined, bought … are not; "" drops a body’s). The keys given replace those kept, processes body by body, the rest stay; clear: true drops it. Call with nothing to read it. One undo step.',
+    'Keep a design spec with the project, which every part.review after judges the part against: minWall and minClearance (mm), massMin, massMax or massTarget ± massTol (g), minSafety, and processes — how each body in no setup is made, by its name ("fdm" or "print" for 3D printed; laser-cut, machined, bought … are not; "" drops a body’s); setup.add records how parts are made, with their settings, and wins over processes. The keys given replace those kept, processes body by body, the rest stay; clear: true drops it. Call with nothing to read it. One undo step.',
   input: obj({ spec: specSchema, clear: bool('Drop the spec kept.') }),
   headless: true,
   label: ({ clear }) => (clear ? 'clear the design spec' : 'design spec'),

@@ -175,7 +175,7 @@ export function setupsOf(state?: unknown): Setup[] {
  *  setups — by its name. */
 function holds(s: Setup, body: { id: number } | number | string): boolean {
   const key = bodyKeyOf(body)
-  const name = typeof body === 'object' ? (reverseBodies()?.find((b) => b.id === body.id)?.name ?? null) : typeof body === 'string' && key === body ? body : bodyNameOf(key)
+  const name = bodyNameOf(key)
   return s.bodies.some((b) => b === key || (name !== null && same(b, name)))
 }
 

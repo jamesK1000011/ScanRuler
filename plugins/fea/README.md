@@ -4,7 +4,9 @@
 Will a printed part hold? The **Strength** workspace solves a Reverse Engineer
 body under load with the finite element method. The material model is
 print-aware: stiffer and stronger in its layers than across them, with the
-layers' normal set by the build direction.
+layers' normal set by the build direction — for a body in a print setup
+that sets its way up (plugins/setups), the setup's, said in the solve's
+note.
 
 The work runs on your computer, through the agent's server
 (`mcp/src/extras/fea.js`):

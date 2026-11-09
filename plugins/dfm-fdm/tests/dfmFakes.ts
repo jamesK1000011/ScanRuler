@@ -54,8 +54,8 @@ export async function runCommand(name: string, input: Record<string, unknown>): 
   return h(input as never)
 }
 
-export const sections: { reverse?: () => unknown } = {}
-export const readStateSection = (id: string) => (id === 'reverse' ? sections.reverse?.() : undefined)
+export const sections: { reverse?: () => unknown; setups?: () => unknown } = {}
+export const readStateSection = (id: string) => (id === 'reverse' || id === 'setups' ? sections[id]?.() : undefined)
 
 const schema = (..._args: unknown[]) => ({})
 export const anyObject = schema, arr = schema, bool = schema, enumOf = schema, obj = schema, str = schema, num = schema, oneOf = schema

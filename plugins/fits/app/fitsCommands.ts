@@ -10,6 +10,7 @@
 
 import { bodiesBox } from '../../_shared/bodiesBox'
 import { POOR_FIT, printerFitOf } from '../../_shared/printerFit'
+import { machineTolerance, setupsOf } from '../../_shared/setups'
 import type { Box3 } from '../../_shared/clear'
 import { runWithin } from '../../../src/commands/registry'
 import { anyObject, arr, bool, enumOf, int, num, obj, str, type JsonSchema } from '../../../src/commands/schema'
@@ -26,7 +27,36 @@ import { build, stopBuild } from './fitsClient'
 type Json = Record<string, unknown>
 
 const st = () => useFits.getState()
-const ctx = (): Ctx => ({ settings: st().settings, cal: st().calibration })
+const ctx = (): Ctx => ({ settings: st().settings, cal: calibrationNow() })
+
+/** The calibration fits are sized with: the tolerance of the machine of
+ *  the setup chosen (fit.set { setup }) — a print setup's printer
+ *  calibration — else Fits' own. A setup of a kind Fits has no sizing for
+ *  yet (a cut's kerf, a milled part's IT grade) is refused, not guessed:
+ *  that sizing plugs in here, from the setup type's tolerance. */
+function calibrationNow(): Calibration {
+  const id = st().settings.machine
+  if (!id) return st().calibration
+  if (!setupsOf().some((x) => x.id === id)) throw new CommandError('invalid_state', `There is no setup ${id} to size the fits for now: fit.set { setup: null } sizes them with Fits’ calibration, or choose another.`)
+  const t = machineTolerance({ setup: id })
+  if (!t) throw new CommandError('unavailable', `Setup ${id} gives no tolerance to size fits with (its kind is not in this build, or has none): fit.set { setup: null } sizes them with Fits’ calibration.`)
+  if (t.kind !== 'print') throw new CommandError('unavailable', `Fits sizes for a printer so far: setup ${id}’s ${t.kind === 'kerf' ? 'kerf' : 'IT grade'} is not taken yet.`)
+  if (!t.fit) return st().calibration
+  return { hole: t.fit.hole, shaft: t.fit.shaft, source: t.fit.source, ...(t.fit.at ? { at: t.fit.at } : {}), ...(t.fit.profile ? { profile: t.fit.profile } : {}) }
+}
+
+/** What the fits are sized for, in the readout. */
+function sizedFor(): string {
+  const id = st().settings.machine
+  if (!id) return 'Fits’ calibration'
+  const s = setupsOf().find((x) => x.id === id)
+  try {
+    const cal = calibrationNow()
+    return `${s ? `${s.name} (${s.id})` : id}: ${printerFitOf(cal)?.label ?? 'the typical printer'}`
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e)
+  }
+}
 const r4 = (x: number) => Math.round(x * 1e4) / 1e4 + 0
 const invalid = (m: string): never => {
   throw new CommandError('invalid_input', m)
@@ -50,6 +80,7 @@ export function describeFits() {
   return {
     settings: s.settings,
     calibration: s.calibration,
+    sizedFor: sizedFor(),
     // The same calibration in the convention Hardware, Generate and Boards
     // read (hole: added to a hole's diameter); null on the defaults.
     printerFit: printerFitOf(s.calibration),
@@ -305,6 +336,7 @@ const list: Command<{ nominal?: number }> = {
 interface SetIn {
   tolerance?: number
   material?: string
+  setup?: string | null
   tool?: Tool
   reset?: boolean
 }
@@ -312,20 +344,31 @@ interface SetIn {
 const set: Command<SetIn> = {
   name: 'set',
   title: 'Fits settings',
-  description: 'tolerance: ± a printed size lands within, mm (0.15) — the stack’s default and the pair’s range. material: what parts are printed in (pla, petg, abs, asa, nylon, tpu-95a) — the snap hook’s and a press’s strain limit. tool: the panel’s page. reset: true for the defaults (the calibration stays; fit.calibrate { reset } for that). Saved with the project.',
+  description: 'tolerance: ± a printed size lands within, mm (0.15) — the stack’s default and the pair’s range. material: what parts are printed in (pla, petg, abs, asa, nylon, tpu-95a) — the snap hook’s and a press’s strain limit. setup: the setup (setup.list, by id or name) whose machine the fits are sized for — a print setup’s printer calibration, its own or else Fits’; null for Fits’ own calibration (the default); sizedFor in the answer says which. tool: the panel’s page. reset: true for the defaults (the calibration stays; fit.calibrate { reset } for that). Saved with the project.',
   input: obj({
     tolerance: len('± a printed size lands within', { minimum: 0.005, maximum: 2 }),
     material: enumOf(MATERIAL_NAMES),
+    setup: { oneOf: [str(undefined, { minLength: 1 }), { type: 'null' }], description: 'The setup whose machine the fits are sized for; null for Fits’ calibration.' },
     tool: enumOf(TOOLS, 'The panel’s page.'),
     reset: bool('Back to the defaults.'),
   }),
   history: false,
-  run: async ({ tolerance, material, tool, reset }) => {
-    if (reset && (tolerance !== undefined || material !== undefined)) invalid('reset: on its own, or give the settings.')
+  run: async ({ tolerance, material, setup, tool, reset }) => {
+    if (reset && (tolerance !== undefined || material !== undefined || setup !== undefined)) invalid('reset: on its own, or give the settings.')
+    let machine: string | undefined | null = undefined
+    if (setup !== undefined && setup !== null) {
+      const found = setupsOf().find((x) => x.id === setup || x.name.toLowerCase() === setup.toLowerCase())
+      if (!found) invalid(`No setup "${setup}" — there are ${setupsOf().map((x) => `${x.id} ${x.name}`).join(', ') || 'none'} (setup.add makes one).`)
+      machine = found!.id
+    } else if (setup === null) machine = null
     if (tool) useFits.setState({ tool })
     if (reset) st().set({ settings: { ...DEFAULT_SETTINGS } })
-    else if (tolerance !== undefined || material !== undefined) st().set({ settings: { ...st().settings, ...(tolerance !== undefined ? { tolerance } : {}), ...(material ? { material: materialOf(material)!.id } : {}) } })
-    else if (!tool) invalid('Give a setting to change, or reset: true.')
+    else if (tolerance !== undefined || material !== undefined || machine !== undefined) {
+      const { machine: _was, ...rest } = st().settings
+      void _was
+      const kept = machine === undefined ? st().settings.machine : machine
+      st().set({ settings: { ...rest, ...(tolerance !== undefined ? { tolerance } : {}), ...(material ? { material: materialOf(material)!.id } : {}), ...(kept ? { machine: kept } : {}) } })
+    } else if (!tool) invalid('Give a setting to change, or reset: true.')
     return describeFits()
   },
 }

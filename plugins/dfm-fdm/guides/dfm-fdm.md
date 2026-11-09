@@ -60,6 +60,14 @@ A reference part made with Compare in Deviation remembers the bodies it came
 from. If one has changed since, the check's `stale` says an older copy was
 checked.
 
+A body in a print setup (`setup_of { body }`; the **setups** guide) is
+checked with that setup's nozzle, printer and way up where it sets them —
+the answer's `setup` says which. Change them on the setup (`setup_set`),
+not with `dfm_settings`, for a body in one.
+
+For a part that is not printed — cut, machined — `dfm_wall { body, min }`
+reads its least wall alone, with none of the printing rules.
+
 ## Reading the findings
 
 - **A flat underside held on one side** (or at a corner only) is a ledge:

@@ -3,7 +3,9 @@
 // the stage told apart from a session with no viewport; a body checked as it
 // stands after an edit, picked by name or as the one shown; and a reference
 // part made from a body that has changed since, checked as an older copy;
-// and a body's walls read, a magnet's thin skin found.
+// and a body's walls read, a magnet's thin skin found; a body in a print
+// setup checked as that setup prints it; and the wall alone, for a part
+// made any way.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/commands/host', () => import('./dfmFakes'))
@@ -53,6 +55,7 @@ function fresh() {
   bodies = [{ id: 1, name: 'Grip', visible: true, stamp: 'a1' }]
   geo[1] = box([-20, -15, 0], [20, 15, 40])
   useDfm.getState().reset()
+  sections.setups = undefined
   Object.assign(stage, { scene: true, scan: null, reference: null })
   Object.assign(app, { fileName: null, busy: false, statusText: '' })
   Object.assign(deviation, { nominalName: null, nominalBusy: false, nominalMadeFrom: null })
@@ -209,5 +212,57 @@ describe('the walls of a body', () => {
     expect((await run('check', { only: ['overhang'] })).wall).toBe(undefined)
     await run('rules', { action: 'set', rule: 'thin-wall', disabled: true })
     expect((await run('check')).wall).toBe(undefined)
+  })
+})
+
+describe('a body in a print setup', () => {
+  it('is checked with the setup’s nozzle and way up, over Check’s own', async () => {
+    fresh()
+    await run('settings', { target: 'body', nozzle: '0.4', up: '+z' })
+    const own = await run('check')
+    expect(own.setup).toBe(undefined)
+    expect(own.profiles).toContain('nozzle 0.4')
+    sections.setups = () => ({ setups: [{ id: 'S1', type: 'print', name: 'Bracket print', bodies: ['grip'], nozzle: '0.6', up: '-z' }] })
+    const r = await run('check')
+    expect(r.setup).toEqual({ id: 'S1', name: 'Bracket print', sets: ['nozzle', 'up'] })
+    expect(r.profiles).toContain('nozzle 0.6')
+    // Check's own settings stay as they were.
+    expect(useDfm.getState().settings.nozzle).toBe('0.4')
+    expect(useDfm.getState().settings.up).toBe('+z')
+  })
+  it('a profile the setup names that Check has not is said, and Check’s own kept', async () => {
+    fresh()
+    await run('settings', { target: 'body' })
+    sections.setups = () => ({ setups: [{ id: 'S1', type: 'print', name: 'Print', bodies: ['Grip'], printer: 'no-such' }] })
+    const r = await run('check')
+    expect(r.setup.sets).toEqual([])
+    expect(r.setup.notes[0]).toMatch(/no-such has no profile/)
+  })
+  it('a body in a setup of another kind is checked with Check’s own', async () => {
+    fresh()
+    sections.setups = () => ({ setups: [{ id: 'S1', type: 'cut', name: 'Plates', bodies: ['Grip'], nozzle: '0.6' }] })
+    const r = await run('check', { body: 'Grip' })
+    expect(r.setup).toBe(undefined)
+  })
+})
+
+describe('dfm.wall: the wall alone, however the part is made', () => {
+  it('reads the least wall and keeps nothing', async () => {
+    fresh()
+    geo[1] = [...box([0, 0, 0], [30, 20, 6]), ...box([5, 5, 2], [15, 15, 5.6], true)]
+    const r = await run('wall', { body: 'Grip', min: 0.8 })
+    expect(r.body).toBe('Grip')
+    expect(r.least).toBe(0.4)
+    expect(r.thin).toBe(true)
+    expect(r.min).toBe(0.8)
+    expect(useDfm.getState().checkedAt).toBe(null)
+    const thick = await run('wall', { min: 0.35 })
+    expect(thick.thin).toBe(false)
+  })
+  it('a solid block has no wall within reach', async () => {
+    fresh()
+    const r = await run('wall', {})
+    expect(r.least).toBe(null)
+    expect(r.over).toBe(8)
   })
 })

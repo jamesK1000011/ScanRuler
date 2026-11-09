@@ -20,6 +20,7 @@ import { type Cut, cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings
 import { calibratedKinds, withPrinterFit } from '../core/printerFit'
 import { type Embed, type EmbedPlan, type EmbedSolid, settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
 import { readPrinterFit } from '../../_shared/readPrinterFit'
+import { setupValue, sharedSetupValue } from '../../_shared/setups'
 
 type Json = Record<string, unknown>
 type Ref = string | number
@@ -286,20 +287,24 @@ interface PlanArgs {
 /** Names already taken in Reverse Engineer, lower case. */
 const takenNames = () => new Set((((readStateSections().reverse as { features?: { name: string }[] } | undefined)?.features) ?? []).map((f) => f.name.toLowerCase()))
 
-/** The calibration holes are sized with now: null when there is none or
- *  printerFit is off. */
-const fitInUse = () => (st().printerFit ? readPrinterFit() : null)
+/** The calibration holes are sized with now — in the body's print setup's
+ *  when it holds one: null when there is none or printerFit is off. */
+const fitInUse = (body?: string) => (st().printerFit ? readPrinterFit(body) : null)
 
 /** The settings holes are sized with: the allowances left at their default
- *  follow the printer's fit calibration. */
-function settings(): Settings {
-  return withPrinterFit(settingsOf(st()), fitInUse())
+ *  follow the printer's fit calibration; for a body in a print setup, its
+ *  layers are the setup's where it sets them. */
+function settings(body?: string): Settings {
+  const own = settingsOf(st())
+  const layerHeight = setupValue<number>(body, 'layerHeight')?.value ?? own.layerHeight
+  const firstLayer = setupValue<number>(body, 'firstLayer')?.value ?? own.firstLayer
+  return withPrinterFit({ ...own, layerHeight, firstLayer }, fitInUse(body))
 }
 
 /** Which calibration a hole of this kind was sized with, for its answer:
  *  none where its allowance was given or set by hand. */
-function fitUsed(kind: string, given?: number): { printerFit?: string } {
-  const f = fitInUse()
+function fitUsed(kind: string, given?: number, body?: string): { printerFit?: string } {
+  const f = fitInUse(body)
   if (!f || given !== undefined || !(calibratedKinds(settingsOf(st())) as string[]).includes(kind)) return {}
   return { printerFit: f.label }
 }
@@ -341,7 +346,7 @@ async function planOf(a: PlanArgs) {
     if ((a as unknown as Json)[k] !== undefined && !(kinds as readonly string[]).includes(a.kind)) invalid(`${k}: a ${kinds.join(' or ')}’s only.`)
   let cut
   try {
-    cut = planCut(spec, settings(), placed.level)
+    cut = planCut(spec, settings(placed.body), placed.level)
   } catch (e) {
     if (e instanceof PlanError) invalid(e.message)
     throw e
@@ -398,7 +403,7 @@ function finish(a: PlanArgs, placed: Placed, offsets: V2[], cut: Cut, notes0: st
     features: built.features,
     names: built.names,
     ...(embed ? { embed } : {}),
-    ...fitUsed(a.kind, a.allowance),
+    ...fitUsed(a.kind, a.allowance, placed.body),
   }
 }
 
@@ -461,7 +466,7 @@ function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
   if (a.depth === null) invalid('depth: an encased pocket has a floor — give a number, or leave it out.')
   if (a.kind === 'object' ? a.size !== undefined : a.size === undefined) invalid(a.kind === 'object' ? 'size: hardware’s only — an object gives object.' : 'size: needed.')
   if (a.kind !== 'object' && a.object !== undefined) invalid('object: kind object’s only.')
-  const S = settings()
+  const S = settings(placed.body)
   const layers = layersOf(S)
   const dz0 = placed.direction[2]
   // A slanted pocket closes over itself before the print reaches its top:
@@ -866,7 +871,7 @@ const recordCmd: Command<RecordIn> = {
   label: () => 'record encased part',
   run: async (a) => {
     let r: Omit<Embed, 'id'>
-    const S = settings()
+    const S = settings(a.body)
     const minRoof = r3(S.roofLayers * S.layerHeight)
     if (a.from === 'mass') {
       for (const k of ['body', 'top', 'span', 'roof', 'count', 'kind', 'size', 'at', 'axis', 'grams'] as const) if (a[k] !== undefined) invalid(`${k}: from the Mass plan — leave it out.`)
@@ -914,7 +919,12 @@ interface PausesIn {
  *  together as one object — at the layers given or set. */
 export function pausesOf(a: PausesIn = {}) {
   const S = settings()
-  const layers = { height: a.layerHeight ?? S.layerHeight, first: a.firstLayer ?? S.firstLayer }
+  // The bodies printed: their print setups' layers when they all say the
+  // same; the layers given win, then the settings.
+  const printed: string[] = a.bodies?.length ? a.bodies : [...new Set(st().embeds.map((e) => e.body as string))]
+  const fromSetup = { height: sharedSetupValue<number>(printed, 'layerHeight'), first: sharedSetupValue<number>(printed, 'firstLayer') }
+  const layers = { height: a.layerHeight ?? fromSetup.height?.value ?? S.layerHeight, first: a.firstLayer ?? fromSetup.first?.value ?? S.firstLayer }
+  const setupsUsed = [...new Set([...(a.layerHeight === undefined ? (fromSetup.height?.setups ?? []) : []), ...(a.firstLayer === undefined ? (fromSetup.first?.setups ?? []) : [])].map((x) => x.name))]
   try {
     pauseLayer(1, layers)
   } catch (e) {
@@ -973,7 +983,7 @@ export function pausesOf(a: PausesIn = {}) {
     }
   }
   return {
-    layers: { height: layers.height, first: layers.first },
+    layers: { height: layers.height, first: layers.first, ...(setupsUsed.length ? { from: `setup ${setupsUsed.join(', ')}` } : {}) },
     pauses: sched.map((p) => ({ layer: p.layer, afterLayer: p.afterLayer, z: p.z, printZ: p.printZ, note: p.note, items: p.items.map((i) => ({ id: i.id, body: i.body, what: i.what, top: i.z })) })),
     slicer: { pauses: sched.map((p) => ({ z: Math.max(...p.items.map((i) => i.z)), note: p.note })) },
     ...(gone.length ? { gone: `${gone.join(', ')}: the features that cut ${gone.length === 1 ? 'it are' : 'them are'} gone — left out (hw.unembed to forget ${gone.length === 1 ? 'it' : 'them'}).` } : {}),

@@ -13,6 +13,7 @@ import { setupOf, useFea, type FacePick, type FeaAnswer, type FeaSetup, type Fea
 import { answered, askServer, Cancelled, progressed } from './feaAsk'
 import { MATERIAL_IDS, MATERIAL_NAMES, materialId, MATERIALS } from '../../_shared/materials'
 import { readStateSections } from '../../../src/commands/stateSections'
+import { setupValue } from '../../_shared/setups'
 import { useAgentLink } from '../../../src/commands/agentLink'
 import { materialKeyOf, studyMaterial, type StudyMaterial } from './feaMaterial'
 
@@ -191,7 +192,7 @@ const setup: Command<{ body?: string; build?: [number, number, number] | string;
   name: 'setup',
   title: 'Set the study up',
   description:
-    'The body studied (a Reverse Engineer body, by name; another body clears the holds and loads), the way it is printed — build: the direction the layers stack, in the part’s frame ("+z" printed as it stands; "+x" stood on its −X end) — the material for a body with none of its own (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a; a body set with material.set solves in its own: as printed when it is in a print setup and has printing figures, else solid, the same in every direction) with overrides for your own figures — the whole set, replacing what was there; a new material clears them (MPa: Exy, Ez in and across the layers; Xt, Xc in-layer tension and compression strength; Zt, Zc across; S in-layer shear, Sz between-layer shear; nuXY, nuZ; Gxy, Gz), the mesh (fineness coarse, medium, fine; or size, mm, which wins over fineness — null to go back to it), the safety factor wanted (target, 2 by default) and the part’s own weight as a load (gravity: { direction, "-z" by default; g, how many, 1 by default — more for a shake or a drop; from: "mass", what the Mass workspace weighs it at with its walls and infill, the default, or "material", solid } — null takes it off). Holds and loads stay unless the body changes. Returns the study.',
+    'The body studied (a Reverse Engineer body, by name; another body clears the holds and loads), the way it is printed — build: the direction the layers stack, in the part’s frame ("+z" printed as it stands; "+x" stood on its −X end) — for a body in a print setup that sets up, the setup’s way up wins at the solve, said in its note — the material for a body with none of its own (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a; a body set with material.set solves in its own: as printed when it is in a print setup and has printing figures, else solid, the same in every direction) with overrides for your own figures — the whole set, replacing what was there; a new material clears them (MPa: Exy, Ez in and across the layers; Xt, Xc in-layer tension and compression strength; Zt, Zc across; S in-layer shear, Sz between-layer shear; nuXY, nuZ; Gxy, Gz), the mesh (fineness coarse, medium, fine; or size, mm, which wins over fineness — null to go back to it), the safety factor wanted (target, 2 by default) and the part’s own weight as a load (gravity: { direction, "-z" by default; g, how many, 1 by default — more for a shake or a drop; from: "mass", what the Mass workspace weighs it at with its walls and infill, the default, or "material", solid } — null takes it off). Holds and loads stay unless the body changes. Returns the study.',
   input: obj({
     body: str('The body, by name.', { minLength: 1 }),
     build: oneOf([vec3('The build direction, part frame.'), enumOf(['+x', '-x', '+y', '-y', '+z', '-z'])], 'The way the layers stack.'),
@@ -388,7 +389,10 @@ const solve: Command<Record<string, never>> = {
       const mat = studyMaterial(b.id, s)
       const materialKey = materialKeyOf(b.name)
       const weight = s.gravity ? await weightOf(s, b.name, mat) : null
-      const job = { step: new TextDecoder().decode(step.file.bytes), build: s.build, material: mat.job, fixtures, loads, mesh: { fineness: s.fineness, ...(s.size ? { size: s.size } : {}) }, ...(weight ? { gravity: weight.gravity } : {}) }
+      // A body in a print setup is solved as that setup stands it on the bed.
+      const up = setupValue<string>(b.name, 'up')
+      const build = up && NAMED[up.value] ? [...NAMED[up.value]] : s.build
+      const job = { step: new TextDecoder().decode(step.file.bytes), build, material: mat.job, fixtures, loads, mesh: { fineness: s.fineness, ...(s.size ? { size: s.size } : {}) }, ...(weight ? { gravity: weight.gravity } : {}) }
       useFea.setState({ busy: 'Meshing and solving…' })
       const r = checked(
         await askServer<FeaWire>('solve', { job }, {
@@ -406,7 +410,7 @@ const solve: Command<Record<string, never>> = {
       const solved = weight && r.gravity ? { ...r, gravity: { ...r.gravity, from: weight.from } } : r
       useFea.setState({ result: { ...solved, material: { ...solved.material, label: mat.label, as: mat.as }, at: new Date().toISOString(), setup: setupNow, bodyKey: b.key, materialKey }, shown: true })
       const older = mat.job.bulk && !useAgentLink.getState().server?.features?.includes('fea.bulk') ? ['The agent’s server running now is older than this page: it solved the solid material’s figures but judged them as a printed part’s layers, and names it after a filament. Quit the agent app and open it again.'] : []
-      const notes = [...(mat.note ? [mat.note] : []), ...older, ...(moved.length ? [`The body has changed since ${moved.join(', ')} ${moved.length === 1 ? 'was' : 'were'} picked by face: held where picked. Pick again if the faces moved.`] : []), ...(weight?.note ? [weight.note] : [])]
+      const notes = [...(up && NAMED[up.value] ? [`Built ${up.value} up, as ${up.setup.name} prints it (setup ${up.setup.id}), in place of the study’s build direction.`] : []), ...(mat.note ? [mat.note] : []), ...older, ...(moved.length ? [`The body has changed since ${moved.join(', ')} ${moved.length === 1 ? 'was' : 'were'} picked by face: held where picked. Pick again if the faces moved.`] : []), ...(weight?.note ? [weight.note] : [])]
       return { ...brief(fea().result!), ...(notes.length ? { note: notes.join(' ') } : {}) }
     } catch (e) {
       if (e instanceof Cancelled || ctl.signal.aborted) throw new CommandError('failed', 'The solve was cancelled.')

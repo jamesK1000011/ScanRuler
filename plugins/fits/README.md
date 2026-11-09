@@ -97,6 +97,15 @@ Generate's *Printer fits* switch) turns it off. Don't copy a figure across
 by hand: Fits' "holes print small by" and a printed change ("holes −0.2")
 are the same printer with opposite signs.
 
+The calibration is the printer's: a print setup (plugins/setups) may keep
+one of its own (`setup.set { settings: { fit: "fits" } }` keeps Fits' as
+it stands), which Hardware and the review use for a body in it.
+`fit.set { setup }` sizes Fits' own parts for a setup's machine — its
+tolerance as the setup's type gives it; a print setup's printer
+calibration today, a cut's kerf or a milled part's IT grade refused until
+sizing for them is added (`calibrationNow` in app/fitsCommands.ts).
+`sizedFor` in the readout says which.
+
 No FreeCAD or other CAD package code is used.
 
 ## Commands (`fit.*`)
@@ -107,7 +116,7 @@ under different verbs.
 | Command | Changes | What |
 |---|---|---|
 | `fit.list` | nothing | Classes with their clearance at a size, materials, parts, settings, calibration (and `printerFit`) |
-| `fit.set` | settings | Tolerance, material, the panel's page; `reset` |
+| `fit.set` | settings | Tolerance, material, the setup whose machine the fits are sized for, the panel's page; `reset` |
 | `fit.calibrate` | calibration | From readings, offsets entered, a scanned print (refused when it fits poorly), or the classes felt on a coupon; dated; `reset` |
 | `fit.pair` | nothing | Hole and shaft sizes, printed and modelled, range, ISO reference, press strain |
 | `fit.stack` | nothing | Worst case, RSS, contributions, chance under a minimum |

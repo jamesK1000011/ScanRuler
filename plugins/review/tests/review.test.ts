@@ -4,7 +4,9 @@
 // kept with part.spec and the project), a limit nothing could judge, a
 // check not in the build, one that needs the page, one that fails, an
 // answer kept small — and the printing checks judging a printed part,
-// informing on one whose process is not said, skipped for any other.
+// informing on one whose process is not said, skipped for any other; how a
+// part is made read from its setup, a setup of another kind judging it by
+// its own checks; and the wall read for every part, however made.
 import { describe, expect, it } from 'vitest'
 import { registerCommands, runCommand } from '../../../src/commands/registry'
 import { registerStateSection } from '../../../src/commands/stateSections'
@@ -13,6 +15,7 @@ import { reviewSection } from '../app/projectSection'
 import { reviewCommands } from '../app/reviewCommands'
 import { massBounds, processOf, specOf, verdictOf } from '../core/spec'
 import { useReview } from '../state/reviewStore'
+import { registerSetupType, type Setup } from '../../_shared/setups'
 
 type Json = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -26,6 +29,10 @@ const bodies = [
 registerStateSection('reverse', () => ({ bodies }))
 let calibration: Json | undefined
 registerStateSection('fits', () => (calibration ? { calibration } : {}))
+let setups: Setup[] = []
+registerStateSection('setups', () => ({ setups }))
+// A kind of setup with checks of its own, as a cut setup's plugin would bring.
+registerSetupType({ id: 'cut', label: 'Cut', title: 'Laser-cut', pages: [], settings: {}, checks: [{ command: 'cut.check' }] })
 
 /** What each faked command answers, set per test; a function throws. */
 const answers: Record<string, Json | (() => never)> = {}
@@ -48,7 +55,7 @@ function fake(full: string, headless = true) {
   }
   offs[full] = registerCommands(ns, [command] as Command<never>[])
 }
-const NAMES = ['reverse.body.check', 'reverse.body.clearance', 'dfm.check', 'mass.properties', 'hw.pauses', 'fea.results']
+const NAMES = ['reverse.body.check', 'reverse.body.clearance', 'dfm.check', 'dfm.wall', 'mass.properties', 'hw.pauses', 'fea.results', 'cut.check']
 for (const n of NAMES) fake(n)
 
 function good() {
@@ -58,8 +65,11 @@ function good() {
   answers['mass.properties'] = { total: { mass: 41.25 }, bodies: [{ body: 'Grip', closed: true }] }
   answers['hw.pauses'] = { pauses: [{ layer: 12 }] }
   answers['fea.results'] = { current: true, setup: { body: 'Grip' }, worst: { safety: 3.1, at: [0, 0, 1] }, target: 2 }
+  answers['dfm.wall'] = { body: 'Grip', least: 1.6, at: [1, 2, 3], min: 1 }
+  answers['cut.check'] = { findings: [] }
   useReview.getState().setSpec(null)
   calibration = undefined
+  setups = []
 }
 /** A review of Grip, printed unless the test says otherwise. */
 const review = (input: Json = {}) => runCommand('part.review', { body: 'Grip', process: 'fdm', ...input }) as Promise<Json>
@@ -152,9 +162,22 @@ describe('part.review', () => {
     expect(r.verdict).toBe('pass')
     expect(r.printing).toEqual({ checks: { 'dfm.check': 'skipped: not printed', 'hw.pauses': 'skipped: not printed' } })
     expect(/printer/.test(JSON.stringify(r))).toBe(false)
-    const walled = await review({ process: 'laser-cut', spec: { minWall: 1 } })
-    expect(walled.verdict).toBe('unknown')
-    expect(walled.unjudged[0]).toMatch(/laser-cut/)
+    // The wall is read all the same, alone, and judged by the spec.
+    expect(r.checks['dfm.wall']).toBe('ran')
+    expect(r.figures.wall).toBe(1.6)
+    expect(asked['dfm.wall']).toEqual({ body: 1 })
+    expect((await review({ process: 'laser-cut', spec: { minWall: 1 } })).verdict).toBe('pass')
+    expect(asked['dfm.wall']).toEqual({ body: 1, min: 1 })
+    const thin = await review({ process: 'laser-cut', spec: { minWall: 2 } })
+    expect(thin.verdict).toBe('fix')
+    expect(thin.findings[0]).toEqual({ source: 'dfm.wall', severity: 'error', says: 'Least wall 1.6 mm, under the spec’s 2 mm.', at: [1, 2, 3] })
+    answers['dfm.wall'] = { least: null, over: 8 }
+    expect((await review({ process: 'laser-cut', spec: { minWall: 2 } })).unjudged).toEqual(['minWall: no wall reading'])
+    offs['dfm.wall']()
+    const none = await review({ process: 'laser-cut', spec: { minWall: 1 } })
+    expect(none.verdict).toBe('unknown')
+    expect(none.unjudged).toEqual(['minWall: the wall reading did not run'])
+    fake('dfm.wall')
   })
 
   it('takes the process kept for the body in the spec, and one given over it', async () => {
@@ -279,5 +302,70 @@ describe('the spec', () => {
     expect(refused).toMatch(/does not read/)
     reviewSection.prepare(undefined, {} as never)()
     expect(useReview.getState().spec).toBe(null)
+  })
+})
+
+describe('part.review and setups', () => {
+  it('a part in a print setup is printed: judged by the printing checks, with the setup’s calibration', async () => {
+    good()
+    calibration = { hole: 0.3, shaft: 0.1, source: 'measured', at: '2026-01-02' }
+    setups = [{ id: 'S1', type: 'print', name: 'PETG print', bodies: ['grip'], fit: { hole: 0.4, shaft: 0.1, source: 'measured', at: '2026-11-08' } }]
+    const r = (await runCommand('part.review', { body: 'Grip' })) as Json
+    expect(r.process).toBe('printed')
+    expect(r.processFrom).toBe('setup PETG print (S1)')
+    expect(r.printing.checks).toEqual({ 'dfm.check': 'ran', 'hw.pauses': 'ran' })
+    expect(r.printing.printerFit).toMatch(/2026-11-08/)
+    expect(r.ifPrinted).toBe(undefined)
+    // A body in no setup: Fits' calibration, and only informed on.
+    const c = (await runCommand('part.review', { body: 'Case' })) as Json
+    expect(c.process).toBe('unknown')
+    expect(c.processFrom).toBe('not said')
+    expect(c.ifPrinted.printerFit).toMatch(/2026-01-02/)
+  })
+
+  it('a part in a setup of another kind: not printed, its wall read, judged by that kind’s checks', async () => {
+    good()
+    answers['dfm.check'] = () => {
+      throw new Error('not to be run')
+    }
+    setups = [{ id: 'S2', type: 'cut', name: 'Plates', bodies: ['Grip'] }]
+    answers['cut.check'] = { findings: [{ severity: 'error', says: 'A slot narrower than the kerf.', at: [4, 0, 0] }, { severity: 'warning', says: 'Waived.', waived: 'ok' }] }
+    const r = (await runCommand('part.review', { body: 'Grip' })) as Json
+    expect(r.process).toBe('cut')
+    expect(r.processFrom).toBe('setup Plates (S2)')
+    expect(r.printing.checks['dfm.check']).toBe('skipped: not printed')
+    expect(r.made).toEqual({ setup: 'Plates (S2)', checks: { 'cut.check': 'ran' } })
+    expect(asked['cut.check']).toEqual({ body: 'Grip' })
+    expect(r.figures.wall).toBe(1.6)
+    expect(r.verdict).toBe('fix')
+    expect(r.findings).toEqual([{ source: 'cut.check', severity: 'error', says: 'A slot narrower than the kerf.', at: [4, 0, 0] }])
+    // A check of its kind that does not run leaves it unknown.
+    offs['cut.check']()
+    const gone = (await runCommand('part.review', { body: 'Grip' })) as Json
+    expect(gone.made.checks['cut.check']).toBe('skipped: not in build')
+    expect(gone.verdict).toBe('unknown')
+    fake('cut.check')
+  })
+
+  it('a setup of a kind not in this build: not printed, and unknown', async () => {
+    good()
+    setups = [{ id: 'S3', type: 'mill', name: 'Shafts', bodies: ['Grip'] }]
+    const r = (await runCommand('part.review', { body: 'Grip' })) as Json
+    expect(r.process).toBe('mill')
+    expect(r.made.checks).toEqual({ mill: 'skipped: not in build' })
+    expect(r.verdict).toBe('unknown')
+  })
+
+  it('the process given wins over the setup; the setup over the spec’s processes', async () => {
+    good()
+    setups = [{ id: 'S1', type: 'print', name: 'Print', bodies: ['Grip'] }]
+    await runCommand('part.spec', { spec: { processes: { Grip: 'machined' } } })
+    expect(((await runCommand('part.review', { body: 'Grip' })) as Json).process).toBe('printed')
+    const over = (await review({ process: 'machined' })) as Json
+    expect([over.process, over.processFrom, over.made]).toEqual(['machined', 'given', undefined])
+    setups = []
+    const spec = (await runCommand('part.review', { body: 'Grip' })) as Json
+    expect([spec.process, spec.processFrom]).toEqual(['machined', 'the spec’s processes'])
+    await runCommand('part.spec', { clear: true })
   })
 })

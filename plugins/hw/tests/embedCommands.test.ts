@@ -5,7 +5,8 @@
 // sunk under its roof from the top, from below and from the side; its top
 // put on a layer boundary; the warnings (thin roof, wide span, off a
 // boundary); cut and recorded; the pauses, merged and for two bodies; the
-// Mass workspace's ballast recorded; a cut that is gone; and the refusals.
+// Mass workspace's ballast recorded; a cut that is gone; the layers of a
+// print setup the body is in; and the refusals.
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { registerCommands, runCommand } from '../../../src/commands/registry'
 import { registerStateSection } from '../../../src/commands/stateSections'
@@ -30,6 +31,7 @@ const BODIES: Record<string, { id: number; faces: Json[]; bounds: { min: V3; max
 let mass: Json | undefined
 let features: Json[] = []
 let hasBounds = true
+let setups: Json[] = []
 
 function frameOf(p: Json): { origin: V3; normal: V3; basisU: V3; basisV: V3 } {
   const off = (p.offset as number) ?? 0
@@ -106,12 +108,14 @@ beforeAll(() => {
   registerCommands('hw', hwCommands)
   registerStateSection('reverse', () => ({ features: features.map((f) => ({ name: f.name })), bodies: Object.entries(BODIES).map(([name, b]) => ({ id: b.id, name, bounds: hasBounds ? b.bounds : null })) }))
   registerStateSection('mass', () => mass)
+  registerStateSection('setups', () => ({ setups }))
 })
 
 const reset = () => {
   features = []
   mass = undefined
   hasBounds = true
+  setups = []
   useHw.setState({ ...settingsOf(DEFAULT_SETTINGS), plan: null, made: null, check: null, embeds: [], busy: null })
 }
 beforeEach(reset)
@@ -272,6 +276,23 @@ describe('cut, recorded, and the pauses', () => {
     await refused(run('record', { body: 'Nope', top: 4, what: 'x' }), /no body "Nope"/)
     await refused(run('record', { body: 'Block', what: 'x' }), /Give body, top and what/)
     await refused(run('pauses', { together: ['Block', 'Gone'] }), /No place on the bed for Gone/)
+  })
+
+  test('at the layers of the print setup the bodies are in, the layers given winning', async () => {
+    await run('record', { body: 'Block', top: 4, what: 'an RFID tag' })
+    setups = [{ id: 'S1', type: 'print', name: 'Block print', bodies: ['Block'], layerHeight: 0.28, firstLayer: 0.2 }]
+    const p = await run('pauses')
+    expect(p.layers).toEqual({ height: 0.28, first: 0.2, from: 'setup Block print' })
+    expect(p.pauses[0].layer).toBe(2 + Math.ceil((4 - 0.2 - 1e-4) / 0.28))
+    const given = await run('pauses', { layerHeight: 0.2 })
+    expect(given.layers).toEqual({ height: 0.2, first: 0.2, from: 'setup Block print' })
+    // A body in no print setup: the settings' layers for all of them.
+    await run('record', { body: 'Raised', top: 9, what: 'an M3 nut' })
+    expect((await run('pauses')).layers).toEqual({ height: 0.2, first: 0.2 })
+    expect((await run('pauses', { bodies: ['Block'] })).layers.height).toBe(0.28)
+    // A setup of another kind says nothing of layers.
+    setups = [{ id: 'S1', type: 'cut', name: 'Plates', bodies: ['Block'], layerHeight: 0.28 }]
+    expect((await run('pauses', { bodies: ['Block'] })).layers).toEqual({ height: 0.2, first: 0.2 })
   })
 
   test('pockets out of their body left out of the pauses, said so; a thin roof recorded warned', async () => {

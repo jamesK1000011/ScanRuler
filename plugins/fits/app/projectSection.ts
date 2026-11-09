@@ -38,6 +38,7 @@ export function savedIn(u: unknown): FitsSaved {
       tolerance: isNum(s.tolerance, 0.005, 2) ? s.tolerance : DEFAULT_SETTINGS.tolerance,
       material: (typeof s.material === 'string' && materialOf(s.material)?.id) || DEFAULT_SETTINGS.material,
       classes,
+      ...(typeof s.machine === 'string' && s.machine ? { machine: s.machine } : {}),
     },
     calibration,
     tool: (TOOLS as readonly string[]).includes(o.tool as string) ? (o.tool as Tool) : 'pair',

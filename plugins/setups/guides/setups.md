@@ -27,7 +27,7 @@ Each setting is optional; one left unset leaves each workspace on its own settin
 | `walls`, `infill`, `lineMm` | the weight as printed (`mass_properties`) |
 | `fit` | the printer's fit calibration — `"fits"` keeps Fits' calibration as it stands with the setup; holes are sized with it (`hw_plan`, `part_review`'s `printerFit`), and `fit_set { setup }` sizes Fits' parts with it |
 
-Each answer that used a setup's value says so (`setup`, `printedBy`, `layers.from`, a note). An input given to a command for one call still wins over the setup.
+Each answer that used a setup's value says so (`setup`, a mass row's `as`, `layers.from`, a note). An input given to a command for one call still wins over the setup.
 
 ## 4. The review follows the setup
 

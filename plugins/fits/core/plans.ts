@@ -15,6 +15,9 @@ export interface Settings {
   material: string
   /** Fit classes as a test print found them. */
   classes: Partial<Record<FitClass, ClassOverride>>
+  /** The setup whose machine the fits are sized for, by id; Fits' own
+   *  calibration when absent. */
+  machine?: string
 }
 
 export interface Ctx {
