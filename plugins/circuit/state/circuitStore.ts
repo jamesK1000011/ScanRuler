@@ -43,6 +43,8 @@ export interface LastBuild {
   warnings: number
   failed: string[]
   seconds: number | null
+  /** Why the build failed, when its circuit.json holds errors. */
+  failure?: string
 }
 
 export interface Loaded {

@@ -121,7 +121,9 @@ export function CircuitPanel() {
             <span className="pl-aside">{s.lastBuild.job}</span>
           </div>
           <p className="hint">{s.lastBuild.files.join(', ') || 'No files'}</p>
+          {s.lastBuild.failure && <Status tone="bad">{s.lastBuild.failure}</Status>}
           {s.lastBuild.failed.length > 0 && <Status tone="warn">Not exported: {s.lastBuild.failed.join(', ')}</Status>}
+          {s.lastBuild.warnings > 0 && <p className="hint">{s.lastBuild.warnings} warning{s.lastBuild.warnings === 1 ? '' : 's'}</p>}
           {s.lastBuild.errors.slice(0, 5).map((e, i) => (
             <p key={i} className="hint circuit-error">
               {e.message || e.type}
@@ -148,7 +150,7 @@ export function CircuitPanel() {
             void openFile(f)
           }}
         />
-        <button disabled={s.busy || !s.lastBuild?.ok} title="Open the last build’s board" onClick={() => s.lastBuild && void run('open', { job: s.lastBuild.job })}>
+        <button disabled={s.busy || !s.lastBuild?.files.includes('circuit.json')} title="Open the last build’s board" onClick={() => s.lastBuild && void run('open', { job: s.lastBuild.job })}>
           Open build
         </button>
         {s.loaded && (

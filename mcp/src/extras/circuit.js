@@ -825,7 +825,25 @@ export async function build({ project, entry, outputs = [], routing = true, part
   }
   const layers = files.gerberLayers
   delete files.gerberLayers
-  return finish({ ok: !summary.unreadable, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v])), ...(layers ? { gerberFiles: layers } : {}), ...(failed.length ? { exportsFailed: failed } : {}), summary })
+  // --ignore-errors lets tsci write a circuit.json with its errors inside
+  // (so the board can still be looked at); the build itself has failed, and
+  // says so, while warnings stay warnings.
+  const errorCount = summary.errorCount ?? 0
+  const verdict = summary.unreadable
+    ? { ok: false, failure: `${summary.unreadable} — tsci wrote a broken file. Look at build.log in the job folder, then build again.` }
+    : errorCount
+      ? { ok: false, failure: buildFailure(summary) }
+      : { ok: true }
+  return finish({ ...verdict, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v])), ...(layers ? { gerberFiles: layers } : {}), ...(failed.length ? { exportsFailed: failed } : {}), errors: summary.errors ?? [], warnings: summary.warnings ?? [], summary })
+}
+
+/** One plain line for a build whose circuit.json holds errors: how many,
+ *  the first, and what to do. */
+export function buildFailure(summary) {
+  const n = summary.errorCount ?? summary.errors?.length ?? 0
+  const first = summary.errors?.[0]
+  const what = first ? ` The first: ${first.message || first.type}.` : ''
+  return `The build has ${n} error${n === 1 ? '' : 's'}, so it failed.${what} Fix the board file and build again; circuit_read reads the full list in circuit.json.`
 }
 
 async function newestCircuitJson(dist, since) {

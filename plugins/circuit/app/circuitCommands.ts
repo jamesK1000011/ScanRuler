@@ -178,7 +178,18 @@ interface JobAnswer {
   seconds?: number
   files?: Record<string, string>
   exportsFailed?: { format: string; said: string }[]
+  /** Why the build failed, when its circuit.json holds errors. */
+  failure?: string
   summary?: { errorCount?: number; warningCount?: number; errors?: { type: string; message: string }[] }
+}
+
+/** A build whose circuit.json holds errors has failed, whatever an older
+ *  server called it: tsci writes the file with --ignore-errors so the board
+ *  can be looked at, not so it passes. */
+function judged(j: JobAnswer): JobAnswer {
+  const errors = j.summary?.errorCount ?? j.summary?.errors?.length ?? 0
+  if (!j.ok || !errors) return j
+  return { ...j, ok: false, failure: j.failure ?? `The build has ${errors} error${errors === 1 ? '' : 's'}, so it failed. Fix the board file and build again.` }
 }
 
 const lastOf = (j: JobAnswer): LastBuild => ({
@@ -190,13 +201,14 @@ const lastOf = (j: JobAnswer): LastBuild => ({
   warnings: j.summary?.warningCount ?? 0,
   failed: (j.exportsFailed ?? []).map((f) => f.format),
   seconds: j.seconds ?? null,
+  ...(j.failure ? { failure: j.failure } : {}),
 })
 
 const buildCmd: Command<{ project?: string; entry?: string; outputs?: string[]; routing?: boolean; partsEngine?: boolean; open?: boolean }> = {
   name: 'build',
   title: 'Build the project with tscircuit',
   description:
-    'Build the project with tsci on this computer, into a job folder of its own: circuit.json, and the outputs asked for — gerbers (a zip), bom and pnp (bom.csv and pick_and_place.csv, from the Gerbers zip), kicad_pcb (for KiCad, or Electronics › KiCad: pcb.open with files["board.kicad_pcb"]), step, glb, pcb_svg, schematic_svg, netlist. Every flag and format is checked against the installed tsci first and refused by name if it lacks one. project: the workspace’s project unless given (a name in the circuits folder, or a folder). routing: false skips the autorouter; partsEngine: false skips the parts lookup. open (true by default) opens the board built (circuit.open). Returns the job: its files and the build’s DRC, routing and placement errors.',
+    'Build the project with tsci on this computer, into a job folder of its own: circuit.json, and the outputs asked for — gerbers (a zip), bom and pnp (bom.csv and pick_and_place.csv, from the Gerbers zip), kicad_pcb (for KiCad, or Electronics › KiCad: pcb.open with files["board.kicad_pcb"]), step, glb, pcb_svg, schematic_svg, netlist. Every flag and format is checked against the installed tsci first and refused by name if it lacks one. project: the workspace’s project unless given (a name in the circuits folder, or a folder). routing: false skips the autorouter; partsEngine: false skips the parts lookup. open (true by default) opens the board built (circuit.open). Returns the job: its files, errors and warnings. Any error fails the build — ok is false and failure says why — and its board is not opened; circuit.open { job } opens it to look at.',
   input: obj({
     project: str('A project name or folder; the workspace’s project by default.'),
     entry: str('The board file, relative to the project.'),
@@ -224,7 +236,11 @@ const buildCmd: Command<{ project?: string; entry?: string; outputs?: string[]; 
     }
     // The build is the project's last whichever project it was of: it is
     // not an undo step (the files are on disk), but is saved with the project.
+    j = judged(j)
     useCircuit.setState({ lastBuild: lastOf(j) })
+    // A failed build's board is not opened on its own: what is measured or
+    // checked next would be a board with errors. circuit.open { job } still
+    // opens it to look at.
     let opened: unknown = null
     if (open && j.ok) opened = await runCommand('circuit.open', { job: j.job })
     return { ...j, ...(opened ? { opened } : {}) }

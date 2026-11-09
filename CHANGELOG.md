@@ -7,6 +7,11 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Checks that no longer pass by saying nothing** (2026-11-08).
+  - **Electronics › tscircuit**: a build whose circuit.json holds errors
+    (DRC, routing, placement, source) now fails — `ok` is false, the
+    answer says why and lists the errors, the panel shows it, and the
+    board is not opened on its own. Warnings stay warnings.
 - **Scanner in 3D Measure** (2026-11-08). The 3D Measure panel has a
   Scanner section: choose this project's scanner profile or the noise
   measured from the scan, Measure noise on the open scan, Save as profile,

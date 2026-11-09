@@ -13,7 +13,8 @@
 import { chmod, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** A small board's Circuit JSON, with one DRC error and one warning. */
+/** A small board's Circuit JSON, with one DRC error and one warning
+ *  (FAKE_TSCI_CLEAN builds it without the error). */
 export const FIXTURE = [
   { type: 'source_component', source_component_id: 'source_component_0', ftype: 'simple_resistor', name: 'R1', resistance: 1000 },
   { type: 'pcb_board', pcb_board_id: 'pcb_board_0', center: { x: 0, y: 0 }, width: 30, height: 20, thickness: 1.6, num_layers: 2, material: 'fr4' },
@@ -103,7 +104,7 @@ export async function fakeTsci(dir, { mode = '' } = {}) {
       "    const sub = entry.replace(/(\\.board|\\.circuit)?\\.tsx$/, '')",
       "    const out = p.join(process.cwd(), 'dist', sub)",
       "    fs.mkdirSync(out, { recursive: true })",
-      "    fs.writeFileSync(p.join(out, 'circuit.json'), JSON.stringify(FIXTURE))",
+      "    fs.writeFileSync(p.join(out, 'circuit.json'), JSON.stringify(process.env.FAKE_TSCI_CLEAN ? FIXTURE.filter((e) => !/_error$/.test(e.type)) : FIXTURE))",
       "    console.log('Built ' + entry)",
       "  }",
       "  if (MODE === 'slow') setTimeout(go, 30000)",

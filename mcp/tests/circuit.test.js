@@ -165,7 +165,12 @@ test('built into a job folder: circuit.json, the exports, BOM and pick-and-place
   const { env, log } = await setUp()
   const p = await newProject({ name: 'blinky', template: 'led' }, env)
   const j = await build({ project: 'blinky', outputs: ['gerbers', 'bom', 'pnp', 'kicad_pcb', 'step'] }, env)
-  assert.equal(j.ok, true)
+  // The fixture holds a DRC error: the files are made, but the build failed.
+  assert.equal(j.ok, false)
+  assert.match(j.failure, /^The build has 1 error, so it failed\. The first: Trace too close to pad\. Fix the board file and build again/)
+  assert.deepEqual(j.errors, [{ type: 'pcb_trace_error', message: 'Trace too close to pad' }])
+  assert.deepEqual(j.warnings, [{ type: 'pcb_autorouting_warning', message: 'Routing took the long way' }])
+  assert.equal(JSON.parse(await readFile(join(j.folder, 'job.json'), 'utf8')).ok, false)
   for (const f of ['circuit.json', 'gerbers.zip', 'bom.csv', 'pick_and_place.csv', 'board.kicad_pcb', 'board.step', 'job.json', 'build.log', 'command.json']) assert.ok(existsSync(join(j.folder, f)), f)
   assert.match(await readFile(join(j.folder, 'bom.csv'), 'utf8'), /R1,1k,0603/)
   assert.deepEqual(j.gerberFiles, ['F_Cu.gtl', 'Edge_Cuts.gm1'])
@@ -186,6 +191,26 @@ test('built into a job folder: circuit.json, the exports, BOM and pick-and-place
   assert.equal(again.files['gerbers.zip'], undefined)
 })
 
+test('a build with only warnings is ok, its warnings kept as warnings', async () => {
+  const { env } = await setUp()
+  await newProject({ name: 'clean', template: 'led' }, env)
+  const j = await build({ project: 'clean' }, { ...env, FAKE_TSCI_CLEAN: '1' })
+  assert.equal(j.ok, true)
+  assert.equal(j.failure, undefined)
+  assert.deepEqual(j.errors, [])
+  assert.equal(j.warnings.length, 1)
+  assert.equal(j.summary.warningCount, 1)
+})
+
+test('a circuit.json that is not JSON fails the build, saying where to look', async () => {
+  const { env } = await setUp()
+  const p = await newProject({ name: 'raw' }, env)
+  await writeFile(join(p.project, 'board.circuit.json'), '[{ not json')
+  const j = await build({ project: 'raw', entry: 'board.circuit.json' }, env)
+  assert.equal(j.ok, false)
+  assert.match(j.failure, /circuit\.json is not JSON.*Look at build\.log in the job folder/)
+})
+
 test('refused by name: an output not offered, and a flag or format the installed tsci lacks', async () => {
   const { env } = await setUp('old')
   await newProject({ name: 'b' }, env)
@@ -195,7 +220,7 @@ test('refused by name: an output not offered, and a flag or format the installed
   await assert.rejects(build({ project: 'nothere' }, env), /no project folder/)
   await assert.rejects(build({ project: 'b', entry: '../../etc/passwd' }, env), /outside the project/)
   // The old tsci builds what it does list.
-  assert.equal((await build({ project: 'b', outputs: ['kicad_pcb'] }, env)).ok, true)
+  assert.equal((await build({ project: 'b', outputs: ['kicad_pcb'] }, { ...env, FAKE_TSCI_CLEAN: '1' })).ok, true)
 })
 
 test('a build that writes nothing says so, with its log; an export that fails is listed', async () => {
@@ -275,6 +300,9 @@ test('the page’s asks: tools, a project, a build with progress, a cancel', asy
   const b = await answerOf('b1')
   assert.equal(b.ok, true)
   assert.ok(b.result.files['bom.csv'])
+  // The fixture's DRC error comes back as a failed build, not a good one.
+  assert.equal(b.result.ok, false)
+  assert.equal(b.result.errors.length, 1)
   assert.ok(said.some((s) => s.name === 'circuit.progress' && s.input.req === 'b1' && s.input.phase === 'build'))
   ask({ req: 'r1', action: 'read', args: { job: b.result.job, path: 'circuit.json' } })
   assert.equal(JSON.parse((await answerOf('r1')).result.text).length, 7)
@@ -362,7 +390,7 @@ test('a project without its packages gets them installed once, before the build;
   const { env, dir } = await setUp()
   const p = await newProject({ name: 'fresh', template: 'led' }, env)
   assert.equal(needsInstall(p.project), true)
-  const r = await build({ project: 'fresh' }, env)
+  const r = await build({ project: 'fresh' }, { ...env, FAKE_TSCI_CLEAN: '1' })
   assert.equal(r.ok, true)
   assert.equal(needsInstall(p.project), false)
   await build({ project: 'fresh' }, env)
