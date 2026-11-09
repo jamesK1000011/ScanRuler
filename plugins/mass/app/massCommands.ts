@@ -355,4 +355,7 @@ const apply: Command<{ name?: string }> = {
   },
 }
 
-export const massCommands = [materials, setup, properties, calibrate, target, plan, apply] as Command<never>[]
+/** Every one runs without the page (Command.headless): the bodies are read
+ *  through Reverse Engineer's STL export, the pocket cut through its
+ *  features — no scan, no viewport. */
+export const massCommands = ([materials, setup, properties, calibrate, target, plan, apply] as Command<never>[]).map((c) => ({ ...c, headless: true }))
