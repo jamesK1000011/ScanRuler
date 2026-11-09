@@ -12,6 +12,12 @@ saves carry the same number as `appVersion`. How a release is cut is in
     (DRC, routing, placement, source) now fails — `ok` is false, the
     answer says why and lists the errors, the panel shows it, and the
     board is not opened on its own. Warnings stay warnings.
+  - **Electronics › KiCad**: a part with no 3D model is no longer left out
+    of the import with only a warning. It comes in as a grey placeholder
+    box from its footprint's courtyard (or fab outline), as tall as the
+    file says or 3 mm, named "(placeholder)", so the parts' reach, the
+    enclosure and a clearance check see it. The import and the panel say
+    which parts they are.
 - **Scanner in 3D Measure** (2026-11-08). The 3D Measure panel has a
   Scanner section: choose this project's scanner profile or the noise
   measured from the scan, Measure noise on the open scan, Save as profile,

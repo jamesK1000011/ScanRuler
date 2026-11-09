@@ -309,7 +309,45 @@ export async function importBoard({ path, components = true, subst = true, dnp =
     })
     if (p?.code === 0 && existsSync(posFile)) checked = checkPositions(board, parseCsv(await readFile(posFile, 'utf8')))
   }
-  return { board, step: { name: `${safe(board.name)}.step`, bytes, size: made.size }, job, kicad: tools.version, components, warnings, ...(checked ? { positions: checked } : {}) }
+  const unmodelled = components ? unmodelledParts(board, warnings, { dnp }) : []
+  return { board, step: { name: `${safe(board.name)}.step`, bytes, size: made.size }, job, kicad: tools.version, components, warnings, unmodelled, ...(checked ? { positions: checked } : {}) }
+}
+
+/** How tall a placeholder stands where the file gives no height, mm. */
+export const PLACEHOLDER_HEIGHT = 3
+
+/**
+ * The parts the STEP will have no body for: a footprint with no 3D model,
+ * or one kicad-cli said it could not find. Each with its footprint's box
+ * (courtyard, else fab outline, else pads) and a height — the file's, else
+ * PLACEHOLDER_HEIGHT — for a placeholder box to stand in for it, so a
+ * clearance check does not pass for a part that is not there. Mounting
+ * holes, fiducials and the like are not parts; do-not-populate ones are
+ * left out unless kept.
+ */
+export function unmodelledParts(board, warnings = [], { dnp = false } = {}) {
+  const said = (ref) => {
+    const esc = ref.replace(/[.*+?^$|()[\]{}\\]/g, '\\$&')
+    const re = new RegExp(`(^|[^A-Za-z0-9_])${esc}([^A-Za-z0-9_]|$)`)
+    return warnings.some((w) => /model/i.test(w) && re.test(w))
+  }
+  const out = []
+  for (const c of board.components ?? []) {
+    if (c.bodyless || (c.dnp && !dnp) || !c.box) continue
+    const missing = !c.models || (c.ref && said(c.ref))
+    if (!missing) continue
+    out.push({
+      ref: c.ref,
+      footprint: c.footprint,
+      face: c.face,
+      box: c.box,
+      boxFrom: c.boxFrom,
+      height: c.height ?? PLACEHOLDER_HEIGHT,
+      heightFrom: c.height ? c.heightFrom : 'default',
+      why: c.models ? 'model not found' : 'no 3D model',
+    })
+  }
+  return out
 }
 
 /** A CSV as rows of cells (quoted cells kept whole). */

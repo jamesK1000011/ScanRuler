@@ -14,8 +14,8 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { extraTools } from '../src/extras/index.js'
-import { readBoard, parseSexpr, fabLayers } from '../src/extras/kicadBoard.js'
-import { checkPositions, fabName, fabPackage, fabPositions, findKicadCli, importBoard, kicadTools, lists, parseCsv, runDrc, summariseDrc } from '../src/extras/kicad.js'
+import { readBoard, parseSexpr, fabLayers, heightOf } from '../src/extras/kicadBoard.js'
+import { checkPositions, fabName, fabPackage, fabPositions, findKicadCli, importBoard, kicadTools, lists, parseCsv, PLACEHOLDER_HEIGHT, runDrc, summariseDrc, unmodelledParts } from '../src/extras/kicad.js'
 import { zipEntries } from '../src/extras/zip.js'
 import { fakeKicad } from './fakeKicad.js'
 
@@ -120,6 +120,37 @@ test('a turned footprint, an Edge.Cuts circle hole, a KiCad 5 arc, an outline th
   assert.throws(() => readBoard('(kicad_pcb (version 1))'), /no outline on Edge\.Cuts/)
 })
 
+test('parts with no 3D model: found with their box and height, for placeholders', () => {
+  const edge = '(gr_rect (start 0 0) (end 40 30) (layer Edge.Cuts))'
+  const fp = (ref, name, inner, layer = 'F.Cu') => `(footprint "${name}" (layer "${layer}") (at 20 15) (property "Reference" "${ref}") ${inner})`
+  const pads = '(pad "1" smd rect (at -1 0) (size 1 1) (layers "F.Cu")) (pad "2" smd rect (at 1 0) (size 1 1) (layers "F.Cu"))'
+  const crtyd = '(fp_rect (start -3 -2) (end 3 2) (layer "F.CrtYd"))'
+  const b = readBoard(`(kicad_pcb (general (thickness 1.6)) ${edge}
+    ${fp('U1', 'Package_SO:SOIC-8', `${pads} ${crtyd} (property "Height" "1.75")`)}
+    ${fp('U2', 'Package_SO:SOIC-8', `${pads} (fp_rect (start -2 -1.5) (end 2 1.5) (layer "F.Fab")) (model "x.step" (hide yes))`)}
+    ${fp('U3', 'Package_SO:SOIC-8', `${pads} ${crtyd} (model "x.step")`)}
+    ${fp('C1', 'Capacitor_THT:CP_Radial_D8.0mm_H11.5mm', `${pads} ${crtyd}`, 'B.Cu')}
+    ${fp('U4', 'Package_SO:SOIC-8', `${pads} ${crtyd} (attr smd dnp)`)}
+    ${fp('FID1', 'Fiducial:Fiducial_1mm', `${pads}`)}
+    ${fp('H1', 'MountingHole:MountingHole_3.2mm', '(pad "" np_thru_hole circle (at 0 0) (size 3.2 3.2) (drill 3.2) (layers "*.Cu"))')}
+  )`)
+  const u = unmodelledParts(b, ['Could not add 3D model to U3.'])
+  assert.deepEqual(u.map((x) => [x.ref, x.why, x.boxFrom, x.height, x.heightFrom, x.face]), [
+    ['U1', 'no 3D model', 'courtyard', 1.75, 'property', 'top'],
+    ['U2', 'no 3D model', 'fab', PLACEHOLDER_HEIGHT, 'default', 'top'],
+    ['U3', 'model not found', 'courtyard', PLACEHOLDER_HEIGHT, 'default', 'top'],
+    ['C1', 'no 3D model', 'courtyard', 11.5, 'footprint name', 'bottom'],
+  ])
+  // Centred on the outline's box, y up: the courtyard 6 x 4 round (0, 0).
+  assert.deepEqual(u[0].box, { min: [-3, -2], max: [3, 2] })
+  // A do-not-populate part is a placeholder only when it is kept.
+  assert.ok(unmodelledParts(b, [], { dnp: true }).some((x) => x.ref === 'U4'))
+  // U3's model found: no placeholder; a ref named only inside another (U31) does not count.
+  assert.equal(unmodelledParts(b, ['Could not add 3D model to U31.']).some((x) => x.ref === 'U3'), false)
+  assert.deepEqual(heightOf('2,5', ''), { height: 2.5, from: 'property' })
+  assert.equal(heightOf('', 'R_0603'), null)
+})
+
 test('flags read off --help as words, not the start of a longer one', () => {
   assert.ok(lists('Usage: [--output VAR] [--force]', '--output'))
   assert.ok(lists('  -o, --output <file>', '--output'))
@@ -163,6 +194,11 @@ test('import: STEP centred on the outline, flags only as listed, positions check
     // --no-dnp only where the version lists it; the fake refuses others.
     assert.equal(run.flags['--no-dnp'], major >= 8 ? true : undefined)
     assert.ok(r.warnings.some((w) => /J9/.test(w)), 'missing 3D models are passed on')
+    // R1 names no 3D model: listed for a placeholder, its box from its pads
+    // (no courtyard or fab outline), at the stated default height.
+    assert.deepEqual(r.unmodelled.map((u) => [u.ref, u.why, u.boxFrom, u.height, u.heightFrom]), [['R1', 'no 3D model', 'pads', PLACEHOLDER_HEIGHT, 'default']])
+    near(r.unmodelled[0].box.max[0] - r.unmodelled[0].box.min[0], 0.95)
+    near(r.unmodelled[0].box.max[1] - r.unmodelled[0].box.min[1], 2.45)
     assert.equal(r.board.connectors.length, 2)
     assert.ok(r.positions.every((p) => p.agrees), 'KiCad places them where they were read')
     assert.equal(r.board.connectors.find((c) => c.ref === 'J2').rot, 90)
@@ -171,6 +207,7 @@ test('import: STEP centred on the outline, flags only as listed, positions check
   const { env, board } = await setUp(9)
   const flat = await importBoard({ path: board, components: false }, env)
   assert.match(new TextDecoder().decode(flat.step.bytes), /board-only/)
+  assert.deepEqual(flat.unmodelled, [])
 })
 
 test('import refuses what is not a board, and says why kicad-cli failed', async () => {

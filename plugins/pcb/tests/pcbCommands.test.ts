@@ -101,6 +101,43 @@ describe('pcb commands', () => {
     expect(im.boxes.J1.max[2]).toBe(4.86)
     expect(calls.find((c) => c.name === 'reverse.body.set' && (c.input as { color?: string }).color)!.input).toMatchObject({ color: '#2e7d32' })
   })
+  it('import: a part with no 3D model gets a placeholder box, named and counted, so the reach sees it', async () => {
+    const keep = server.import
+    const keepStep = handlers['reverse.import.step']
+    const unmodelled = [
+      { ref: 'U9', footprint: 'Package_SO:SOIC-8', face: 'top', box: { min: [10, -6], max: [14, -2] }, boxFrom: 'courtyard', height: 5, heightFrom: 'property', why: 'no 3D model' },
+      { ref: 'C2', footprint: 'Capacitor_SMD:C_0805', face: 'bottom', box: { min: [-8, 4], max: [-6, 5] }, boxFrom: 'fab', height: 3, heightFrom: 'default', why: 'model not found' },
+    ]
+    server.import = () => ({ result: { board: BOARD, kicad: '9.0.2', warnings: ['Could not add 3D model to C2.'], unmodelled }, bytes: STEP })
+    let placeholderText = ''
+    handlers['reverse.import.step'] = (async (i: { name: string; bytes: Uint8Array }) => {
+      if (!/placeholders\.step$/.test(i.name)) return keepStep(i as never)
+      placeholderText = new TextDecoder().decode(i.bytes)
+      // As Reverse Engineer would read the boxes: the board's frame, which came in at the origin.
+      bodies.push({ id: nextId++, name: 'Solid', bounds: { min: [-8, 4, -3], max: [-6, 5, 0] } })
+      bodies.push({ id: nextId++, name: 'Solid', bounds: { min: [10, -6, 1.6], max: [14, -2, 6.6] } })
+      return {}
+    }) as never
+    const r = await run('import', { path: PATH })
+    handlers['reverse.import.step'] = keepStep
+    server.import = keep
+    expect(calls.filter((c) => c.name === 'reverse.import.step').map((c) => c.input.name)).toEqual(['tiny.step', 'tiny placeholders.step'])
+    expect(placeholderText.match(/MANIFOLD_SOLID_BREP/g)?.length).toBe(2)
+    expect(r.bodies).toBe(5)
+    expect(r.placeholders.map((p: { ref: string; body: string }) => [p.ref, p.body])).toEqual([['U9', 'tiny U9 (placeholder)'], ['C2', 'tiny C2 (placeholder)']])
+    expect(r.above).toBe(5)
+    expect(r.below).toBe(3)
+    expect(r.placeholderNote).toMatch(/^2 parts have no 3D model \(U9, C2\): each is a placeholder box from its footprint, not the real part\. 1 stands at the default height/)
+    expect(r.status).toMatch(/2 are placeholders for parts with no 3D model/)
+    expect(usePcb.getState().imported!.placeholders).toEqual(['U9', 'C2'])
+    // The bare board: no parts, so no placeholders.
+    server.import = () => ({ result: { board: BOARD, warnings: [], unmodelled }, bytes: STEP })
+    calls.length = 0
+    const bare = await run('import', { path: PATH, components: false })
+    server.import = keep
+    expect(bare.placeholders).toBe(undefined)
+    expect(calls.filter((c) => c.name === 'reverse.import.step').length).toBe(1)
+  })
   it('enclosure: through gen.make with the board measured, settings merged', async () => {
     await run('import', { path: PATH })
     await run('set', { enclosure: { standoff: 7 } })

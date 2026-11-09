@@ -439,7 +439,12 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
     const courtyard = boxOf(ptsOn(/^[FB]\.CrtYd$/))
     const fab = boxOf(ptsOn(/^[FB]\.Fab$/))
     const padBox = boxOf(padPts)
+    // Its 3D models: those named and not hidden — (hide yes), or a bare
+    // hide in older files. A footprint without one exports no body.
+    const models = findAll(f, 'model').filter((m) => String(m[1] ?? '').trim() && !m.some((x) => x === 'hide' || (isList(x) && x[0] === 'hide' && x[1] !== 'no'))).length
     footprints.push({
+      models,
+      height: heightOf(prop('height'), String(f[1] ?? '')),
       ref: prop('reference') ?? '',
       value: prop('value') ?? '',
       footprint: String(f[1] ?? ''),
@@ -545,12 +550,55 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
     footprints: { count: footprints.length, top: footprints.filter((f) => !f.layer.startsWith('B.')).length, bottom: footprints.filter((f) => f.layer.startsWith('B.')).length },
     components: footprints.map((f) => {
       const [x, y] = T(f.at)
-      return { ref: f.ref, footprint: f.footprint, x, y, face: f.layer.startsWith('B.') ? 'bottom' : 'top', dnp: f.attr.includes('dnp') }
+      const face = f.layer.startsWith('B.') ? 'bottom' : 'top'
+      let box = null
+      if (f.box) {
+        const lo = T(f.box.min)
+        const hi = T(f.box.max)
+        box = { min: [Math.min(lo[0], hi[0]), Math.min(lo[1], hi[1])], max: [Math.max(lo[0], hi[0]), Math.max(lo[1], hi[1])] }
+      }
+      // A connector's typical opening gives its height where nothing else does.
+      const c = connectors.find((k) => k.ref === f.ref && k.footprint === f.footprint)
+      const fromOpening = c && c.opening.height !== null && c.opening.zc !== null ? { height: r4(c.opening.zc + c.opening.height / 2), from: 'typical' } : null
+      const h = f.height ?? fromOpening
+      return {
+        ref: f.ref,
+        footprint: f.footprint,
+        x,
+        y,
+        face,
+        dnp: f.attr.includes('dnp'),
+        models: f.models,
+        bodyless: bodylessOf(f),
+        box,
+        boxFrom: f.boxFrom,
+        height: h?.height ?? null,
+        heightFrom: h?.from ?? null,
+      }
     }),
   }
 }
 
 const r4 = (x) => Math.round(x * 10000) / 10000
+
+/** A part's height above the board, where the file says it: a Height
+ *  property (mm), else _H<n>mm in the footprint's name. */
+export function heightOf(prop, footprint) {
+  const p = Number.parseFloat(String(prop ?? '').replace(',', '.'))
+  if (Number.isFinite(p) && p > 0 && p < 200) return { height: r4(p), from: 'property' }
+  const m = /_H(\d+(?:\.\d+)?)mm/i.exec(footprint)
+  if (m && Number(m[1]) > 0 && Number(m[1]) < 200) return { height: r4(Number(m[1])), from: 'footprint name' }
+  return null
+}
+
+/** A footprint that stands for no part: a mounting hole, a fiducial, a net
+ *  tie, a test point, a logo; one with no pads; one KiCad marks board-only. */
+export function bodylessOf(f) {
+  if (!f.pads.length) return true
+  if (f.pads.every((p) => p.type === 'np_thru_hole')) return true
+  if (f.attr.includes('board_only') || f.attr.includes('virtual')) return true
+  return /MountingHole|Fiducial|NetTie|TestPoint|Logo|Symbol/i.test(f.footprint)
+}
 
 /** Points in a row that add nothing (on a straight run) dropped. */
 function simplify(pts) {

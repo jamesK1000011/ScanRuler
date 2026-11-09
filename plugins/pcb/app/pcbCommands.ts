@@ -13,6 +13,7 @@ import { anyObject, arr, bool, bytes, enumOf, num, obj, oneOf, str } from '../..
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { boardIn, boardSpecOf, connectorBoxes, placeBodies, type BodyRow, type KicadBoard } from '../core/boardSpec'
+import { matchPlaceholders, placeholderName, placeholderNote, placeholderStep, unmodelledIn } from '../core/placeholders'
 import { answered, askServer, Cancelled, progressed } from './pcbAsk'
 import { usePcb, type DrcResult, type FabResult, type Imported, type Naming, type Tools } from '../state/pcbStore'
 
@@ -133,7 +134,7 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
   name: 'import',
   title: 'Bring the board into Reverse Engineer',
   description:
-    'Export the board as STEP with kicad-cli and bring it into Reverse Engineer: the board a body named after its file (coloured green), each part a body of its own, the edge connectors named after their references ("board J1"). components: false brings the bare board only; subst (default true) uses KiCad’s STEP models where a footprint names a VRML one. Measures how far the parts reach above and below the board, and each edge connector’s 3D box, for pcb.enclosure. Returns the bodies, those measurements and kicad-cli’s warnings (3D models it could not find). One undo step.',
+    'Export the board as STEP with kicad-cli and bring it into Reverse Engineer: the board a body named after its file (coloured green), each part a body of its own, the edge connectors named after their references ("board J1"). components: false brings the bare board only; subst (default true) uses KiCad’s STEP models where a footprint names a VRML one. Measures how far the parts reach above and below the board, and each edge connector’s 3D box, for pcb.enclosure. A part with no 3D model (none named, or one kicad-cli could not find) gets a placeholder box from its footprint’s courtyard, else fab outline, else pads — as tall as the file says (a Height property, or _H<n>mm in its name), else 3 mm — named "(placeholder)" and listed in placeholders, so a clearance check or the enclosure sees it. Returns the bodies, those measurements, the placeholders and kicad-cli’s warnings. One undo step.',
   input: obj({ path: pathIn, components: bool('With the parts (default: as set, true).'), subst: bool('STEP models for VRML ones (default: as set, true).'), dnp: bool('Keep parts marked do-not-populate (default false).') }),
   long: true,
   timeoutMs: 900_000,
@@ -145,7 +146,7 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
     ctx.progress('kicad-cli: exporting the board as STEP…')
     const { result, bytes: step } = await ask('import', { path: p, components: withParts, subst: subs, dnp: dnp === true }, 'Exporting the board…', ctx)
     if (!step?.byteLength) throw new CommandError('failed', 'kicad-cli gave no STEP.')
-    const r = result as { board: unknown; kicad?: string; warnings?: string[]; step?: { name?: string } }
+    const r = result as { board: unknown; kicad?: string; warnings?: string[]; unmodelled?: unknown; step?: { name?: string } }
     const board = kept(r.board)
     ctx.signal?.throwIfAborted()
     const before = reverseBodies()
@@ -160,8 +161,20 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
       if (e instanceof CommandError && e.code === 'unknown_command') throw new CommandError('failed', 'The board is brought in as Reverse Engineer bodies, and this build has no Reverse Engineer.')
       throw e
     }
-    const fresh = reverseBodies().filter((b) => !had.has(b.id))
-    const placed = placeBodies(board, fresh)
+    const fromStep = reverseBodies().filter((b) => !had.has(b.id))
+    // Parts the STEP has no body for get a placeholder box each, placed by
+    // the board as it came in, so what is checked next sees them.
+    const unmodelled = withParts ? unmodelledIn(r.unmodelled) : []
+    const first = placeBodies(board, fromStep)
+    let stand: BodyRow[] = []
+    if (unmodelled.length) {
+      ctx.progress('Placeholder boxes for the parts with no 3D model…')
+      const was = new Set(reverseBodies().map((b) => b.id))
+      await runWithin('reverse.import.step', { bytes: new TextEncoder().encode(placeholderStep(unmodelled, board.thickness, first.offset, `${stem} placeholders`)), name: `${stem} placeholders.step` })
+      stand = reverseBodies().filter((b) => !was.has(b.id))
+    }
+    const fresh = [...fromStep, ...stand]
+    const placed = stand.length ? placeBodies(board, fresh) : first
     // Names: the board after its file, its edge connectors after their references.
     const taken = new Set([...before, ...fresh].map((b) => b.name.toLowerCase()))
     const rename = async (b: BodyRow, want0: string, color?: string) => {
@@ -177,8 +190,15 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
       return want
     }
     const boardBody = placed.board ? await rename(placed.board, stem, '#2e7d32') : null
+    const placeholders: Record<string, string> = {}
+    const standIds = new Set<number>()
+    for (const [p, b] of matchPlaceholders(unmodelled, board.thickness, first.offset, stand)) {
+      placeholders[p.ref || p.footprint] = await rename(b, placeholderName(stem, p), '#9e9e9e')
+      standIds.add(b.id)
+    }
     const named: Record<string, string> = {}
-    for (const [ref, b] of Object.entries(placed.connectors)) named[ref] = await rename(b, `${stem} ${ref}`.slice(0, 80))
+    // A connector stood in for keeps its placeholder name: it says what it is.
+    for (const [ref, b] of Object.entries(placed.connectors)) named[ref] = standIds.has(b.id) ? placeholders[ref] ?? b.name : await rename(b, `${stem} ${ref}`.slice(0, 80))
     // The board's own frame, read before any move: the boxes stay in it.
     const boxes = connectorBoxes(placed)
     let offset = placed.offset
@@ -203,6 +223,7 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
       boxes,
       kicad: r.kicad ?? null,
       warnings: (r.warnings ?? []).slice(0, 30),
+      ...(unmodelled.length ? { placeholders: unmodelled.map((p) => p.ref || p.footprint) } : {}),
     }
     const same = st().path === p
     st().set({ path: p, board, imported, components: withParts, subst: subs, ...(same ? {} : { enclosureMade: null, skip: [] }) })
@@ -217,8 +238,14 @@ const importCmd: Command<{ path?: string; components?: boolean; subst?: boolean;
       ...(off ? { offset: placed.offset.map(r2), note: 'The board came in off where it was asked to (its middle or bottom not at 0): the enclosure is moved to match.' } : {}),
       ...(boardBody ? {} : { note: 'No body the board’s size was found among those brought in: the enclosure is made in the board’s own frame.' }),
       warnings: imported.warnings,
+      ...(unmodelled.length
+        ? {
+            placeholders: unmodelled.map((p) => ({ ref: p.ref, footprint: p.footprint, body: placeholders[p.ref || p.footprint] ?? null, face: p.face, box: p.boxFrom, height: r2(p.height), heightFrom: p.heightFrom, why: p.why })),
+            placeholderNote: placeholderNote(unmodelled),
+          }
+        : {}),
       kicad: imported.kicad,
-      status: `${board.name}: ${fresh.length} bodies in Reverse Engineer.`,
+      status: `${board.name}: ${fresh.length} bodies in Reverse Engineer.${stand.length ? ` ${stand.length} ${stand.length === 1 ? 'is a placeholder' : 'are placeholders'} for parts with no 3D model.` : ''}`,
     }
   },
 }

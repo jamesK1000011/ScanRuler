@@ -130,6 +130,11 @@ export function PcbPanel() {
             Parts reach {len.fmt(s.imported.above, 1)} above, {len.fmt(s.imported.below, 1)} below.
             {s.imported.warnings.length ? ` KiCad: ${s.imported.warnings.length} warning${s.imported.warnings.length === 1 ? '' : 's'} (3D models not found).` : ''}
           </p>
+          {(s.imported.placeholders?.length ?? 0) > 0 && (
+            <Status tone="warn" testId="pcb-placeholders">
+              No 3D model for {s.imported.placeholders!.join(', ')}: placeholder boxes stand in for them, not the real parts.
+            </Status>
+          )}
         </div>
       )}
 

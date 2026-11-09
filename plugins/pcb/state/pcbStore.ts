@@ -24,6 +24,9 @@ export interface Imported {
   boxes: Record<string, Bounds>
   kicad: string | null
   warnings: string[]
+  /** Parts with no 3D model, stood in for by a placeholder box each: by
+   *  reference. Absent in projects saved before placeholders. */
+  placeholders?: string[]
 }
 
 export interface PcbSetup {
