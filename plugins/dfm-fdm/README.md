@@ -33,8 +33,9 @@ says which layer set it.
 | mesh-health | edges not shared by exactly two triangles |
 
 On a body or the reference part the answer's `wall` gives the thinnest
-wall read, where, and the limit, with the sharp edges apart; a uniformly
-thin skin is still an error. A rule that can't run on the part says so in
+wall read, where, one line (`line`), the limit and `level` (`under one
+line` or `single line`), with the sharp edges apart; a uniformly thin skin
+under one line is an error, one of a single line a warning. A rule that can't run on the part says so in
 `skipped`. A part that is open but not drawn yet answers `busy` while it
 opens and `invalid_state` after; `unavailable` is kept for a session with
 no viewport.
