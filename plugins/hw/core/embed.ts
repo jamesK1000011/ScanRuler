@@ -12,6 +12,7 @@
 
 import { bearingOf, type Fit, FITS, insertOf, magnetOf, metricOf, sizesOf } from './hardware'
 import { type Cut, LEAD, PlanError, r3, type Settings, type Step } from './plan'
+import { libraryMaterial } from '../../_shared/materials'
 
 export interface Layers {
   /** Every layer's height but the first's, mm. */
@@ -311,12 +312,22 @@ export function noteOf(whats: string[]): string {
 
 // ---- the part's own mass ------------------------------------------------------------------
 
-/** What the hardware is made of, g/cm³ — typical figures: sintered NdFeB
- *  magnets, steel nuts and bearings, brass inserts. */
+/** A library material's density, g/cm³: the shared library's figure is
+ *  the one every workspace weighs that material at. */
+function libraryDensity(id: string): number {
+  const d = libraryMaterial(id)?.density
+  if (d === undefined) throw new Error(`The material library has no density for ${id}.`)
+  return d
+}
+
+/** What the hardware is made of, g/cm³: steel nuts and bearings (the
+ *  library's generic steel) and free-cutting brass inserts (its brass),
+ *  read from the shared library; sintered NdFeB magnets, which the library
+ *  has no entry for, a typical figure kept here. */
 export const PART_MATERIALS = {
   ndfeb: { label: 'NdFeB', density: 7.5 },
-  steel: { label: 'steel', density: 7.85 },
-  brass: { label: 'brass', density: 8.5 },
+  steel: { label: 'steel', library: 'steel-generic', density: libraryDensity('steel-generic') },
+  brass: { label: 'brass', library: 'brass', density: libraryDensity('brass') },
 } as const
 
 /** A deep-groove bearing is not solid steel: races, balls and cage come to

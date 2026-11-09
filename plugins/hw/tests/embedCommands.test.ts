@@ -13,6 +13,8 @@ import { registerStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { hwCommands } from '../app/hwCommands'
 import { DEFAULT_SETTINGS } from '../core/plan'
+import { PART_MATERIALS } from '../core/embed'
+import { libraryMaterial } from '../../_shared/materials'
 import { embedsFrom } from '../app/projectSection'
 import { settingsOf, useHw } from '../state/hwStore'
 
@@ -470,8 +472,15 @@ describe('the encased parts’ mass (hw.masses)', () => {
     // Cut up from Z 0 under a 0.6 floor: the nut's 2.4 sits on it.
     expect(p.centres[0][2]).toBeCloseTo(0.6 + 1.2, 6)
     const hex = (Math.sqrt(3) / 2) * 5.5 ** 2 - Math.PI * 1.5 ** 2
-    expect(p.mass).toBeCloseTo((7.85 * hex * 2.4) / 1000, 5)
+    expect(p.mass).toBeCloseTo((PART_MATERIALS.steel.density * hex * 2.4) / 1000, 5)
     expect(p.material).toBe('steel')
+  })
+
+  test('steel and brass weigh as the shared library has them; NdFeB, not in it, its own', () => {
+    expect(PART_MATERIALS.steel.density).toBe(libraryMaterial('steel-generic')!.density)
+    expect(PART_MATERIALS.brass.density).toBe(libraryMaterial('brass')!.density)
+    expect(libraryMaterial('ndfeb')).toBe(undefined)
+    expect(PART_MATERIALS.ndfeb.density).toBe(7.5)
   })
 
   test('an object needs its grams; a recorded cavity is uncounted; a gone cut left out', async () => {

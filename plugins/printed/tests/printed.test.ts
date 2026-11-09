@@ -7,7 +7,8 @@
 // makes, and a closed channel's top.
 import { describe, expect, test } from 'vitest'
 import { area, mitredOutline, pieceGap, piecesGap, polylineDistance, routeLength, runPieces, segmentDistance, type V2, type V3 } from '../core/geometry'
-import { awgDiameter, awgTable, currentFor, loadOf, MATERIALS, resistivityAlong, runResistance, wireOhmPerM } from '../core/materials'
+import { awgDiameter, awgTable, COPPER_OHM_M, currentFor, loadOf, MATERIALS, resistivityAlong, runResistance, wireOhmPerM } from '../core/materials'
+import { libraryMaterial } from '../../_shared/materials'
 import { channelOf, channelTop, DEFAULT_SETTINGS, featuresOf, LEAD, measure, type PlanSpec, type Sheet } from '../core/plan'
 import { piecesOf, routeAll, routeOne, shortfall } from '../core/router'
 
@@ -56,6 +57,11 @@ describe('resistance', () => {
     const t = awgTable(20, 24)
     expect(t.map((r) => r.awg)).toEqual([20, 21, 22, 23, 24])
     expect(t[2].ohmPerM).toBeCloseTo(0.0516, 4)
+  })
+
+  test('copper’s resistivity, kept here, agrees with the shared library’s copper (59.59 MS/m)', () => {
+    const ms = libraryMaterial('copper')!.electrical!.conductivity!
+    expect(Math.abs(1 / (ms * 1e6) / COPPER_OHM_M - 1)).toBeLessThan(0.005)
   })
 
   test('drop and heat: 15 kΩ over 100 mm at 10 mA is 150 V, 1.5 W, 15 W/m', () => {

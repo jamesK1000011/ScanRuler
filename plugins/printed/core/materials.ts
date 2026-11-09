@@ -47,7 +47,11 @@ export const MATERIALS: readonly Material[] = [
   },
 ] as const
 
-/** Copper at 20 °C, Ω·m: the default for wire and tape. */
+/** Copper at 20 °C, Ω·m: the default for wire and tape. The conductors'
+ *  figures stay here, the printed circuit's own: the shared material library
+ *  (plugins/_shared/materials) holds the bulk materials — its copper's
+ *  conductivity agrees with this (tests/printed.test.ts) — and has no
+ *  conductive filaments: they carry no density to read from it. */
 export const COPPER_OHM_M = 1.68e-8
 
 /** The user's own filament. */

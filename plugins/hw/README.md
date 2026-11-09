@@ -67,8 +67,9 @@ geometry is ScanRuler's own; no CAD package's code is used.
 | `hw.unembed` | Forget an encased part (its cut stays) |
 
 An encased nut, magnet, bearing or insert carries its own mass, from the
-table's size and its usual material (NdFeB 7.5, steel 7.85, brass 8.5
-g/cm³; a bearing at 65 % of its steel ring), resting at the pocket's low
+table's size and its usual material (steel and brass at the shared material
+library's densities, 7.9 and 8.47 g/cm³; NdFeB, which the library has not,
+7.5; a bearing at 65 % of its steel ring), resting at the pocket's low
 end; `grams` gives what one weighs instead, and is needed for an object.
 `mass.properties` adds them to the part, and `fea.solve` to its own weight.
 
