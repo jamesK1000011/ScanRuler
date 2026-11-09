@@ -15,6 +15,8 @@ import { fromBuild, UPS, type Up } from '../core/frame'
 import { measure } from '../core/measure'
 import { solve, type Solution } from '../core/solve'
 import { corrections, iniFragment, slicerChanges, type Keymap } from '../core/suggest'
+import { judgeNoise, noiseNotes } from '../core/noiseCheck'
+import { readScanNoise, scanNoiseAnswer } from '../../_shared/scanNoise'
 import { useFit, type FitRun, type FitSettings } from '../state/fitStore'
 import { POOR_FIT } from '../../_shared/printerFit'
 import { alignedScan, reference } from './geometry'
@@ -44,6 +46,7 @@ function keymapOf(id: string): Keymap {
 }
 
 const r = (v: number, d = 4) => Math.round(v * 10 ** d) / 10 ** d
+const mmText = (v: number) => `${v} mm`
 const AXES = ['X', 'Y', 'Z']
 
 function lastRun(): FitRun {
@@ -160,7 +163,7 @@ export const measureCommand: Command<{ detail?: 'brief' | 'full' }> = {
   name: 'measure',
   title: 'Measure the print’s fit',
   description:
-    'Read the aligned scan against every feature of the reference and fit what the print did: scale on X, Y and Z (measured over nominal: 0.995 is 0.5 % small), the contour offset (mm the outer walls stand out: + is too big), the hole offset (mm the material stands into holes: + is holes too small) and the elephant foot (mm the first layer stands out past the wall above it). Each with its standard error; determined: false where this part cannot separate it (one hole size and no hole centres far apart, say). fit is χ² per degree of freedom — near 1 or under when the model explains the part; well over (4+) means warping, a lifted corner or a poor alignment, and the offsets should not be trusted: see outliers. noise is the scan’s scatter on flat faces. Kept as a run of the project; fit.suggest turns it into slicer settings. A good fit also becomes the printer’s one calibration, the one Fits sizes holes and shafts with (calibration in the answer; calibrationKept says why not). Needs deviation.open_reference and deviation.align first. Not undoable.',
+    'Read the aligned scan against every feature of the reference and fit what the print did: scale on X, Y and Z (measured over nominal: 0.995 is 0.5 % small), the contour offset (mm the outer walls stand out: + is too big), the hole offset (mm the material stands into holes: + is holes too small) and the elephant foot (mm the first layer stands out past the wall above it). Each with its standard error; determined: false where this part cannot separate it (one hole size and no hole centres far apart, say). fit is χ² per degree of freedom — near 1 or under when the model explains the part; well over (4+) means warping, a lifted corner or a poor alignment, and the offsets should not be trusted: see outliers. noise is the scan’s scatter on flat faces. scanNoise is the scan noise to plan with where Scanner noise has one (the larger of the scanner’s usual and this scan’s); nearNoise lists offsets worth changing by their errors but under three times that noise (or the scatter, the larger), and noiseNotes says what to make of them and of a poor fit on a scan that scatters well above its scanner. Kept as a run of the project; fit.suggest turns it into slicer settings. A good fit also becomes the printer’s one calibration, the one Fits sizes holes and shafts with (calibration in the answer; calibrationKept says why not). Needs deviation.open_reference and deviation.align first. Not undoable.',
   input: obj({ detail: enumOf(['brief', 'full'], 'full adds every feature’s reading.') }),
   history: false,
   timeoutMs: 5 * 60_000,
@@ -177,6 +180,9 @@ export const measureCommand: Command<{ detail?: 'brief' | 'full' }> = {
     const solution = solve(readings, new Set(s.inner))
     const run = useFit.getState().addRun({ at: new Date().toISOString(), reference: ref.name, settings: s, readings, solution })
     const cs = corrections(solution)
+    const plan = readScanNoise()
+    const judged = judgeNoise(cs, readings.noise, plan)
+    const notes = noiseNotes(judged, solution.fit > POOR_FIT, mmText)
     const calibration = await shareCalibration(solution)
     return {
       run: run.n,
@@ -185,9 +191,12 @@ export const measureCommand: Command<{ detail?: 'brief' | 'full' }> = {
       ...(s.printer || s.material ? { printedOn: { printer: s.printer, material: s.material, nozzle: s.nozzle } } : {}),
       read: { faces: readings.planes.length, circles: readings.circles.length, ...(readings.missed.length ? { missed: readings.missed } : {}) },
       noise: readings.noise,
+      ...(plan ? { scanNoise: scanNoiseAnswer(plan, mmText) } : {}),
       ...describeSolution(solution),
       worthChanging: cs.filter((c) => c.change).map((c) => c.quantity),
       ...calibration,
+      ...(judged?.nearNoise.length ? { nearNoise: judged.nearNoise } : {}),
+      ...(notes.length ? { noiseNotes: notes } : {}),
       ...(solution.fit > POOR_FIT ? { warning: `The fit is poor (χ²/dof ${solution.fit}): the part did something a scale and offsets do not describe — warping, a lifted corner, or a poor alignment. Look at the outliers and the deviation map before changing settings.` } : {}),
       ...(detail === 'full'
         ? {

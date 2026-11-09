@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// scanner-profiles' section of the 3D Measure panel: which scanner this
-// project's scan came from — one of your profiles, or the noise read off the
-// scan — the noise read, and your profiles added and removed. Every control
-// runs a scanner.* command, the same ones the readout and the browser
-// checks use.
+// The 3D Measure panel's Scanner noise section: which scanner this
+// project's scan came from, with its usual noise; this scan's noise as the
+// scan check reads it; the noise to plan with (the larger) and its warning;
+// and your scanners added and removed. Every control runs a scanner.*
+// command, the same ones the readout and the browser checks use.
 
 import { useState } from 'react'
 import { runCommand } from '../../../src/commands/registry'
@@ -12,6 +12,7 @@ import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { NumberField } from '../../../src/ui/NumberField'
 import { Status } from '../../_shared/ui/kit'
+import { noiseFrom, noiseWarningText, planNoise } from '../../_shared/scanNoise'
 import { useScanner } from '../state/scannerStore'
 import './scanner.css'
 
@@ -46,7 +47,7 @@ function AddProfile({ form, setForm, open, setOpen }: { form: ProfileForm; setFo
   const put = (p: Partial<ProfileForm>) => setForm({ ...form, ...p })
   return (
     <details className="scanner-add" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary>Add a profile</summary>
+      <summary>Add a scanner</summary>
       <label className="field">
         <span>Name</span>
         <input className="pl-input" type="text" data-test="scanner-name" placeholder="Scanner and mode" maxLength={60} value={form.name} onChange={(e) => put({ name: e.target.value })} />
@@ -58,7 +59,7 @@ function AddProfile({ form, setForm, open, setOpen }: { form: ProfileForm; setFo
         step={0.005}
         min={0.0001}
         testId="scanner-noise-value"
-        hint={<p>One standard deviation of the surface noise. Measure noise on a scan of a flat, matte part reads it.</p>}
+        hint={<p>One standard deviation of the scanner's usual surface noise. Measure noise on a scan of a flat, matte part reads it.</p>}
         onCommit={(v) => put({ noiseMm: Math.min(NOISE_MAX, v) })}
       />
       <NumberField label="Point spacing" kind="length" value={form.spacingMm} step={0.01} min={0} hint={<p>Typical distance between points; 0 to leave it out.</p>} onCommit={(v) => put({ spacingMm: v })} />
@@ -75,7 +76,7 @@ function AddProfile({ form, setForm, open, setOpen }: { form: ProfileForm; setFo
           className="primary"
           data-test="scanner-add"
           disabled={!input}
-          title="Keep this profile in this browser"
+          title="Keep this scanner in this browser"
           onClick={() =>
             input &&
             void run('add', input).then((r) => {
@@ -99,6 +100,8 @@ export function ScannerSection() {
   const profiles = useScanner((s) => s.profiles)
   const using = useScanner((s) => s.using)
   const measured = useScanner((s) => s.measured)
+  const plan = planNoise(using, measured)
+  const warning = noiseWarningText(plan, (v) => len.fmt(v, 3))
   const [working, setWorking] = useState(false)
   const [form, setForm] = useState<ProfileForm>(BLANK)
   const [adding, setAdding] = useState(false)
@@ -112,17 +115,17 @@ export function ScannerSection() {
   return (
     <div className="group" data-test="scanner-section">
       <div className="sec-head">
-        Scanner
-        <InfoDot title="Scanner and scan noise">
+        Scanner noise
+        <InfoDot title="Scanner noise">
           <p>
-            How noisy the scanner is sets how small a difference can be trusted. Tolerances and thresholds elsewhere are set as a multiple of it: the chosen
-            profile's noise, else the noise measured from the scan.
+            How noisy a scan is sets how small a difference can be trusted: nothing finer than about three times it. Wear repair, Calibrate from a scan and
+            Thread go by the larger of the scanner's usual noise and this scan's.
           </p>
           <p>
-            <b>Measure noise</b> reads it off the open scan, on its flat places only — best on a scan of a flat, matte part. <b>Save as profile</b> keeps
-            the reading for every project.
+            <b>Measure noise</b> reads this scan's with the scan check — best on a flat, matte part. <b>Save as scanner</b> keeps the reading as a
+            scanner's usual noise, for every project.
           </p>
-          <p>Profiles are kept in this browser. The one chosen is kept with the project.</p>
+          <p>Scanners are kept in this browser; the one named is kept with the project. 2D Measure's scanner profiles are a flatbed's scale, not this.</p>
         </InfoDot>
       </div>
       <label className="field">
@@ -132,7 +135,7 @@ export function ScannerSection() {
           value={using?.name ?? ''}
           onChange={(e) => void run('use', e.target.value ? { name: e.target.value } : { measured: true })}
         >
-          <option value="">Measured from the scan</option>
+          <option value="">None: this scan's noise</option>
           {profiles.map((p) => (
             <option key={p.name} value={p.name}>
               {p.name}
@@ -146,33 +149,36 @@ export function ScannerSection() {
         </select>
       </label>
       <div className="kv" data-test="scanner-noise-now">
-        <span className="pl-aside">Noise (1σ)</span>
-        <span className="pl-aside">{using ? len.fmt(using.noiseMm, 3) : measured ? len.fmt(measured.sigmaMm, 3) : 'not read yet'}</span>
+        <span className="pl-aside">Plan with (1σ)</span>
+        <span className="pl-aside" title={plan ? noiseFrom(plan) : undefined}>
+          {plan ? `${len.fmt(plan.sigmaMm, 3)}, ${plan.source === 'profile' ? 'the scanner' : 'this scan'}` : 'not read yet'}
+        </span>
       </div>
       {measured && (
         <div className="kv" data-test="scanner-measured">
-          <span className="pl-aside">Measured</span>
+          <span className="pl-aside">This scan</span>
           <span className="pl-aside">{`${len.fmt(measured.sigmaMm, 3)}, spacing ${len.fmt(measured.spacingMm, 3)}`}</span>
         </div>
       )}
       <div className="toolrow">
-        <button data-test="scanner-noise" disabled={!fileName || busy || working} title="Read the noise off the open scan" onClick={measure}>
+        <button data-test="scanner-noise" disabled={!fileName || busy || working} title="Read this scan's noise with the scan check" onClick={measure}>
           {working ? 'Reading…' : 'Measure noise'}
         </button>
         <button
           data-test="scanner-save-measured"
           disabled={!measured}
-          title="Keep the measured noise as a profile"
+          title="Keep this scan's noise as a scanner"
           onClick={() => {
             if (!measured) return
             setForm({ ...BLANK, noiseMm: Math.min(NOISE_MAX, measured.sigmaMm), spacingMm: measured.spacingMm })
             setAdding(true)
           }}
         >
-          Save as profile
+          Save as scanner
         </button>
       </div>
-      {!fileName && !using && <p className="hint">Open a scan to measure its noise, or choose a profile.</p>}
+      {warning && <Status tone="warn" testId="scanner-warning">{warning}</Status>}
+      {!fileName && !using && <p className="hint">Open a scan to measure its noise, or choose a scanner.</p>}
       {profiles.length > 0 && (
         <div className="scanner-list">
           {profiles.map((p) => (
@@ -180,7 +186,7 @@ export function ScannerSection() {
               <span className="pl-aside">{p.name}</span>
               <span className="pl-aside">
                 {len.fmt(p.noiseMm, 3)}
-                <button className="x" title="Remove this profile" onClick={() => void run('remove', { name: p.name })}>
+                <button className="x" title="Remove this scanner" onClick={() => void run('remove', { name: p.name })}>
                   ×
                 </button>
               </span>
@@ -188,7 +194,7 @@ export function ScannerSection() {
           ))}
         </div>
       )}
-      {foreign && <Status tone="idle">{`This project uses ${foreign.name}, not among your profiles.`}</Status>}
+      {foreign && <Status tone="idle">{`This project names ${foreign.name}, not among your scanners.`}</Status>}
       <AddProfile form={form} setForm={setForm} open={adding} setOpen={setAdding} />
     </div>
   )

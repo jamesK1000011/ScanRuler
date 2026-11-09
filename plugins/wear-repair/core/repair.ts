@@ -78,12 +78,28 @@ export function scatter(scan: Mesh, ref: Surface, worn: readonly Region[], maxMm
   return { mm: Math.round(1.4826 * mid(ds.map((d) => Math.abs(d - m))) * 10000) / 10000, points: ds.length }
 }
 
-/** What the scatter means for the tolerance, in a line, or null when the
- *  tolerance clears it. */
-export function scatterNote(s: { mm: number } | null, tolerance: number): string | null {
-  if (!s || tolerance >= 2 * s.mm) return null
+/** The least tolerance this scan supports, and what sets it: twice its
+ *  scatter off the worn regions, or three times the scan noise to plan with
+ *  (Scanner noise's, when the build has it: the scanner's usual noise is a
+ *  floor a scan that reads clean against the reference does not lift) —
+ *  the larger. Null with neither. */
+export function toleranceFloor(s: { mm: number } | null, noise?: { sigmaMm: number } | null): { mm: number; by: 'scatter' | 'noise' } | null {
+  const byScatter = s ? 2 * s.mm : 0
+  const byNoise = noise ? 3 * noise.sigmaMm : 0
+  if (!(byScatter > 0) && !(byNoise > 0)) return null
+  return byNoise > byScatter ? { mm: Math.round(byNoise * 10000) / 10000, by: 'noise' } : { mm: Math.round(byScatter * 10000) / 10000, by: 'scatter' }
+}
+
+/** What the scatter and the scan noise mean for the tolerance, in a line,
+ *  or null when the tolerance clears both. */
+export function scatterNote(s: { mm: number } | null, tolerance: number, noise?: { sigmaMm: number; from: string } | null): string | null {
+  const floor = toleranceFloor(s, noise)
+  if (!floor || tolerance >= floor.mm) return null
+  const raise = Math.ceil(floor.mm * 100 - 1e-9) / 100
   // units-ok: the reply to the agent, in the millimetres the settings take
-  return `the tolerance (${tolerance} mm) is under twice the scan's scatter off the worn regions (${s.mm} mm): points past it may be scatter, not wear — raise it to about ${Math.ceil(2 * s.mm * 100) / 100} mm, or rescan finer`
+  if (floor.by === 'scatter') return `the tolerance (${tolerance} mm) is under twice the scan's scatter off the worn regions (${s!.mm} mm): points past it may be scatter, not wear — raise it to about ${raise} mm, or rescan finer`
+  // units-ok: the reply to the agent, in the millimetres the settings take
+  return `the tolerance (${tolerance} mm) is under three times the scan noise (${noise!.sigmaMm} mm, ${noise!.from}): nothing finer is trustworthy on this scan, so points past it may be noise, not wear — raise it to about ${raise} mm, or rescan finer`
 }
 
 export interface RebuildOptions {

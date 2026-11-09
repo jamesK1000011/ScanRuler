@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The 3D Measure panel's Scanner section: installed with the plugin, its
-// form read as scanner.add takes it, and the commands its controls run —
-// a profile added and used, the measured noise chosen again, and removed.
+// The 3D Measure panel's Scanner noise section: installed with the plugin,
+// its form read as scanner.add takes it, and the commands its controls run —
+// a scanner added and named, none chosen again, and removed.
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { runCommand } from '../../../src/commands/registry'
 import { panelSectionsIn } from '../../../src/plugins/panelSections'
@@ -33,16 +33,22 @@ describe('Scanner section', () => {
   test('add and use, back to measured, remove', async () => {
     await runCommand('scanner.add', profileInput({ name: 'Bench', noiseMm: 0.04, spacingMm: 0, note: '', use: true })!)
     expect(useScanner.getState().using?.name).toBe('Bench')
-    expect(noiseNow()).toEqual({ sigmaMm: 0.04, from: 'profile Bench' })
+    expect(noiseNow()).toMatchObject({ sigmaMm: 0.04, source: 'profile', warning: null })
     useScanner.getState().setMeasured({ sigmaMm: 0.02, spacingMm: 0.3, at: '2026-11-08T00:00:00Z' })
+    // The scanner's usual noise is the floor: a scan reading cleaner plans with it.
+    expect(noiseNow()?.sigmaMm).toBe(0.04)
     await runCommand('scanner.use', { measured: true })
     expect(useScanner.getState().using).toBeNull()
-    expect(noiseNow()?.sigmaMm).toBe(0.02)
+    expect(noiseNow()).toMatchObject({ sigmaMm: 0.02, source: 'measured', warning: { kind: 'no-profile' } })
     await runCommand('scanner.use', { name: 'Bench' })
     await runCommand('scanner.remove', { name: 'Bench' })
     expect(useScanner.getState().profiles).toEqual([])
     // The project keeps its copy: the section offers it as the project's.
     expect(useScanner.getState().using?.name).toBe('Bench')
-    await expect(runCommand('scanner.remove', { name: 'Bench' })).rejects.toThrow(/No profile/)
+    const refused = await runCommand('scanner.remove', { name: 'Bench' }).then(
+      () => null,
+      (e: unknown) => String(e),
+    )
+    expect(refused).toMatch(/No scanner "Bench"/)
   })
 })

@@ -18,6 +18,7 @@ import { readingOf, type ReverseRead } from '../core/identify'
 import { readShape } from '../core/shape'
 import { FAMILIES, FAMILY_IDS, type Family, familyInfo, lookup, ROWS } from '../core/tables'
 import { useThreadMatch } from '../state/threadStore'
+import { readScanNoise, scanNoiseAnswer } from '../../_shared/scanNoise'
 
 type Json = Record<string, unknown>
 
@@ -61,7 +62,7 @@ export const identify: Command<{ axis: Json; families?: Family[]; band?: number;
   name: 'identify',
   title: 'Identify a scanned thread',
   description:
-    'Name the thread on a bore or boss of the scan against ISO metric, UNC, UNF, UNEF, NPT, G (BSPP), R (BSPT), metric trapezoidal Tr, ACME and the 3D-printing 45° form. verdict: match (best, with confidence high or low), ambiguous (tied: the sizes this scan cannot tell apart, and deciding: what to measure by hand and what each would read, most telling first) or none. Beyond reverse.thread.read it folds the points along the helix for a sharper pitch (pitchSigma), the flank angle, the taper (tapered / parallel / unclear), the hand and the number of starts (a lead screw); ruledOut lists sizes whose pitch and diameter fit too but were set aside only by the flank angle, the taper or the tooth depth — name them to the person when the call matters. feature is the Reverse Engineer thread ready to add when the match is a form the Thread feature cuts (metric, UNC, UNF, print45); pipe, trapezoidal and ACME threads are named but not modelled. A scan reads diameters a little small; a match within tolerance is normal. Changes nothing.',
+    'Name the thread on a bore or boss of the scan against ISO metric, UNC, UNF, UNEF, NPT, G (BSPP), R (BSPT), metric trapezoidal Tr, ACME and the 3D-printing 45° form. verdict: match (best, with confidence high or low), ambiguous (tied: the sizes this scan cannot tell apart, and deciding: what to measure by hand and what each would read, most telling first) or none. Beyond reverse.thread.read it folds the points along the helix for a sharper pitch (pitchSigma), the flank angle, the taper (tapered / parallel / unclear), the hand and the number of starts (a lead screw); ruledOut lists sizes whose pitch and diameter fit too but were set aside only by the flank angle, the taper or the tooth depth — name them to the person when the call matters. feature is the Reverse Engineer thread ready to add when the match is a form the Thread feature cuts (metric, UNC, UNF, print45); pipe, trapezoidal and ACME threads are named but not modelled. A scan reads diameters a little small; a match within tolerance is normal. The noise the tolerances are set from is the wall’s, raised to the scan noise to plan with where Scanner noise has a larger one (scanNoise; raised gives the wall’s own) — a scan is never surer than its scanner, so sizes it cannot tell apart come back tied, not as a confident match. Changes nothing.',
   input: obj(
     {
       axis: axisInput,
@@ -101,7 +102,9 @@ export const identify: Command<{ axis: Json; families?: Family[]; band?: number;
     const max = [0, 1, 2].map((k) => r.axis.origin[k] + Math.abs(dir[k]) * half + reach) as Vec3
     const q = await worker.query({ min, max, limit })
     const shape = readShape({ positions: q.positions, origin: r.axis.origin, dir, radius: r.axis.radius, band: r.band, from: range[0], to: range[1], pitch: r.pitch })
-    const reading = readingOf(r, shape)!
+    const plan = readScanNoise()
+    const own = Math.max(r.noise, shape?.noise ?? 0)
+    const reading = readingOf(r, shape, plan?.sigmaMm ?? 0)!
     const v = decide(reading, fams, useThreadMatch.getState().pitchFloor)
     const best = v.best
     const info = best ? familyInfo(best.family) : null
@@ -131,6 +134,7 @@ export const identify: Command<{ axis: Json; families?: Family[]; band?: number;
         noise: reading.noise,
         length: fmt(reading.length),
       },
+      ...(plan ? { scanNoise: { ...scanNoiseAnswer(plan, (v) => `${v} mm`), ...(plan.sigmaMm > own ? { raised: own } : {}) } } : {}),
       tolerance: v.tolerance,
       canModel: best ? MODELLED.includes(best.family) : false,
       ...(feature ? { feature } : {}),

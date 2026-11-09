@@ -51,6 +51,7 @@
 | `reads.starts`, `lead` | Multi-start threads, e.g. a printer lead screw Tr8×8 = 4 starts at pitch 2. |
 | `reads.depthShare` | Tooth depth over pitch. A scan reads shallower than the real thread, never deeper. |
 | `tolerance` | The pitch and diameter shares a size had to fall within. `thread.settings { pitchFloor }` raises it for a scanner whose scale you trust less. |
+| `scanNoise` | The scan noise to plan with, from Scanner noise (the scanner's usual or this scan's, the larger), when the build has it; `raised` (the wall's own noise) when it widened the diameter tolerance. A tie it caused is the scanner's limit: say so, and pass on its `warning`. |
 
 ## Pitfalls
 

@@ -10,6 +10,14 @@ the next print comes out true.
 - **Repair** moves each vertex in a region tagged worn onto the reference,
   fading out over a blend band, never inside a region tagged keep. The mesh
   keeps its triangles, so no boolean is needed on a scan that isn't closed.
+- **The tolerance's floor.** `wear.diff` reads the scan's own scatter
+  off the worn regions and, where the build has Scanner noise, the scan
+  noise to plan with (`scanNoise`: the larger of the scanner's usual noise
+  and this scan's, read through `plugins/_shared/scanNoise.ts`). The least
+  tolerance the scan supports is twice the scatter or three times the
+  noise, the larger (`floor`); a tolerance under it is warned about, in the
+  answer's `note` and the panel. A scan that matches its mirror cleanly
+  does not make the scanner finer than it is.
 - **Pre-warp** moves the target back along its normals by the error the
   print shows, smoothed. Each run is recorded, and a stop rule says when
   another isn't worth it.
@@ -46,7 +54,7 @@ The agent guide is `guide.read { topic: "wear-repair" }`.
 | Path | What |
 |---|---|
 | `core/geometry.ts` | Nearest points (three-mesh-bvh), regions, mirroring, normals |
-| `core/repair.ts` | The diff and the snap repair |
+| `core/repair.ts` | The diff, the snap repair, and the tolerance's floor |
 | `core/prewarp.ts` | The smoothed inverse error field, and the stop rule |
 | `app/useWearPlugin.tsx` | The workspace: its panel, and a click placing a region |
 | `ui/WearPanel.tsx` | The panel; every control runs a `wear.*` command |

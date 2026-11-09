@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The reading thread-match decides on: reverse.thread.read's pitch,
 // diameters, bore or boss and noise, with the helix fold's sharper pitch,
-// flank angle and taper where the fold could be read.
+// flank angle and taper where the fold could be read. The noise is raised
+// to the scan noise to plan with (Scanner noise's, passed in as
+// floorMm) where that is larger: a scan is never surer than its scanner,
+// and a thread read finer than that would claim a size the scan can't
+// tell from its neighbour.
 
 import type { Reading } from './decide'
 import type { ThreadShape } from './shape'
@@ -20,7 +24,7 @@ export interface ReverseRead {
   windows?: { pitch: number | null }[]
 }
 
-export function readingOf(read: ReverseRead, shape: ThreadShape | null): Reading | null {
+export function readingOf(read: ReverseRead, shape: ThreadShape | null, floorMm = 0): Reading | null {
   if (read.pitch === null) return null
   const range = read.threaded ?? read.span
   const length = range[1] - range[0]
@@ -34,7 +38,7 @@ export function readingOf(read: ReverseRead, shape: ThreadShape | null): Reading
     major: read.major,
     minor: read.minor,
     internal: read.internal,
-    noise: Math.max(read.noise, shape?.noise ?? 0),
+    noise: Math.max(read.noise, shape?.noise ?? 0, floorMm),
     length: shape?.length ?? length,
     flankAngle: shape?.flankAngle ?? null,
     flankConfidence: shape?.flankConfidence ?? null,

@@ -34,6 +34,8 @@ interface RegionRead {
 interface DiffAnswer {
   sizeWarning?: string
   scatter?: number
+  floor?: { mm: number; by: 'scatter' | 'noise' }
+  scanNoise?: { sigmaMm: number; from: string }
   note?: string
   tolerance: number
   regions: RegionRead[]
@@ -289,7 +291,7 @@ function Settings() {
   return (
     <details className="group" data-test="wear-settings">
       <summary className="sec-head">Settings</summary>
-      <NumberField label="Tolerance" testId="wear-tolerance" value={s.tolerance} step={0.01} min={0.001} kind="length" disabled={busy} hint={<p>What counts as worn, and the pre-warp’s target. Keep it above about twice the scan’s scatter, or scatter reads as wear.</p>} onCommit={(v) => set({ tolerance: v })} />
+      <NumberField label="Tolerance" testId="wear-tolerance" value={s.tolerance} step={0.01} min={0.001} kind="length" disabled={busy} hint={<p>What counts as worn, and the pre-warp’s target. Keep it above about twice the scan’s scatter and three times the scan noise (Scanner noise), or scatter reads as wear.</p>} onCommit={(v) => set({ tolerance: v })} />
       <NumberField label="Blend" testId="wear-blend" value={s.blendMm} step={0.5} min={0} kind="length" disabled={busy} hint={<p>How far outside a worn region a repair fades out, so it meets the part without a step.</p>} onCommit={(v) => set({ blendMm: v })} />
       <NumberField label="Reach" testId="wear-reach" value={s.maxMm} step={0.5} min={0.01} kind="length" disabled={busy} hint={<p>How far the reference may be from a point and still be the same surface. Farther points are left alone.</p>} onCommit={(v) => set({ maxMm: v })} />
       <label className="field pl-field">
@@ -330,7 +332,9 @@ function Repair({ len }: { len: BoundLength }) {
   }
   const notes: { level: string; text: string }[] = []
   if (diff?.sizeWarning) notes.push({ level: 'warn', text: 'The scan may not be true size. Scale it from a length measured on the part first.' })
-  if (diff?.note && diff.scatter !== undefined) notes.push({ level: 'warn', text: `The tolerance is under twice the scan’s scatter (${len.fmt(diff.scatter, 3)}): points past it may be scatter, not wear. Raise it to about ${len.fmt(2 * diff.scatter, 2)}.` })
+  if (diff?.note && diff.floor?.by === 'noise' && diff.scanNoise)
+    notes.push({ level: 'warn', text: `The tolerance is under three times the scan noise (${len.fmt(diff.scanNoise.sigmaMm, 3)}, ${diff.scanNoise.from}): points past it may be noise, not wear. Raise it to about ${len.fmt(diff.floor.mm, 2)}.` })
+  else if (diff?.note && diff.scatter !== undefined) notes.push({ level: 'warn', text: `The tolerance is under twice the scan’s scatter (${len.fmt(diff.scatter, 3)}): points past it may be scatter, not wear. Raise it to about ${len.fmt(2 * diff.scatter, 2)}.` })
   return (
     <div className="group" data-test="wear-repair">
       <div className="sec-head">

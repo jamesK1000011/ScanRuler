@@ -14,6 +14,14 @@ It reads through the Reverse Engineer's `reverse.thread.read`, then folds the
 scan's points along the helix. The fold gives a sharper pitch, the flank
 angle, the taper, the hand and the number of starts.
 
+The diameter tolerance and the tooth-depth check go by the wall's noise,
+raised to the scan noise to plan with where the build has Scanner noise
+and its figure is larger (the larger of the scanner's usual noise and this
+scan's, read through `plugins/_shared/scanNoise.ts`; `scanNoise` in the
+answer, with `raised` giving the wall's own). A scan is never surer than
+its scanner, so sizes a noisy scanner can't tell apart come back tied, not
+as a confident match.
+
 ## In the app
 
 A **Thread** section in the 3D Measure panel (`registerPanelSection`):

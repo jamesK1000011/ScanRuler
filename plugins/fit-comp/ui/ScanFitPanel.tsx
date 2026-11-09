@@ -21,7 +21,9 @@ import { NumberField } from '../../../src/ui/NumberField'
 import { Busy, Notes, Status, TextField } from '../../_shared/ui/kit'
 import { keymaps } from '../app/fitCommands'
 import { UPS } from '../core/frame'
-import type { Correction, SlicerChange } from '../core/suggest'
+import { corrections, type Correction, type SlicerChange } from '../core/suggest'
+import { judgeNoise, noiseNotes } from '../core/noiseCheck'
+import { readScanNoise } from '../../_shared/scanNoise'
 import { useFit } from '../state/fitStore'
 
 type Json = Record<string, unknown>
@@ -244,6 +246,8 @@ function Result({ len }: { len: BoundLength }) {
   const poor = sol.fit > POOR_FIT
   const tone = poor ? 'bad' : sol.fit > 2 ? 'warn' : 'ok'
   const suggest = v.suggest?.run === last.n ? v.suggest : null
+  // Against the scan noise to plan with (Scanner noise's, where the build has it).
+  const noiseSaid = noiseNotes(judgeNoise(corrections(sol), last.readings.noise, readScanNoise()), poor, (mm) => len.fmt(mm, 3))
   return (
     <div className="group" data-test="scanfit-result">
       <div className="sec-head">
@@ -258,6 +262,7 @@ function Result({ len }: { len: BoundLength }) {
       <KV k="Outer walls" v={`${sol.contour.value >= 0 ? '+' : '−'}${len.fmt(Math.abs(sol.contour.value), 3)}${sol.contour.determined ? '' : ' (not separated)'}`} />
       <KV k="Holes" v={`${sol.hole.value >= 0 ? '+' : '−'}${len.fmt(Math.abs(sol.hole.value), 3)}${sol.hole.determined ? '' : ' (not separated)'}`} />
       {sol.foot && <KV k="Elephant foot" v={len.fmt(sol.foot.value, 3)} />}
+      {noiseSaid.length > 0 && <Notes testId="scanfit-noise" items={noiseSaid.map((text) => ({ level: 'warn', text }))} />}
       <div className="toolrow">
         <button data-test="scanfit-suggest" title="What to change in the slicer" disabled={v.busy !== null || poor} onClick={() => void run('fit.suggest').then((r) => r && useScanFitView.setState({ suggest: r as never }))}>
           Slicer changes

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Scanner profiles: your own, kept in this browser across projects, and
-// the one this project uses, kept with the project.
+// Scanner noise: your scanner profiles, kept in this browser across
+// projects, the one this project uses, and this scan's noise as the scan
+// check read it, both kept with the project.
 
 import { create } from 'zustand'
+import { planNoise, type ScanNoise } from '../../_shared/scanNoise'
 
 export interface ScannerProfile {
   name: string
@@ -65,10 +67,9 @@ export const useScanner = create<ScannerState>((set, get) => ({
   replace: (using, measured) => set({ using, measured }),
 }))
 
-/** The noise to plan with: the chosen profile's, else the scan's measured. */
-export function noiseNow(): { sigmaMm: number; from: string } | null {
+/** The noise to plan with — the larger of the profile's and this scan's
+ *  (plugins/_shared/scanNoise.ts has the rule). */
+export function noiseNow(): ScanNoise | null {
   const s = useScanner.getState()
-  if (s.using) return { sigmaMm: s.using.noiseMm, from: `profile ${s.using.name}` }
-  if (s.measured) return { sigmaMm: s.measured.sigmaMm, from: 'measured from the scan' }
-  return null
+  return planNoise(s.using, s.measured)
 }

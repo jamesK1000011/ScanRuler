@@ -36,6 +36,13 @@ The result can be slicer settings or a pre-compensated model.
      `fit.suggest`, `fit.export`, `fit.compensated_mesh` and
      `fit.profiles { action: "save" }` refuse such a run, and it does not
      become the printer's calibration.
+   - `noiseNotes`: against the scan noise to plan with (`scanNoise`, from
+     Scanner noise, or the run's own scatter if larger). An offset in
+     `nearNoise` is worth changing by its errors but under three times the
+     noise: suggest it, and say a second print or scan should confirm it.
+     On a poor fit, a note that the scan scatters well above its scanner
+     means rescan before blaming the printer. With no scanner named, pass
+     on `scanNoise.warning`.
    - `determined: false`: this part can't separate that quantity. A single
      hole size with no spread of hole centres can't separate scale from the
      hole offset. Say what feature would.

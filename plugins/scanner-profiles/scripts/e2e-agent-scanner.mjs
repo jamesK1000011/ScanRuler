@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// scanner-profiles through scanruler-mcp: a plate scanned with 0.03 mm of
-// noise is opened and its noise read back; a profile is saved from it,
-// used for the project, and comes back with the project.
+// Scanner noise through scanruler-mcp: a plate scanned with 0.03 mm of
+// noise is opened and its noise read back through the scan check; it is
+// kept as a scanner, named for the project, and comes back with the
+// project.
 //
 //   APP_URL=http://localhost:5173 node plugins/scanner-profiles/scripts/e2e-agent-scanner.mjs
 
@@ -50,15 +51,21 @@ try {
   check(waited.json?.connected === true && waited.json.page.plugins.includes('scanner-profiles'), `the page connected with scanner-profiles (${waited.json?.page?.plugins})`)
   await ok('scan_open', { path: scan, discard: true })
   const n = await ok('scanner_noise', {})
+  // The scan check's figure: the median scatter of small plane fits, which
+  // sits a little under the planted σ (a plane fitted to ~19 points takes
+  // three of their degrees of freedom).
   check(Math.abs(n.json.sigmaMm / SIGMA - 1) < 0.2 && Math.abs(n.json.spacingMm - 0.5) < 0.1, `scanner_noise reads ${n.json?.sigmaMm} mm (planted ${SIGMA}), spacing ${n.json?.spacingMm} mm`)
+  const qa = await ok('scan_qa', {})
+  check(qa.json?.noise?.median === n.json.sigmaMm, `scanner_noise is the scan check's noise (${qa.json?.noise?.median})`)
+  check(/^No scanner is set/.test(n.json?.noise?.warning ?? ''), `with no scanner named it warns: ${n.json?.noise?.warning}`)
   await ok('scanner_add', { name: 'Test scanner, fine mode', noiseMm: n.json.sigmaMm, spacingMm: n.json.spacingMm, note: 'matte spray', use: true })
   const st = await ok('session_state', {})
-  check(st.json?.plugins?.scanner?.noise?.from === 'profile Test scanner, fine mode', `the session plans with the profile: ${JSON.stringify(st.json?.plugins?.scanner?.noise)}`)
+  check(st.json?.plugins?.scanner?.noise?.from === 'scanner Test scanner, fine mode', `the session plans with the scanner: ${JSON.stringify(st.json?.plugins?.scanner?.noise)}`)
   const projectFile = join(OUT_DIR, 'scanner.scanruler')
   await ok('project_save', { path: projectFile })
   await ok('project_load', { path: projectFile, discard: true })
   const back = await ok('scanner_list', {})
-  check(back.json?.using?.name === 'Test scanner, fine mode' && back.json.measured?.sigmaMm === n.json.sigmaMm, 'the profile and the measured noise come back with the project')
+  check(back.json?.using?.name === 'Test scanner, fine mode' && back.json.measured?.sigmaMm === n.json.sigmaMm, 'the scanner and the measured noise come back with the project')
 } finally {
   await agent.close?.()
   await finish(browser, consoleErrors)

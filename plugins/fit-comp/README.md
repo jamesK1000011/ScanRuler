@@ -31,6 +31,22 @@ anything: `fit.suggest`, `fit.export`, `fit.compensated_mesh` and
 `fit.profiles { action: "save" }` refuse it and say what to do — look at the
 outliers and the deviation map, fix the cause, measure again.
 
+Against the scan noise to plan with — Scanner noise's, where the build has
+it (the larger of the scanner's usual noise and this scan's), read through
+`plugins/_shared/scanNoise.ts`, and the run's own scatter on flat faces
+where that is larger — `fit.measure` adds `scanNoise`, and `nearNoise` with
+`noiseNotes` for two judgements (`core/noiseCheck.ts`); the page shows them
+under the run:
+
+- an offset worth changing by its standard errors but under three times
+  the noise is finer than a scan is trusted for: confirm it on a second
+  print or scan before changing the slicer;
+- a poor fit on a scan whose flat faces scatter well above (1.5×) the
+  scanner's usual noise may be the scan's fault: rescan before blaming the
+  printer.
+
+The fit itself is unchanged: its errors come from the points read.
+
 ## The page
 
 - **The print and its CAD** — the scan, the CAD and whether they are

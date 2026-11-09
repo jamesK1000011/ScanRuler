@@ -23,7 +23,12 @@ see, and the other way round.
    face, a datum, or a feature meant to differ from the other half.
 3. **Read it.** `wear.diff` gives, per region, how deep the loss is
    (`lost`, negative) and how much stands proud (`added`). Tell the person
-   in one line per region.
+   in one line per region. When `note` is present the tolerance is under
+   `floor` — twice the scan's `scatter`, or three times the scan noise
+   (`scanNoise`, from Scanner noise: the scanner's usual noise or this
+   scan's, the larger), whichever `floor.by` names: points past it may be
+   noise, not wear. Raise it with `wear.settings { tolerance }`, or say why
+   not. Pass on `scanNoise.warning` when there is one.
 4. **Repair.** `wear.rebuild { path }` writes the repaired STL: each worn
    vertex moved onto the reference, faded out over `blendMm`. `mode: add`
    (the default) only brings lost material back; `both` trims what stands

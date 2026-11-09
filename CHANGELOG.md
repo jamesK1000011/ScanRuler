@@ -7,6 +7,26 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Scanner noise, one figure, used where scans are read** (2026-11-09).
+  The 3D Measure section once called Scanner, and its scanner profiles,
+  are now **Scanner noise** and *scanners* — 2D Measure's scanner profiles,
+  a flatbed's scale, keep the name. `scanner.noise` no longer measures noise
+  its own way: it takes the scan check's (`scan.qa`'s `noise.median`, the
+  figure the scan-to-CAD guide's "nothing finer than three times the
+  noise" is written against) and adds only the point spacing, which the
+  check gives for CAD tessellations alone; a CAD tessellation is refused.
+  The noise to plan with is the larger of the scanner's usual noise and
+  this scan's, else whichever is known, with a warning when the scan reads
+  1.5 times its scanner's or more and when no scanner is named; it is in
+  `session.state` under `plugins.scanner.noise` with where it came from and
+  `finestMm` (three times it), and the Scanner noise guide tells the agent
+  to take it as the scan-to-CAD noise floor when it is the larger. Wear
+  repair's `wear.diff` warns when the tolerance is under three times it
+  (or twice the scatter, the larger); Calibrate from a scan says when an
+  offset worth changing is under three times it, and when a poor fit comes
+  from a scan scattering well above its scanner; Thread widens its diameter
+  tolerance to it, so sizes a noisy scanner can't tell apart come back
+  tied. The `scanner.*` commands and saved projects are unchanged.
 - **Materials and setups, followed through** (2026-11-09). Mass and
   Strength list each body's own material — printed or solid — and the old
   material list is now for a body with none (*If none set*). A printability
