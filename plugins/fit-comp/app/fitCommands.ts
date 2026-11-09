@@ -16,6 +16,7 @@ import { measure } from '../core/measure'
 import { solve, type Solution } from '../core/solve'
 import { corrections, iniFragment, slicerChanges, type Keymap } from '../core/suggest'
 import { useFit, type FitRun, type FitSettings } from '../state/fitStore'
+import { POOR_FIT } from '../../_shared/printerFit'
 import { alignedScan, reference } from './geometry'
 import { shareCalibration } from './shareCalibration'
 
@@ -48,6 +49,15 @@ const AXES = ['X', 'Y', 'Z']
 function lastRun(): FitRun {
   const run = useFit.getState().runs.at(-1)
   if (!run) throw new CommandError('invalid_state', 'Nothing measured yet — run fit.measure first.')
+  return run
+}
+
+/** A run whose fit is poor (Print fit's guide: over about 4, don't
+ *  suggest offsets) is refused for anything that turns its offsets into
+ *  settings or a model: a scale and offsets don't describe the print. */
+export function trusted(run: FitRun): FitRun {
+  if (run.solution.fit > POOR_FIT)
+    throw new CommandError('invalid_state', `Run ${run.n} fits poorly (${r(run.solution.fit, 2)}, over ${POOR_FIT}): the print warped, lifted or is badly aligned, so its offsets would mislead. Check the outliers and the deviation map, fix the cause, and measure again.`)
   return run
 }
 
@@ -178,7 +188,7 @@ export const measureCommand: Command<{ detail?: 'brief' | 'full' }> = {
       ...describeSolution(solution),
       worthChanging: cs.filter((c) => c.change).map((c) => c.quantity),
       ...calibration,
-      ...(solution.fit > 4 ? { warning: `The fit is poor (χ²/dof ${solution.fit}): the part did something a scale and offsets do not describe — warping, a lifted corner, or a poor alignment. Look at the outliers and the deviation map before changing settings.` } : {}),
+      ...(solution.fit > POOR_FIT ? { warning: `The fit is poor (χ²/dof ${solution.fit}): the part did something a scale and offsets do not describe — warping, a lifted corner, or a poor alignment. Look at the outliers and the deviation map before changing settings.` } : {}),
       ...(detail === 'full'
         ? {
             planes: readings.planes.map((p) => ({ id: p.id, nominal: p.nominal, offset: p.offset, se: p.se, points: p.points, ...(p.foot ? { foot: p.foot } : {}) })),
@@ -193,12 +203,13 @@ export const suggest: Command<{ slicer?: string; run?: number }> = {
   name: 'suggest',
   title: 'What to change in the slicer',
   description:
-    'Turn the last run (or run n) into slicer settings: for each of scale XY, scale Z, contour offset, hole offset and elephant foot, whether it is worth changing (more than 3 standard errors and more than 0.02 mm or 0.1 %) and why, then for the slicer’s key map (fit.settings slicer, or slicer here) each setting’s new value from the one in use (fit.settings current) — added to it, not replacing it. Settings a slicer lacks say what to do instead (scale the object; fit.compensated_mesh for holes in PrusaSlicer). Changes nothing.',
+    'Turn the last run (or run n) into slicer settings: for each of scale XY, scale Z, contour offset, hole offset and elephant foot, whether it is worth changing (more than 3 standard errors and more than 0.02 mm or 0.1 %) and why, then for the slicer’s key map (fit.settings slicer, or slicer here) each setting’s new value from the one in use (fit.settings current) — added to it, not replacing it. Refused for a run whose fit is over 4: its offsets would mislead. Settings a slicer lacks say what to do instead (scale the object; fit.compensated_mesh for holes in PrusaSlicer). Changes nothing.',
   input: obj({ slicer: str('A key map id; the setting’s by default.'), run: num('The run; the last by default.') }),
   readOnly: true,
   run: async ({ slicer, run: n }) => {
     const run = n === undefined ? lastRun() : useFit.getState().runs.find((x) => x.n === n)
     if (!run) throw new CommandError('not_found', `No run ${n}.`)
+    trusted(run)
     const map = keymapOf(slicer ?? useFit.getState().settings.slicer)
     const cs = corrections(run.solution)
     const changes = slicerChanges(cs, map, run.settings.current)
@@ -209,7 +220,6 @@ export const suggest: Command<{ slicer?: string; run?: number }> = {
       corrections: cs,
       changes,
       ...(changes.length === 0 ? { note: 'Nothing worth changing: the print is within what this scan resolves.' } : {}),
-      ...(run.solution.fit > 4 ? { warning: 'The fit is poor (see fit.measure): fix warping or the alignment before trusting these.' } : {}),
     }
   },
 }
@@ -222,7 +232,7 @@ export const exportCommand: Command<{ format?: 'ini' | 'json'; slicer?: string }
   readOnly: true,
   returnsFile: true,
   run: async ({ format = 'ini', slicer }) => {
-    const run = lastRun()
+    const run = trusted(lastRun())
     const map = keymapOf(slicer ?? useFit.getState().settings.slicer)
     const cs = corrections(run.solution)
     const changes = slicerChanges(cs, map, run.settings.current)
@@ -244,7 +254,7 @@ export const compensatedMesh: Command<{ apply?: ('scale' | 'contour' | 'hole')[]
   readOnly: true,
   returnsFile: true,
   run: async ({ apply, all }) => {
-    const run = lastRun()
+    const run = trusted(lastRun())
     const s = useFit.getState().settings
     const ref = reference(run.settings.up as Up)
     const cs = corrections(run.solution)
@@ -320,7 +330,7 @@ export const profiles: Command<{ action: 'list' | 'save' | 'remove' | 'use'; nam
       st.setSettings({ current: { ...p.values }, slicer: p.slicer, printer: p.printer, material: p.material, nozzle: p.nozzle })
       return { settings: useFit.getState().settings }
     }
-    const run = lastRun()
+    const run = trusted(lastRun())
     const map = keymapOf(slicer ?? st.settings.slicer)
     const changes = slicerChanges(corrections(run.solution), map, run.settings.current)
     const values: Record<string, number> = { ...run.settings.current }

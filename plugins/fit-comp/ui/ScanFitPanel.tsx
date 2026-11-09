@@ -11,6 +11,7 @@ import { create } from 'zustand'
 import { runCommand } from '../../../src/commands/registry'
 import { readStateSection } from '../../../src/commands/stateSections'
 import { saveFile } from '../../../src/app/exports'
+import { POOR_FIT } from '../../_shared/printerFit'
 import { useLength, type BoundLength } from '../../../src/app/useUnits'
 import { useDeviation } from '../../../src/state/deviationStore'
 import { useHistory } from '../../../src/state/historyStore'
@@ -239,7 +240,9 @@ function Result({ len }: { len: BoundLength }) {
   const v = useScanFitView()
   if (!last) return <p className="hint">No print measured yet.</p>
   const sol = last.solution
-  const tone = sol.fit > 4 ? 'bad' : sol.fit > 2 ? 'warn' : 'ok'
+  // A poor fit's offsets would mislead: nothing is suggested from it.
+  const poor = sol.fit > POOR_FIT
+  const tone = poor ? 'bad' : sol.fit > 2 ? 'warn' : 'ok'
   const suggest = v.suggest?.run === last.n ? v.suggest : null
   return (
     <div className="group" data-test="scanfit-result">
@@ -249,20 +252,20 @@ function Result({ len }: { len: BoundLength }) {
           <p>Scale is measured over nominal. Outer walls: how far they stand out (+ too big). Holes: how far the material stands into them (+ holes too small). The fit near 1 means a scale and offsets explain the part; over 4, look for warping or a poor alignment first.</p>
         </InfoDot>
       </div>
-      <Status tone={tone} testId="scanfit-fit">{`Fit ${Math.round(sol.fit * 100) / 100}${sol.fit > 4 ? ': do not trust the offsets' : ''}`}</Status>
+      <Status tone={tone} testId="scanfit-fit">{`Fit ${Math.round(sol.fit * 100) / 100}${poor ? ': do not trust the offsets' : ''}`}</Status>
       <KV k="Scale X / Y" v={`${pct(sol.scale.x.value)} / ${pct(sol.scale.y.value)}`} />
       <KV k="Scale Z" v={pct(sol.scale.z.value)} />
       <KV k="Outer walls" v={`${sol.contour.value >= 0 ? '+' : '−'}${len.fmt(Math.abs(sol.contour.value), 3)}${sol.contour.determined ? '' : ' (not separated)'}`} />
       <KV k="Holes" v={`${sol.hole.value >= 0 ? '+' : '−'}${len.fmt(Math.abs(sol.hole.value), 3)}${sol.hole.determined ? '' : ' (not separated)'}`} />
       {sol.foot && <KV k="Elephant foot" v={len.fmt(sol.foot.value, 3)} />}
       <div className="toolrow">
-        <button data-test="scanfit-suggest" title="What to change in the slicer" disabled={v.busy !== null} onClick={() => void run('fit.suggest').then((r) => r && useScanFitView.setState({ suggest: r as never }))}>
+        <button data-test="scanfit-suggest" title="What to change in the slicer" disabled={v.busy !== null || poor} onClick={() => void run('fit.suggest').then((r) => r && useScanFitView.setState({ suggest: r as never }))}>
           Slicer changes
         </button>
-        <button data-test="scanfit-export" title="The changes as an .ini to paste into the slicer" disabled={v.busy !== null} onClick={() => void run('fit.export', { format: 'ini' }).then(download)}>
+        <button data-test="scanfit-export" title="The changes as an .ini to paste into the slicer" disabled={v.busy !== null || poor} onClick={() => void run('fit.export', { format: 'ini' }).then(download)}>
           Export .ini
         </button>
-        <button data-test="scanfit-compensated" title="The CAD pre-distorted so the print comes out true" disabled={v.busy !== null} onClick={() => void run('fit.compensated_mesh', {}, 'Building the model…').then(download)}>
+        <button data-test="scanfit-compensated" title="The CAD pre-distorted so the print comes out true" disabled={v.busy !== null || poor} onClick={() => void run('fit.compensated_mesh', {}, 'Building the model…').then(download)}>
           Compensated STL
         </button>
       </div>

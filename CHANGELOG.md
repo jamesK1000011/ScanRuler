@@ -7,6 +7,13 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **No slicer changes from a poor fit** (2026-11-08). Calibrate from a
+  scan's guide says a run that fits poorly (over 4: warping, a lifted
+  corner, a poor alignment) should not be turned into offsets; now it
+  isn't. `fit.suggest`, `fit.export`, `fit.compensated_mesh` and saving a
+  profile refuse such a run and say what to do — look at the outliers and
+  the deviation map, fix the cause, measure again — and the panel's
+  Slicer changes, Export .ini and Compensated STL are greyed out for it.
 - **Hardware, Generate and Boards size to the printer** (2026-11-08). With
   the printer calibrated in Fits, Hardware's hole allowances (screws, nuts,
   inserts, pilots, magnets, bearings), Generate's new hole allowance

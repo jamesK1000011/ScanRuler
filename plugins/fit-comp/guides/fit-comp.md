@@ -33,6 +33,9 @@ The result can be slicer settings or a pre-compensated model.
    - `fit` near 1 or under: the model explains the part. Over about 4: it
      doesn't (warping, a lifted corner, a bad alignment). Say so, show the
      `outliers` and the deviation map, and **don't** suggest offsets.
+     `fit.suggest`, `fit.export`, `fit.compensated_mesh` and
+     `fit.profiles { action: "save" }` refuse such a run, and it does not
+     become the printer's calibration.
    - `determined: false`: this part can't separate that quantity. A single
      hole size with no spread of hole centres can't separate scale from the
      hole offset. Say what feature would.
