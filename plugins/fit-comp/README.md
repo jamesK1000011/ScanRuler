@@ -25,6 +25,33 @@ offsets separated) becomes it, through `fit.calibrate { from: "print-fit" }`
 in the same step — calibrate once, from a scan or from Fits' test coupon,
 and both read the same offsets.
 
+A run that fits poorly (χ²/dof over 4: warping, a lifted corner, a poor
+alignment) is kept, with a warning, but its offsets are not turned into
+anything: `fit.suggest`, `fit.export`, `fit.compensated_mesh` and
+`fit.profiles { action: "save" }` refuse it and say what to do — look at the
+outliers and the deviation map, fix the cause, measure again.
+
+## The page
+
+- **The print and its CAD** — the scan, the CAD and whether they are
+  aligned; *Align in Surface Deviation* goes there to open and align it.
+- **Printed on** — which way stood up, the slicer, printer, material,
+  nozzle and first-layer height (the slicer values in use are set with
+  `fit.settings`), and *Key maps of your own*: paste a map, or *Start from*
+  the slicer chosen, *Add* to add or replace it, and remove one with its ×.
+- **Measure the print** runs `fit.measure`. The run shows its fit
+  (red over 4: "do not trust the offsets"), the scale on X/Y and Z, the
+  outer-wall and hole offsets (marked when not separated) and the
+  elephant foot; then *Slicer changes*, *Export .ini* and *Compensated
+  STL* (greyed out for a poor fit), and *Compare the last two* once there
+  are two runs.
+- **Features read** — each flat face, hole and boss found on the CAD, read
+  as an outer wall, a pocket wall or left out (`fit.tag`); measure again to
+  use the change.
+- **Calibration** — the printer's one calibration and where it came from;
+  *Use the last run* makes the last run it when it came from elsewhere.
+- **Profiles** — *Use* one, remove one, or *Save as* the last run's.
+
 ## Commands (`fit.*`)
 
 | Command | Changes | What |
