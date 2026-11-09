@@ -5,7 +5,11 @@ On screen: step 2, **Slice**, of the **Print** tab (Check → Slice → Send),
 workspace id `slice`. Slicing itself is the agent's server's; the page shows
 what the project adds to a slice — Hardware's pauses (`hw.pauses`) and the
 slicer changes from a scanned print (`fit.suggest`) — each where its plugin
-is in the build.
+is in the build. *Read the pauses* runs `hw.pauses` (each layer, its Z and
+what goes in); *Read the corrections* runs `fit.suggest` on the last
+scanned print, which says why instead when that run fits too poorly to
+trust. The slice itself is asked of the agent; nothing is sent to a printer
+from this step.
 
 Slices from ScanRuler with the slicers on this computer: OrcaSlicer, Bambu
 Studio and PrusaSlicer, each driven from its own command line. The work is

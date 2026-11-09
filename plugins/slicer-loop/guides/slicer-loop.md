@@ -18,7 +18,8 @@ server's `env` in their client config.
 3. **Slice.** Use `slicer_slice { model, slicer?, machine?, process?,
    filament?, overrides? }`. Profiles are names from `slicer_profiles`, or
    paths. Overrides are settings by key. fit-comp's `fit_suggest` changes go
-   in as `{ key: to }`.
+   in as `{ key: to }`; it refuses a scanned run that fits poorly (over 4),
+   and then there are none to pass on.
 4. **Read it.** The answer has three parts: `totals` (the slicer's own time,
    filament and layers), `counted` (layers, heights, filament by feature,
    travel, retractions) and `heuristic`. `heuristic` is an estimate; say so
