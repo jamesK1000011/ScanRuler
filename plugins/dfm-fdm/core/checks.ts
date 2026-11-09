@@ -33,6 +33,10 @@ export interface Finding {
   /** A trapped volume that is the pocket of a part encased at a pause
    *  (encased.ts): that part's id, E1 …. */
   encased?: string
+  /** A taper to a knife edge (a stacking lip, a chamfer) under the thin-wall
+   *  rule: value is the edge's length, limit the wall minimum its tip is
+   *  under — not a thickness against a limit. */
+  edge?: boolean
 }
 
 const BED = 0.1
@@ -232,7 +236,7 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
           for (const e of sharpEdges(part.wall, P.minMm, link)) {
             if (e.area < (P.minAreaMm2 ?? 0)) continue
             // units-ok: the agent's readout, in millimetres always
-            add({ ...rule, severity: 'info' }, { value: r(e.length, 1), limit: P.minMm, unit: 'mm', at: [r(e.at[0]), r(e.at[1]), r(e.at[2])], areaMm2: r(e.area, 1), says: `a sharp edge about ${r(e.length, 1)} mm long: under ${P.minMm} mm only near the edge, it prints as a single line` })
+            add({ ...rule, severity: 'info' }, { edge: true, value: r(e.length, 1), limit: P.minMm, unit: 'mm', at: [r(e.at[0]), r(e.at[1]), r(e.at[2])], areaMm2: r(e.area, 1), says: `a sharp edge about ${r(e.length, 1)} mm long: under ${P.minMm} mm only near the edge, it prints as a single line` })
           }
           break
         }

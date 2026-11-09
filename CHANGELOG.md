@@ -7,6 +7,28 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Generate: Gridfinity bins and baseplates without sliver faces**
+  (2026-11-09). The stacking lip's and the pockets' cutters overshot by
+  0.01 mm with their inset held flat, leaving a 0.01 mm ledge round the
+  rim and the top of the hollow that `reverse.body.check` reported as
+  slivers, so a fresh bin reviewed as "fix". They now run on along their
+  45° slopes; the lip ends in a clean edge.
+- **Review: a waived wall no longer fails the spec's least wall**
+  (2026-11-09). With the thinnest wall waived (`dfm.waive` — a stacking
+  lip, a wall thin on purpose), `part.review` judged `minWall` by it all
+  the same. It now judges the thinnest wall not waived, says which waiver
+  it passed over, and leaves the limit unjudged when the spec asks for more
+  than the check looked for. A sharp edge's finding is marked (`edge`) and
+  reads as its length ("sharp edge: about 226 mm long"), not as a
+  thickness against the limit.
+- **Make › Check follows the setup shown** (2026-11-09). With a print
+  setup picked and no scan open, Check checks the setup's part with what
+  the setup sets, where it said "Open a scan" and stayed greyed out; the
+  printer, nozzle and way up show the setup's values, locked, and the
+  material reads "The part's own" when each part's material is used.
+  Rules in force keep their names in a narrow panel. With no setup picked,
+  the Make pages are no longer numbered as one job's steps.
+
 - **Check: a pocket for an encased part is not a trapped volume**
   (2026-11-09). Checking a body, Printability took the pocket of a part
   dropped in at a print pause — a magnet embedded with a roof, Generate's

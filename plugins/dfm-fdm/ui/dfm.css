@@ -141,6 +141,21 @@
   text-align: left;
 }
 
+/* The rule's name keeps its width: a rule with two numbers (thin wall's
+   one line · min) otherwise squeezed it to nothing in a narrow panel. The
+   numbers and the source give way instead, ellipsed. */
+.kv.dfm-rule-head .name {
+  flex: none;
+}
+
+.kv.dfm-rule-head b,
+.kv.dfm-rule-head .pl-aside {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dfm-rule-head:hover {
   background: var(--well);
 }

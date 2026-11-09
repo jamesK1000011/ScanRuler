@@ -30,6 +30,9 @@ const LIP_IN = 2.6
 export const MAGNET = { size: '6x2', t: 2, hole: 2 * MAGNET_R, depth: 2.4, at: 13 } as const
 /** A baseplate's floor under its pockets, with magnets: 0.6 mm under each. */
 const BASE_FLOOR = 3
+/** How far a cutter overshoots the solid it cuts, so no face is left
+ *  coincident. On a sloped cutter it runs on along the slope (see bin). */
+const EPS = 0.01
 
 /** The magnets a bin or baseplate takes, as built (centred on the origin,
  *  on z = 0): each one's centre, resting on the bottom of its hole, the
@@ -116,13 +119,17 @@ export function bin(k: GenKernel, p: BinParams): H {
   )
   let body = k.fuseAll([...feet, prism(k, 0, 0, W, D, OUTER_R, BASE_H, H)])
   if (p.lip) {
+    // The cutter overshoots the ring by EPS at both ends along its own 45°
+    // slopes: holding the inset flat over the overshoot leaves the ruled
+    // loft EPS short at z = H and at the rim, a 0.01 mm ledge round the
+    // inside and the top that reverse.body.check reports as slivers.
     const ring = k.cut(
       prism(k, 0, 0, W, D, OUTER_R, H, H + LIP_H),
       stepped(k, 0, 0, W, D, [
-        [H - 0.01, 2.6, Math.max(0.5, OUTER_R - 2.6)],
+        [H - EPS, 2.6 + EPS, Math.max(0.5, OUTER_R - 2.6 - EPS)],
         [H + LIP_H - 0.7 - 1.8, 0.7, Math.max(0.5, OUTER_R - 0.7)],
         [H + LIP_H - 0.7, 0.7, Math.max(0.5, OUTER_R - 0.7)],
-        [H + LIP_H + 0.01, 0, OUTER_R],
+        [H + LIP_H + EPS, -EPS, OUTER_R + EPS],
       ]),
     )
     body = k.fuse(body, ring)
@@ -204,11 +211,13 @@ export function baseplate(k: GenKernel, p: BaseParams): H {
       const cx = (i - (p.x - 1) / 2) * GRID
       const cy = (j - (p.y - 1) / 2) * GRID
       pockets.push(
+        // Open beneath, the pocket runs EPS out of the bottom and the top,
+        // each along its 45° slope, as the bin's lip does.
         stepped(k, cx, cy, GRID, GRID, [
-          [floor - (p.magnets ? 0 : 0.01), 2.85, 1.15],
+          p.magnets ? [floor, 2.85, 1.15] : [-EPS, 2.85 + EPS, 1.15 - EPS],
           [floor + 0.7, 2.15, 1.85],
           [floor + 2.5, 2.15, 1.85],
-          [floor + T + 0.01, 0, 4],
+          [floor + T + EPS, -EPS, 4 + EPS],
         ]),
       )
       if (p.magnets) for (const sx of [-1, 1]) for (const sy of [-1, 1]) pockets.push(k.translate(k.makeCylinder(MAGNET_R + (p.holes ?? 0) / 2, MAGNET.depth + 0.01), cx + sx * MAGNET.at, cy + sy * MAGNET.at, floor - MAGNET.depth))

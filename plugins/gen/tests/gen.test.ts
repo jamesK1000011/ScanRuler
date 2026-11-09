@@ -134,6 +134,25 @@ describe('Gridfinity, to the specification', () => {
     expect(at(b, 37.2 / 2 + 0.35, 0, 2.5)).toBe(0)
     expect(at(b, 41.5 / 2 - 0.35, 0, 4.9)).toBeGreaterThan(0)
   })
+  it('leaves no sliver faces — a bin with its lip, dividers and ledge, and a baseplate', () => {
+    // Each face's width as reverse.body.check reads it, 2 × area ÷ perimeter:
+    // a cutter overshooting with its inset held flat leaves 0.01 mm ledges.
+    type O = { getSubShapes(s: unknown, t: string): unknown[]; getSurfaceArea(s: unknown): number; curveLength(s: unknown): number }
+    const o = (k as unknown as { occt?: O }).occt ?? (k as unknown as O)
+    const narrowest = (s: unknown) => {
+      let least = Infinity
+      for (const f of o.getSubShapes(s, 'face')) {
+        let p = 0
+        for (const e of o.getSubShapes(f, 'edge')) p += o.curveLength(e)
+        if (p > 0) least = Math.min(least, (2 * o.getSurfaceArea(f)) / p)
+      }
+      return least
+    }
+    const [b] = build('gridfinity_bin', { x: 2, y: 1, units: 4, magnets: true, dividersX: 1, label: 10 })
+    expect(narrowest(b.shape)).toBeGreaterThan(0.05)
+    expect(narrowest(build('gridfinity_baseplate', { x: 2, y: 2 })[0].shape)).toBeGreaterThan(0.05)
+    expect(narrowest(build('gridfinity_baseplate', { x: 2, y: 2, magnets: true })[0].shape)).toBeGreaterThan(0.05)
+  })
 })
 
 describe('Project box', () => {

@@ -372,7 +372,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
       info: count('info'),
       waived: numbered.length - open.length,
       ...(reading ? { wall: reading } : {}),
-      findings: numbered.map(({ says, ...f }) => (detail === 'full' ? { ...f, says } : { id: f.id, rule: f.rule, severity: f.severity, value: f.value, limit: f.limit, unit: f.unit, at: f.at, ...(f.areaMm2 !== undefined ? { areaMm2: f.areaMm2 } : {}), ...(f.encased ? { encased: f.encased } : {}), ...(f.waived ? { waived: f.waived } : {}), says })),
+      findings: numbered.map(({ says, ...f }) => (detail === 'full' ? { ...f, says } : { id: f.id, rule: f.rule, severity: f.severity, value: f.value, limit: f.limit, unit: f.unit, at: f.at, ...(f.areaMm2 !== undefined ? { areaMm2: f.areaMm2 } : {}), ...(f.encased ? { encased: f.encased } : {}), ...(f.edge ? { edge: true } : {}), ...(f.waived ? { waived: f.waived } : {}), says })),
       ...(allSkipped.length ? { skipped: allSkipped } : {}),
     }
   },

@@ -125,3 +125,44 @@ export const line = (text: string, max = 160): string => {
 
 export const r1 = (v: number) => Math.round(v * 10) / 10 + 0
 export const r2 = (v: number) => Math.round(v * 100) / 100 + 0
+
+/** A thin-wall finding of the printability check, as the review reads it. */
+export interface WallFinding {
+  id?: string
+  rule?: string
+  value?: number
+  limit?: number
+  unit?: string
+  at?: number[]
+  waived?: string
+  /** A taper to a knife edge: value is its length, not a thickness. */
+  edge?: boolean
+}
+
+/** How near a waived finding must be to the least wall to cover it, mm: a
+ *  waiver matches to the millimetre (dfm.waive), and the two readings are
+ *  of one wall, so half as much again. */
+const WAIVED_NEAR = 1.5
+
+/** The least wall a spec judges: the check's least, unless that place is
+ *  waived — a stacking lip, a wall thinned on purpose — then the thinnest
+ *  thin-wall finding not waived. The check reports walls only under its own
+ *  minimum, so past that `covered` is false: what lies between is unread. */
+export function wallForSpec(
+  least: number,
+  at: number[] | undefined,
+  findings: readonly WallFinding[],
+  minWall: number,
+): { least: number; at?: number[]; waived?: WallFinding } | { least: null; waived: WallFinding; covered: boolean } {
+  const thin = findings.filter((f) => f.rule === 'thin-wall' && !f.edge && typeof f.value === 'number')
+  const near = (p?: number[]) => !!at && !!p && Math.hypot(p[0] - at[0], p[1] - at[1], p[2] - at[2]) <= WAIVED_NEAR
+  const waived = least < minWall ? thin.find((f) => f.waived && near(f.at)) : undefined
+  if (!waived) return { least, at }
+  const open = thin.filter((f) => !f.waived).sort((a, b) => a.value! - b.value!)[0]
+  if (open) return { least: open.value!, at: open.at, waived }
+  // Every thin-wall finding carries the rule's minimum as its limit (a
+  // sharp edge's too); the warnings', the larger, is the one that bounds
+  // what was looked for.
+  const reported = Math.max(0, ...findings.filter((f) => f.rule === 'thin-wall' && typeof f.limit === 'number').map((f) => f.limit!))
+  return { least: null, waived, covered: minWall <= reported + 1e-9 }
+}

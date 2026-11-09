@@ -103,6 +103,8 @@ describe('walls read on a CAD mesh', () => {
     const found = runChecks({ ...part, wall }, rules()).findings.filter((f) => f.rule === 'thin-wall')
     expect(found.filter((f) => f.severity === 'error')).toEqual([])
     expect(found.map((f) => f.severity)).toEqual(['info'])
+    // Marked, so no reader takes its length for a thickness.
+    expect(found[0].edge).toBe(true)
     expect(found[0].value).toBeGreaterThan(30)
     expect(found[0].value).toBeLessThan(50)
     expect(found[0].at[2]).toBeGreaterThan(5)

@@ -17,6 +17,8 @@ import { Busy, Notes, Status } from '../../_shared/ui/kit'
 import { UPS } from '../core/frame'
 import { reverseBodies } from '../app/body'
 import { useDfm } from '../state/dfmStore'
+import { readStateSection } from '../../../src/commands/stateSections'
+import { bodyNameOf, settingsOf, setupsOf, type Setup } from '../../_shared/setups'
 import './dfm.css'
 
 type Json = Record<string, any>
@@ -88,10 +90,20 @@ const toShown = (k: string, n: number, len: BoundLength) => (powerOf(k) ? n / le
 const fromShown = (k: string, v: number, len: BoundLength) => (powerOf(k) ? v * len.fromDisplay(1) ** powerOf(k) : v)
 const fmt = (n: number) => (Math.abs(n) >= 100 ? n.toFixed(0) : Math.abs(n) >= 10 ? n.toFixed(1) : n.toFixed(2)).replace(/\.?0+$/, '')
 
-function ProfileSelect({ label, value, list, field, title }: { label: string; value: string | null; list: Json[]; field: string; title?: string }) {
-  const busy = useDfmView((s) => s.busy !== null)
+/** The print setup the Make tab shows, when it holds a body: the Check page
+ *  then checks that body with what the setup sets, not the scan. Read on
+ *  each render; the page mounts afresh when a setup is picked in the
+ *  header, which opens its first page. */
+function shownPrintSetup(): Setup | null {
+  const raw = readStateSection('setups') as { selected?: string | null } | undefined
+  const s = setupsOf(raw).find((x) => x.id === raw?.selected)
+  return s && s.type === 'print' && s.bodies.length ? s : null
+}
+
+function ProfileSelect({ label, value, list, field, title, setBy, none }: { label: string; value: string | null; list: Json[]; field: string; title?: string; setBy?: string; none?: string }) {
+  const busy = useDfmView((s) => s.busy !== null) || setBy !== undefined
   return (
-    <label className="field" title={title}>
+    <label className="field" title={setBy ? `Set by the setup ${setBy}: change it there` : title}>
       <span>{label}</span>
       <select
         value={value ?? ''}
@@ -101,7 +113,7 @@ function ProfileSelect({ label, value, list, field, title }: { label: string; va
           await loadProfiles()
         }}
       >
-        <option value="">None</option>
+        <option value="">{none ?? 'None'}</option>
         {list.map((p) => (
           <option key={p.id} value={p.id}>
             {p.label ?? p.id}
@@ -284,8 +296,15 @@ export function DfmPanel() {
   }, [])
   const guides = (p?.guides as Json[]) ?? []
 
+  // With no scan, the setup shown on the Make tab says what to check.
+  const ps = shownPrintSetup()
+  const viaSetup = ps && !scan && s.target === 'scan' ? bodyNameOf(ps.bodies[0]) : null
+  const set = ps ? settingsOf(ps) : {}
+  const setBy = (k: string) => (ps && set[k] !== undefined ? `${ps.name} (${ps.id})` : undefined)
+  const shown = (k: string, own: string | null) => (setBy(k) ? String(set[k]) : own)
+
   const check = async () => {
-    const r = await run('check', { detail: 'full' }, 'Checking the part…')
+    const r = await run('check', { detail: 'full', ...(viaSetup ? { body: viaSetup } : {}) }, 'Checking the part…')
     if (r) await loadProfiles()
   }
 
@@ -296,11 +315,17 @@ export function DfmPanel() {
           Pre-print check <b>{st.checkedAt ? st.findings.length : ''}</b>
         </div>
         <div className="toolrow">
-          <button className="primary" data-test="dfm-check" disabled={busy || (!scan && s.target === 'scan')} onClick={() => void check()}>
+          <button className="primary" data-test="dfm-check" disabled={busy || (!scan && s.target === 'scan' && !viaSetup)} onClick={() => void check()}>
             {st.checkedAt ? 'Check again' : 'Check the part'}
           </button>
         </div>
-        {!scan && s.target === 'scan' && <p className="hint">Open a scan, or switch to the reference part.</p>}
+        {viaSetup ? (
+          <p className="hint">
+            Checks {viaSetup}, in {ps!.name}, with what the setup sets.
+          </p>
+        ) : (
+          !scan && s.target === 'scan' && <p className="hint">Open a scan, or switch to the reference part.</p>
+        )}
         <Busy text={v.busy} />
         {st.checked?.wall && (
           <p className="hint" data-test="dfm-wall">
@@ -329,7 +354,7 @@ export function DfmPanel() {
             <div key={f.id} className={`pl-card dfm-finding${f.waived ? ' waived' : ''}`} data-test="dfm-finding" data-severity={f.severity}>
               <button className="dfm-finding-head" onClick={() => useDfmView.setState({ open: isOpen ? null : f.id, why: null, waiving: null })}>
                 <span className="pl-num">{f.id}</span>
-                {f.rule === 'thin-wall' && f.severity === 'info' ? (
+                {f.edge || (f.rule === 'thin-wall' && f.severity === 'info') ? (
                   <>
                     <span className="name">Sharp edge</span>
                     <span className="dfm-value">{showValue(f.value, f.unit, len)} long</span>
@@ -411,7 +436,7 @@ export function DfmPanel() {
         </div>
         <label className="field">
           <span>Stands up</span>
-          <select value={s.up} disabled={busy} onChange={(e) => void run('settings', { up: e.target.value })}>
+          <select value={shown('up', s.up) ?? s.up} disabled={busy || !!setBy('up')} title={setBy('up') ? `Set by the setup ${setBy('up')}: change it there` : undefined} onChange={(e) => void run('settings', { up: e.target.value })}>
             {UPS.map((u) => (
               <option key={u} value={u}>
                 {UP_WORDS[u]}
@@ -419,9 +444,9 @@ export function DfmPanel() {
             ))}
           </select>
         </label>
-        <ProfileSelect label="Nozzle" value={s.nozzle} list={(p?.nozzles as Json[]) ?? []} field="nozzle" />
-        <ProfileSelect label="Material" value={s.material} list={(p?.materials as Json[]) ?? []} field="material" title="For a part with no material of its own" />
-        <ProfileSelect label="Printer" value={s.printer} list={(p?.printers as Json[]) ?? []} field="printer" />
+        <ProfileSelect label="Nozzle" value={shown('nozzle', s.nozzle)} list={(p?.nozzles as Json[]) ?? []} field="nozzle" setBy={setBy('nozzle')} />
+        <ProfileSelect label="Material" value={s.material} list={(p?.materials as Json[]) ?? []} field="material" title="For a part with no material of its own" none={viaSetup || s.target === 'body' ? 'The part’s own' : undefined} />
+        <ProfileSelect label="Printer" value={shown('printer', s.printer)} list={(p?.printers as Json[]) ?? []} field="printer" setBy={setBy('printer')} />
         <label className="field">
           <span>
             Guide

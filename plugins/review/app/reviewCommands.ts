@@ -19,7 +19,7 @@ import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { readPrinterFit } from '../../_shared/readPrinterFit'
 import { setupFor, setupTypeOf, type Setup } from '../../_shared/setups'
-import { line, massBounds, processOf, r1, r2, specOf, specOver, verdictOf, worstFirst, type Finding, type ReviewSpec, type Severity } from '../core/spec'
+import { line, massBounds, processOf, r1, r2, specOf, specOver, verdictOf, wallForSpec, worstFirst, type Finding, type ReviewSpec, type Severity, type WallFinding } from '../core/spec'
 import { useReview } from '../state/reviewStore'
 
 type Json = Record<string, unknown>
@@ -243,11 +243,24 @@ const review: Command<ReviewIn> = {
           // Waived, or the pocket of a part encased at a pause (encased:
           // E1): meant, so not counted against the part.
           if (f.waived || f.encased) continue
-          find(pFindings, 'dfm.check', f.severity as Severity, `${f.id} ${f.rule}: ${f.value} ${f.unit ?? ''} against ${f.limit}${typeof f.says === 'string' ? ` — ${f.says}` : ''}`, at(f.at))
+          // A sharp edge's value is its length, not a thickness to set
+          // against the limit.
+          const says = f.edge
+            ? `${f.id} sharp edge: about ${f.value} ${f.unit ?? ''} long, its tip under ${f.limit}`
+            : `${f.id} ${f.rule}: ${f.value} ${f.unit ?? ''} against ${f.limit}`
+          find(pFindings, 'dfm.check', f.severity as Severity, `${says}${typeof f.says === 'string' ? ` — ${f.says}` : ''}`, at(f.at))
         }
         if (spec.minWall !== undefined) {
           if (typeof wall?.least !== 'number') run.unjudged.push('minWall: no wall reading')
-          else if (wall.least < spec.minWall) find(findings, 'dfm.check', 'error', `Least wall ${r2(wall.least)} mm, under the spec’s ${spec.minWall} mm.`, at(wall.at))
+          else {
+            // A waiver at the least wall is the person's word that it is
+            // meant; the spec judges the thinnest wall left.
+            const w = wallForSpec(wall.least, wall.at, (dfm.findings as WallFinding[] | undefined) ?? [], spec.minWall)
+            const why = w.waived ? ` (${w.waived.id ?? 'a finding'} at the least wall is waived: ${line(w.waived.waived ?? '', 80)})` : ''
+            if (w.least === null) {
+              if (!w.covered) run.unjudged.push(`minWall: the least wall is waived, and the check reads walls only under its own minimum${why}`)
+            } else if (w.least < spec.minWall) find(findings, 'dfm.check', 'error', `Least wall ${r2(w.least)} mm, under the spec’s ${spec.minWall} mm${why}.`, at(w.at))
+          }
         }
       } else if (spec.minWall !== undefined) run.unjudged.push('minWall: the wall reading did not run')
       const hw = await run.call<{ pauses?: unknown[]; warnings?: string[]; gone?: string; unplaced?: string }>(pChecks, 'hw.pauses', { bodies: [b.name] })

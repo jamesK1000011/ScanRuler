@@ -154,7 +154,10 @@ export function MakeHeader({ host, pages, workspace }: HostHeaderProps) {
         )}
       </div>
       {chosen && open && <Details setup={chosen} />}
-      <PageTabs host={host} pages={shown} />
+      {/* Numbered only as one setup's steps (Check, Slice, Send): with none
+          chosen, every type's pages show, and Cut, Mill and Order are not
+          steps 4 to 6 after Send. */}
+      <PageTabs host={chosen ? host : { ...host, steps: false }} pages={shown} />
     </div>
   )
 }
