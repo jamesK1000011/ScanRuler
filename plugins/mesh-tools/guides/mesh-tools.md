@@ -94,6 +94,10 @@ or `vertices [..]`, narrowed with `facing` (a direction) and `angleDeg`.
   `symmetric` reflects the kept side onto the other, replacing it.
 - `mesh.offset { direction, distance, region? }` — expand or shrink along the
   normal (not a scale): spray thickness, a clearance.
+- `mesh.densify { maxEdge? }` — cuts the triangles of an STL exported from
+  CAD (`scan.qa`'s `tessellation.sparse`; `densifyTo` is the length) so a
+  segmentation or a fit finds points inside its faces. The surface is
+  unchanged; a scan needs none.
 - `mesh.boolean { op, solids }` — subtract, add or intersect solids on offer
   (fitted cylinders, cones, spheres from 3D Measure; Reverse engineer
   bodies). The mesh must be closed. A bore the scanner could not see the

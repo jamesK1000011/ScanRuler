@@ -825,6 +825,8 @@ tools `mesh_cut` and so on, registered from the plugin's `install()`
 | `mesh.apply_reduced` | the reduced mesh made the edited copy, one step of the undo history |
 | `mesh.wrap` | the wrap, made beside the scan — `gap`, and `grow`, `edges`, `tolerance` (how far its reduction may stray) — answering with its shells, triangles, what went inside it, the area bridged, the volume before and after and the time each step took; `preview: false` applies it at once |
 | `mesh.apply_wrap` | the wrap made the edited copy, one step of the undo history |
+| `mesh.discard` | the reduced mesh or the wrap on hand thrown away (`what`), as the panel's Discard does; not a step of the history |
+| `mesh.stop` | stops a wrap being worked out; a reduction, a trim and the edits run to their end |
 | `mesh.use_edited`, `mesh.discard_edited` | the Edited copy section's two buttons |
 | `mesh.export` | the edited copy, the reduced mesh or the piece as STL or 3MF (`format`), as the panel's buttons write them |
 
