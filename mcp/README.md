@@ -207,11 +207,11 @@ the engine's are read through `scanruler_tools` and run through
 ### Lean tool list
 
 Listed in full, a tab with its workspaces offers some three hundred tools,
-over 600 kB of definitions, sent before the agent does any work, every
-session. `--tools lean` (or `SCANRULER_MCP_TOOLS=lean`) lists the tools
-every task uses — the session, the guides, the undo history, the project
-file and the view — and the server's own, about 45 kB; headless, about
-25 kB. The rest come in groups, one to a namespace (the part of a tool's
+some 600 kB of definitions, sent before the agent does any work, every
+session (headless, over 200 kB). `--tools lean` (or
+`SCANRULER_MCP_TOOLS=lean`) lists the tools every task uses — the session,
+the guides, the undo history, the project file and the view — and the
+server's own, about 40 kB; headless, about 25 kB. The rest come in groups, one to a namespace (the part of a tool's
 name before its first underscore: `scan`, `element`, `reverse`, `mesh` …):
 
 - `scanruler_tools` with no arguments lists the groups, whether each is

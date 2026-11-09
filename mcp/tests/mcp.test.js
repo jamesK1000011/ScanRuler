@@ -464,7 +464,7 @@ test('namespaces left out: all but those, a page’s own namespace among them, a
 
 test('namespaces: a list that mixes the two forms, or is empty, is refused; full and compact stay as they are', () => {
   assert.throws(() => parseToolMode('scan,-flat'), /^Error: --tools scan,-flat mixes namespaces to list \(scan\) with namespaces to leave out \(-flat\): give one form/)
-  assert.throws(() => parseToolMode('', 'SCANRULER_MCP_TOOLS'), /^Error: SCANRULER_MCP_TOOLS is empty: give full, compact, namespaces to list \(scan,view\) or namespaces to leave out \(-flat,-thickness\)\./)
+  assert.throws(() => parseToolMode('', 'SCANRULER_MCP_TOOLS'), /^Error: SCANRULER_MCP_TOOLS is empty: give full, lean, compact, namespaces to list \(scan,view\) or namespaces to leave out \(-flat,-thickness\)\./)
   assert.throws(() => parseToolMode('scan,,view'), /^Error: --tools scan,,view: "" is no namespace/)
   assert.throws(() => parseToolMode('-'), /"-" is no namespace/)
   assert.throws(() => createMcpServer({ link: new PageLink({ token: TOKEN }), version: '0.0.0', cwd: dir, outDir: dir, connectHelp: () => '', serverInfo: () => ({}), tools: 'scan,-flat' }), /mixes namespaces/)

@@ -10,8 +10,8 @@ saves carry the same number as `appVersion`. How a release is cut is in
 - **A lighter start for agents** (2026-11-09). The MCP server's tool list
   and the Reverse engineer's guides cost an agent less before it does any
   work. `--tools lean` (`SCANRULER_MCP_TOOLS=lean`) lists the session,
-  guide, history, project and view tools and the server's own — some 45 kB
-  in place of over 600 kB with every workspace, 26 kB in place of 96 kB
+  guide, history, project and view tools and the server's own — some 40 kB
+  in place of 650 kB with every workspace, 24 kB in place of 250 kB
   headless — and the rest in groups that `scanruler_tools { enable }` lists
   when the task needs them; the client is told the list changed, and one
   that does not list again runs them through `scanruler_batch`. In every

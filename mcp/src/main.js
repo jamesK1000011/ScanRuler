@@ -153,7 +153,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const port = Number(values.port ?? process.env.SCANRULER_MCP_PORT ?? DEFAULT_PORT)
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`--port ${values.port} is not a port.`)
-  // full, compact, or namespaces; refused here when mixed or empty, kept
+  // full, lean, compact, or namespaces; refused here when mixed or empty, kept
   // as given for the status to report.
   const tools = parseToolMode(values.tools ?? (process.env.SCANRULER_MCP_TOOLS || 'full'), values.tools === undefined ? 'SCANRULER_MCP_TOOLS' : '--tools').text
   const within = values['answer-within'] ?? process.env.SCANRULER_MCP_ANSWER_WITHIN

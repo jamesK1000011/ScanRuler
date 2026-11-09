@@ -118,7 +118,7 @@ test('--tools compact, or SCANRULER_MCP_TOOLS, lists the server’s own eight an
   assert.match(mixed.stderr, /--tools scan,-flat mixes namespaces to list \(scan\) with namespaces to leave out \(-flat\)/)
   const empty = spawnSync(process.execPath, [bin, '--tools', ''], { env: { ...process.env, ...env }, encoding: 'utf8' })
   assert.equal(empty.status, 2)
-  assert.match(empty.stderr, /--tools is empty: give full, compact, namespaces to list/)
+  assert.match(empty.stderr, /--tools is empty: give full, lean, compact, namespaces to list/)
   const bad = spawnSync(process.execPath, [bin], { env: { ...process.env, ...env, SCANRULER_MCP_TOOLS: 'scan,,view' }, encoding: 'utf8' })
   assert.equal(bad.status, 2)
   assert.match(bad.stderr, /SCANRULER_MCP_TOOLS scan,,view: "" is no namespace/)
