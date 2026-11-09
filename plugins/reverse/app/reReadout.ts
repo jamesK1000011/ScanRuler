@@ -21,6 +21,7 @@ import { reverseSession, type ReverseSession } from './reSession'
 import { useStore } from '../../../src/state/store'
 import { fittedOf } from './reFitMarks'
 import { meshStamp } from '../core/meshStamp'
+import { signatureOf, type PartDigest } from '../../../src/plugins/api'
 
 /** A box round some points, or null for none. */
 export function boundsOf(points: ArrayLike<number>): { min: Vec3; max: Vec3; size: Vec3 } | null {
@@ -347,3 +348,44 @@ export function describeReverse() {
   }
 }
 
+
+/** A body's surface, mm², by its mesh — kept for as long as the mesh is. */
+const areas = new WeakMap<Float32Array, number>()
+function meshArea(mesh: KernelMesh): number {
+  const held = areas.get(mesh.positions)
+  if (held !== undefined) return held
+  const p = mesh.positions
+  const t = mesh.indices
+  let sum = 0
+  for (let i = 0; i + 2 < t.length; i += 3) {
+    const a = 3 * t[i], b = 3 * t[i + 1], c = 3 * t[i + 2]
+    const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2]
+    const vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2]
+    sum += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2
+  }
+  areas.set(mesh.positions, sum)
+  return sum
+}
+
+/** The box round a mesh, kept for as long as the mesh is. */
+const boxes = new WeakMap<Float32Array, { min: Vec3; max: Vec3 } | null>()
+function meshBox(mesh: KernelMesh): { min: Vec3; max: Vec3 } | null {
+  if (!boxes.has(mesh.positions)) {
+    const b = boundsOf(mesh.positions)
+    boxes.set(mesh.positions, b ? { min: b.min, max: b.max } : null)
+  }
+  return boxes.get(mesh.positions)!
+}
+
+/** The part in brief, for history.diff (registerPartDigest): each body's
+ *  size and stamp, and the features by a signature of what each holds. */
+export function reverseDigest(): Partial<PartDigest> {
+  const re = useReverse.getState()
+  const session = reverseSession()
+  const bodies = re.bodies.map((b) => {
+    const mesh = session?.meshes.get(b.id)
+    return { id: b.id, name: b.name, visible: b.visible, volume: b.volume, faces: b.faces, area: mesh ? meshArea(mesh) : null, box: mesh ? meshBox(mesh) : null, stamp: mesh ? meshStamp(mesh) : null }
+  })
+  const feature = (f: Feature, rolledBack: boolean) => ({ id: `feature ${f.id}`, name: f.name, sig: signatureOf([f, rolledBack]) })
+  return { bodies, features: [...re.features.map((f) => feature(f, false)), ...re.rolledBack.map((f) => feature(f, true))] }
+}

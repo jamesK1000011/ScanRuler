@@ -9,6 +9,7 @@ import { useShell } from '../../state/shellStore'
 import { useStore } from '../../state/store'
 import { commandHost, sceneOf } from '../host'
 import { reportJson, reportText, REPORT_WORKSPACES, type ReportWorkspace } from '../report'
+import { beforeLastChange, diffParts, partDigestKnown, readPartDigest, type PartDigest } from '../partDigest'
 import { RECENT_KEPT, RECENT_RESULT_CHARS, recentOutcomes } from '../registry'
 import { enumOf, int, obj, str } from '../schema'
 import { hostOf } from '../../app/workspacePages'
@@ -175,7 +176,7 @@ export const workspaceCommands = [workspace]
 export const reportCommands = [report]
 /** The history as a checkpoint found it: the step on top by itself, the
  *  object the history holds — a checkpoint is the steps under it. */
-const checkpoints = new Map<string, { top: object | null; label: string | null }>()
+const checkpoints = new Map<string, { top: object | null; label: string | null; part: PartDigest | null }>()
 let nextCheckpoint = 1
 /** How many checkpoints are remembered, the oldest let go first. */
 const CHECKPOINTS = 100
@@ -192,7 +193,7 @@ const checkpointCommand: Command = {
     const past = useHistory.getState().past
     const top = past.at(-1) ?? null
     const checkpoint = `cp${nextCheckpoint++}`
-    checkpoints.set(checkpoint, { top, label: top?.label ?? null })
+    checkpoints.set(checkpoint, { top, label: top?.label ?? null, part: partDigestKnown() ? readPartDigest() : null })
     if (checkpoints.size > CHECKPOINTS) checkpoints.delete(checkpoints.keys().next().value!)
     return { checkpoint, top: top?.label ?? null, steps: past.length }
   },
@@ -229,4 +230,30 @@ const restoreCommand: Command<{ checkpoint: string; detail?: StepDetail }> = {
   },
 }
 
-export const historyCommands = [undoCommand, redoCommand, checkpointCommand, restoreCommand]
+/** How long ago, in words a person reads at a glance. */
+const ago = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)} s` : ms < 3_600_000 ? `${Math.round(ms / 60_000)} min` : `${Math.round(ms / 3_600_000)} h`)
+
+const diffCommand: Command<{ since?: string }> = {
+  name: 'diff',
+  title: 'What changed in the part',
+  description:
+    'What changed in the modelled part since a checkpoint (history.checkpoint) or, by default ("last"), since the last change that changed it — a read or a check in between is passed over, and a batch counts change by change. bodies: changed (each by id and name, only what moved: stamp [was, now], volume mm³, area mm², faces, size [x, y, z] mm and moved [x, y, z] mm of its box’s lowest corner — each now less before — and shown when only shown or hidden), added and removed; features and embeds (parts encased for a pause): added, removed and edited, by name. recheck: the checks part.review runs, by command, that what changed would move. Use it in place of describing the part again after a change. Changes nothing.',
+  input: obj({ since: str('A checkpoint history.checkpoint gave, or "last" (the default): the last change that changed the part.', { minLength: 1 }) }),
+  readOnly: true,
+  headless: true,
+  run: async ({ since = 'last' }) => {
+    if (!partDigestKnown()) throw new CommandError('unavailable', 'Nothing in this build describes a modelled part to compare.')
+    const now = readPartDigest()
+    if (since === 'last') {
+      const before = beforeLastChange(now)
+      if (!before) throw new CommandError('not_found', 'No change has run yet to compare with — history.checkpoint marks a point to compare with later.')
+      return { since: { change: before.change, ago: ago(Date.now() - before.at) }, ...diffParts(before.digest, now) }
+    }
+    const mark = checkpoints.get(since)
+    if (!mark) throw new CommandError('not_found', `There is no checkpoint "${since}" — history.checkpoint gives one, or give "last".`)
+    if (!mark.part) throw new CommandError('not_found', `Checkpoint ${since} was made before there was a part to compare — give "last", or take a new checkpoint.`)
+    return { since: { checkpoint: since, step: mark.label }, ...diffParts(mark.part, now) }
+  },
+}
+
+export const historyCommands = [undoCommand, redoCommand, checkpointCommand, restoreCommand, diffCommand]

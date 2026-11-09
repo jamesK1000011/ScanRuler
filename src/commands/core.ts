@@ -22,6 +22,7 @@ import { historyCommands, reportCommands, sessionCommands, workspaceCommands } f
 import { thicknessCommands } from './core/thickness'
 import { viewCommands } from './core/view'
 import { registerGuide } from './guides'
+import { watchPartChanges } from './partDigest'
 
 let registered = false
 
@@ -46,6 +47,8 @@ export function registerCoreCommands(): void {
   registerCommands('export', exportCommands)
   registerCommands('project', projectCommands)
   registerCommands('history', historyCommands)
+  // What history.diff compares with: the part before each change.
+  watchPartChanges()
   registerCommands('view', viewCommands)
   registerCommands('guide', guideCommands)
   registerGuide({

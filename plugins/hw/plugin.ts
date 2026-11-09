@@ -6,7 +6,7 @@
 // as editable features; parts encased mid-print, with the layer the print
 // pauses at for each. See README.md.
 
-import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerCommands, registerGuide, registerPartDigest, registerStateSection, signatureOf, type ScanRulerPlugin } from '../../src/plugins/api'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerHistory } from '../../src/state/historyStore'
 import { describeHw, hwCommands } from './app/hwCommands'
@@ -30,6 +30,8 @@ const plugin: ScanRulerPlugin = {
     registerProjectSection(hwSection)
     registerCommands('hw', hwCommands)
     registerStateSection('hw', describeHw)
+    // The parts encased, for history.diff to tell one added, removed or moved.
+    registerPartDigest('hw', () => ({ embeds: useHw.getState().embeds.map((e) => ({ id: `encased ${e.id}`, name: `${e.id} (${e.what} in ${e.body})`, sig: signatureOf(e) })) }))
     registerHistory({
       sections: [{ key: 'hw', capture: () => ({ ...settingsOf(useHw.getState()), embeds: useHw.getState().embeds }), apply: (v) => useHw.setState(v as Partial<ReturnType<typeof useHw.getState>>) }],
       actions: [{ store: useHw, label: 'Hardware', names: ['set', 'setEmbeds'], labels: { setEmbeds: 'encased parts' } }],

@@ -2,7 +2,7 @@
 // The Reverse engineer workspace, as the app finds it: see
 // src/plugins/api.ts for what each part of this is to the app.
 
-import { registerBusy, registerCommands, registerMapReport, registerSectionLayers, registerSettle, registerSheetPlanes, registerStateSection, registerViewToggles, type ScanRulerPlugin } from '../../src/plugins/api'
+import { registerBusy, registerCommands, registerMapReport, registerSectionLayers, registerPartDigest, registerSettle, registerSheetPlanes, registerStateSection, registerViewToggles, type ScanRulerPlugin } from '../../src/plugins/api'
 import { onScan } from '../../src/app/scanEvents'
 import { pick, registerHistory } from '../../src/state/historyStore'
 import { registerProjectSection } from '../../src/app/projectSections'
@@ -22,7 +22,7 @@ import { bodiesLayer } from './app/reSectionLayer'
 import { sketchPlanes } from './app/reSectionCommands'
 import { useShell } from '../../src/state/shellStore'
 import { afterStepOut } from './app/reCommandAnswers'
-import { describeReverse } from './app/reReadout'
+import { describeReverse, reverseDigest } from './app/reReadout'
 import { createReverseSession, installReverseSession, reverseSession } from './app/reSession'
 import { ReClient } from './core/reClient'
 import { playbackBusy } from './app/playback'
@@ -89,6 +89,9 @@ const plugin: ScanRulerPlugin = {
     registerSettle(settleHeld)
     // The notes on the part join it there, while there are any, and the
     // plan, once set.
+    // The part in brief, which history.diff compares before and after a
+    // change.
+    registerPartDigest('reverse', reverseDigest)
     registerStateSection('reverse', () => {
       const notes = notesBrief()
       const plan = planBrief()

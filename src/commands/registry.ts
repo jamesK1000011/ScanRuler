@@ -234,6 +234,16 @@ let current: { name: string; deferred: boolean } | null = null
  *  is handed no context: whether it may leave work for later. */
 export const runningChange = (): { name: string; deferred: boolean } | null => current
 
+const changeWatchers = new Set<(name: string) => void>()
+
+/** Hear each change as it is about to run — once nothing is left for it to
+ *  wait for, before it changes anything: history.diff keeps the part as it
+ *  was then (partDigest.ts). The returned function stops it. */
+export function onChangeStart(watch: (name: string) => void): () => void {
+  changeWatchers.add(watch)
+  return () => void changeWatchers.delete(watch)
+}
+
 type Settle = (next: { name: string; readOnly: boolean }) => Promise<void> | void
 
 const settlers = new Set<Settle>()
@@ -334,6 +344,13 @@ async function guarded(
     lingering = Promise.race([ran.then(() => {}, () => {}), new Promise<void>((resolve) => setTimeout(resolve, ms))])
   }
   const run = () => limited(name, ms, abort, () => command.run(input, ctx), linger)
+  for (const watch of changeWatchers) {
+    try {
+      watch(name)
+    } catch {
+      // A watcher's fault is no reason not to run the change.
+    }
+  }
   useCommandActivity.setState({ running: { name, title: command.title, since: Date.now() }, progress: null })
   current = { name, deferred }
   try {

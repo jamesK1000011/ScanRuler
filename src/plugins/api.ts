@@ -48,9 +48,14 @@ import type { GripSide, PickHit, SceneManager } from '../viewer/SceneManager'
 // plugin's workflow in Markdown, loaded when first read.
 // registerModelFormat(format) adds model formats the plugin reads to the
 // scan's and the reference's Open pickers, and opens a file picked in one.
+// registerPartDigest(plugin.id, digest) adds the plugin's share of the
+// modelled part in brief — bodies, features, encased parts — which
+// history.diff compares before and after a change.
 
 export { registerCommands, registerSettle, runningChange } from '../commands/registry'
 export { registerStateSection } from '../commands/stateSections'
+export { registerPartDigest, signatureOf } from '../commands/partDigest'
+export type { BodyDigest, ItemDigest, PartDigest } from '../commands/partDigest'
 export { registerBusy } from '../commands/activity'
 export { registerViewToggles } from '../commands/viewToggles'
 export type { ViewToggle } from '../commands/viewToggles'
