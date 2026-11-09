@@ -24,7 +24,7 @@ not in this repository.
 | [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the materials, the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles (3D Measure's Scanner section) — the scan's noise, measured or from a profile you keep |
-| [review/](review/) | Part review — `part.review`: one verdict on a body from the other workspaces' checks (validity, clearance, printability, mass, pauses, strength), and a design spec kept with the project |
+| [review/](review/) | Part review — `part.review`: one verdict on a body from the other workspaces' checks (validity, clearance, mass, strength; printability and pauses for a printed part), and a design spec kept with the project |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
 | [fea/](fea/) | Strength — FEA of a printed part, weaker across its layers; Gmsh and CalculiX on your computer |
 | [mass/](mass/) | Mass and balance — weight, balance point and inertia as printed; ballast pockets to hit a target |

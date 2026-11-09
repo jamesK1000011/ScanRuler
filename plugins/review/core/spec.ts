@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A design spec a part is judged against — the least wall and gap, the
-// mass, the least safety factor, the steepest overhang, the pauses — and
-// the verdict a review comes to. Pure: no stores, no commands.
+// A design spec a part is judged against — in what it must do, not how it
+// is made: the least wall and gap, the mass, the least safety factor — and
+// how each part is made, by body, which says whether the checks for 3D
+// printing judge it. The verdict a review comes to. Pure: no stores, no
+// commands.
 
 export interface ReviewSpec {
   /** The least wall, mm. */
@@ -15,13 +17,13 @@ export interface ReviewSpec {
   massTol?: number
   /** The least safety factor of the last strength solve. */
   minSafety?: number
-  /** The steepest overhang from vertical, degrees. */
-  maxOverhang?: number
-  /** How many pauses the print takes for parts encased. */
-  pauses?: number
+  /** How each body is made, by its name: "fdm" or "print" for 3D printed;
+   *  anything else (laser-cut, machined, bought) is not printed. */
+  processes?: Record<string, string>
 }
 
-export const SPEC_KEYS = ['minWall', 'minClearance', 'massMin', 'massMax', 'massTarget', 'massTol', 'minSafety', 'maxOverhang', 'pauses'] as const
+const NUMBERS = ['minWall', 'minClearance', 'massMin', 'massMax', 'massTarget', 'massTol', 'minSafety'] as const
+export const SPEC_KEYS = [...NUMBERS, 'processes'] as const
 
 /** A spec as given or read from a file, checked: the reason it is not one,
  *  or the spec with only the keys it sets. */
@@ -33,14 +35,45 @@ export function specOf(value: unknown): ReviewSpec | string {
     if (!(SPEC_KEYS as readonly string[]).includes(k)) return `${k} is not part of a spec — it takes ${SPEC_KEYS.join(', ')}`
     const x = v[k]
     if (x === undefined || x === null) continue
+    if (k === 'processes') {
+      if (typeof x !== 'object' || Array.isArray(x)) return 'processes is an object: a body’s name to how it is made'
+      const p: Record<string, string> = {}
+      for (const [body, how] of Object.entries(x as Record<string, unknown>)) {
+        if (typeof how !== 'string') return `processes.${body} is to be a word such as "fdm", "laser-cut" or "bought"`
+        if (how.trim()) p[body] = how.trim()
+      }
+      if (Object.keys(p).length) out.processes = p
+      continue
+    }
     if (typeof x !== 'number' || !Number.isFinite(x) || x < 0) return `${k} is to be a number of 0 or more`
-    if (k === 'pauses' && !Number.isInteger(x)) return 'pauses is a count'
-    if (k === 'maxOverhang' && x > 90) return 'maxOverhang is in degrees from vertical, 0 to 90'
-    out[k as keyof ReviewSpec] = x
+    out[k as (typeof NUMBERS)[number]] = x
   }
   if (out.massMin !== undefined && out.massMax !== undefined && out.massMin > out.massMax) return 'massMin is over massMax'
   if (out.massTol !== undefined && out.massTarget === undefined) return 'massTol goes with massTarget'
   return out
+}
+
+/** A spec over another: the numbers given replace those kept, and the
+ *  processes are merged body by body — an empty one drops the body's. */
+export function specOver(kept: ReviewSpec, given: ReviewSpec, raw?: Record<string, unknown>): ReviewSpec {
+  const out: ReviewSpec = { ...kept, ...given }
+  const dropped = Object.entries((raw?.processes as Record<string, unknown> | undefined) ?? {}).filter(([, how]) => typeof how === 'string' && !how.trim()).map(([b]) => b)
+  const processes = { ...(kept.processes ?? {}), ...(given.processes ?? {}) }
+  for (const b of dropped) delete processes[b]
+  if (Object.keys(processes).length) out.processes = processes
+  else delete out.processes
+  return out
+}
+
+/** How a part is made, as the review reads it: printed ("fdm", "print" and
+ *  their like), unknown (not said), or other — the word given. */
+export type Process = { kind: 'printed' } | { kind: 'unknown' } | { kind: 'other'; as: string }
+
+export function processOf(word: string | undefined | null): Process {
+  const w = (word ?? '').trim().toLowerCase()
+  if (!w || w === 'unknown') return { kind: 'unknown' }
+  if (/^(fdm|fff|print|printed|3d[- ]?print(ed)?)$/.test(w)) return { kind: 'printed' }
+  return { kind: 'other', as: (word ?? '').trim() }
 }
 
 /** The mass a spec allows, g, or null when it says none. A target without

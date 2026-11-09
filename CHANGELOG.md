@@ -27,17 +27,21 @@ saves carry the same number as `appVersion`. How a release is cut is in
 - **One answer to "is this part done?"** (2026-11-08). A new plugin,
   Part review, adds `part.review`: on a Reverse Engineer body it runs the
   checks the build has — `reverse.body.check`, `reverse.body.clearance`
-  against the other bodies shown, `dfm.check` on the body,
-  `mass.properties`, `hw.pauses` and the last `fea.results` when it still
-  holds — and answers one small verdict (pass, fix or unknown), the
-  findings worst first with the command each came from, the key figures,
-  the printer calibration in use, and what each check did (ran, skipped and
-  why, failed and why). `part.spec` keeps a design spec with the project —
-  least wall and clearance, mass bounds or a target, least safety factor,
-  steepest overhang, number of pauses — which every review after judges
-  against. `dfm.check { body }` checks a body without changing the
-  settings' target. The new **review** guide tells an agent to end each
-  change with a review.
+  against the other bodies shown, `mass.properties` and the last
+  `fea.results` when it still holds — and answers one small verdict (pass,
+  fix or unknown), the findings worst first with the command each came
+  from, the key figures, and what each check did (ran, skipped and why,
+  failed and why). A build mixes processes part by part, so the 3D-printing
+  checks — `dfm.check` on the body and `hw.pauses`, with the printer
+  calibration in use — are a group of their own: they judge a part whose
+  process is `fdm` or `print`, inform without moving the verdict when the
+  process is not said, and are skipped for any other (laser-cut, machined,
+  bought). `part.spec` keeps a design spec with the project — least wall
+  and clearance, mass bounds or a target, least safety factor, and each
+  body's process — which every review after judges against.
+  `dfm.check { body }` checks a body without changing the settings'
+  target. The new **review** guide tells an agent to end each change with
+  a review.
 - **What a change did, without describing the part again** (2026-11-08).
   `history.diff` answers what changed in the modelled part since a
   checkpoint or since the last change that changed it: per body the stamp,

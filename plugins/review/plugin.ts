@@ -26,7 +26,7 @@ const plugin: ScanRulerPlugin = {
     registerGuide({
       id: 'review',
       title: 'Is the part done?',
-      when: 'after every change to a modelled part, and before saying it is done: one review of validity, clearance, printability, mass, pauses and strength, a spec to judge against, and what a change did',
+      when: 'after every change to a modelled part, and before saying it is done: one review of validity, clearance, mass and strength — and printability for a printed part — a spec to judge against, how each part is made, and what a change did',
       text: () => import('./guides/review.md?raw').then((m) => m.default),
     })
   },

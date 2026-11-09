@@ -2,15 +2,16 @@
 // part.review against the other workspaces' commands faked by name: a part
 // that passes, one with an error to fix, a spec it is judged by (given, or
 // kept with part.spec and the project), a limit nothing could judge, a
-// check not in the build, one that needs the page, one that fails, and an
-// answer kept small.
+// check not in the build, one that needs the page, one that fails, an
+// answer kept small — and the printing checks judging a printed part,
+// informing on one whose process is not said, skipped for any other.
 import { describe, expect, it } from 'vitest'
 import { registerCommands, runCommand } from '../../../src/commands/registry'
 import { registerStateSection } from '../../../src/commands/stateSections'
 import { CommandError, type Command } from '../../../src/commands/types'
 import { reviewSection } from '../app/projectSection'
 import { reviewCommands } from '../app/reviewCommands'
-import { massBounds, specOf, verdictOf } from '../core/spec'
+import { massBounds, processOf, specOf, verdictOf } from '../core/spec'
 import { useReview } from '../state/reviewStore'
 
 type Json = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -60,7 +61,8 @@ function good() {
   useReview.getState().setSpec(null)
   calibration = undefined
 }
-const review = (input: Json = {}) => runCommand('part.review', { body: 'Grip', ...input }) as Promise<Json>
+/** A review of Grip, printed unless the test says otherwise. */
+const review = (input: Json = {}) => runCommand('part.review', { body: 'Grip', process: 'fdm', ...input }) as Promise<Json>
 
 async function refusal(p: Promise<unknown>): Promise<string> {
   try {
@@ -72,16 +74,19 @@ async function refusal(p: Promise<unknown>): Promise<string> {
 }
 
 describe('part.review', () => {
-  it('passes a part every check passes', async () => {
+  it('passes a printed part every check passes', async () => {
     good()
     calibration = { hole: 0.3, shaft: 0.1, source: 'measured', at: '2026-11-08', profile: 'PETG' }
     const r = await review()
     expect(r.body).toBe('Grip')
+    expect(r.process).toBe('printed')
     expect(r.verdict).toBe('pass')
     expect(r.findings).toEqual([])
-    expect(r.figures).toEqual({ volume: 48000, gap: 0.41, wall: 1.6, mass: 41.3, pauses: 1, safety: 3.1 })
-    expect(Object.values(r.checks)).toEqual(['ran', 'ran', 'ran', 'ran', 'ran', 'ran'])
-    expect(r.printerFit).toMatch(/2026-11-08/)
+    expect(r.figures).toEqual({ volume: 48000, gap: 0.41, wall: 1.6, mass: 41.3, safety: 3.1 })
+    expect(Object.values(r.checks)).toEqual(['ran', 'ran', 'ran', 'ran'])
+    expect(r.printing.checks).toEqual({ 'dfm.check': 'ran', 'hw.pauses': 'ran' })
+    expect(r.printing.figures).toEqual({ pauses: 1 })
+    expect(r.printing.printerFit).toMatch(/2026-11-08/)
     expect(asked['dfm.check']).toEqual({ body: 1 })
     expect(asked['reverse.body.clearance'].against).toEqual([2])
   })
@@ -122,6 +127,47 @@ describe('part.review', () => {
     expect(r.findings[0].says).toMatch(/Case/)
   })
 
+  it('with the process not said, the printing checks inform and do not move the verdict', async () => {
+    good()
+    answers['dfm.check'] = { wall: { least: 0.6, limit: 0.8 }, findings: [{ id: 'F1', rule: 'thin-wall', severity: 'error', value: 0.6, limit: 0.8, unit: 'mm', at: [1, 1, 1] }] }
+    const r = await review({ process: undefined })
+    expect(r.process).toBe('unknown')
+    expect(r.verdict).toBe('pass')
+    expect(r.findings).toEqual([])
+    expect(r.ifPrinted.findings.map((f: Json) => f.source)).toEqual(['dfm.check'])
+    expect(r.ifPrinted.checks['dfm.check']).toBe('ran')
+    expect(r.ifPrinted.printerFit).toMatch(/typical printer/)
+    expect(r.printing).toBe(undefined)
+    // The wall is the part's however it is made: a spec's least wall still judges it.
+    expect((await review({ process: undefined, spec: { minWall: 1 } })).verdict).toBe('fix')
+  })
+
+  it('a part made another way skips the printing checks, and says so', async () => {
+    good()
+    answers['dfm.check'] = () => {
+      throw new Error('not to be run')
+    }
+    const r = await review({ process: 'laser-cut' })
+    expect(r.process).toBe('laser-cut')
+    expect(r.verdict).toBe('pass')
+    expect(r.printing).toEqual({ checks: { 'dfm.check': 'skipped: not printed', 'hw.pauses': 'skipped: not printed' } })
+    expect(/printer/.test(JSON.stringify(r))).toBe(false)
+    const walled = await review({ process: 'laser-cut', spec: { minWall: 1 } })
+    expect(walled.verdict).toBe('unknown')
+    expect(walled.unjudged[0]).toMatch(/laser-cut/)
+  })
+
+  it('takes the process kept for the body in the spec, and one given over it', async () => {
+    good()
+    await runCommand('part.spec', { spec: { processes: { Grip: 'machined', Case: 'fdm' } } })
+    expect((await runCommand('part.review', { body: 'Grip' })) as Json).toMatchObject({ process: 'machined' })
+    expect((await review({ process: 'print' })).process).toBe('printed')
+    await runCommand('part.spec', { spec: { processes: { Grip: '' } } })
+    expect(useReview.getState().spec).toEqual({ processes: { Case: 'fdm' } })
+    expect(((await runCommand('part.review', { body: 'Grip' })) as Json).process).toBe('unknown')
+    await runCommand('part.spec', { clear: true })
+  })
+
   it('judges the spec given, over the one kept with the project', async () => {
     good()
     await runCommand('part.spec', { spec: { massTarget: 50, massTol: 2, minWall: 1.2 } })
@@ -129,7 +175,7 @@ describe('part.review', () => {
     expect(kept.verdict).toBe('fix')
     expect(kept.spec.from).toBe('project')
     expect(kept.findings[0].says).toMatch(/48 to 52 g/)
-    const given = await review({ spec: { massTarget: 41, massTol: 1, maxOverhang: 60 } })
+    const given = await review({ spec: { massTarget: 41, massTol: 1 } })
     expect(given.verdict).toBe('pass')
     expect(given.spec.minWall).toBe(1.2)
     expect(given.spec.from).toBe('given over the project’s')
@@ -166,9 +212,9 @@ describe('part.review', () => {
       throw new CommandError('failed', 'Case gave no mesh.')
     }
     const r = await review()
-    expect(r.checks['hw.pauses']).toBe('skipped: not in build')
+    expect(r.printing.checks['hw.pauses']).toBe('skipped: not in build')
     expect(r.checks['mass.properties']).toBe('skipped: page only')
-    expect(r.checks['dfm.check']).toBe('failed: Case gave no mesh.')
+    expect(r.printing.checks['dfm.check']).toBe('failed: Case gave no mesh.')
     expect(r.verdict).toBe('unknown')
     offs['mass.properties']()
     fake('mass.properties')
@@ -187,11 +233,21 @@ describe('part.review', () => {
 
 describe('the spec', () => {
   it('takes numbers it knows and refuses the rest', () => {
-    expect(specOf({ minWall: 1, pauses: 2 })).toEqual({ minWall: 1, pauses: 2 })
+    expect(specOf({ minWall: 1, processes: { Grip: ' fdm ', Lid: '' } })).toEqual({ minWall: 1, processes: { Grip: 'fdm' } })
     expect(specOf({ wall: 1 })).toMatch(/not part of a spec/)
-    expect(specOf({ pauses: 1.5 })).toMatch(/count/)
+    expect(specOf({ pauses: 2 })).toMatch(/not part of a spec/)
+    expect(specOf({ maxOverhang: 45 })).toMatch(/not part of a spec/)
+    expect(specOf({ processes: { Grip: 3 } })).toMatch(/processes.Grip/)
     expect(specOf({ massMin: 5, massMax: 4 })).toMatch(/over/)
     expect(specOf({ massTol: 1 })).toMatch(/massTarget/)
+  })
+
+  it('reads fdm and print as printed, nothing said as unknown, any other word as another process', () => {
+    expect(processOf('FDM')).toEqual({ kind: 'printed' })
+    expect(processOf('print')).toEqual({ kind: 'printed' })
+    expect(processOf(undefined)).toEqual({ kind: 'unknown' })
+    expect(processOf('')).toEqual({ kind: 'unknown' })
+    expect(processOf('CNC machined')).toEqual({ kind: 'other', as: 'CNC machined' })
   })
 
   it('holds a target without its tolerance to ±5 %', () => {
