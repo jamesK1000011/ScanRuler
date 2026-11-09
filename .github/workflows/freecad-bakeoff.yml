@@ -69,6 +69,22 @@ jobs:
         run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests -v
       - name: ScanRuler for FreeCAD tests
         run: python -m unittest discover -s freecad/ScanRulerFC/tests -v
+      - name: The pictures, in the log
+        if: always()
+        # The artifact store is out of reach from where the pictures are
+        # looked at; the log is not. Each file as base64 between markers.
+        run: |
+          python - <<'PY'
+          import base64, glob, os
+          root = os.environ.get("AGENTLINK_RENDERS", "")
+          for p in sorted(glob.glob(os.path.join(root, "**", "*.png"), recursive=True) + glob.glob(os.path.join(root, "drawing", "*.svg"))):
+              with open(p, "rb") as f:
+                  data = base64.b64encode(f.read()).decode()
+              print(f"=== RENDER {os.path.relpath(p, root)} {len(data)}")
+              for i in range(0, len(data), 4000):
+                  print(data[i:i + 4000])
+              print("=== END")
+          PY
       - name: The brief, headless
         run: node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad --python python
       - name: Server log
