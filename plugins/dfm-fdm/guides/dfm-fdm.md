@@ -39,9 +39,9 @@ Nothing is a hidden constant.
 
 | Rule | Reads | Default |
 |---|---|---|
-| thin-wall | the wall thickness: on a scan, the Thickness workspace's map; on a body or the reference part, rays into the material from samples over the faces | under 0.8 mm (2 × 0.4 mm lines) |
-| overhang | faces leaning past the angle from vertical, and flat undersides held up on one side only (a ledge prints in air) | 50° |
-| bridge | flat ceilings held on both sides, and how far they span at their narrowest | 10 mm |
+| thin-wall | the wall thickness: on a scan, the Thickness workspace's map; on a body or the reference part, rays into the material from samples over the faces | error under one 0.4 mm line; warning under 0.8 mm (2 lines) |
+| overhang | faces leaning past the angle from vertical, and flat undersides with no wall under them on the opposite side (a ledge prints in air) | 50° |
+| bridge | flat ceilings held on opposite sides, and the longest line across they need | 10 mm |
 | small-hole | upright round holes | under Ø2 mm |
 | bed-contact | flat area on the bed over the footprint's area | under 5 % |
 | tall-thin | height over the base's least width | over 8× |
@@ -61,9 +61,16 @@ checked.
 
 ## Reading the findings
 
-- **A flat underside held on one side** is a ledge: it needs support or a
-  chamfer. Held on both sides, it is a bridge, and only too long a span is a
-  finding.
+- **A flat underside held on one side** (or at a corner only) is a ledge:
+  it needs support or a chamfer. Where a straight line across reaches a
+  wall going down at both ends, it is a bridge, and only too long a span
+  is a finding. The groove between a Gridfinity bin's feet is a bridge.
+- **How thin is too thin** goes by the nozzle. Thinner than one extrusion
+  line (the rule's `lineMm`: the nozzle, or the line width a profile gives)
+  can't be printed: an error. From one line up to the minimum wall
+  (`minMm`, two lines) it prints as a single line: a warning — fine for a
+  Gridfinity lip's 0.7 mm band, worth thickening where it carries load.
+  `wall.level` says which (`under one line`, `single line`).
 - **Thin walls.** On a scan they come from its thickness map. On a body or
   the reference part they are read from samples laid over the faces, so a
   skin over an insert or a magnet pocket is found even where the mesh has no

@@ -65,7 +65,7 @@ const RULE_WORDS: Record<string, string> = {
   'mesh-health': 'Mesh',
   'build-volume': 'Build volume',
 }
-const PARAM_WORDS: Record<string, string> = { minMm: 'min', maxDeg: 'max', maxMm: 'max', minDiameterMm: 'min Ø', minShare: 'min share', maxRatio: 'max ratio', minVolumeMm3: 'min', xMm: 'x', yMm: 'y', zMm: 'z', dualXMm: 'dual x', minAreaMm2: 'area ≥' }
+const PARAM_WORDS: Record<string, string> = { lineMm: 'one line', minMm: 'min', maxDeg: 'max', maxMm: 'max', minDiameterMm: 'min Ø', minShare: 'min share', maxRatio: 'max ratio', minVolumeMm3: 'min', xMm: 'x', yMm: 'y', zMm: 'z', dualXMm: 'dual x', minAreaMm2: 'area ≥' }
 /** A parameter's power of length by its name: 1 for …Mm, 2 for …Mm2, 3
  *  for …Mm3, 0 for an angle or a ratio. */
 const powerOf = (k: string): 0 | 1 | 2 | 3 => (/Mm3$/.test(k) ? 3 : /Mm2$/.test(k) ? 2 : /Mm$/.test(k) ? 1 : 0)
@@ -264,7 +264,7 @@ export function DfmPanel() {
         <Busy text={v.busy} />
         {st.checked?.wall && (
           <p className="hint" data-test="dfm-wall">
-            {st.checked.wall.least === null ? 'No thin wall found' : `Thinnest wall ${len.fmt(st.checked.wall.least, 2)}`} — the limit is {len.fmt(st.checked.wall.limit, 2)}
+            {st.checked.wall.least === null ? 'No thin wall found' : `Thinnest wall ${len.fmt(st.checked.wall.least, 2)}`} — {st.checked.wall.line !== undefined && `one line is ${len.fmt(st.checked.wall.line, 2)}, `}the minimum {len.fmt(st.checked.wall.limit, 2)}
           </p>
         )}
         {st.checked?.stale && (

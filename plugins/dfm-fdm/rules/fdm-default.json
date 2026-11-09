@@ -8,11 +8,12 @@
       "check": "thinWall",
       "severity": "error",
       "params": {
+        "lineMm": 0.4,
         "minMm": 0.8,
         "minAreaMm2": 1
       },
-      "rationale": "A wall thinner than two extrusion lines prints as one line, as gaps, or not at all.",
-      "source": "Rule of thumb: two line widths of the nozzle (0.4 mm nozzle, about 0.45 mm lines)."
+      "rationale": "A wall thinner than one extrusion line (lineMm) can't be printed: an error. From one line up to the minimum wall (minMm) it prints as a single line, weak and sometimes with gaps: a warning.",
+      "source": "Rule of thumb: one line is the nozzle's width unless a profile gives its line width; the minimum wall is two lines."
     },
     {
       "id": "overhang",

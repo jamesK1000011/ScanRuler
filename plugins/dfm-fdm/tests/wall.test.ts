@@ -3,7 +3,9 @@
 // under a thin skin found where the block's few big triangles have no vertex
 // over it, a solid block with no thin wall, a mesh wound inside out read the
 // same, the spacing widened on a part too large for the samples, and a lip
-// tapering to a knife edge read as a sharp edge, not a thin wall.
+// tapering to a knife edge read as a sharp edge, not a thin wall; and a
+// wall's severity by the nozzle: under one line an error, from one line up
+// to the minimum a warning, at the minimum or over nothing.
 import { describe, expect, it } from 'vitest'
 import { runChecks } from '../core/checks'
 import { stack, type RulePack } from '../core/rules'
@@ -26,6 +28,21 @@ const mesh = (soup: number[]) => ({ positions: Float64Array.from(soup), indices:
 /** A 30 × 20 × 6 block, a 10 × 10 magnet pocket sealed in it 0.4 under the top. */
 const magnetBlock = (inward = false) => mesh([...box([0, 0, 0], [30, 20, 6], inward), ...box([5, 5, 2], [15, 15, 5.6], !inward)])
 const rules = () => stack(pack as RulePack, [])
+/** A triangle soup with its shared corners made one vertex. */
+function welded(m: { positions: Float64Array; indices: Uint32Array }) {
+  const ids = new Map<string, number>(), pos: number[] = []
+  const indices = Uint32Array.from(m.indices, (i) => {
+    const key = `${m.positions[3 * i]},${m.positions[3 * i + 1]},${m.positions[3 * i + 2]}`
+    let n = ids.get(key)
+    if (n === undefined) {
+      n = ids.size
+      ids.set(key, n)
+      pos.push(m.positions[3 * i], m.positions[3 * i + 1], m.positions[3 * i + 2])
+    }
+    return n
+  })
+  return { positions: Float64Array.from(pos), indices }
+}
 /** A convex profile in y z run `length` along x, each face wound outward. */
 function prism(profile: number[][], length: number): number[] {
   const cy = profile.reduce((s, q) => s + q[0], 0) / profile.length, cz = profile.reduce((s, q) => s + q[1], 0) / profile.length
@@ -99,8 +116,50 @@ describe('walls read on a CAD mesh', () => {
     const part = magnetBlock()
     const wall = probeWalls(part.positions, part.indices, { spacing: 0.4, reach: 6.4 })
     const found = runChecks({ ...part, wall }, rules()).findings.filter((f) => f.rule === 'thin-wall')
-    expect(found.map((f) => f.severity)).toEqual(['error'])
+    expect(found.map((f) => f.severity)).toEqual(['warning'])
     expect(sharpEdges(wall, 0.8, 1.2)).toEqual([])
     expect(leastWall(wall, { edges: false })?.least).toBeCloseTo(0.4, 3)
+  })
+})
+
+describe('a wall against a 0.4 mm nozzle', () => {
+  /** A fin `t` thick standing on nothing: 20 long, 10 tall. */
+  const fin = (t: number) => mesh(box([0, 0, 0], [20, t, 10]))
+  const read = (t: number) => {
+    const part = fin(t)
+    const wall = probeWalls(part.positions, part.indices, { spacing: 0.4, reach: 6.4 })
+    return runChecks({ ...part, wall }, rules()).findings.filter((f) => f.rule === 'thin-wall')
+  }
+  /** The same fin welded, as a scan is, with its thickness map: `t` at
+   *  every vertex. */
+  const scanned = (t: number) => {
+    const part = welded(fin(t))
+    return runChecks({ ...part, thickness: new Float32Array(part.positions.length / 3).fill(t) }, rules()).findings.filter((f) => f.rule === 'thin-wall')
+  }
+  const cases: [number, [string, number, number][]][] = [
+    [0.3, [['error', 0.3, 0.4]]],
+    [0.7, [['warning', 0.7, 0.8]]],
+    [1, []],
+  ]
+  for (const [t, want] of cases)
+    it(`${t} mm: read on a body and on a scan alike`, () => {
+      expect(read(t).map((f) => [f.severity, f.value, f.limit])).toEqual(want)
+      expect(scanned(t).map((f) => [f.severity, f.value, f.limit])).toEqual(want)
+    })
+  it('say why in plain words', () => {
+    expect(read(0.3)[0].says).toMatch(/thinner than one 0.4 mm line/)
+    expect(read(0.7)[0].says).toMatch(/prints as a single line/)
+  })
+  it('take one line from the profile when it gives its line width', () => {
+    const wide = stack(pack as RulePack, [{ name: 'printer', overrides: { 'thin-wall': { params: { lineMm: 0.45 } } } }])
+    const part = fin(0.42)
+    const wall = probeWalls(part.positions, part.indices, { spacing: 0.4, reach: 6.4 })
+    expect(runChecks({ ...part, wall }, wide).findings.filter((f) => f.rule === 'thin-wall').map((f) => [f.severity, f.limit])).toEqual([['error', 0.45]])
+  })
+  it('never come out worse than the rule allows', () => {
+    const soft = stack(pack as RulePack, [{ name: 'project', overrides: { 'thin-wall': { severity: 'info' } } }])
+    const part = fin(0.7)
+    const wall = probeWalls(part.positions, part.indices, { spacing: 0.4, reach: 6.4 })
+    expect(runChecks({ ...part, wall }, soft).findings.filter((f) => f.rule === 'thin-wall').map((f) => f.severity)).toEqual(['info'])
   })
 })

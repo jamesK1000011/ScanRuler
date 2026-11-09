@@ -43,8 +43,20 @@ saves carry the same number as `appVersion`. How a release is cut is in
   panel shows it. A taper to a knife edge, such as a Gridfinity bin's
   stacking lip, is not a thin wall: where the faces meet at 26.6° or more
   it comes back as an info finding, a sharp edge with where it is and about
-  how long, and is left out of the thinnest wall. A uniformly thin skin is
-  still an error.
+  how long, and is left out of the thinnest wall. How thin is too thin
+  goes by the nozzle, on a body and a scan alike: thinner than one
+  extrusion line (the thin-wall rule's new `lineMm`, the nozzle unless a
+  profile gives its line width) is an error; from one line up to the
+  minimum wall (two lines) a warning, as it prints as a single line — so a
+  Gridfinity lip's 0.7 mm band is no longer an error with a 0.4 nozzle.
+  The answer's `wall` gives `line` and `level`, and the panel shows one
+  line beside the minimum. A flat underside is a bridge when a straight
+  line across it reaches a wall going down at both ends, and only the part
+  no such line reaches is a ledge: the groove between a Gridfinity bin's
+  feet, flaring at its ends, was reported as "held up on one side only";
+  it is a 6 mm bridge. The bridge's span is now the longest such line, not
+  the ceiling's narrowest width, so a ceiling held at its two ends only is
+  a bridge of its length.
 - **Printability checks a body as it is now** (2026-11-08). Print › Check
   and `dfm.check` can check a Reverse engineer body directly (target `body`,
   with `body` by name or id; the one solid body shown by default; the

@@ -23,9 +23,9 @@ says which layer set it.
 
 | Rule | Reads |
 |---|---|
-| thin-wall | the scan's wall thickness map (the worker's thickness measure); on a body or the reference part, rays into the material from samples over the faces (core/wall.ts) — where the far face leans 26.6° or more, a taper to a sharp edge, reported as info |
-| overhang | faces leaning past the angle, and flat undersides held up on one side only |
-| bridge | flat ceilings held on both sides, by their narrowest span (convex-hull width) |
+| thin-wall | the scan's wall thickness map (the worker's thickness measure); on a body or the reference part, rays into the material from samples over the faces (core/wall.ts). Thinner than one extrusion line (`lineMm`: the nozzle, or a profile's line width) is an error; from one line up to the minimum wall (`minMm`, two lines) a warning, as it prints as a single line. Where the far face leans 26.6° or more, a taper to a sharp edge, reported as info |
+| overhang | faces leaning past the angle, and the part of a flat underside no bridge reaches across (held on one side, or at a corner only) |
+| bridge | flat ceilings: through each place, the shortest straight line in plan from a wall going down to the one opposite; the longest of those is the span |
 | small-hole | upright round holes, by circle fit |
 | bed-contact | flat area on the bed over the footprint's convex-hull area |
 | tall-thin | height over the base's least width |

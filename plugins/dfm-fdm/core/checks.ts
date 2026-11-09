@@ -34,6 +34,10 @@ export interface Finding {
 
 const BED = 0.1
 
+/** One extrusion line, mm: the thin-wall rule's lineMm (the nozzle, unless a
+ *  profile gives its line width), never over its minimum wall. */
+export const wallLine = (rule: { params: Record<string, number> }) => Math.min(rule.params.lineMm ?? rule.params.minMm / 2, rule.params.minMm)
+
 interface Mesh {
   p: Float64Array
   idx: Uint32Array
@@ -112,21 +116,6 @@ function centroid(m: Mesh, run: number[]): [number, number, number] {
 const areaOf = (m: Mesh, run: number[]) => run.reduce((s, t) => s + m.area[t], 0)
 const onBed = (m: Mesh, t: number) => [0, 1, 2].every((k) => m.p[3 * m.idx[3 * t + k] + 2] < m.zMin + BED)
 
-/** A region's narrowest span in plan — the least width of its corners'
- *  convex hull — with the direction it is measured along and the middle of
- *  that width. */
-function spread(m: Mesh, run: number[]): { span: number; axis: [number, number]; centre: [number, number] } {
-  const xs: number[] = [], ys: number[] = []
-  for (const t of run)
-    for (let k = 0; k < 3; k++) {
-      const i = 3 * m.idx[3 * t + k]
-      xs.push(m.p[i])
-      ys.push(m.p[i + 1])
-    }
-  const h = hullArea(xs, ys)
-  return { span: h.width, axis: h.axis, centre: h.centre }
-}
-
 /** The convex hull of points in plan: its area, its least width, the
  *  direction across that width and the middle of it. */
 function hullArea(xs: number[], ys: number[]): { area: number; width: number; axis: [number, number]; centre: [number, number] } {
@@ -180,13 +169,25 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
   const findings: Finding[] = []
   const skipped: { rule: string; why: string }[] = []
   const add = (rule: EffectiveRule, f: Omit<Finding, 'rule' | 'check' | 'severity'>) => findings.push({ rule: rule.id, check: rule.check, severity: rule.severity, ...f })
+  // A wall thinner than one extrusion line can't be laid down at all: the
+  // rule's severity. From one line up to the minimum it prints, but as a
+  // single line (or one and a gap): a warning at most.
+  const thinWall = (rule: EffectiveRule, least: number, at: [number, number, number], area: number) => {
+    const line = wallLine(rule)
+    if (least < line)
+      // units-ok: the agent's readout, in millimetres always
+      add(rule, { value: r(least), limit: line, unit: 'mm', at, areaMm2: r(area, 1), says: `a wall ${r(least)} mm thick over ${r(area, 1)} mm² — thinner than one ${line} mm line, it can't be printed: thicken it to ${rule.params.minMm} mm, or print it with a finer nozzle` })
+    else
+      // units-ok: the agent's readout, in millimetres always
+      add({ ...rule, severity: rule.severity === 'error' ? 'warning' : rule.severity }, { value: r(least), limit: rule.params.minMm, unit: 'mm', at, areaMm2: r(area, 1), says: `a wall ${r(least)} mm thick over ${r(area, 1)} mm² — under ${rule.params.minMm} mm, it prints as a single line: thicken it if it must be strong` })
+  }
   for (const rule of rules) {
     if (rule.disabled) continue
     const P = rule.params
     switch (rule.check) {
       case 'overhang': {
-        // Leaning past maxDeg from vertical, facing down, off the bed; and a
-        // flat ceiling held up on one side only — a ledge, at 90°.
+        // Leaning past maxDeg from vertical, facing down, off the bed; and the
+        // part of a flat ceiling no bridge reaches across — a ledge, at 90°.
         const limit = -Math.sin((P.maxDeg * Math.PI) / 180)
         for (const run of regions(m, (t) => m.normal[3 * t + 2] < limit && m.normal[3 * t + 2] > -FLAT && !onBed(m, t))) {
           const a = areaOf(m, run)
@@ -197,15 +198,16 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
           add(rule, { value: r(worst, 1), limit: P.maxDeg, unit: '° from vertical', at: centroid(m, run), areaMm2: r(a, 1), says: `${r(a, 1)} mm² facing down at up to ${r(worst, 1)}° from vertical — past ${P.maxDeg}°: support it, chamfer it, or turn the part` })
         }
         for (const c of ceilings(m)) {
-          if (c.bridged || c.area < (P.minAreaMm2 ?? 0)) continue
+          if (!c.loose || c.loose.area < (P.minAreaMm2 ?? 0)) continue
+          const a = r(c.loose.area, 1)
           // units-ok: the agent's readout, in millimetres always
-          add(rule, { value: 90, limit: P.maxDeg, unit: '° from vertical', at: c.at, areaMm2: r(c.area, 1), says: `a flat underside of ${r(c.area, 1)} mm² held up on ${c.held ? 'one side only' : 'no side'} — it prints in air: support it, or chamfer it to ${P.maxDeg}° or less` })
+          add(rule, { value: 90, limit: P.maxDeg, unit: '° from vertical', at: c.loose.at, areaMm2: a, says: `a flat underside of ${a} mm² ${c.held ? 'with no wall under it on the opposite side' : 'held up on no side'} — it prints in air: support it, or chamfer it to ${P.maxDeg}° or less` })
         }
         break
       }
       case 'bridge': {
         for (const c of ceilings(m)) {
-          if (!c.bridged || c.area < (P.minAreaMm2 ?? 0) || c.span <= P.maxMm) continue
+          if (c.area - (c.loose?.area ?? 0) < (P.minAreaMm2 ?? 0) || c.span <= P.maxMm) continue
           // units-ok: the agent's readout, in millimetres always
           add(rule, { value: r(c.span, 1), limit: P.maxMm, unit: 'mm', at: c.at, areaMm2: r(c.area, 1), says: `a flat ceiling bridging ${r(c.span, 1)} mm between its walls, ${r(c.area, 1)} mm² — over the ${P.maxMm} mm bridge limit: support it, add a rib, or arch it` })
         }
@@ -219,8 +221,7 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
           const link = 1.5 * Math.max(part.wall.spacing, P.minMm)
           for (const run of thinRuns(part.wall, P.minMm, link)) {
             if (run.area < (P.minAreaMm2 ?? 0)) continue
-            // units-ok: the agent's readout, in millimetres always
-            add(rule, { value: r(run.least), limit: P.minMm, unit: 'mm', at: [r(run.at[0]), r(run.at[1]), r(run.at[2])], areaMm2: r(run.area, 1), says: `a wall ${r(run.least)} mm thick over ${r(run.area, 1)} mm² — under ${P.minMm} mm: thicken it, or print it with a finer nozzle` })
+            thinWall(rule, run.least, [r(run.at[0]), r(run.at[1]), r(run.at[2])], run.area)
           }
           // A taper to a knife edge — a stacking lip, a chamfer — thickens
           // past the limit within a step or two of its edge: not a thin
@@ -242,8 +243,7 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
           if (a < (P.minAreaMm2 ?? 0)) continue
           let least = Infinity
           for (const t of run) for (let k = 0; k < 3; k++) if (thin(m.idx[3 * t + k])) least = Math.min(least, th[m.idx[3 * t + k]])
-          // units-ok: the agent's readout, in millimetres always
-          add(rule, { value: r(least), limit: P.minMm, unit: 'mm', at: centroid(m, run), areaMm2: r(a, 1), says: `a wall ${r(least)} mm thick over ${r(a, 1)} mm² — under ${P.minMm} mm: thicken it, or print it with a finer nozzle` })
+          thinWall(rule, least, centroid(m, run), a)
         }
         break
       }
@@ -357,57 +357,170 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
 interface Ceiling {
   area: number
   at: [number, number, number]
-  /** Across, at its narrowest. */
+  /** The longest bridge it needs: through each place the shortest line
+   *  across from a wall going down to the one opposite, the longest of
+   *  those; 0 when no place has one. */
   span: number
-  /** Held up by walls going down on both sides across its span. */
-  bridged: boolean
+  /** The part with no such line — held on one side, two adjacent sides or
+   *  none: it prints in air. */
+  loose: { area: number; at: [number, number, number] } | null
   /** Held up on any side at all. */
   held: boolean
 }
 
-/** Flat ceilings off the bed, and whether walls going down hold them on
- *  both sides of their narrowest span — a bridge — or not — a ledge. */
+/** Directions a line across is tried in, over half a turn. */
+const ACROSS = 12
+
+/** Flat ceilings off the bed. A place on one is bridged when some straight
+ *  line through it, in plan, reaches a wall going down at both ends before
+ *  it leaves the ceiling — the line the slicer lays a bridge along. A gap
+ *  between two feet is a bridge however its ends flare; a shelf off one
+ *  wall, or held at a corner only, is not. */
 function ceilings(m: Mesh): Ceiling[] {
   const edgeTris = new Map<string, number[]>()
+  const key = (a: number, b: number) => (a < b ? `${a},${b}` : `${b},${a}`)
   for (let t = 0; t < m.tris; t++)
     for (let k = 0; k < 3; k++) {
-      const a = m.idx[3 * t + k], b = m.idx[3 * t + ((k + 1) % 3)]
-      const key = a < b ? `${a},${b}` : `${b},${a}`
-      const l = edgeTris.get(key)
+      const kk = key(m.idx[3 * t + k], m.idx[3 * t + ((k + 1) % 3)])
+      const l = edgeTris.get(kk)
       if (l) l.push(t)
-      else edgeTris.set(key, [t])
+      else edgeTris.set(kk, [t])
     }
   const out: Ceiling[] = []
   for (const run of regions(m, (t) => m.normal[3 * t + 2] <= -FLAT && !onBed(m, t))) {
     const inRun = new Set(run)
     const area = areaOf(m, run)
-    const { span, axis, centre } = spread(m, run)
-    // The edges where the ceiling meets a wall going down from it.
-    const sides: number[] = []
+    // The ceiling's edge in plan, each piece held (a wall going down from
+    // it) or free (a wall going up, or nothing).
+    const seg: number[] = [], held: boolean[] = []
     for (const t of run)
       for (let k = 0; k < 3; k++) {
         const a = m.idx[3 * t + k], b = m.idx[3 * t + ((k + 1) % 3)]
-        const key = a < b ? `${a},${b}` : `${b},${a}`
-        for (const n of edgeTris.get(key) ?? []) {
-          if (inRun.has(n)) continue
+        const others = (edgeTris.get(key(a, b)) ?? []).filter((n) => !inRun.has(n))
+        if (others.length === 0 && (edgeTris.get(key(a, b)) ?? []).length > 1) continue
+        const zEdge = (m.p[3 * a + 2] + m.p[3 * b + 2]) / 2
+        const down = others.some((n) => {
           const third = [0, 1, 2].map((j) => m.idx[3 * n + j]).find((v) => v !== a && v !== b)
-          if (third === undefined) continue
-          const zEdge = (m.p[3 * a + 2] + m.p[3 * b + 2]) / 2
-          // A wall that holds a side of the span runs across it: an edge
-          // running along the span (a ledge's one wall, cut in pieces)
-          // holds neither side.
-          const ex = m.p[3 * b] - m.p[3 * a], ey = m.p[3 * b + 1] - m.p[3 * a + 1], el = Math.hypot(ex, ey)
-          if (m.p[3 * third + 2] < zEdge - 0.05 && el > 0 && Math.abs((ex * axis[0] + ey * axis[1]) / el) < 0.5) {
-            const mx = (m.p[3 * a] + m.p[3 * b]) / 2 - centre[0], my = (m.p[3 * a + 1] + m.p[3 * b + 1]) / 2 - centre[1]
-            sides.push(mx * axis[0] + my * axis[1])
-          }
-        }
+          return third !== undefined && m.p[3 * third + 2] < zEdge - 0.05
+        })
+        seg.push(m.p[3 * a], m.p[3 * a + 1], m.p[3 * b], m.p[3 * b + 1])
+        held.push(down)
       }
-    const reach = span / 2
-    const lowSide = sides.some((d) => d < -0.7 * reach), highSide = sides.some((d) => d > 0.7 * reach)
-    out.push({ area, at: centroid(m, run), span, bridged: lowSide && highSide, held: sides.length > 0 })
+    const grid = segmentGrid(seg)
+    // Samples over the ceiling, at most a few thousand.
+    const s = Math.max(0.2, Math.sqrt((3 * area) / 4000))
+    const pts: number[] = [], wts: number[] = [], zs: number[] = []
+    const split = (a: number[], b: number[], c: number[], depth: number) => {
+      const ab = Math.hypot(b[0] - a[0], b[1] - a[1]), bc = Math.hypot(c[0] - b[0], c[1] - b[1]), ca = Math.hypot(a[0] - c[0], a[1] - c[1])
+      const most = Math.max(ab, bc, ca)
+      if (most <= s || depth > 20) {
+        pts.push((a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3)
+        zs.push((a[2] + b[2] + c[2]) / 3)
+        wts.push(Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2)
+        return
+      }
+      const mid = (u: number[], v: number[]) => [(u[0] + v[0]) / 2, (u[1] + v[1]) / 2, (u[2] + v[2]) / 2]
+      if (most === ab) (split(a, mid(a, b), c, depth + 1), split(mid(a, b), b, c, depth + 1))
+      else if (most === bc) (split(a, b, mid(b, c), depth + 1), split(a, mid(b, c), c, depth + 1))
+      else (split(a, b, mid(c, a), depth + 1), split(mid(c, a), b, c, depth + 1))
+    }
+    const corner = (v: number) => [m.p[3 * v], m.p[3 * v + 1], m.p[3 * v + 2]]
+    for (const t of run) split(corner(m.idx[3 * t]), corner(m.idx[3 * t + 1]), corner(m.idx[3 * t + 2]), 0)
+    let span = 0, looseArea = 0, lx = 0, ly = 0, lz = 0
+    for (let i = 0; i < wts.length; i++) {
+      const x = pts[2 * i], y = pts[2 * i + 1]
+      let best = Infinity
+      for (let d = 0; d < ACROSS; d++) {
+        const ang = (d * Math.PI) / ACROSS, dx = Math.cos(ang), dy = Math.sin(ang)
+        const f = castSegments(grid, seg, x, y, dx, dy)
+        if (f.i < 0 || !held[f.i]) continue
+        const b = castSegments(grid, seg, x, y, -dx, -dy)
+        if (b.i < 0 || !held[b.i]) continue
+        best = Math.min(best, f.t + b.t)
+      }
+      if (best < Infinity) span = Math.max(span, best)
+      else {
+        looseArea += wts[i]
+        lx += wts[i] * x
+        ly += wts[i] * y
+        lz += wts[i] * zs[i]
+      }
+    }
+    const loose = looseArea > 0 ? { area: looseArea, at: [r(lx / looseArea), r(ly / looseArea), r(lz / looseArea)] as [number, number, number] } : null
+    out.push({ area, at: centroid(m, run), span, loose, held: held.some(Boolean) })
   }
   return out
+}
+
+interface SegmentGrid {
+  x0: number
+  y0: number
+  size: number
+  nx: number
+  ny: number
+  cells: number[][]
+}
+
+/** Segments (x0 y0 x1 y1 …) binned in a grid of cells, about 64 across. */
+function segmentGrid(seg: number[]): SegmentGrid {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (let i = 0; i < seg.length; i += 2) {
+    x0 = Math.min(x0, seg[i])
+    x1 = Math.max(x1, seg[i])
+    y0 = Math.min(y0, seg[i + 1])
+    y1 = Math.max(y1, seg[i + 1])
+  }
+  if (!(x1 >= x0)) return { x0: 0, y0: 0, size: 1, nx: 0, ny: 0, cells: [] }
+  const size = Math.max(1e-3, Math.max(x1 - x0, y1 - y0) / 64)
+  x0 -= size
+  y0 -= size
+  const nx = Math.ceil((x1 - x0) / size) + 2, ny = Math.ceil((y1 - y0) / size) + 2
+  const cells: number[][] = Array.from({ length: nx * ny }, () => [])
+  for (let s = 0; 4 * s < seg.length; s++) {
+    const ax = seg[4 * s], ay = seg[4 * s + 1], bx = seg[4 * s + 2], by = seg[4 * s + 3]
+    const i0 = Math.floor((Math.min(ax, bx) - x0) / size), i1 = Math.floor((Math.max(ax, bx) - x0) / size)
+    const j0 = Math.floor((Math.min(ay, by) - y0) / size), j1 = Math.floor((Math.max(ay, by) - y0) / size)
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) cells[j * nx + i].push(s)
+  }
+  return { x0, y0, size, nx, ny, cells }
+}
+
+/** The first segment a ray in plan meets, cell by cell along it, and how
+ *  far: i -1 when it meets none. */
+function castSegments(g: SegmentGrid, seg: number[], ox: number, oy: number, dx: number, dy: number): { i: number; t: number } {
+  let ci = Math.floor((ox - g.x0) / g.size), cj = Math.floor((oy - g.y0) / g.size)
+  const stepI = dx > 0 ? 1 : -1, stepJ = dy > 0 ? 1 : -1
+  const big = 1e30
+  const dtx = Math.abs(dx) > 1e-12 ? g.size / Math.abs(dx) : big, dty = Math.abs(dy) > 1e-12 ? g.size / Math.abs(dy) : big
+  let tx = Math.abs(dx) > 1e-12 ? ((dx > 0 ? ci + 1 : ci) * g.size + g.x0 - ox) / dx : big
+  let ty = Math.abs(dy) > 1e-12 ? ((dy > 0 ? cj + 1 : cj) * g.size + g.y0 - oy) / dy : big
+  const tried = new Set<number>()
+  let best = Infinity, hit = -1
+  while (ci >= 0 && cj >= 0 && ci < g.nx && cj < g.ny) {
+    for (const s of g.cells[cj * g.nx + ci]) {
+      if (tried.has(s)) continue
+      tried.add(s)
+      const ax = seg[4 * s], ay = seg[4 * s + 1], ex = seg[4 * s + 2] - ax, ey = seg[4 * s + 3] - ay
+      const den = dx * ey - dy * ex
+      if (Math.abs(den) < 1e-15) continue
+      const wx = ax - ox, wy = ay - oy
+      const t = (wx * ey - wy * ex) / den, u = (wx * dy - wy * dx) / den
+      if (t > 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && t < best) {
+        best = t
+        hit = s
+      }
+    }
+    // A hit inside this cell is the nearest there can be.
+    if (hit >= 0 && best <= Math.min(tx, ty) + 1e-9) break
+    if (tx < ty) {
+      ci += stepI
+      tx += dtx
+    } else {
+      cj += stepJ
+      ty += dty
+    }
+  }
+  return { i: hit, t: best }
 }
 
 /** Facing down this squarely is a flat ceiling: cos 10°. */

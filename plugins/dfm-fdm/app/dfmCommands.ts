@@ -10,7 +10,7 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { useDeviation } from '../../../src/state/deviationStore'
 import { useStore } from '../../../src/state/store'
 import { useThickness } from '../../../src/state/thicknessStore'
-import { runChecks } from '../core/checks'
+import { runChecks, wallLine } from '../core/checks'
 import { leastWall, probeWalls, sharpEdges, type WallSamples } from '../core/wall'
 import { arrayToBuild, buildFrame, fromBuild, UPS, type BuildFrame, type Up } from '../core/frame'
 import { CONSIDERATIONS, CONSIDERATIONS_CITE } from '../core/considerations'
@@ -138,8 +138,8 @@ export const rules: Command<{ action?: 'list' | 'set' | 'clear'; rule?: string; 
 }
 
 /** The least wall read on a CAD part and where (in the part's frame),
- *  against the limit, with how it was read. */
-function wallReading(w: WallSamples, limit: number, frame: BuildFrame) {
+ *  against one line and the limit, with how it was read. */
+function wallReading(w: WallSamples, limit: number, line: number, frame: BuildFrame) {
   const l = leastWall(w, { edges: false })
   const at = [0, 0, 0]
   if (l) fromBuild(frame, l.at[0], l.at[1], l.at[2], at)
@@ -149,8 +149,9 @@ function wallReading(w: WallSamples, limit: number, frame: BuildFrame) {
     return { at: p.map((v) => r(v)), length: r(e.length, 1) }
   })
   return {
-    ...(l ? { least: r(l.least), at: at.map((v) => r(v)), thin: l.least < limit } : { least: null, over: w.reach }),
+    ...(l ? { least: r(l.least), at: at.map((v) => r(v)), thin: l.least < limit, ...(l.least < limit ? { level: l.least < line ? 'under one line' : 'single line' } : {}) } : { least: null, over: w.reach }),
     ...(edges.length ? { sharpEdges: edges } : {}),
+    line,
     limit,
     spacing: r(w.spacing),
     samples: w.thickness.length,
@@ -167,7 +168,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — wall gives the least wall read, where, and the limit; a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and flat undersides held on one side only, which print in air — flat ceilings bridging further than the limit, upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
   input: obj({ only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }), detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.') }),
   history: false,
   timeoutMs: 5 * 60_000,
@@ -242,8 +243,8 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
         return { ...f, id: `F${i + 1}`, at, ...(w ? { waived: w.reason } : {}) }
       })
     const allSkipped = [...skippedExtra.filter((x) => !only || only.includes(x.rule)), ...skipped.filter((x) => !skippedExtra.some((y) => y.rule === x.rule))]
-    const reading = wall && thinRule ? wallReading(wall, thinRule.params.minMm, frame) : null
-    if (reading) checked = { ...checked, wall: { least: reading.least, limit: reading.limit } }
+    const reading = wall && thinRule ? wallReading(wall, thinRule.params.minMm, wallLine(thinRule), frame) : null
+    if (reading) checked = { ...checked, wall: { least: reading.least, line: reading.line, limit: reading.limit } }
     useDfm.getState().result(numbered, allSkipped, checked)
     const open = numbered.filter((f) => !f.waived)
     const count = (sev: string) => open.filter((f) => f.severity === sev).length
