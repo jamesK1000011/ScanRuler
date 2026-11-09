@@ -29,8 +29,11 @@ on this computer. You upload it yourself.
   lists every change.
 - **Platform presets.** Printables, Thangs, MakerWorld and Thingiverse set
   folder names, render size and count, and field lengths. These are
-  defaults to check against each upload form; add your own with
-  `pack.presets`.
+  defaults to check against each upload form. Your own are kept with the
+  project: `pack.presets`, or the panel's *Upload form presets* — *Edit*
+  the chosen one, *Copy as new* for another site (id, name, images and
+  their size, the folders, title and summary lengths, a note), remove one
+  of yours with its ×.
 
 ## Commands (`pack.*`)
 
