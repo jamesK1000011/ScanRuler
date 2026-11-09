@@ -67,7 +67,7 @@ export interface FeaAnswer {
   material: Record<string, unknown>
   build: number[]
   /** The own weight solved: density g/cm³, mass g, weight N; from says what weighed it. */
-  gravity?: { direction: number[]; g: number; density: number; mass: number; weight: number; from?: 'mass' | 'material' }
+  gravity?: { direction: number[]; g: number; density: number; mass: number; weight: number; from?: 'mass' | 'material'; /** g of it encased parts: a magnet in a pocket. */ embedded?: number }
   groups: { fixtures: { name: string; faces: number }[]; loads: { name: string; faces: number; force?: number[]; pressure?: number }[] }
   worst: {
     safety: number | null

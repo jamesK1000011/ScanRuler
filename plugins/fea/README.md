@@ -88,6 +88,17 @@ its walls, infill and calibration, spread over the solid; with
 `from: "material"`, or without Mass, it is the solid material's. A cantilever
 under its own weight matches wL⁴/8EI within 0.3 %.
 
+Parts encased in the body by the Hardware workspace (`hw.masses`: a steel
+magnet or nut in a sealed pocket) are a void in the mesh, so their weight is
+added on its own: each part's mass, at the same g and direction, spread by
+area over the walls of its pocket — the surface faces within its reach (and a
+margin for the pocket's clearance) of its centre that face it. That is the
+simplest load that puts the whole weight where the part bears on the print;
+how it rests inside the pocket changes the stress only right at the pocket
+(Saint-Venant). The answer's `gravity.mass` includes them and
+`gravity.embedded` is theirs. A part whose weight isn't known is named in
+the note.
+
 ## Limits
 
 - Linear, static and small-strain only. No buckling, fatigue, creep or

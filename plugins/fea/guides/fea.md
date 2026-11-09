@@ -35,6 +35,8 @@ found. FreeCAD ships both.
   as the Mass workspace weighs it (walls and infill) or as solid material
   (`from: "material"`). `g: 5` for a 5 g shake. Worth it for long or heavy
   parts held at one end; `null` takes it off. With it, loads are optional.
+  Parts encased by the Hardware workspace (a magnet in a sealed pocket) are
+  added too, each one's weight on its pocket's walls (`gravity.embedded`).
 - Name faces by index (`reverse.body.describe`), by query (`where`, e.g.
   `{ kind: "plane", between: [[-1, 0, 0]], withinDeg: 5 }` for flat faces
   facing −X), or `selected: true` for what the person selected in Reverse

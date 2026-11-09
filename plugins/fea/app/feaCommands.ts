@@ -13,6 +13,7 @@ import { setupOf, useFea, type FacePick, type FeaAnswer, type FeaSetup, type Fea
 import { answered, askServer, Cancelled, progressed } from './feaAsk'
 import { densityOf, MATERIAL_IDS, MATERIAL_NAMES, materialId, MATERIALS } from '../../_shared/materials'
 import { readStateSections } from '../../../src/commands/stateSections'
+import { useAgentLink } from '../../../src/commands/agentLink'
 
 /** The printed materials the server starts from: the shared table
  *  (plugins/_shared/materials.ts), which extras/fea.js MATERIALS matches. */
@@ -412,11 +413,47 @@ const solve: Command<Record<string, never>> = {
   },
 }
 
+/** An encased part's weight, as the server takes it: its mass, g, its
+ *  centre and how far it reaches from it, mm. */
+export interface EncasedPoint {
+  name: string
+  at: number[]
+  mass: number
+  reach: number
+}
+
+/** The parts encased in the body (the Hardware workspace's hw.masses: a
+ *  magnet, a nut in a sealed pocket), one point each — the mesh has a void
+ *  where each is, so its weight is a load of its own; and those whose
+ *  weight is not known, said. None where the workspace is not here. */
+export async function encasedIn(body: string): Promise<{ points: EncasedPoint[]; note?: string }> {
+  let r: { parts?: { id: string; what: string; mass: number; centres: number[][]; reach: number }[]; uncounted?: { id: string; what: string }[] }
+  try {
+    r = (await runCommand('hw.masses', { bodies: [body] })) as typeof r
+  } catch (e) {
+    if (e instanceof CommandError && e.code === 'unknown_command') return { points: [] }
+    throw e
+  }
+  const points = (r.parts ?? []).flatMap((p) => p.centres.map((at, i) => ({ name: `${p.id} ${p.what}${p.centres.length > 1 ? ` (${i + 1})` : ''}`, at, mass: p.mass, reach: p.reach })))
+  const left = r.uncounted ?? []
+  return { points, ...(left.length ? { note: `Not in its weight, mass not known: ${left.map((u) => `${u.what} (${u.id})`).join(', ')}.` } : {}) }
+}
+
 /** What the part weighs at, for its own weight: the Mass workspace's
  *  weighing — walls, infill and calibration — as a density over the
  *  whole solid, or the solid material's when asked, or when Mass is not
- *  there or cannot weigh it (said in the note). */
-async function weightOf(s: FeaSetup, body: string): Promise<{ gravity: { direction: number[]; g: number; density: number }; from: 'mass' | 'material'; note?: string }> {
+ *  there or cannot weigh it (said in the note); and the parts encased in
+ *  it, each a load of its own on its pocket's walls. */
+async function weightOf(s: FeaSetup, body: string): Promise<{ gravity: { direction: number[]; g: number; density: number; points?: EncasedPoint[] }; from: 'mass' | 'material'; note?: string }> {
+  const plain = await plainWeightOf(s, body)
+  const held = await encasedIn(body)
+  const notes = [plain.note, held.note]
+  if (held.points.length && !useAgentLink.getState().server?.features?.includes('fea.encased')) notes.push('The agent’s server running now is older than this page and leaves out the encased parts’ weight: quit the agent app and open it again.')
+  const note = notes.filter(Boolean).join(' ')
+  return { ...plain, gravity: { ...plain.gravity, ...(held.points.length ? { points: held.points } : {}) }, ...(note ? { note } : {}) }
+}
+
+async function plainWeightOf(s: FeaSetup, body: string): Promise<{ gravity: { direction: number[]; g: number; density: number }; from: 'mass' | 'material'; note?: string }> {
   const gr = s.gravity!
   const solid = { gravity: { direction: gr.direction, g: gr.g, density: densityOf(s.material) ?? 1.24 }, from: 'material' as const }
   if (gr.from === 'material') return solid

@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { decodeSurface, facesOn, feaTools, G, gravityOf, invertedElements, judge, layerAxes, MATERIAL_ALIASES, MATERIALS, materialOf, nodalForces, readFrd, readMsh, solve, surfaceOf, writeInp } from '../src/extras/fea.js'
+import { decodeSurface, encasedForces, facesOn, feaTools, G, gravityOf, invertedElements, judge, layerAxes, MATERIAL_ALIASES, MATERIALS, materialOf, nodalForces, readFrd, readMsh, solve, surfaceOf, writeInp } from '../src/extras/fea.js'
 
 const quad = (o, u, v) => {
   const c = (s, t) => [0, 1, 2].map((a) => o[a] + u[a] * s + v[a] * t)
@@ -362,6 +362,36 @@ test('own weight: checked, and written as a density and a GRAV load in N, mm, s'
   assert.match(inp, new RegExp(`\\*DLOAD\\nEALL, GRAV, ${(2 * G).toPrecision(10)}, 0, 0, -1\\.0+\\n`))
   assert.doesNotMatch(inp, /\*CLOAD/)
   assert.doesNotMatch(writeInp(m, { material: pla, axes: layerAxes([0, 0, 1]), fixed: new Set([1]), forces: new Map([[4, [0, 0, -1]]]) }), /DENSITY|DLOAD/)
+})
+
+test('encased parts: checked, and each one’s weight on the walls of its pocket, not the outside', () => {
+  const pla = materialOf('pla')
+  assert.deepEqual(gravityOf({ points: [] }, pla), { direction: [0, 0, -1], g: 1, density: 1.24 })
+  assert.deepEqual(gravityOf({ points: [{ name: 'E1', at: [0, 0, 5], mass: 3, reach: 2 }] }, pla).points, [{ name: 'E1', at: [0, 0, 5], mass: 3, reach: 2 }])
+  assert.throws(() => gravityOf({ points: [{ at: [0, 0], mass: 3 }] }, pla), /centre/)
+  assert.throws(() => gravityOf({ points: [{ at: [0, 0, 0], mass: 0 }] }, pla), /in g/)
+  // A 4 mm cube pocket about (0, 0, 5): its six walls face in, at it; the
+  // part's top 1 mm over it faces out, away; a wall far off faces it too.
+  let n = 0
+  const face = (centre, normal) => ({ nodes: [++n, ++n, ++n, ++n, ++n, ++n], normal, area: 16, centre })
+  const walls = [[[2, 0, 5], [-1, 0, 0]], [[-2, 0, 5], [1, 0, 0]], [[0, 2, 5], [0, -1, 0]], [[0, -2, 5], [0, 1, 0]], [[0, 0, 7], [0, 0, -1]], [[0, 0, 3], [0, 0, 1]]].map(([c, d]) => face(c, d))
+  const outside = face([0, 0, 8], [0, 0, 1])
+  const far = face([30, 0, 5], [-1, 0, 0])
+  const surface = [...walls, outside, far]
+  const gravity = gravityOf({ g: 2, points: [{ name: 'E1', at: [0, 0, 5], mass: 3, reach: 2 }] }, pla)
+  const r = encasedForces(surface, gravity)
+  const sum = [0, 0, 0]
+  for (const v of r.forces.values()) for (let k = 0; k < 3; k++) sum[k] += v[k]
+  const W = (3 / 1000) * 9.80665 * 2
+  assert.ok(Math.abs(sum[2] + W) < 1e-9 && Math.abs(sum[0]) < 1e-12 && Math.abs(sum[1]) < 1e-12, `${sum}`)
+  assert.equal(r.grams, 3)
+  assert.deepEqual(r.warnings, [])
+  for (const f of [outside, far]) for (const k of f.nodes) assert.equal(r.forces.has(k), false)
+  for (const f of walls) assert.ok(r.forces.has(f.nodes[3]))
+  // No wall within its reach: the nearest face that faces it, said so.
+  const lone = encasedForces([outside, far], gravityOf({ points: [{ name: 'E2', at: [0, 0, 5], mass: 1, reach: 1 }] }, pla))
+  assert.ok(lone.forces.has(far.nodes[3]))
+  assert.match(lone.warnings[0], /E2: no pocket found/)
 })
 
 test('a PLA cantilever under its own weight against wL⁴/8EI', { skip, timeout: 300_000 }, async () => {

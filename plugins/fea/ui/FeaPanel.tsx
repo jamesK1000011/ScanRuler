@@ -223,6 +223,7 @@ function Answer({ bodyKey }: { bodyKey: string | null }) {
           <span className="name">Own weight</span>
           <span>
             {r.gravity.mass} g{r.gravity.g !== 1 ? ` × ${r.gravity.g} g` : ''} · {r.gravity.weight} N
+            {r.gravity.embedded ? <span className="pl-aside" title="Encased parts, carried by their pockets"> with {r.gravity.embedded} g encased</span> : null}
           </span>
         </div>
       )}

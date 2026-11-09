@@ -497,8 +497,11 @@ export const G = 9806.65
 
 /** The part's own weight as a job gives it, checked: the direction it
  *  pulls (made a unit), how many g (1 for standing still; more for a
- *  shake or a drop), and the density it weighs at, g/cm³ — the solid
- *  material's, or the part's mass over its volume as printed. */
+ *  shake or a drop), the density it weighs at, g/cm³ — the solid
+ *  material's, or the part's mass over its volume as printed — and the
+ *  parts encased in it (points: a magnet in a sealed pocket, its mass in
+ *  g, its centre and how far it reaches from it, mm), which the mesh does
+ *  not hold: the pocket is a void in it. */
 export function gravityOf(gr, material) {
   if (gr === undefined || gr === null || gr === false) return null
   if (typeof gr !== 'object') throw new Error('gravity is { direction: [x, y, z], g, density } or left out.')
@@ -509,7 +512,57 @@ export function gravityOf(gr, material) {
   const density = gr.density ?? material.density
   if (typeof density !== 'number' || !Number.isFinite(density) || density < 0.01 || density > 25) throw new Error('gravity.density is g/cm³: 0.01 to 25.')
   const l = Math.hypot(...dir)
-  return { direction: dir.map((x) => x / l), g, density }
+  const pts = gr.points ?? []
+  if (!Array.isArray(pts) || pts.length > 10_000) throw new Error('gravity.points is a list of encased parts: [{ at: [x, y, z], mass, reach }].')
+  const points = pts.map((p, i) => {
+    const name = typeof p?.name === 'string' && p.name ? p.name : `encased part ${i + 1}`
+    if (!isVec(p?.at)) throw new Error(`${name}: at is its centre, three numbers [x, y, z].`)
+    if (typeof p.mass !== 'number' || !Number.isFinite(p.mass) || p.mass <= 0 || p.mass > 1e7) throw new Error(`${name}: mass is in g, more than 0.`)
+    const reach = p.reach ?? 0
+    if (typeof reach !== 'number' || !Number.isFinite(reach) || reach < 0 || reach > 1e4) throw new Error(`${name}: reach is in mm, 0 or more.`)
+    return { name, at: p.at.map(Number), mass: p.mass, reach }
+  })
+  return { direction: dir.map((x) => x / l), g, density, ...(points.length ? { points } : {}) }
+}
+
+/**
+ * The weight of the parts encased in the part, as nodal forces: each
+ * part's weight (its mass, g, at the job's g along gravity's direction)
+ * spread by area over the walls of the pocket it sits in — the surface
+ * faces within its reach (and a margin for the pocket's clearance) of its
+ * centre that face it, the outside of the part facing away. The pocket's
+ * walls carry it all however it rests: statically the same load, close
+ * enough a little way off (Saint-Venant). Where no wall is found the
+ * nearest face that faces it takes it, said in the warnings.
+ */
+export function encasedForces(surface, gravity) {
+  const out = new Map()
+  const warnings = []
+  let grams = 0
+  for (const p of gravity?.points ?? []) {
+    grams += p.mass
+    const W = (p.mass / 1000) * 9.80665 * gravity.g
+    const force = gravity.direction.map((c) => c * W)
+    const within = p.reach + Math.max(0.5, 0.25 * p.reach)
+    const facing = []
+    for (let k = 0; k < surface.length; k++) {
+      const f = surface[k]
+      const d = sub(p.at, f.centre)
+      if (dot(d, f.normal) > 0) facing.push([k, norm(d)])
+    }
+    let faces = facing.filter(([, d]) => d <= within).map(([k]) => k)
+    if (!faces.length) {
+      const near = facing.reduce((a, b) => (b[1] < a[1] ? b : a), [-1, Infinity])
+      if (near[0] < 0) throw new Error(`${p.name} lies outside the part: no face of it faces ${p.at.join(', ')}.`)
+      faces = [near[0]]
+      warnings.push(`${p.name}: no pocket found round it in the mesh; its weight is put on the nearest face, ${Math.round(near[1] * 100) / 100} mm off.`)
+    }
+    for (const [n, v] of nodalForces(surface, [{ faces, force }])) {
+      const was = out.get(n) ?? [0, 0, 0]
+      out.set(n, [was[0] + v[0], was[1] + v[1], was[2] + v[2]])
+    }
+  }
+  return { forces: out, warnings, grams }
 }
 
 /** A quadratic mesh's volume, mm³, from its elements' corners. */
@@ -707,7 +760,7 @@ export function judge(s, m, ax) {
  * @property {{ name?: string, triangles: number[] }[]} fixtures  Faces held still.
  * @property {{ name?: string, triangles: number[], force?: number[], pressure?: number }[]} loads  N, or MPa.
  * @property {{ size?: number, fineness?: 'coarse' | 'medium' | 'fine' }} [mesh]
- * @property {{ direction?: number[], g?: number, density?: number }} [gravity]  The part's own weight: g/cm³, the material's when not given.
+ * @property {{ direction?: number[], g?: number, density?: number, points?: { name?: string, at: number[], mass: number, reach?: number }[] }} [gravity]  The part's own weight: g/cm³, the material's when not given; points, parts encased in it (g, mm).
  */
 
 const FINENESS = { coarse: 12, medium: 24, fine: 40 }
@@ -917,6 +970,15 @@ export async function solve(job, env = process.env, { signal, progress = () => {
       warnings.push(`The body is ${count} separate pieces, each held on its own: nothing passes between them.`)
     }
     const forces = nodalForces(surface, ld)
+    if (gravity?.points) {
+      // Parts encased in sealed pockets: the mesh has a void where each is.
+      const held = encasedForces(surface, gravity)
+      for (const [n, v] of held.forces) {
+        const was = forces.get(n) ?? [0, 0, 0]
+        forces.set(n, [was[0] + v[0], was[1] + v[1], was[2] + v[2]])
+      }
+      warnings.push(...held.warnings)
+    }
     check()
     progress('solving', `${elements} elements, ${mesh.xyz.length / 3} nodes`)
     await writeFile(join(dir, 'job.inp'), writeInp(mesh, { material, axes, fixed, forces, gravity }))
@@ -1043,8 +1105,9 @@ function answerOf(mesh, surface, r, { material, axes, fixed, ld, fix, tools, siz
     material: { id: material.id, label: material.label, density: material.density, Exy: material.Exy, Ez: material.Ez, Xt: material.Xt, Zt: material.Zt, Sz: r3(material.Sz) },
     build: axes.z.map(r3),
     ...(gravity ? { gravity: (() => {
-      const grams = (gravity.density * meshVolume(mesh)) / 1000
-      return { direction: gravity.direction.map(r3), g: gravity.g, density: r3(gravity.density), mass: r3(grams), weight: r3((grams / 1000) * 9.80665 * gravity.g) }
+      const embedded = (gravity.points ?? []).reduce((t, p) => t + p.mass, 0)
+      const grams = (gravity.density * meshVolume(mesh)) / 1000 + embedded
+      return { direction: gravity.direction.map(r3), g: gravity.g, density: r3(gravity.density), mass: r3(grams), ...(embedded ? { embedded: r3(embedded) } : {}), weight: r3((grams / 1000) * 9.80665 * gravity.g) }
     })() } : {}),
     groups: { fixtures: fix.map((g, i) => ({ name: g.name ?? `fixture ${i + 1}`, faces: g.faces.length })), loads: ld.map((g, i) => ({ name: g.name ?? `load ${i + 1}`, faces: g.faces.length, ...(g.force ? { force: g.force } : { pressure: g.pressure }) })) },
     worst: {

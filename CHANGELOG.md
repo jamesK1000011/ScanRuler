@@ -7,6 +7,14 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Strength counts encased parts in the own weight** (2026-11-08). A
+  steel magnet or nut sealed in a pocket is a void in the FEA mesh, so its
+  weight was left out of the own-weight load. `fea.solve` now adds each
+  encased part (`hw.masses`) as a load of its own — its weight at the same g,
+  spread by area over the walls of its pocket — and the answer's
+  `gravity.mass` includes them (`gravity.embedded` for theirs). A part whose
+  weight isn't known is named in the note; an agent server too old to take
+  them says so.
 - **Mass counts encased parts** (2026-11-08). A magnet, nut, bearing or
   insert encased by the Hardware workspace was left out of the part's mass,
   balance point and inertia. Each now carries its own mass (the table's
