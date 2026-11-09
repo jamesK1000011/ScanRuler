@@ -431,12 +431,18 @@ def element_construct(st, a, symmetry=None):
         values = [float(x) for x in cen]
     elif method_id == "plane-symmetry":
         if symmetry is None:
-            raise Refusal("not_implemented", "plane-symmetry is not ported yet.")
+            from .symmetry import find_symmetry as symmetry
         seed_fit = None
         if a.get("seed") is not None:
             sref = a["seed"]
             if isinstance(sref, str) and sref.strip().upper() in WORLD:
-                seed_fit = {"kind": "plane", "center": [0.0, 0.0, 0.0], "normal": WORLD[sref.strip().upper()]}
+                # A coordinate plane seeds where it cuts through the part,
+                # and as its parallel through the part's centre where it
+                # does not (symmetry.baseSeedPlane).
+                n = np.asarray(WORLD[sref.strip().upper()])
+                lo, hi = scan.V.min(axis=0), scan.V.max(axis=0)
+                cuts = float(lo @ n) < 0 < float(hi @ n) and min(-float(lo @ n), float(hi @ n)) > 0.05 * float((hi - lo) @ n)
+                seed_fit = {"kind": "plane", "center": [0.0, 0.0, 0.0] if cuts else list((lo + hi) / 2), "normal": list(n)}
             else:
                 seed_fit = measured(st, sref, ["plane"])["fit"]
         sym = symmetry(scan, sel, seed_fit)
@@ -1007,3 +1013,29 @@ def scan_segment(st, a):
     if listed:
         out["regions"] = [row(i) for i in range(shown)]
     return out
+
+
+def align_symmetry(st):
+    """The pose settled on the mirror plane: a plane-symmetry element if one
+    is measured (the newest), else one searched for on the scan; the axis
+    nearest its normal turned onto it and the zero point put on it."""
+    from . import symmetry as SYM
+
+    scan = require_scan(st)
+    el = next((e for e in reversed(st["elements"]) if e["source"]["type"] == "constructed" and e["source"]["method"] == "plane-symmetry" and e.get("fit")), None)
+    if el:
+        plane = {"normal": el["fit"]["normal"], "point": el["fit"]["center"], "rms": el["fit"]["sigma"], "share": el["fit"]["usedPoints"] / max(1, el["fit"]["regionSize"])}
+        source = f"the symmetry plane {el['name']}"
+    else:
+        r = SYM.find_symmetry(scan)
+        plane = {"normal": r["normal"], "point": r["point"], "rms": r["rms"], "share": r["matched"] / max(1, r["sampled"])}
+        source = "the symmetry plane searched for on the scan"
+    share = plane.get("share", 1.0)
+    if not (plane["rms"] <= SYM.ALIGN_SYMMETRY_MAX_RMS_MM) or share < SYM.SYMMETRY_MIN_MATCHED:
+        raise Refusal("failed", f"No symmetry plane was found: the best mirror image stands {plane['rms']:.3f} mm off the scan (RMS), past {SYM.ALIGN_SYMMETRY_MAX_RMS_MM} mm, or under half the samples find their mirror image ({share:.0%}).")
+    pose = SYM.pose_on_symmetry(np.eye(3), np.zeros(3), plane)
+    if pose is None:
+        raise Refusal("failed", "The symmetry plane has no direction.")
+    rig = SYM.rigid_of_pose(pose["axes"], pose["origin"])
+    note = f"Settled on {source} (mirror RMS {plane['rms']:.4f} mm): {'XYZ'[pose['axis']]} turned {pose['tiltDeg']:.3f}° onto its normal, the zero point moved {pose['shiftMm']:.3f} mm onto it."
+    return apply_rigid(st, rig, {"note": note})

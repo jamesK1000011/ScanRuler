@@ -66,7 +66,7 @@ class Measure(unittest.TestCase):
     def test_tools_listed(self):
         r = self.server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]
         names = {t["name"] for t in r["tools"]}
-        for n in ("scan_nearest", "scan_query", "scan_segment", "element_fit", "element_construct", "align_datum", "scan_scale", "dimension_add", "report_get", "export_csv"):
+        for n in ("scan_nearest", "scan_query", "scan_segment", "element_fit", "element_construct", "align_datum", "align_symmetry", "scan_scale", "dimension_add", "report_get", "export_csv"):
             self.assertIn(n, names)
 
     def test_sphere_from_freecad(self):
@@ -147,6 +147,10 @@ class Measure(unittest.TestCase):
         self.assertAlmostEqual(self.ok("report_get")["report"]["dimensions"][0]["value"], 10, delta=0.01)
         self.ok("element_rename", {"element": side["id"], "name": "Datum A"})
         self.ok("element_set_visible", {"element": "Datum A", "visible": False})
+        sym = self.ok("element_construct", {"kind": "plane", "method": "plane-symmetry", "seed": "XZ"})
+        self.assertLess(sym["symmetry"]["rms"], 0.05)
+        self.assertIn("Settled", self.ok("align_symmetry")["note"])
+        self.ok("align_clear")
         gone = self.ok("element_remove", {"element": bottom["id"]})
         self.assertGreaterEqual(len(gone["removed"]), 3)
         err, o = self.call("align_clear")

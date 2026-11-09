@@ -256,6 +256,19 @@ class Session(unittest.TestCase):
         el = M.element_fit_marked(st, {"kind": "plane", "marked": True})["element"]
         self.assertAlmostEqual(abs(el["fit"]["normal"][2]), 1, delta=1e-3)
 
+    def test_symmetry_plane_and_pose(self):
+        st = self.st
+        r = M.element_construct(st, {"kind": "plane", "method": "plane-symmetry", "seed": "YZ"})
+        f = r["element"]["fit"]
+        self.assertAlmostEqual(abs(f["normal"][0]), 1, delta=1e-4)
+        self.assertAlmostEqual(f["center"][0], 20, delta=0.02)
+        self.assertLess(r["symmetry"]["rms"], 0.05)
+        self.assertGreater(r["symmetry"]["matched"], 0.8 * r["symmetry"]["sampled"])
+        out = M.align_symmetry(st)
+        self.assertIn("Settled on the symmetry plane", out["note"])
+        V = st["scan"].V
+        self.assertAlmostEqual(V[:, 0].min() + V[:, 0].max(), 0, delta=0.05)
+
     def test_query_and_refusals(self):
         st = self.st
         every, kept, step = M.query(st["scan"], box={"min": [-1, -1, 19.9], "max": [41, 31, 20.1]}, normal={"dir": [0, 0, 1]}, limit=100)
