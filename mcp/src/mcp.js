@@ -12,7 +12,11 @@
 // which a batch cannot show — it writes the picture to a file and gives its
 // text: one more of the server's own, scanruler_tools, lists them a line
 // each and gives the definitions of those asked for, and scanruler_batch
-// runs them. With a list of namespaces (--tools scan,view or
+// runs them. In lean mode the page's tools of the session, the guides, the
+// history, the project and the view are listed, and the rest come in groups
+// by namespace, each listed once scanruler_tools enables it — the client
+// told the list changed, and scanruler_batch running them for one that
+// does not list again. With a list of namespaces (--tools scan,view or
 // -flat,-thickness), only the commands of those namespaces, or all but
 // those, are tools, beside the server's own; the others are unknown here.
 // Headless (engine.js), the tools are the commands ScanRuler runs in this
@@ -31,7 +35,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { attachNotices } from './notices.js'
 import { attachCircuitAsks, attachFeaAsks, attachPageAsks } from './pageAsks.js'
 import { attachBoardAsks } from './boardAsks.js'
-import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
+import { absolute, agentJson, batchedPicture, fileKind, imageContent, inputFor, pathsSaid, relativeFrom, replacesSession, saveFileResult, TEXT_FILES, toolFor, toolName, waitIn, withFiles, wholeUtf8, writeNew } from './tools.js'
 import { jsonBytes, replyHead, replyMeasure } from './trace.js'
 import { convertBlend, findBlender } from './blender.js'
 import { extraTools } from './extras/index.js'
@@ -83,10 +87,16 @@ export function listBeforePage(kept, snapshot = SNAPSHOT, of = SNAPSHOT_OF) {
   return { commands, from: `this server’s own list (ScanRuler ${of.version ?? 'of no version'}), newer than the one kept from the last page (${page})${added.length ? `, and that page’s plugins’ commands (${added.length})` : ''}` }
 }
 
-/** How the page's commands are listed: `full`, each its own tool, or
- *  `compact`, read through scanruler_tools. A third way is a list of
- *  namespaces (parseToolMode). */
-export const TOOL_MODES = ['full', 'compact']
+/** How the page's commands are listed: `full`, each its own tool;
+ *  `lean`, the few every task uses (LEAN_LISTED) and the rest by group,
+ *  each listed once scanruler_tools enables it; or `compact`, read through
+ *  scanruler_tools. A third way is a list of namespaces (parseToolMode). */
+export const TOOL_MODES = ['full', 'lean', 'compact']
+
+/** The namespaces lean lists from the start: the session, the guides, the
+ *  undo history, the project file and the view — what any task touches.
+ *  Every other namespace is a group, listed once enabled. */
+export const LEAN_LISTED = ['guide', 'history', 'project', 'session', 'view', 'workspace']
 
 /** The namespace of a command's tool: the part of its name before the
  *  first underscore — scan for scan_open, view for view_render. */
@@ -101,13 +111,13 @@ const namespaceOf = (command) => toolName(command).split('_')[0]
  *  empty, throws, its message starting with `flag` (`--tools` or
  *  `SCANRULER_MCP_TOOLS`). A namespace no page has is not refused: a page
  *  may add it; the server says at a page's connection which entries match
- *  none of its namespaces. Returns { text, compact, named, lists }: `text`
+ *  none of its namespaces. Returns { text, compact, lean, named, lists }: `text`
  *  is the mode as given, what the status and serverInfo report; `named`
  *  the namespaces in the list (null for full and compact); `lists(ns)`
  *  whether a command of that namespace is listed. */
 export function parseToolMode(given, flag = '--tools') {
   const text = String(given ?? '').trim()
-  if (TOOL_MODES.includes(text)) return { text, compact: text === 'compact', named: null, lists: () => true }
+  if (TOOL_MODES.includes(text)) return { text, compact: text === 'compact', lean: text === 'lean', named: null, lists: () => true }
   const forms = `${TOOL_MODES.join(', ')}, namespaces to list (scan,view) or namespaces to leave out (-flat,-thickness)`
   if (text === '') throw new Error(`${flag} is empty: give ${forms}.`)
   const entries = text.split(',').map((s) => s.trim())
@@ -121,7 +131,7 @@ export function parseToolMode(given, flag = '--tools') {
   }
   const named = new Set(entries.map((e) => e.replace(/^-/, '')))
   const exclude = out.length > 0
-  return { text, compact: false, named, lists: (ns) => named.has(ns) !== exclude }
+  return { text, compact: false, lean: false, named, lists: (ns) => named.has(ns) !== exclude }
 }
 
 /** The most definitions scanruler_tools gives in one answer: twenty are
@@ -142,6 +152,13 @@ const WORKING = [
 const INSTRUCTIONS = {
   full: [
     ...ABOUT,
+    ...WORKING,
+    'view_render shows you the 3D view as a picture; view_set turns it to a standard view or fits it.',
+    'scanruler_batch runs several tools in one call, in order — many scan_nearest or element_fit calls, say — and stops at the first that is refused unless told to go on.',
+  ].join(' '),
+  lean: [
+    ...ABOUT,
+    'Only the tools every task uses are listed at the start — the session, the guides, the undo history, the project and the view. The rest come in groups, one to a workspace or a kind of work — scan, element, reverse, mesh … the part of a tool’s name before its first underscore: scanruler_tools lists the groups and their tools; scanruler_tools { enable: ["reverse"] } lists a group’s tools as tools of their own from then on — enable the groups the task’s guide names, not all. A client that does not list the tools again runs them all the same through scanruler_batch, and scanruler_tools { names } gives their definitions.',
     ...WORKING,
     'view_render shows you the 3D view as a picture; view_set turns it to a standard view or fits it.',
     'scanruler_batch runs several tools in one call, in order — many scan_nearest or element_fit calls, say — and stops at the first that is refused unless told to go on.',
@@ -266,6 +283,12 @@ const HEADLESS_INSTRUCTIONS = {
   full: [
     ...HEADLESS_ABOUT,
     'The tools listed are those that run so: modelling solids feature by feature with parameters, describing and checking the bodies, notes, and STEP and STL files read and written on this computer. A tool that needs the page — a scan, a picture, the browser — is not listed, and answers unavailable if called; it needs this server started in page mode, paired with a ScanRuler tab.',
+    ...HEADLESS_WORKING,
+    'scanruler_batch runs several tools in one call, in order, and stops at the first that is refused unless told to go on.',
+  ].join(' '),
+  lean: [
+    ...HEADLESS_ABOUT,
+    'The tools that run so are modelling solids feature by feature with parameters, describing and checking the bodies, notes, and STEP and STL files read and written on this computer. Only the session, the guides, the undo history and the project are listed at the start; the rest come in groups — reverse … the part of a tool’s name before its first underscore: scanruler_tools lists them; scanruler_tools { enable: ["reverse"] } lists a group’s tools as tools of their own from then on. A client that does not list the tools again runs them all the same through scanruler_batch, and scanruler_tools { names } gives their definitions. A tool that needs the page — a scan, a picture, the browser — answers unavailable; it needs this server started in page mode, paired with a ScanRuler tab.',
     ...HEADLESS_WORKING,
     'scanruler_batch runs several tools in one call, in order, and stops at the first that is refused unless told to go on.',
   ].join(' '),
@@ -583,13 +606,17 @@ export function createMcpServer({
   // left out is not listed, and not run either.
   const selection = parseToolMode(toolMode)
   const compact = selection.compact
+  const lean = selection.lean
   const leftOut = (c) => !compact && !selection.lists(namespaceOf(c))
+  // Lean: the groups enabled so far, listed beside LEAN_LISTED.
+  const enabled = new Set()
   const server = new Server(
     { name: 'scanruler', title: 'ScanRuler', version },
     {
       capabilities: { tools: { listChanged: true }, logging: {} },
       instructions:
-        (headless ? HEADLESS_INSTRUCTIONS : INSTRUCTIONS)[compact ? 'compact' : 'full'] +
+        (headless ? HEADLESS_INSTRUCTIONS : INSTRUCTIONS)[compact ? 'compact' : lean ? 'lean' : 'full'] +
+        ` ${pathsSaid(outDir, cwd)}` +
         (selection.named ? ` This server lists ScanRuler’s tools by namespace, as it was started (--tools ${selection.text}); a tool of a namespace left out is unknown here.` : ''),
     },
   )
@@ -1444,7 +1471,7 @@ export function createMcpServer({
   // a picture — a batch gives a picture as its text and a file, so those are called
   // directly; scanruler_tools reads commands() when it is called. With
   // namespaces, the server's own and the page's of the namespaces listed.
-  const shown = (c) => (compact ? Boolean(c.returnsImage) : !leftOut(c))
+  const shown = (c) => (compact ? Boolean(c.returnsImage) : lean ? LEAN_LISTED.includes(namespaceOf(c)) || enabled.has(namespaceOf(c)) : !leftOut(c))
   const listNow = () => [...own.map(definition), ...commands().filter(shown).map((c) => toolFor(c, { outDir, cwd }))]
   const listSource = () =>
     link.page?.commands?.length ? `the page, ScanRuler ${link.page.version ?? 'of no version'}` : lastPage ? lastPage.from : `this server’s own list (scanruler-mcp ${version})`
@@ -1501,7 +1528,9 @@ export function createMcpServer({
         ...(diff.removed.length ? { removed: names(diff.removed) } : {}),
         ...(diff.changed.length ? { changed: names(diff.changed) } : {}),
         listedFrom,
-        note: named
+        note: lean
+          ? 'The client did not list the tools again after they changed — a group enabled, or the page’s — so some are not among those this chat was given: scanruler_batch runs any of them by name, and scanruler_tools { names } gives their definitions.'
+          : named
           ? 'The tools this chat was given are not the ones the ScanRuler page offers now — it changed since they were listed, and the client did not list them again. A tool or field missing from them may be there now: start a new chat to get the current tools; meanwhile scanruler_batch runs any of the page’s tools by name, and a changed tool takes what the page’s command takes now.'
           : 'Still stale, as an earlier answer named them: scanruler_batch runs any of the page’s tools by name.',
       },
@@ -1917,6 +1946,88 @@ export function createMcpServer({
         }
         // Exact: a schema's numbers are limits and defaults, not readings.
         return text({ tools: found, unknown }, true)
+      },
+    })
+  }
+
+  // Lean: the groups not listed from the start, listed on demand. Enabling
+  // one has the client list the tools again (list_changed); one that does
+  // not still runs them through scanruler_batch, as compact does.
+  if (lean) {
+    own.push({
+      name: 'scanruler_tools',
+      title: 'List and enable ScanRuler tool groups',
+      description: `The ScanRuler tools beyond those listed from the start, in groups — one to a workspace or a kind of work, the part of a tool’s name before its first underscore (scan, element, reverse, mesh …). With no arguments: each group, whether it is listed, and its tools’ names. group: that group’s tools, a line each. enable: groups (or tools, for theirs) to list as tools of their own from now on — the client is told the list changed; a client that does not list again runs them through scanruler_batch. disable: take groups off the list again. names: those tools’ full definitions, up to ${MAX_DEFINITIONS} at a time.`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          group: { type: 'string', minLength: 1, description: 'One group: its tools, a name and a line each.' },
+          enable: { type: 'array', items: { type: 'string', minLength: 1 }, description: 'Groups to list — reverse, scan — or tools, whose groups are listed.' },
+          disable: { type: 'array', items: { type: 'string', minLength: 1 }, description: 'Groups to take off the list.' },
+          names: { type: 'array', items: { type: 'string', minLength: 1 }, maxItems: MAX_DEFINITIONS, description: 'Tool names whose full definitions to give.' },
+        },
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      call: async (args) => {
+        const listOf = (v) => (typeof v === 'string' ? v.split(/[\s,]+/) : Array.isArray(v) ? v.map(String) : []).filter(Boolean)
+        const list = commands()
+        const groups = new Map()
+        for (const c of list) {
+          const ns = namespaceOf(c)
+          if (!groups.has(ns)) groups.set(ns, [])
+          groups.get(ns).push(c)
+        }
+        const groupOf = (word) => (groups.has(word) ? word : groups.has(word.split('_')[0]) && list.some((c) => toolName(c) === word) ? word.split('_')[0] : null)
+        const isListed = (ns) => LEAN_LISTED.includes(ns) || enabled.has(ns)
+        const enable = listOf(args?.enable)
+        const disable = listOf(args?.disable)
+        const names = [...new Set(listOf(args?.names))]
+        if (names.length > MAX_DEFINITIONS) return failure({ code: 'invalid_input', message: `names: at most ${MAX_DEFINITIONS} at a time — ask for the rest in another call.` })
+        const unknown = []
+        const changed = { enabled: [], disabled: [] }
+        for (const word of enable) {
+          const ns = groupOf(word)
+          if (!ns) unknown.push(word)
+          else if (!isListed(ns)) {
+            enabled.add(ns)
+            changed.enabled.push(ns)
+          }
+        }
+        for (const word of disable) {
+          const ns = groupOf(word)
+          if (!ns) unknown.push(word)
+          else if (enabled.delete(ns)) changed.disabled.push(ns)
+        }
+        if (changed.enabled.length || changed.disabled.length) relist()
+        const out = {}
+        if (enable.length || disable.length) {
+          Object.assign(out, changed.enabled.length ? { enabled: changed.enabled, listed: changed.enabled.map((ns) => groups.get(ns).map(toolName)).flat() } : {}, changed.disabled.length ? { disabled: changed.disabled } : {})
+          out.groupsListed = [...groups.keys()].filter(isListed).sort()
+          if (changed.enabled.length) out.note = 'Listed as tools of their own: call them by name once the client shows them. If it does not, run them through scanruler_batch; scanruler_tools { names } gives a definition.'
+        }
+        if (args?.group !== undefined) {
+          const ns = groupOf(String(args.group))
+          if (!ns) unknown.push(String(args.group))
+          else out.group = { name: ns, listed: isListed(ns), tools: Object.fromEntries(groups.get(ns).map((c) => [toolName(c), summary(c)])) }
+        }
+        if (names.length) {
+          out.tools = []
+          for (const name of names) {
+            const command = list.find((c) => toolName(c) === name)
+            const mine = own.find((t) => t.name === name)
+            if (command) out.tools.push(toolFor(command, { outDir, cwd }))
+            else if (mine) out.tools.push(definition(mine))
+            else unknown.push(name)
+          }
+        }
+        if (Object.keys(out).length === 0 && unknown.length === 0) {
+          out.groups = Object.fromEntries([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ns, cs]) => [ns, { listed: isListed(ns), tools: cs.map((c) => toolName(c).slice(ns.length + 1)).join(', ') }]))
+          out.next = 'scanruler_tools { enable: ["…"] } lists a group; { group } gives its tools a line each.'
+        }
+        if (unknown.length) out.unknown = unknown
+        // Exact: a schema's numbers are limits and defaults, not readings.
+        return text(out, true)
       },
     })
   }

@@ -79,10 +79,12 @@ const refusal = (input: unknown) => read(input).then(
 )
 
 describe('guide.read', () => {
-  it('lists the guides in its description, with what each is read with', () => {
+  it('lists the guides in its description by id, with what each is read with', () => {
     const d = listCommands().find((c) => c.name === 'guide.read')!.description
-    expect(d).toContain('measure — measuring a 3D scan')
-    expect(d).toContain('test-guide — testing the guides (read with measure, first)')
+    expect(d).toContain('measure-reference')
+    expect(d).toContain('test-guide (read with measure, first)')
+    // What each is for is the index's, not carried in every tool list.
+    expect(d).not.toContain('testing the guides')
   })
 
   it('answers the index without a topic: each guide, its sections and their cost', async () => {

@@ -27,30 +27,37 @@ export function bytesProperty(command) {
 export const relativeFrom = (cwd) =>
   `A relative path is taken from the folder of the scan or project last opened or saved (scanruler_status: server.relativeTo) — before any, from ${cwd ?? 'the folder this server started in'}.`
 
-const inPath = (cwd) => ({
+/** What every path field means, said once in the server's instructions
+ *  (mcp.js) rather than in each of some fifty fields: where a relative
+ *  path is taken from, and how a file or a folder given to write to is
+ *  written. Each field keeps a line of its own. */
+export const pathsSaid = (outDir, cwd) =>
+  `Paths: ${relativeFrom(cwd)} A path to write to is a file path — one there already is replaced, but never by a picture — or a folder (one there, or a path ending in /), which takes the file under the name ScanRuler gives it, numbered past one of that name there (-2, -3 …); with no path a file goes into ${outDir} so.`
+
+const inPath = () => ({
   type: 'string',
   minLength: 1,
-  description: `The file to read, on this computer: an absolute path, or a relative one. ${relativeFrom(cwd)}`,
+  description: 'The file to read, on this computer: an absolute path, or a relative one (the instructions’ Paths).',
 })
 
-const outPath = (outDir, cwd) => ({
+const outPath = (outDir) => ({
   type: 'string',
   minLength: 1,
-  description: `Where to write the file: a file path — one there already is replaced — or a folder (one there, or a path ending in /) to write it into under the name ScanRuler gives it, numbered past a file of that name there (-2, -3 …). Without it, it goes into ${outDir} the same way. ${relativeFrom(cwd)}`,
+  description: `Where to write the file: a file path, or a folder to write it into under its own name; ${outDir} without it (the instructions’ Paths).`,
 })
 
-const imagePath = (outDir, cwd) => ({
+const imagePath = (outDir) => ({
   type: 'string',
   minLength: 1,
-  description: `Also write the picture to a file: a file path — one there already is replaced — or a folder (one there, or a path ending in /) to write it into under the name ScanRuler gives it, numbered past a picture of that name there (-2, -3 …). Without it, it is only shown — but in scanruler_batch, which shows no picture, it is written under a new name into the folder of the scan or project last opened or saved (the latest of scanruler_status folders), before any into ${outDir}. ${relativeFrom(cwd)}`,
+  description: `Also write the picture to a file: a new file path, or a folder (the instructions’ Paths). Without it, it is only shown — but in scanruler_batch, which shows no picture, it is written under a new name into the folder of the scan or project last opened or saved, before any into ${outDir}.`,
 })
 
 /** The `saveTo` a command that replaces the session takes — one with
  *  `discard`: the session saved as a project file first (mcp.js). */
-const saveToIn = (cwd) => ({
+const saveToIn = () => ({
   type: 'string',
   minLength: 1,
-  description: `Save the session as a .scanruler project file here first — a file path, or a folder to save it into under its own name — then go on as with discard: true. If the save fails nothing is replaced. The answer says where it went (savedTo). ${relativeFrom(cwd)}`,
+  description: 'Save the session as a .scanruler project file here first — a file, or a folder for its own name — then go on as with discard: true; nothing is replaced if the save fails. savedTo says where.',
 })
 
 /** Whether a command replaces the session, refusing to over work unless
@@ -59,7 +66,7 @@ export const replacesSession = (command) => command.input?.properties?.discard?.
 
 const inlineIn = {
   type: 'boolean',
-  description: 'false, with path: the picture is written to the file and not shown — the answer says where. A picture costs far more context than its text; save the ones you only deliver.',
+  description: 'false, with path: written to the file only, not shown — a picture costs far more context than its text.',
 }
 
 /** How many significant digits a number keeps in an answer, and the finest
@@ -96,14 +103,14 @@ export const agentJson = (value, exact = false) =>
  *  false answers with the job at once. */
 export const waitIn = {
   type: 'boolean',
-  description: 'false: answer { queued: true, job } at once and run on; scanruler_wait { for: "job", job } gives the answer. true, the default: answer when done — or queued all the same past the server’s answer limit.',
+  description: 'false: answer { queued: true, job } at once; scanruler_wait { for: "job", job } gives the answer.',
 }
 
 /** The `timings` a tool that changes the session takes: the server keeps
  *  what the page's answer carries of the build's steps (mcp.js). */
 export const timingsIn = {
   type: 'boolean',
-  description: 'true: the answer adds ms and, where the change built, steps.played — each step with its ms.',
+  description: 'true: add ms, and steps.played with each step’s ms.',
 }
 
 export function toolFor(command, { outDir, cwd }) {
@@ -115,7 +122,7 @@ export function toolFor(command, { outDir, cwd }) {
   if (bytesKey) {
     delete input.properties[bytesKey]
     const pick = FOLDER_PICKS[command.name]
-    const read = inPath(cwd)
+    const read = inPath()
     input.properties.path = pick ? { ...read, description: `${read.description} A folder opens the one ${pick.what} file in it (${pick.kinds.join(', ')}); with more than one, the answer lists them.` } : read
     required = required.filter((key) => key !== bytesKey && key !== 'name')
     if (!required.includes('path')) required.unshift('path')
@@ -125,16 +132,16 @@ export function toolFor(command, { outDir, cwd }) {
     description += ' The file is read from `path` on this computer and streamed to the page.'
   }
   if (command.returnsImage) {
-    input.properties.path = imagePath(outDir, cwd)
+    input.properties.path = imagePath(outDir)
     input.properties.inline = inlineIn
-    description += ' The picture comes back as an image; with `path` it is written to a file too, and with `inline: false` only there.'
+    description += ' The picture comes back as an image.'
   } else if (command.returnsFile) {
-    input.properties.path = outPath(outDir, cwd)
-    description += ' The file is written to `path`; the result says where and how large it is, not its bytes.'
+    input.properties.path = outPath(outDir)
+    description += ' The file is written to `path`; the result says where and its size, not its bytes.'
   }
   if (replacesSession(command)) {
-    input.properties.saveTo = saveToIn(cwd)
-    description += ' With `saveTo`, the session is saved as a project file there first (as project_save does), then replaced as with discard: true — one call to keep what a page holds and start anew.'
+    input.properties.saveTo = saveToIn()
+    description += ' `saveTo` saves the session first, then replaces it.'
   }
   if (!command.readOnly) {
     input.properties.wait = waitIn

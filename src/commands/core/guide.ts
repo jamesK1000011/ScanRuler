@@ -28,6 +28,11 @@ const tokens = (text: string) => Math.max(10, Math.round(text.length / 40) * 10)
  *  task may not open. */
 export const GUIDES_READ_MOST = 60_000
 
+/** Room a cut guide's answer keeps for what comes beside its text — the
+ *  sections left and later, the note naming them — so the whole answer
+ *  stays within GUIDES_READ_MOST. */
+const NOTE_ROOM = 2_000
+
 /** The marker under a `##` heading of a section read when its moment
  *  comes, not with the guide: `<!-- read when: before the first fit -->`. */
 const READ_WHEN = /^<!--\s*read when:\s*(.+?)\s*-->$/
@@ -132,7 +137,7 @@ function headOf(g: Served): Served {
   })
   let text = lines.slice(0, starts[0]).join('\n')
   let taken = 0
-  while (taken < blocks.length && (taken === 0 || JSON.stringify({ ...g, text: `${text}\n${blocks[taken].text}` }).length <= GUIDES_READ_MOST)) text += `\n${blocks[taken++].text}`
+  while (taken < blocks.length && (taken === 0 || JSON.stringify({ ...g, text: `${text}\n${blocks[taken].text}` }).length <= GUIDES_READ_MOST - NOTE_ROOM)) text += `\n${blocks[taken++].text}`
   return { ...g, text: text.trim(), sectionsLeft: blocks.slice(taken).map((b) => b.heading) }
 }
 
@@ -171,15 +176,18 @@ function sectionNamed(g: Guide, all: Section[], name: string): Section {
 const headingsOf = (text: string) => sections(text).map((s) => s.heading)
 
 function describe(): string {
+  // The guides by id only: what each is for is in the index (no topic),
+  // read once — not carried in every tool list, every session.
   const index = listGuides()
-    .map((g) => `${g.id} — ${g.when}${g.with?.length ? ` (read with ${g.with.join(' and ')}, first)` : ''}`)
-    .join('; ')
+    .map((g) => `${g.id}${g.with?.length ? ` (read with ${g.with.join(' and ')}, first)` : ''}`)
+    .join(', ')
   return [
-    'How to do a task with ScanRuler: the workflow, the judgement and the traps the tools’ own descriptions do not carry, written for this build — read the guide for your task, whole, before its first step, and a section again when you need it.',
-    index ? `The guides: ${index}.` : 'This build has no guides.',
-    `topic: a guide, or several read in order (a guide and the ones it is read with, in one call) — as many as fit in about ${Math.round(GUIDES_READ_MOST / 1000)} k characters, the rest named in next, to read in the next call. A guide longer than that by itself answers its sections in order while they fit, and names the rest in sectionsLeft, each to read by section.`,
-    'A guide’s sections for one moment of the task — measuring, building — are not in the whole read: later names each with when to read it, and the note says how; read it by section when that moment comes, before the step it is for.',
-    'section: one section of one guide, by its heading — the index lists them, with when to read those a whole read leaves for later. A long section with ### parts under it — a reference’s list of command shapes — is best read by those parts: section takes a ### heading too, the one part you need. With no topic, the index: each guide with its sections and what each costs in tokens. Changes nothing.',
+    'How to do a task with ScanRuler, written for this build: the workflow, the judgement and the traps the tools’ own descriptions do not carry.',
+    index ? `The guides: ${index}. With no topic, the index: what each is for, and its sections with what each costs in tokens.` : 'This build has no guides.',
+    'A long guide opens with a Start here section — the map of the guide: read that first, then the sections your task needs (section), or the whole guide.',
+    `topic: a guide, or several read in order — as many as fit in about ${Math.round(GUIDES_READ_MOST / 1000)} k characters, the rest named in next, to read in the next call. A guide longer than that by itself answers its sections in order while they fit, and names the rest in sectionsLeft.`,
+    'Sections for one moment of the task are not in a whole read: later names each with when to read it; read it by section then.',
+    'section: one section of one guide, by its heading — a ## section, or a ### part of one. Changes nothing.',
   ].join(' ')
 }
 
@@ -191,7 +199,7 @@ const read: Command<{ topic?: string | string[]; section?: string }> = {
   },
   input: obj({
     topic: oneOf([str(), arr(str(), undefined, { minItems: 1, maxItems: 8 })], 'A guide by its id, or several to read in order — as many as fit in one answer, the rest named in next. Leave it out for the index.'),
-    section: str('One section of the guide, by its heading — a ## section or a ### part of one (without its number, or a part of it that names one section), whole: a section the whole read named in later, when its moment comes, or one to read again. Only with one topic.', { minLength: 1 }),
+    section: str('One section of the guide by its heading — a ## section or a ### part, without its number or by a part of the heading that names one. Only with one topic.', { minLength: 1 }),
   }),
   readOnly: true,
   headless: true,

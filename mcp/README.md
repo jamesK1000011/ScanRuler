@@ -204,6 +204,28 @@ nothing — and what the app logs goes to stderr with the server's own lines.
 `--tools compact` works headless too: the server's own tools are listed, and
 the engine's are read through `scanruler_tools` and run through
 `scanruler_batch` (see *Small local models*).
+### Lean tool list
+
+Listed in full, a tab with its workspaces offers some three hundred tools,
+over 600 kB of definitions, sent before the agent does any work, every
+session. `--tools lean` (or `SCANRULER_MCP_TOOLS=lean`) lists the tools
+every task uses — the session, the guides, the undo history, the project
+file and the view — and the server's own, about 45 kB; headless, about
+25 kB. The rest come in groups, one to a namespace (the part of a tool's
+name before its first underscore: `scan`, `element`, `reverse`, `mesh` …):
+
+- `scanruler_tools` with no arguments lists the groups, whether each is
+  listed, and their tools' names; `{ group }` gives one group's tools a line
+  each.
+- `{ enable: ["reverse", "scan"] }` lists those groups' tools as tools of
+  their own from then on, and tells the client the list changed
+  (`notifications/tools/list_changed`); `{ disable }` takes them off again.
+  A tool's name enables its group.
+- A client that does not list the tools again when told — `scanruler_status`
+  then says `tools.stale` — runs them all the same through
+  `scanruler_batch`, and `{ names }` gives their full definitions. Any tool
+  runs whether its group is listed or not.
+
 ### Small local models
 
 Listed in full, every command the tab offers is a tool of its own: over a
@@ -287,7 +309,7 @@ may add one — and the server says so on its stderr when a tab connects.
 | `--app <url>` | The ScanRuler address the pairing link opens. |
 | `--engine <file>` | Run ScanRuler headless in the server, from an engine built with `npm run build:engine` — no tab. Also `SCANRULER_ENGINE`. |
 | `--headless` | The same, with the engine built in the checkout the server is part of. |
-| `--tools <mode>` | `full`, the default: every command the tab offers is a tool. `compact`: the server's own and the tab's tools that return a picture; the rest are read through `scanruler_tools` and run through `scanruler_batch` — see *Small local models*. Or namespaces, comma-separated — the part of a tool's name before its first underscore: `scan,element,view` lists those alone, `-flat,-thickness,-dimension` all but those, the server's own tools either way — see *Fewer tools*. Also `SCANRULER_MCP_TOOLS`. |
+| `--tools <mode>` | `full`, the default: every command the tab offers is a tool. `lean`: the session, guide, history, project and view tools and the server's own; the rest by group, listed once `scanruler_tools` enables them — see *Lean tool list*. `compact`: the server's own and the tab's tools that return a picture; the rest are read through `scanruler_tools` and run through `scanruler_batch` — see *Small local models*. Or namespaces, comma-separated — the part of a tool's name before its first underscore: `scan,element,view` lists those alone, `-flat,-thickness,-dimension` all but those, the server's own tools either way — see *Fewer tools*. Also `SCANRULER_MCP_TOOLS`. |
 | `--trace <dir>` | Write a line per tool call — tool, ms, bytes each way, error, whether the tab was hidden — into a new file in `<dir>`, for measuring a run; off unless given. `scripts/trace-summary.mjs` in the ScanRuler repository sums a run up. Also `SCANRULER_MCP_TRACE`. |
 | `--trace-args` | With `--trace`, each call's arguments too; otherwise only their size. |
 | `--answer-within <s>` | Hold a call at most this many seconds, 45 unless given: a change, a batch or a long read still running then answers `{ queued: true, job, after }` and runs on, and `scanruler_wait` waits no longer either. A client, or a bridge between it and this computer, may cut a call at a minute; a cut call says nothing. `0` holds every call to its end. Also `SCANRULER_MCP_ANSWER_WITHIN`. |

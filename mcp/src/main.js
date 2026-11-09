@@ -40,6 +40,9 @@ Usage: scanruler-mcp [options]
   --headless             the same, with the engine built in the ScanRuler checkout
                          this server is part of
   --tools <mode>         full (the default) lists each of ScanRuler's commands as a tool;
+                         lean lists the session, guide, history, project and view tools
+                         and the server's own, the rest by group once scanruler_tools
+                         enables it — a fraction of full's size, for any agent;
                          compact lists the server's own and the commands that return a
                          picture, the rest read through scanruler_tools and run through
                          scanruler_batch — for a small context window; or namespaces,
