@@ -21,7 +21,7 @@ not in this repository.
 | [wear-repair/](wear-repair/) | Wear repair — worn regions back onto the mirrored half or the CAD; prints pre-warped |
 | [assembly-manual/](assembly-manual/) | Assembly manual — steps checked for a clear way in, drawn and written; HTML and PDF |
 | [patent-kit/](patent-kit/) | Patent kit — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
-| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the materials, and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
+| [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the materials, the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
 | [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles — the scan's noise, measured or from a profile you keep |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |

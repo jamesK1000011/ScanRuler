@@ -9,6 +9,7 @@
 // coupon made there at once; any of them as a file.
 
 import { bodiesBox } from '../../_shared/bodiesBox'
+import { POOR_FIT, printerFitOf } from '../../_shared/printerFit'
 import type { Box3 } from '../../_shared/clear'
 import { runWithin } from '../../../src/commands/registry'
 import { anyObject, arr, bool, enumOf, int, num, obj, str, type JsonSchema } from '../../../src/commands/schema'
@@ -39,6 +40,7 @@ function checked<T>(f: () => T): T {
     throw e
   }
 }
+const today = () => new Date().toISOString().slice(0, 10)
 const remember = (tool: Tool, input: object) => useFits.setState((s) => ({ inputs: { ...s.inputs, [tool]: JSON.parse(JSON.stringify(input)) as Json } }))
 
 // ---- the readout ------------------------------------------------------------------------
@@ -48,6 +50,9 @@ export function describeFits() {
   return {
     settings: s.settings,
     calibration: s.calibration,
+    // The same calibration in the convention Hardware, Generate and Boards
+    // read (hole: added to a hole's diameter); null on the defaults.
+    printerFit: printerFitOf(s.calibration),
     tool: s.tool,
     ...(s.planned ? { planned: { part: s.planned.part, label: s.planned.label, input: s.planned.input, ...(s.planned.stale ? { stale: 'the settings or calibration changed since: fit.apply plans it again with them' } : {}) } } : {}),
     ...(s.made ? { made: { part: s.made.part, label: s.made.label, bodies: s.made.bodies } } : {}),
@@ -293,6 +298,7 @@ const list: Command<{ nominal?: number }> = {
     parts: { coupon: 'fit.test', snap: 'fit.snap, then fit.apply', hinge: 'fit.hinge, then fit.apply', pin: 'fit.pin, then fit.apply' },
     settings: st().settings,
     calibration: st().calibration,
+    printerFit: printerFitOf(st().calibration),
   }),
 }
 
@@ -338,7 +344,7 @@ const calibrate: Command<CalibrateIn> = {
   name: 'calibrate',
   title: 'Calibrate to the printer',
   description:
-    'What the printer does to holes and shafts, from one of: readings (features measured on a print: kind hole or shaft, its model size and the size measured — fit.test’s coupon gives every model size); hole and shaft (how much smaller a round hole prints and how much bigger a shaft, diametral, mm, entered); from: "print-fit" (the last print measured from a scan, fit.measure: its hole and contour offsets, doubled to diametral — fit.measure makes a good run the calibration itself). classes: the clearance at which each class felt right on fit.test’s coupon ({ slip: 0.1, press: -0.05 }; null forgets one), at the coupon’s nominal (or at). reset: back to the default offsets and untested classes. Saved with the project; one undo step.',
+    'What the printer does to holes and shafts, from one of: readings (features measured on a print: kind hole or shaft, its model size and the size measured — fit.test’s coupon gives every model size); hole and shaft (how much smaller a round hole prints and how much bigger a shaft, diametral, mm, entered); from: "print-fit" (the last print measured from a scan, fit.measure: its hole and contour offsets, doubled to diametral; refused when that run fits poorly, over 4 — fit.measure makes a good run the calibration itself). classes: the clearance at which each class felt right on fit.test’s coupon ({ slip: 0.1, press: -0.05 }; null forgets one), at the coupon’s nominal (or at). reset: back to the default offsets and untested classes. Dated; Hardware, Generate and Boards size their holes with it (printerFit in the answer: the same figures as they read them). Saved with the project; one undo step.',
   input: obj({
     readings: arr(obj({ kind: enumOf(['hole', 'shaft']), model: len('As modelled', { exclusiveMinimum: 0 }), measured: len('As measured', { exclusiveMinimum: 0 }) }, ['kind', 'model', 'measured']), 'Features measured on a print.', { minItems: 1, maxItems: 100 }),
     hole: len('How much smaller holes print, diametral', { minimum: -1, maximum: 2 }),
@@ -366,9 +372,12 @@ const calibrate: Command<CalibrateIn> = {
     }
     if (hole !== undefined || shaft !== undefined) cal = { hole: hole ?? st().calibration.hole, shaft: shaft ?? st().calibration.shaft, source: 'entered' }
     if (from) {
-      const last = (readStateSections().fit as { last?: { run: number; holeOffset: number; contourOffset: number; scaleXY: number } } | undefined)?.last
+      const pf = readStateSections().fit as { last?: { run: number; fit?: number; holeOffset: number; contourOffset: number; scaleXY: number }; settings?: { printer?: string; material?: string } } | undefined
+      const last = pf?.last
       if (!last) throw new CommandError('invalid_state', 'There is no run to read from a scan: measure a print first (fit.measure, Calibrate from a scan), or give readings.')
-      cal = fromPrintFit(last.holeOffset, last.contourOffset)
+      if (typeof last.fit === 'number' && last.fit > POOR_FIT) throw new CommandError('invalid_state', `The last scanned print fits poorly (${r4(last.fit)}), so its offsets are not the printer's: fix the warping or the alignment and measure again, or calibrate with a coupon.`)
+      const profile = [pf?.settings?.printer, pf?.settings?.material].filter((x): x is string => typeof x === 'string' && x.trim() !== '').join(', ')
+      cal = { ...fromPrintFit(last.holeOffset, last.contourOffset), ...(profile ? { profile } : {}) }
       out.printFit = { run: last.run, holeOffset: last.holeOffset, contourOffset: last.contourOffset }
       if (Math.abs(last.scaleXY - 1) > 0.002) out.note = `That print was scaled ${r4((last.scaleXY - 1) * 100)} % in XY too: put that right in the slicer (fit.suggest) — these offsets leave it out.`
     }
@@ -394,8 +403,10 @@ const calibrate: Command<CalibrateIn> = {
       for (let i = 1; i < order.length; i++) if (order[i][1] >= order[i - 1][1]) out.warning = `${order[i][0]} is as loose as ${order[i - 1][0]} or looser: check the readings.`
       settings = { ...settings, classes: next }
     }
+    // Dated, so the workspaces that size holes with it can say which they used.
+    if (cal && !reset) cal = { ...cal, at: today() }
     st().set({ ...(cal ? { calibration: cal } : {}), ...(settings !== st().settings ? { settings } : {}) })
-    return { ...out, calibration: st().calibration, classes: st().settings.classes }
+    return { ...out, calibration: st().calibration, printerFit: printerFitOf(st().calibration), classes: st().settings.classes }
   },
 }
 

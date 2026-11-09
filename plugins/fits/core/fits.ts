@@ -10,6 +10,8 @@
 // between the hole and the shaft as printed: positive a gap, negative an
 // interference. The model sizes add the printer's offsets back.
 
+import { holeFromRadialOffset, shaftFromRadialOffset, TYPICAL_FIT } from '../../_shared/printerFit'
+
 export const CLASSES = ['free', 'slip', 'close', 'press', 'tight_press'] as const
 export type FitClass = (typeof CLASSES)[number]
 
@@ -44,6 +46,9 @@ export interface ClassOverride {
   at: number
 }
 
+/** The printer's calibration, in the one convention the workspaces share
+ *  (plugins/_shared/printerFit.ts): hole is the clearance added to a
+ *  hole's modelled diameter, shaft what is taken off a shaft's. */
 export interface Calibration {
   /** How much smaller a round hole prints than modelled, diametral. */
   hole: number
@@ -53,9 +58,12 @@ export interface Calibration {
   /** Readings it came from, and their spread (standard deviation). */
   n?: number
   spread?: number
+  /** The day it was set (YYYY-MM-DD), and what it was measured on. */
+  at?: string
+  profile?: string
 }
 
-export const DEFAULT_CALIBRATION: Calibration = { hole: 0.2, shaft: 0.1, source: 'default' }
+export const DEFAULT_CALIBRATION: Calibration = { hole: TYPICAL_FIT.hole, shaft: TYPICAL_FIT.shaft, source: 'default' }
 /** ± what a printed size lands within, typical of a tuned desktop FDM printer. */
 export const DEFAULT_TOLERANCE = 0.15
 /** ± a bought part's size: a dowel, a bearing bore, a shaft. */
@@ -228,7 +236,7 @@ export function fromReadings(readings: Reading[], was: Calibration): Calibration
 
 /** fit-comp's radial offsets (material standing into holes, outer walls
  *  standing out) as diametral ones. */
-export const fromPrintFit = (holeOffset: number, contourOffset: number): Calibration => ({ hole: r4(2 * holeOffset), shaft: r4(2 * contourOffset), source: 'print-fit' })
+export const fromPrintFit = (holeOffset: number, contourOffset: number): Calibration => ({ hole: holeFromRadialOffset(holeOffset), shaft: shaftFromRadialOffset(contourOffset), source: 'print-fit' })
 
 // ---- tolerance stack ----------------------------------------------------------------------
 

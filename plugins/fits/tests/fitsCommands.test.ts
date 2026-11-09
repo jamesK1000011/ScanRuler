@@ -23,6 +23,7 @@ let bodies: Body[] = []
 let nextId = 1
 let last: FitsAnswer | null = null
 let printFit: Json | undefined
+let printFitSettings: Json | undefined
 
 const fake = (name: string, run: (i: Json) => unknown, readOnly = false): Command => ({ name, title: name, description: name, input: { type: 'object' }, readOnly, run: async (i) => run(i as Json) })
 
@@ -50,7 +51,7 @@ beforeAll(async () => {
     }),
   ])
   registerStateSection('reverse', () => ({ bodies }))
-  registerStateSection('fit', () => (printFit ? { last: printFit } : {}))
+  registerStateSection('fit', () => (printFit ? { last: printFit, ...(printFitSettings ? { settings: printFitSettings } : {}) } : {}))
 })
 
 const run = (name: string, input: Json = {}) => runCommand(`fit.${name}`, input) as Promise<Json>
@@ -116,8 +117,26 @@ describe('fit.* commands', () => {
     await refused('calibrate', { from: 'print-fit' }, /no run/)
     printFit = { run: 3, holeOffset: 0.08, contourOffset: 0.03, scaleXY: 1.004 }
     const c = await run('calibrate', { from: 'print-fit' })
-    expect(c.calibration).toEqual({ hole: 0.16, shaft: 0.06, source: 'print-fit' })
+    expect(c.calibration).toMatchObject({ hole: 0.16, shaft: 0.06, source: 'print-fit' })
+    expect(c.calibration.at).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(c.note).toBeTruthy()
+  })
+  it('fit.calibrate refuses a scanned print that fits poorly, and keeps the calibration it had', async () => {
+    fresh()
+    printFit = { run: 4, fit: 7.5, holeOffset: 0.3, contourOffset: 0.2, scaleXY: 1 }
+    await refused('calibrate', { from: 'print-fit' }, /fits poorly.*measure again/)
+    expect(useFits.getState().calibration.source).toBe('default')
+  })
+  it('the calibration in the shared convention, dated, with what it was measured on', async () => {
+    fresh()
+    printFit = { run: 5, fit: 1.1, holeOffset: 0.1, contourOffset: 0.05, scaleXY: 1 }
+    printFitSettings = { printer: 'MK4', material: 'PETG' }
+    const c = await run('calibrate', { from: 'print-fit' })
+    // 0.1 of material standing into the hole each side: a hole clearance of +0.2.
+    expect(c.printerFit).toMatchObject({ hole: 0.2, shaft: 0.1, source: 'print-fit', profile: 'MK4, PETG' })
+    expect(c.printerFit.label).toMatch(/^printer fits from \d{4}-\d{2}-\d{2} \(MK4, PETG\)$/)
+    expect((await run('list')).printerFit.hole).toBe(0.2)
+    printFitSettings = undefined
   })
   it('fit.calibrate { classes } at the coupon’s nominal; fit.list shows them; null forgets', async () => {
     fresh()

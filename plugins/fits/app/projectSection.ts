@@ -29,7 +29,7 @@ export function savedIn(u: unknown): FitsSaved {
   const c = objOf(o.calibration)
   const calOk = isNum(c.hole, -1, 2) && isNum(c.shaft, -1, 2)
   const calibration: Calibration = calOk
-    ? { hole: c.hole as number, shaft: c.shaft as number, source: (['default', 'entered', 'measured', 'print-fit'] as const).find((x) => x === c.source) ?? 'entered', ...(isNum(c.n, 1, 1e4) ? { n: c.n } : {}), ...(isNum(c.spread, 0, 10) ? { spread: c.spread } : {}) }
+    ? { hole: c.hole as number, shaft: c.shaft as number, source: (['default', 'entered', 'measured', 'print-fit'] as const).find((x) => x === c.source) ?? 'entered', ...(isNum(c.n, 1, 1e4) ? { n: c.n } : {}), ...(isNum(c.spread, 0, 10) ? { spread: c.spread } : {}), ...(typeof c.at === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.at) ? { at: c.at } : {}), ...(typeof c.profile === 'string' && c.profile.trim() ? { profile: c.profile.trim().slice(0, 80) } : {}) }
     : { ...DEFAULT_CALIBRATION }
   const inputs: Inputs = {}
   for (const [k, v] of Object.entries(objOf(o.inputs))) if ((TOOLS as readonly string[]).includes(k) && v && typeof v === 'object') inputs[k as Tool] = v as Record<string, unknown>

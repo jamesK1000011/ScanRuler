@@ -7,6 +7,19 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **One printer calibration for every workspace** (2026-11-08). The
+  printer's fit calibration from Fits (a test coupon, values entered, or a
+  scanned print on Calibrate from a scan) now reaches Hardware, Generate
+  and Boards, which size their holes with it instead of having it copied
+  in by hand — where Fits' "holes −0.2" and an allowance of +0.2 meant the
+  same printer, and copying one into the other flipped it without a word.
+  The calibration has one sign, written down in
+  `plugins/_shared/printerFit.ts`: a hole clearance added to a hole's
+  diameter, positive making the hole bigger, with converters from the other
+  ways it is written. `fit.list` and `fit.calibrate` give it as
+  `printerFit`, dated, with the printer and material it was measured on.
+  `fit.calibrate { from: "print-fit" }` refuses a scanned print that fits
+  poorly.
 - **Checks that no longer pass by saying nothing** (2026-11-08).
   - **Electronics › tscircuit**: a build whose circuit.json holds errors
     (DRC, routing, placement, source) now fails — `ok` is false, the

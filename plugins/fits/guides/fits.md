@@ -5,7 +5,7 @@ Lengths are mm. Clearances are diametral and as printed: positive is a gap, nega
 
 ## Calibrate first (once per printer, material and nozzle)
 
-1. `fit.list` gives the classes, materials, settings and calibration in use. The default offsets are holes −0.2 and shafts +0.1, typical but not measured.
+1. `fit.list` gives the classes, materials, settings and calibration in use. The default calibration is `hole` 0.2 (holes print 0.2 small, so 0.2 is added to a modelled hole) and `shaft` 0.1 (shafts print 0.1 big), typical but not measured.
 2. Use `fit.set { tolerance, material }`. `tolerance` is ± what a printed size lands within (0.15 by default).
 3. Use one of these to calibrate:
    - **A scanned print** (Calibrate from a scan, fit-comp): `fit.measure` makes a good run the calibration itself (`calibration` in its answer; `calibrationKept` says why not). `fit.calibrate { from: "print-fit" }` takes the last run again after another calibration.
@@ -28,5 +28,9 @@ Lengths are mm. Clearances are diametral and as printed: positive is a gap, nega
 - With `layout: "assembled"` (snap, pin) the parts come in where they meet. Check them with `reverse.body.clearance` or `reverse.body.check`, then move them with `moveBody`.
 
 Print a snap hook lying on its side (fit.apply lays it so), so the beam bends along its layers. A hinge prints as it lies, both leaves on the bed.
+
+## One calibration for every workspace
+
+Hardware (`hw.*`), Generate (`gen.*`) and Boards (`pcb.*`) read this calibration themselves and size their holes, pockets and gaps with it; each answer says which it used (`printerFit`: "printer fits from …"). Don't copy figures across by hand: `hole` here is a clearance *added* to a hole's diameter, the same sign as their allowances, while a printed change ("holes −0.2") and Print fit's hole offset (per side) are written other ways. `printerFit` in `fit.list` gives the figures as the other workspaces read them.
 
 Calibrate from a scan (fit-comp, the Fits tab's second page) shares the `fit.*` names (`fit.measure`, `fit.suggest` …). It corrects the slicer from a scanned print, while Fits sizes the model; the two share one calibration.
