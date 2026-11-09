@@ -16,9 +16,22 @@ angle, the taper, the hand and the number of starts.
 
 ## In the app
 
-A **Thread** section in the 3D Measure panel: pick a fitted cylinder and
-**Identify**; **Look up** a size by name; the families tried and the pitch
-floor under *Families and settings*. Each control runs the command below.
+A **Thread** section in the 3D Measure panel (`registerPanelSection`):
+
+- **Cylinder** — a cylinder fitted in the threaded bore or on the boss (the
+  last one fitted by default); **Identify** names its thread. A match shows
+  the size, its confidence, form, major diameter, pitch (threads per inch
+  for inch sizes) and taper; a tie shows the sizes it can't tell apart and
+  the measurement that settles it, with what each would read; and either
+  way, what the scan reads (diameter, pitch, a left hand, several starts)
+  and the sizes set aside by the flank angle, taper or tooth depth.
+- **Look up** a size by name (M6x1, 1/4-20 UNC, G 1/2): major diameter,
+  pitch, minor diameters for the bolt and the nut, a tap drill, flank
+  angle, taper and the standard.
+- *Families and settings* — the families tried, the pitch floor (%), and
+  **Reset**.
+
+Each control runs the command below.
 
 ## Commands (`thread.*`)
 
@@ -27,7 +40,7 @@ floor under *Families and settings*. Each control runs the command below.
 | `thread.identify` | nothing | The verdict, the reads, the tie, the deciding measurement, and the Reverse thread feature when it can be modelled |
 | `thread.standards` | nothing | Families and designations |
 | `thread.lookup` | nothing | One size's basic dimensions |
-| `thread.settings` | settings | Default families; `pitchFloor` (scanner scale error) |
+| `thread.settings` | settings | Default families; `pitchFloor` (scanner scale error); `reset` |
 
 The agent guide is `guide.read { id: "thread-match" }`.
 

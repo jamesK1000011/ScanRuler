@@ -19,8 +19,10 @@ app as STL.
 
 1. A `.blend`: run `blender_convert { path }` first. It runs the Blender
    installed on this computer, headless, with autoexec off, and writes a
-   `.glb`. If Blender isn't found, say so: the person can set `BLENDER_PATH`
-   or export a GLB from Blender themselves.
+   `.glb`. If Blender isn't found, say so: the person can set
+   `SCANRULER_MCP_BLENDER` (or `BLENDER_PATH`) to its executable, or export a
+   GLB from Blender themselves. The tool is listed only when the server
+   was started with `SCANRULER_MCP_BLENDER` set.
    `import.formats` lists the formats, their extensions and the units and up
    axis each is taken in when the file doesn't say.
 2. `import.inspect { path }`: look at `parts`, `sizeMm` and `unitsWarning`
@@ -52,5 +54,7 @@ or the orientation reads wrong.
 - A `.gltf` that points to separate `.bin` or image files can't be read from
   one path. Ask for the `.glb`, or convert with Blender.
 - USD and USDZ aren't read.
-- Dropping one of these files on the page opens it as the scan. The Open
-  button's file list doesn't show them.
+- The person can open these files too: the Open pickers offer them, and
+  one dropped on the page opens as the scan. Either way it is taken in the
+  units and up axis above, with every part; check the size afterwards, and
+  open it again with `import.open` to correct it.
