@@ -406,8 +406,7 @@ def tools(session):
             if body is None:
                 raise ToolError("not_found", f"There is no body {a['body']!r} in the document.")
         else:
-            bodies = [o for o in doc.Objects if o.TypeId == "PartDesign::Body"]
-            body = bodies[0] if len(bodies) == 1 else doc.addObject("PartDesign::Body", "Body")
+            body = doc.addObject("PartDesign::Body", "Body")
         sk = body.newObject("Sketcher::SketchObject", "Sketch")
         sk.Label = a.get("name") or f"{sec['name']} sketch"
         sk.MapMode = "Deactivated"
@@ -485,6 +484,6 @@ def tools(session):
         Tool("section_remove", "Take a section away.", obj({"section": section_ref}, ["section"]), section_remove),
         Tool("section_fit", "A section's chains cut into the lines and arcs they are, without making a sketch: per chain its pieces in order — a line by its ends, length, angleDeg (from +u) and leanDeg, an arc by centre, radius, start and sweep (radians CCW from +u) — each with its residual and in world [x, y, z]. [u, v] are the section's sheet, from the part's centre; a sketch on the section counts from the world origin's foot: its [u, v] is the sheet's plus sketch.add. Without chains the longest are fitted (maxChains 12); arcs: n fits each chain as n arcs; brief: true gives each piece short. Changes nothing.",
              obj({"section": section_ref, **filters, "brief": {"type": "boolean"}}, ["section"]), section_fit),
-        Tool("section_to_sketch", "The profile road's last step: a section's chains fitted into lines and arcs (as section_fit) and written as a FreeCAD Sketcher sketch in a PartDesign body (body by label; the one body, or a new one), lying on the section's plane — its frame the sketch rule's (zero at the world origin's foot, x along the coordinate axis next round). Neighbouring pieces meet at their carriers' crossing, joined coincident; closed chains only unless closedOnly: false or chains. Then pd_pad { body, sketch, length }.",
+        Tool("section_to_sketch", "The profile road's last step: a section's chains fitted into lines and arcs (as section_fit) and written as a FreeCAD Sketcher sketch in a PartDesign body (body by label, or a new one), lying on the section's plane — its frame the sketch rule's (zero at the world origin's foot, x along the coordinate axis next round). Neighbouring pieces meet at their carriers' crossing, joined coincident; closed chains only unless closedOnly: false or chains. Then pd_pad { body, sketch, length }.",
              obj({"section": section_ref, **filters, "body": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1}}, ["section"]), section_to_sketch, changes=True),
     ]
