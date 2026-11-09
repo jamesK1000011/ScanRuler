@@ -285,12 +285,15 @@ test('relative paths from one folder: the scan’s once one is opened, else wher
   assert.equal(exported.json.file.path, join(bracket, 'bracket.step'))
   assert.equal(await readFile(join(bracket, 'bracket.step'), 'utf8'), 'ISO-10303-21;')
 
-  // Every path field names the base.
+  // The base is said once, in the server's instructions (Paths), and every
+  // path field points there.
   const { tools } = await c.client.listTools()
   const field = (tool, key) => tools.find((t) => t.name === tool).inputSchema.properties[key].description
-  for (const [tool, key] of [['scan_open', 'path'], ['scan_open', 'saveTo'], ['export_step', 'path'], ['view_render', 'path'], ['scanruler_batch', 'file']]) {
-    assert.match(field(tool, key), /relative path is taken from the folder of the scan or project last opened or saved \(scanruler_status: server\.relativeTo\)/, `${tool}.${key}`)
-    assert.ok(field(tool, key).includes(dir), `${tool}.${key} names where the server started`)
+  const instructions = c.client.getInstructions() ?? ''
+  assert.match(instructions, /Paths: A relative path is taken from the folder of the scan or project last opened or saved \(scanruler_status: server\.relativeTo\)/)
+  assert.ok(instructions.includes(dir), 'the instructions name where the server started')
+  for (const [tool, key] of [['scan_open', 'path'], ['export_step', 'path'], ['view_render', 'path'], ['scanruler_batch', 'file']]) {
+    assert.match(field(tool, key), /instructions’ Paths|relative path is taken from the folder of the scan/, `${tool}.${key}`)
   }
   assert.match(tools.find((t) => t.name === 'scanruler_batch').description, /\$file.*relative path is taken from the folder of the scan/)
   await c.close()
