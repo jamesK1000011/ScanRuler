@@ -31,6 +31,6 @@ Print a snap hook lying on its side (fit.apply lays it so), so the beam bends al
 
 ## One calibration for every workspace
 
-Hardware (`hw.*`), Generate (`gen.*`) and Boards (`pcb.*`) read this calibration themselves and size their holes, pockets and gaps with it; each answer says which it used (`printerFit`: "printer fits from …"). Don't copy figures across by hand: `hole` here is a clearance *added* to a hole's diameter, the same sign as their allowances, while a printed change ("holes −0.2") and Print fit's hole offset (per side) are written other ways. `printerFit` in `fit.list` gives the figures as the other workspaces read them.
+Hardware (`hw.*`), Generate (`gen.*`) and Electronics › KiCad (`pcb.*`, its enclosure through Generate) read this calibration themselves and size their holes, pockets and gaps with it; each answer says which it used (`printerFit`: "printer fits from …"). Don't copy figures across by hand: `hole` here is a clearance *added* to a hole's diameter, the same sign as their allowances, while a printed change ("holes −0.2") and Print fit's hole offset (per side) are written other ways. `printerFit` in `fit.list` gives the figures as the other workspaces read them.
 
 Calibrate from a scan (fit-comp, the Fits tab's second page) shares the `fit.*` names (`fit.measure`, `fit.suggest` …). It corrects the slicer from a scanned print, while Fits sizes the model; the two share one calibration.

@@ -84,9 +84,18 @@ an M3 clearance hole, ISO 273 medium 3.4 + 0.2, prints at 3.4 — 0.4 round
 a 3 screw, Fits' free class at 3 (0.412); a 608's 22 pocket, 22.1
 modelled, prints 0.1 under the bearing — a press, as Fits' press class at
 22 (0.138 under) is; a magnet's pocket prints at the magnet's size, between
-close and press — Hardware's hw.check calls that snug, to press in. They are not linked: after
-`fit.calibrate`, set Hardware's allowances (`hw.set { allowance }`) to the
-new hole offset too.
+close and press — Hardware's hw.check calls that snug, to press in.
+
+They are linked through the calibration. Hardware, Generate and Electronics
+› KiCad (`pcb`) read it (`printerFit` in `fit.list` and `fit.calibrate`, in
+the one sign convention of `plugins/_shared/printerFit.ts`: a hole clearance
+added to the diameter, + the hole bigger) and move their built-in allowances
+and gaps by its difference from the typical printer above (holes 0.2 small,
+shafts 0.1 big). A value set by hand there is kept as set, each answer says
+which calibration it used, and `printerFit: false` (Hardware's and
+Generate's *Printer fits* switch) turns it off. Don't copy a figure across
+by hand: Fits' "holes print small by" and a printed change ("holes −0.2")
+are the same printer with opposite signs.
 
 No FreeCAD or other CAD package code is used.
 
@@ -97,9 +106,9 @@ under different verbs.
 
 | Command | Changes | What |
 |---|---|---|
-| `fit.list` | nothing | Classes with their clearance at a size, materials, parts, settings, calibration |
+| `fit.list` | nothing | Classes with their clearance at a size, materials, parts, settings, calibration (and `printerFit`) |
 | `fit.set` | settings | Tolerance, material, the panel's page; `reset` |
-| `fit.calibrate` | calibration | From readings, offsets entered, a scanned print, or the classes felt on a coupon; `reset` |
+| `fit.calibrate` | calibration | From readings, offsets entered, a scanned print (refused when it fits poorly), or the classes felt on a coupon; dated; `reset` |
 | `fit.pair` | nothing | Hole and shaft sizes, printed and modelled, range, ISO reference, press strain |
 | `fit.stack` | nothing | Worst case, RSS, contributions, chance under a minimum |
 | `fit.snap` | nothing | Hook strain, forces and limits; kept for `fit.apply` |
