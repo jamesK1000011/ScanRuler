@@ -23,7 +23,7 @@ const plugin: ScanRulerPlugin = {
   workspace: {
     id: 'texture',
     label: 'BumpMesh',
-    title: 'Printable surface textures — BumpMesh by CNC Kitchen',
+    title: 'Surface textures — BumpMesh by CNC Kitchen',
     icon: 'surface',
     order: 14,
     group: 'model',

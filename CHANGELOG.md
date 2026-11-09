@@ -7,6 +7,19 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Fewer tabs in the top bar** (2026-11-09). Workspaces that do one job
+  now share a tab, as pages: **Parts** holds Catalog and Generate (a part
+  got without modelling it — found, or generated to size); **Fits** gains
+  **Hardware** between Design and Calibrate from a scan, since its holes
+  are fits sized by the same calibration; **Analyze** gains **Wear**
+  (Wear repair, which was a Model tab of its own) after Strength and Mass.
+  Mesh Tools stays a tab of its own, and Share (packing a part to publish)
+  stays apart from Docs, whose patent drawings stay private until filed.
+  Every page keeps its workspace id, so saved projects and
+  `workspace.set { workspace: "wear" }`, `"gen"`, `"catalog"` or `"hw"` open
+  on their page; the new tab's id `parts` opens its last page. Tab titles no
+  longer assume a printer: Fits, Calibrate from a scan, Wear and BumpMesh
+  say what they do for any part.
 - **A lighter start for agents** (2026-11-09). The MCP server's tool list
   and the Reverse engineer's guides cost an agent less before it does any
   work. `--tools lean` (`SCANRULER_MCP_TOOLS=lean`) lists the session,

@@ -25,7 +25,9 @@ what it fits, and how loose or tight.
 
 ## The panel
 
-Hardware is a tab of the Model group. Its panel runs the commands below:
+Hardware is the Fits tab's second page (workspace id `hw`), between Design
+and Calibrate from a scan, whose calibration sizes its holes. Its panel runs
+the commands below:
 
 - **Kind** and **Size** (with the head, clearance class, through or a
   depth, a nut's sunk depth and side slot, a bearing's relief, as the kind

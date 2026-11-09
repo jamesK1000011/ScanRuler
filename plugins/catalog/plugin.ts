@@ -10,17 +10,19 @@ import { catalogCommands } from './app/catalogCommands'
 import { catalogSection } from './app/projectSection'
 import { useCatalog } from './state/catalogStore'
 import { useCatalogPlugin } from './app/useCatalogPlugin'
+import { PARTS } from '../_shared/workspaces'
 
 const plugin: ScanRulerPlugin = {
   id: 'catalog',
   name: 'Parts catalog',
   workspace: {
+    // A page of the Parts tab, before Generate (gen); the id it has always had.
     id: 'catalog',
     label: 'Catalog',
     title: 'Standard parts and models, with their sources',
     icon: 'catalog',
-    order: 13,
-    group: 'model',
+    order: 1,
+    host: PARTS,
   },
   usePlugin: useCatalogPlugin,
   install() {

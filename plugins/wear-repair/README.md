@@ -16,18 +16,17 @@ the next print comes out true.
 
 ## The workspace
 
-**Wear repair** is a tab of its own in the Model group, after Mesh Tools.
-Its panel runs the commands below, the same ones an agent calls: what the
+**Wear repair** is the Analyze tab's **Wear** page (workspace id `wear`),
+after Strength and Mass: what use and making do to a part's material. Its
+panel runs the commands below, the same ones an agent calls: what the
 part should be (mirror, with Align on symmetry, or the part aligned in
 Surface Deviation), the regions (a ball or a box, its centre picked on the
 part), the settings, Read wear and Repair STL, and the pre-warp runs with
 the stop rule's verdict.
 
-It is not a page of a shared tab: the tab it belongs beside, Mesh Tools, is
-a workspace of its own rather than a host (see `plugins/_shared/
-workspaces.ts`), and Fits, Print and Electronics are about other work.
-Should Mesh Tools become a host, Wear repair is one `host:` line away from
-being its page.
+It was a tab of its own in the Model group, after Mesh Tools; projects
+saved there, and an agent's `workspace.set { workspace: "wear" }`, open
+on the page (the host is `ANALYZE` in `plugins/_shared/workspaces.ts`).
 
 ## Commands (`wear.*`)
 

@@ -10,18 +10,20 @@ import { buildInThread } from './app/genClient'
 import { describeGen, genCommands } from './app/genCommands'
 import { genSection } from './app/projectSection'
 import { useGenPlugin } from './app/useGenPlugin'
+import { PARTS } from '../_shared/workspaces'
 import { setupOf, useGen } from './state/genStore'
 
 const plugin: ScanRulerPlugin = {
   id: 'gen',
   name: 'Generate',
   workspace: {
+    // A page of the Parts tab, after Catalog; the id it has always had.
     id: 'gen',
     label: 'Generate',
     title: 'Parametric parts: Gridfinity, project boxes',
     icon: 'pattern',
-    order: 12,
-    group: 'model',
+    order: 2,
+    host: PARTS,
   },
   usePlugin: useGenPlugin,
   install() {

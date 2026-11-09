@@ -4,11 +4,19 @@
 // host from here, so they agree on it, and any of them alone still makes
 // the tab: a build without one of the plugins keeps the others' pages.
 //
+//   Parts        Catalog (catalog) · Generate (gen)
+//   Fits         Design (fits) · Hardware (hw) · Calibrate from a scan (fit-comp)
 //   Electronics  KiCad (pcb) · tscircuit (circuit) · Printed wiring (printed)
-//   Fits         Design (fits) · Calibrate from a scan (fit-comp)
 //   Print        1 Check (dfm-fdm) · 2 Slice (slicer-loop) · 3 Send (printer-handoff)
-//   Analyze      Strength (fea) · Mass (mass)
+//   Analyze      Strength (fea) · Mass (mass) · Wear (wear-repair)
 //   Docs         Manual (assembly-manual) · Patent (patent-kit)
+//
+// Merged only where one tab is what a person would look in for both: a part
+// got without modelling it (found, or generated to a standard); how parts
+// join (fits, and the holes hardware takes — both sized by the one
+// calibration). Mesh Tools stays a tab of its own, and Share (library-pack:
+// publishing a part) stays apart from Docs, whose patent drawings are kept
+// private until filed.
 //
 // A page keeps its own workspace id — what project files, the undo history
 // and workspace.set name — so work saved before the tabs were merged opens
@@ -26,14 +34,24 @@ export const ELECTRONICS: WorkspaceHost = {
   pages: ['pcb', 'circuit', 'printed'],
 }
 
+export const PARTS: WorkspaceHost = {
+  id: 'parts',
+  label: 'Parts',
+  title: 'Ready-made parts: found in a catalogue, or generated to size',
+  icon: 'catalog',
+  order: 12,
+  group: 'model',
+  pages: ['catalog', 'gen'],
+}
+
 export const FITS: WorkspaceHost = {
   id: 'fits',
   label: 'Fits',
-  title: 'Fits, hinges and stacks, calibrated to your printer',
+  title: 'Fits, hinges, stacks, and holes for screws and inserts',
   icon: 'concentric',
   order: 15,
   group: 'model',
-  pages: ['fits', 'fit-scan'],
+  pages: ['fits', 'hw', 'fit-scan'],
 }
 
 export const PRINT: WorkspaceHost = {
@@ -50,11 +68,11 @@ export const PRINT: WorkspaceHost = {
 export const ANALYZE: WorkspaceHost = {
   id: 'analyze',
   label: 'Analyze',
-  title: 'Strength and mass of a part',
+  title: 'Strength, mass and wear of a part',
   icon: 'strength',
   order: 20,
   group: 'make',
-  pages: ['fea', 'mass'],
+  pages: ['fea', 'mass', 'wear'],
 }
 
 export const DOCS: WorkspaceHost = {

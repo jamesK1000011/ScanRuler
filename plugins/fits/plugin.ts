@@ -20,7 +20,7 @@ const plugin: ScanRulerPlugin = {
   id: 'fits',
   name: 'Fits',
   workspace: {
-    // A page of the Fits tab, beside Calibrate from a scan (fit-comp).
+    // A page of the Fits tab, before Hardware (hw) and Calibrate from a scan (fit-comp).
     id: 'fits',
     label: 'Design',
     title: 'Hole and shaft, snap fit, hinge, pin, coupon, stack',

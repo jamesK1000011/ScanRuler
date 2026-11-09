@@ -18,12 +18,12 @@ const plugin: ScanRulerPlugin = {
   id: 'fit-comp',
   name: 'Print fit',
   workspace: {
-    // A page of the Fits tab, beside Design (fits).
+    // A page of the Fits tab, after Design (fits) and Hardware (hw).
     id: 'fit-scan',
     label: 'Calibrate from a scan',
-    title: 'Measure a scanned print against its CAD',
+    title: 'Measure a scanned part against its CAD',
     icon: 'compare',
-    order: 2,
+    order: 3,
     host: FITS,
   },
   usePlugin: useFitCompPlugin,

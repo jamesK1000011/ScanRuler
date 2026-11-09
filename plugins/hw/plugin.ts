@@ -8,6 +8,7 @@
 
 import { registerCommands, registerGuide, registerPartDigest, registerStateSection, signatureOf, type ScanRulerPlugin } from '../../src/plugins/api'
 import { registerProjectSection } from '../../src/app/projectSections'
+import { FITS } from '../_shared/workspaces'
 import { registerHistory } from '../../src/state/historyStore'
 import { describeHw, hwCommands } from './app/hwCommands'
 import { hwSection } from './app/projectSection'
@@ -18,12 +19,14 @@ const plugin: ScanRulerPlugin = {
   id: 'hw',
   name: 'Hardware',
   workspace: {
+    // A page of the Fits tab, between Design and Calibrate from a scan: its
+    // holes are sized by the same calibration. The id it has always had.
     id: 'hw',
     label: 'Hardware',
     title: 'Holes for screws, nuts, inserts, magnets, bearings',
     icon: 'hole',
-    order: 16,
-    group: 'model',
+    order: 2,
+    host: FITS,
   },
   usePlugin: useHwPlugin,
   install() {

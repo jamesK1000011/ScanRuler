@@ -1,28 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // wear-repair: a worn or damaged part brought back to what it should be —
 // from its own other half mirrored, or its CAD or a twin aligned in the
-// Deviation workspace — and a print pre-warped so it comes out true. Its
-// workspace stands beside Mesh Tools, as the other way of changing the scan;
-// its panel runs the same wear.* commands an agent does.
+// Deviation workspace — and a part pre-warped so it comes out true. Its
+// workspace is the Analyze tab's Wear page, after Strength and Mass: what
+// use and making do to the material; its panel runs the same wear.*
+// commands an agent does.
 
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { wearCommands } from './app/wearCommands'
 import { wearSection } from './app/projectSection'
 import { useWearPlugin } from './app/useWearPlugin'
+import { ANALYZE } from '../_shared/workspaces'
 import { useWear } from './state/wearStore'
 
 const plugin: ScanRulerPlugin = {
   id: 'wear-repair',
   name: 'Wear repair',
   workspace: {
-    // Its own tab, after Mesh Tools: no shared tab fits (see README.md).
+    // A page of Analyze, after Strength and Mass; the id it has always had.
     id: 'wear',
-    label: 'Wear repair',
-    title: 'Repair a worn part; pre-warp a print',
+    label: 'Wear',
+    title: 'Repair a worn part; pre-warp one so it comes out true',
     icon: 'symmetric',
-    order: 10.5,
-    group: 'model',
+    order: 3,
+    host: ANALYZE,
   },
   usePlugin: useWearPlugin,
   install() {

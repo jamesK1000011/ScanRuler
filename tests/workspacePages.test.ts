@@ -48,4 +48,19 @@ describe('workspace pages', () => {
     // Without the list, as before: nothing to go on.
     expect(resolveIn(TABS, 'gone')).toBeNull()
   })
+
+  it('a workspace moved from a tab of its own into a host keeps its id', () => {
+    // Wear repair was a tab of its own; as a page of Analyze, project files
+    // and workspace.set still name it 'wear', and the bar no longer shows it.
+    const ANALYZE: WorkspaceHost = { id: 'analyze', label: 'Analyze', title: 'Analyze', icon: 'strength', order: 20, group: 'make', pages: ['fea', 'mass', 'wear'] }
+    const before = [tab('mesh', 10), tab('wear', 10.5), tab('fea', 1, ANALYZE), tab('mass', 2, ANALYZE)]
+    const after = [tab('mesh', 10), tab('fea', 1, ANALYZE), tab('mass', 2, ANALYZE), tab('wear', 3, ANALYZE)]
+    expect(barTabsIn(before).map((t) => t.id)).toEqual(['mesh', 'wear', 'analyze'])
+    expect(barTabsIn(after).map((t) => t.id)).toEqual(['mesh', 'analyze'])
+    expect(barTabsIn(after)[1].pages).toEqual(['fea', 'mass', 'wear'])
+    expect(resolveIn(after, 'wear')).toBe('wear')
+    expect(resolveIn(after, 'analyze', 'wear')).toBe('wear')
+    // A build without wear-repair: its saved work opens on Analyze.
+    expect(resolveIn(after.filter((t) => t.id !== 'wear'), 'wear')).toBe('fea')
+  })
 })

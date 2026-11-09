@@ -11,25 +11,25 @@ not in this repository.
 | [mesh-tools/](mesh-tools/) | The Mesh Tools workspace — clean up and reduce a scan |
 | [texture/](texture/) | The BumpMesh workspace — CNC Kitchen's BumpMesh surface textures, made printable, masked by paint or by a Reverse body's CAD faces |
 | [thread-match/](thread-match/) | Thread identification (3D Measure's Thread section) — names a scanned thread, or says which measurement would |
-| [fit-comp/](fit-comp/) | Print fit — the Fits tab's Calibrate from a scan page: a scanned print against its CAD, to slicer settings, a compensated model and the printer's one calibration |
+| [fit-comp/](fit-comp/) | Print fit — the Fits tab's Calibrate from a scan page: a scanned part against its CAD, to slicer settings, a compensated model and the printer's one calibration |
 | [fits/](fits/) | Fits (the Fits tab's Design page) — hole and shaft sizes for slip and press fits, snap-fit hooks, print-in-place hinges, pins, tolerance stacks; calibrated with a test coupon |
 | [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML in the Open pickers and dropped, and .blend through Blender |
 | [dfm-fdm/](dfm-fdm/) | Printability check (Print › 1 Check) — FDM rules from editable profiles on a scan, a reference part or a Reverse engineer body as it is now, with findings you can waive |
 | [printer-handoff/](printer-handoff/) | Printer hand-off (Print › 3 Send) — the guide for the MCP server's printer tools, and the start requests; a print starts only on your Start |
-| [catalog/](catalog/) | Parts catalog — standard parts by size, catalogue links, Sketchfab/Thingiverse/Cults3D search, downloads brought in with their licence |
+| [catalog/](catalog/) | Parts catalog (Parts › Catalog) — standard parts by size, catalogue links, Sketchfab/Thingiverse/Cults3D search, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing (Print › 2 Slice) — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras; the step shows the pauses and corrections that go in |
-| [wear-repair/](wear-repair/) | Wear repair (a tab of its own, after Mesh Tools) — worn regions back onto the mirrored half or the CAD; prints pre-warped |
-| [assembly-manual/](assembly-manual/) | Assembly manual — steps checked for a clear way in, drawn and written; HTML and PDF |
-| [patent-kit/](patent-kit/) | Patent kit — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
+| [wear-repair/](wear-repair/) | Wear repair (Analyze › Wear) — worn regions back onto the mirrored half or the CAD; a part pre-warped so it comes out true |
+| [assembly-manual/](assembly-manual/) | Assembly manual (Docs › Manual) — steps checked for a clear way in, drawn and written; HTML and PDF |
+| [patent-kit/](patent-kit/) | Patent kit (Docs › Patent) — 37 CFR 1.84 line drawings with numerals, and a draft for an attorney; stays local |
 | [_shared/](_shared/) | Code plugins share: line art (views, HLR, sheets as SVG, PDF and PNG), a zip writer, the materials, the printer's fit calibration in one sign convention (`printerFit.ts`, read with `readPrinterFit.ts`), and the tabs several plugins' workspaces share (`workspaces.ts`); no plugin.ts |
-| [library-pack/](library-pack/) | Library pack — a part bundled to share: licences checked, remixes credited, private details scrubbed |
+| [library-pack/](library-pack/) | Library pack (the Share tab) — a part bundled to share: licences checked, remixes credited, private details scrubbed |
 | [scanner-profiles/](scanner-profiles/) | Scanner profiles (3D Measure's Scanner section) — the scan's noise, measured or from a profile you keep |
 | [review/](review/) | Part review — `part.review`: one verdict on a body from the other workspaces' checks (validity, clearance, mass, strength; printability and pauses for a printed part), and a design spec kept with the project |
 | [snapshot/](snapshot/) | Screenshot for the agent — a camera button that captures the tab, with pins and marks, for the agent to look at |
-| [fea/](fea/) | Strength — FEA of a printed part, weaker across its layers; Gmsh and CalculiX on your computer |
-| [mass/](mass/) | Mass and balance — weight, balance point and inertia as printed; ballast pockets to hit a target |
-| [gen/](gen/) | Generate — Gridfinity bins and baseplates, a project box and lid, a board enclosure, made to size as solids |
-| [hw/](hw/) | Hardware — holes for screws, nut traps, heat-set inserts, magnets and bearings, sized for printing and cut into Reverse Engineer bodies |
+| [fea/](fea/) | Strength (Analyze › Strength) — FEA of a printed part, weaker across its layers; Gmsh and CalculiX on your computer |
+| [mass/](mass/) | Mass and balance (Analyze › Mass) — weight, balance point and inertia as printed; ballast pockets to hit a target |
+| [gen/](gen/) | Generate (Parts › Generate) — Gridfinity bins and baseplates, a project box and lid, a board enclosure, made to size as solids |
+| [hw/](hw/) | Hardware (Fits › Hardware) — holes for screws, nut traps, heat-set inserts, magnets and bearings, sized for printing and cut into Reverse Engineer bodies |
 | [pcb/](pcb/) | Boards (Electronics › KiCad) — KiCad boards brought in as solids, an enclosure round them, Gerbers, drills and DRC through kicad-cli |
 | [printed/](printed/) | Printed circuits (Electronics › Printed wiring) — traces of conductive filament as a body of their own, or channels for copper wire, tape or paint, in a Reverse Engineer body; each net's resistance along and through the layers |
 | [circuit/](circuit/) | Circuit (Electronics › tscircuit) — boards as code with tscircuit, built on this computer; Circuit JSON read, measured, and brought into Reverse Engineer as board, copper and keep-out solids |
@@ -105,16 +105,27 @@ the same one:
 
 | Tab | Pages (workspace id) |
 |---|---|
+| Parts | Catalog (`catalog`) · Generate (`gen`) |
+| Fits | Design (`fits`) · Hardware (`hw`) · Calibrate from a scan (`fit-scan`, fit-comp) |
 | Electronics | KiCad (`pcb`) · tscircuit (`circuit`) · Printed wiring (`printed`) |
-| Fits | Design (`fits`) · Calibrate from a scan (`fit-scan`, fit-comp) |
 | Print | 1 Check (`dfm`) · 2 Slice (`slice`) · 3 Send (`print`) |
+| Analyze | Strength (`fea`) · Mass (`mass`) · Wear (`wear`, wear-repair) |
+| Docs | Manual (`assembly`) · Patent (`patent`) |
+
+Tabs are merged only where one tab is plainly where a person would look for
+both: Parts (a part got without modelling it), Fits (how parts join — the
+holes Hardware cuts are sized by the Fits calibration), Analyze (what loads,
+weight and wear do to a part). Mesh Tools stays a tab of its own, and Share
+(library-pack, publishing a part) stays apart from Docs, whose patent
+drawings stay private until filed.
 
 A page is still a workspace of its own: its id is what the shell, the undo
 history, a project file and `workspace.set` name, so projects saved before
 the tabs were merged open on their page, and an agent's switch to `pcb`
-lands on Electronics › KiCad. The tab's own id (`electronics`, `fits`,
-`print`) opens the page last shown, else the first — except where a page has
-the same id, which wins (`print` is Send). `session.state` gives `tab` while
+lands on Electronics › KiCad. The tab's own id (`parts`, `fits`,
+`electronics`, `print`, `analyze`, `docs`) opens the page last shown, else
+the first — except where a page has the same id, which wins (`fits` is
+Design, `print` is Send). `session.state` gives `tab` while
 a page is up. The top bar shows the tab once; a strip over the panel
 (`src/ui/PageStrip.tsx`) switches pages, numbered when the host has
 `steps`. With one page left in a build, the tab stands for it and there is
