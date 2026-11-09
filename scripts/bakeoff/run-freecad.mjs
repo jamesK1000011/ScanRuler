@@ -3,7 +3,9 @@
 // server headless, as an agent would call it, every call measured. Writes
 // trace.json, result.json and the bin as STEP and STL into --out.
 //
-//   node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad [--python python]
+//   node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad [--python python] [--addon <AgentLink folder>]
+// The add-on comes from the FreeCAD fork (jamesK1000011/FreeCAD, branch
+// agent-link, src/Mod/AgentLink); the workflow checks it out into freecad-addon/.
 // The Python must import FreeCAD (conda-forge's freecad, or FREECAD_LIB set).
 
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -12,11 +14,11 @@ import { parseArgs } from 'node:util'
 import { BRIEF } from './brief.mjs'
 import { measured, stdioClient, summary } from './measure.mjs'
 
-const { values } = parseArgs({ options: { out: { type: 'string' }, python: { type: 'string' } } })
+const { values } = parseArgs({ options: { out: { type: 'string' }, python: { type: 'string' }, addon: { type: 'string' } } })
 const out = resolve(values.out ?? 'bakeoff-out/freecad')
 mkdirSync(out, { recursive: true })
 const trace = []
-const server = resolve('freecad/AgentLink/agentlink_headless.py')
+const server = resolve(values.addon ?? 'freecad-addon/src/Mod/AgentLink', 'agentlink_headless.py')
 const c = await stdioClient({ command: values.python ?? 'python', args: [server, '--out', out], stderrFile: join(out, 'server.log') })
 const result = { side: 'freecad', server: c.init.serverInfo, steps: {} }
 try {
@@ -31,14 +33,16 @@ try {
   result.steps.measure = m.json?.parts?.[0]
   const made = await call('gen_make', { params: BRIEF.params, name: 'Bin' }, 'make the bin')
   result.steps.made = made.json
-  let review = await call('part_review', { body: 'Bin', spec: BRIEF.spec, material: BRIEF.material }, 'one verdict')
+  await call('setup', { action: 'add', type: 'print', bodies: ['Bin'], settings: { nozzle: 0.4, layerHeight: 0.2, firstLayer: 0.2 } }, 'how it is made')
+  await call('part_spec', { spec: BRIEF.spec, material: BRIEF.material }, 'the limits and the material')
+  let review = await call('part_review', { body: 'Bin' }, 'one verdict')
   result.steps.review = review.json
   // The lip's thin runs, waived in the one call: the lip stands above the
   // bin's height (units x 7 mm), so a thin run up there is the lip.
   const lipZ = BRIEF.params.units * 7
-  const lip = (review.json?.findings ?? []).filter((f) => f.source === 'wall' && f.severity === 'error' && f.at?.[2] >= lipZ)
+  const lip = (review.json?.findings ?? []).filter((f) => /thin-wall/.test(f.says) && f.at?.[2] >= lipZ)
   if (lip.length) {
-    review = await call('part_review', { body: 'Bin', spec: BRIEF.spec, material: BRIEF.material, waive: lip.map((f) => ({ at: f.at, reason: BRIEF.waiveReason })) }, 'the lip waived')
+    review = await call('part_review', { body: 'Bin', waive: lip.map((f) => ({ rule: 'thin-wall', at: f.at, reason: BRIEF.waiveReason })) }, 'the lip waived')
     result.steps.reviewWaived = review.json
   }
   const check = await call('body_check', { body: 'Bin' }, 'soundness, for the scorecard')

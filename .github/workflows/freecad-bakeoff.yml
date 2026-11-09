@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # The FreeCAD spike and the bake-off, on GitHub's machines: FreeCAD from
-# conda-forge runs the Agent Link add-on headless (its tests, then the
+# conda-forge runs the Agent Link add-on (from the FreeCAD fork,
+# jamesK1000011/FreeCAD, branch agent-link) headless (its tests, then the
 # brief); ScanRuler builds and runs the same brief in headless Chrome; its
 # Deviation workspace compares the two bins; the scorecard goes to the run's
 # summary page. Nothing here needs the Mac.
@@ -27,6 +28,13 @@ jobs:
         shell: bash -el {0}
     steps:
       - uses: actions/checkout@v5
+      - name: The add-on, from the FreeCAD fork
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/FreeCAD
+          ref: agent-link
+          path: freecad-addon
+          sparse-checkout: src/Mod/AgentLink
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc
@@ -44,7 +52,7 @@ jobs:
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
       - name: Agent Link tests
-        run: python -m unittest discover -s freecad/tests -v
+        run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests -v
       - name: The brief, headless
         run: node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad --python python
       - name: Server log
