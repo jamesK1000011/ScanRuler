@@ -16,7 +16,7 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { fitsOf } from '../core/check'
 import { featuresOf, overlapping, patternOffsets, type Pattern, type Placement, type V2, type V3 } from '../core/features'
 import { FITS, type Fit, type Head, HEADS, type Kind, KINDS, sizesOf, table } from '../core/hardware'
-import { boundaryDown, boundaryUp, EMBED_KINDS, type EmbedKind, encasedCut, EPS, inertiaOf, type Layers, type ObjectSpec, partSolid, pauseLayer, profileReach, restDepth, schedule } from '../core/embed'
+import { boundaryDown, boundaryUp, EMBED_KINDS, type EmbedKind, encasedCut, EPS, inertiaOf, type Layers, type ObjectSpec, partMaterialsReady, partSolid, pauseLayer, profileReach, restDepth, schedule } from '../core/embed'
 import { type Cut, cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings, type Spec, type Step } from '../core/plan'
 import { calibratedKinds, withPrinterFit } from '../core/printerFit'
 import { type Embed, type EmbedPlan, type EmbedSolid, settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
@@ -320,6 +320,7 @@ function fitState() {
 
 /** The plan, placed: what it cuts, where, and the features that cut it. */
 async function planOf(a: PlanArgs) {
+  await partMaterialsReady(a.kind)
   if (a.name !== undefined && a.name.trim().length > 60) invalid('name: up to 60 characters.')
   const offsets = patternOffsets(a.pattern)
   const encase = a.encase !== undefined && a.encase !== false
@@ -884,6 +885,7 @@ const recordCmd: Command<RecordIn> = {
   }),
   label: () => 'record encased part',
   run: async (a) => {
+    await partMaterialsReady(a.kind)
     let r: Omit<Embed, 'id'>
     const S = settings(a.body)
     const minRoof = r3(S.roofLayers * S.layerHeight)

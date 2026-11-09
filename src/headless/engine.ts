@@ -87,7 +87,17 @@ export function startEngine(): Promise<HeadlessEngine> {
   return started
 }
 
+/** Where the engine reads the app's run-time assets (src/plugins/assets.ts)
+ *  from: the copies the engine build puts beside engine.mjs
+ *  (scripts/build-engine.mjs), else this checkout's public/ — from
+ *  dist-engine/ when built, from src/headless/ when run from the sources. */
+export const ASSET_ROOTS: readonly URL[] = [new URL('./', import.meta.url), new URL('../public/', import.meta.url), new URL('../../public/', import.meta.url)]
+
 async function start(): Promise<HeadlessEngine> {
+  // Before any plugin starts: the material library's FreeCAD cards, read
+  // from disk here as the page fetches them (loaded, not linked).
+  const { diskAssetReader, setAssetReader } = await import('../plugins/assets')
+  setAssetReader(diskAssetReader(ASSET_ROOTS))
   await workerInThisThread()
   // One after another: the modules import each other, and loaded side by
   // side a module runner can wait on itself.

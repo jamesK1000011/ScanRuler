@@ -15,6 +15,7 @@ import { FILLERS, MATERIALS, type V3 } from '../core/mass'
 import { useMass } from '../state/massStore'
 import { readStateSection } from '../../../src/commands/stateSections'
 import { resolveAssignment, useAssigned } from '../../_shared/materials/assigned'
+import { useAssignedMaterials } from '../../_shared/materials/useLibrary'
 import { setupFor } from '../../_shared/setups'
 import './mass.css'
 
@@ -71,19 +72,21 @@ function useSolids(): Solid[] {
  *  setup, solid in another; a body with none takes the picker below. */
 function BodyMaterials({ fallback }: { fallback: string }) {
   const solids = useSolids()
-  const assigned = useAssigned((x) => x.assigned)
+  const { assigned, status } = useAssignedMaterials()
   if (!solids.length) return null
   return (
     <div className="mass-materials" data-test="mass-materials">
       {solids.map((b) => {
         const own = resolveAssignment(assigned[String(b.id)])
+        // Set to a FreeCAD card not loaded yet: not "none set".
+        const waiting = !own && assigned[String(b.id)] !== undefined && status !== 'failed'
         const setup = setupFor(String(b.id))
         const printed = own ? setup?.type === 'print' : !setup || setup.type === 'print'
         return (
           <div key={b.id} className="kv">
             <span className="pl-aside">{b.name}</span>
             <span className="pl-aside" title={own ? undefined : 'No material set: weighed in the one below'}>
-              {own ? own.name : `${fallback} (none set)`}, {printed ? 'printed' : 'solid'}
+              {own ? own.name : waiting ? 'loading its material…' : `${fallback} (none set)`}, {printed ? 'printed' : 'solid'}
             </span>
           </div>
         )

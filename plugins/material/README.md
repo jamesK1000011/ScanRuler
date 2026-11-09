@@ -50,10 +50,31 @@ whenever the library is bundled — by Mass, Strength or Fits in a build
 without this plugin too. `scripts/convert-fcmat.mjs` converts the cards
 again from a FreeCAD checkout.
 
+The fork's own are bundled; FreeCAD's cards are **loaded, not linked**
+(CONTRIBUTING.md): a data file of their own,
+`public/materials/freecad-cards.json`, with their licence texts beside it,
+fetched the first time they are needed (read from disk by the headless
+engine and the tests, `src/plugins/assets.ts`) and never imported. The
+lookups (`libraryMaterial`, `searchLibrary`, `library()`,
+`resolveAssignment`, `materialOfBody`) are synchronous over what is loaded:
+the fork's own at once, the cards once in. So a command awaits them first —
+`ensureMaterials()` for the whole library (`material.list`), `materialsFor`
+/ `assignedReady()` for the names it reads, which waits only when one is not
+the fork's own (a PLA part never waits), `awaitingMaterials(commands)` for a
+workspace's commands that read bodies' materials deep inside (Check, Cut,
+Mill). A panel uses `useLibraryLoaded()` or `useAssignedMaterials()`
+(`useLibrary.ts`), which load the cards when shown and draw again when they
+arrive; `useMaterialLibrary` holds where they are (`not-loaded`, `loading`,
+`loaded`, `failed` with the error) and `libraryNote()` says it in words.
+Changing who has what starts the load in the background. A readout that
+cannot wait — a cut setup's kerf by its material — reads the sheet default
+until the cards are in.
+
 ## Tests
 
 `tests/material.test.ts` (the commands, a rename, a material of your own,
 the project file) and `plugins/_shared/tests/materials.test.ts` (the
-conversion against the cards, licences, aliases, the setups reader); the
+conversion against the cards, licences, aliases, the cards loaded at run
+time and kept out of every module, the imprint, the setups reader); the
 consumers' in `plugins/mass/tests/massCommands.test.ts` and
 `plugins/fea/tests/fea.test.ts`.

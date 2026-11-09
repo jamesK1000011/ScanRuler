@@ -16,6 +16,7 @@ import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
 import { bodies as listBodies, builtFor, FIELDS, MATERIAL_IDS, MATERIALS, staleness, wasCancelled } from '../app/feaCommands'
 import { resolveAssignment, useAssigned } from '../../_shared/materials/assigned'
+import { useAssignedMaterials } from '../../_shared/materials/useLibrary'
 import { PRINTED } from '../../_shared/materials/printed'
 import { setupFor } from '../../_shared/setups'
 import { useFea, type Field, type Load } from '../state/feaStore'
@@ -261,7 +262,8 @@ export function FeaPanel() {
   const [tools, setTools] = useState<{ ready: boolean; howTo?: string; error?: string } | null>(null)
   const [bodies, setBodies] = useState<{ id: number; name: string; key: string }[]>([])
   const installed = useAssigned((x) => x.installed)
-  const assigned = useAssigned((x) => x.assigned)
+  // Loads FreeCAD's cards when a body is set to one, and draws again then.
+  const { assigned } = useAssignedMaterials()
   const [target, setTarget] = useState<string | null>(null)
   // Reverse Engineer's bodies, looked at every second or two while here.
   useEffect(() => {

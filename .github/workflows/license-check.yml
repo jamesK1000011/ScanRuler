@@ -24,8 +24,15 @@
 #
 # This check cannot see Open CASCADE: `occt-wasm` declares its wrapper's MIT /
 # Apache-2.0, so it passes, while the kernel inside it is LGPL-2.1 with the
-# Open CASCADE exception. CONTRIBUTING.md §2 records that one exception and why
+# Open CASCADE exception. CONTRIBUTING.md §2 records that exception and why
 # it holds.
+#
+# Nor can it see the material library's FreeCAD cards (LGPL-2.0-or-later and
+# CC-BY-3.0 data, public/materials/), which are no npm package: the second
+# "loaded, not linked" exception in CONTRIBUTING.md §2. CI checks that one on
+# the build instead (ci.yml, scripts/check-loaded-assets.mjs): the cards in a
+# file of their own beside the build with their licence texts, and in none of
+# its scripts.
 name: License check
 
 on:

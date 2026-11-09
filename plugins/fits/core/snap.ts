@@ -15,7 +15,7 @@
 // to the way the parts move. Where µ · tan α′ ≥ 1 the hook locks: no pull
 // takes it apart without the beam being lifted by hand.
 
-import { libraryMaterial, MATERIAL_ALIASES } from '../../_shared/materials'
+import { LIBRARY_ALIASES, MATERIAL_ALIASES } from '../../_shared/materials'
 import { PRINTED } from '../../_shared/materials/printed'
 
 export interface Material {
@@ -71,8 +71,15 @@ export const MATERIAL_IDS = MATERIALS.map((m) => m.id)
 export const MATERIAL_NAMES = [...MATERIAL_IDS, ...Object.keys(MATERIAL_ALIASES).filter((a) => MATERIAL_IDS.includes(MATERIAL_ALIASES[a]))]
 export const materialOf = (id: string): Material | undefined =>
   MATERIALS.find((m) => m.id === (Object.hasOwn(MATERIAL_ALIASES, id) ? MATERIAL_ALIASES[id] : id)) ??
-  // The library's polyamide by any of its names is Fits' nylon.
-  (libraryMaterial(id)?.id === 'pa6-generic' ? MATERIALS.find((m) => m.id === 'nylon') : undefined)
+  // The library's polyamide by any of its names is Fits' nylon — by its id
+  // and aliases, which are the app's own, so whether FreeCAD's cards are
+  // loaded yet does not matter.
+  (libraryId(id) === 'pa6-generic' ? MATERIALS.find((m) => m.id === 'nylon') : undefined)
+
+function libraryId(name: string): string {
+  const k = name.trim().toLowerCase()
+  return Object.hasOwn(LIBRARY_ALIASES, k) ? LIBRARY_ALIASES[k] : k
+}
 
 /** Snap-fit guides allow about 60 % of the one-time strain for a hook
  *  that is snapped together and apart again and again (Bayer, Table 2). */

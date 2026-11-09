@@ -12,7 +12,7 @@
 
 import { bearingOf, type Fit, FITS, insertOf, magnetOf, metricOf, sizesOf } from './hardware'
 import { type Cut, LEAD, PlanError, r3, type Settings, type Step } from './plan'
-import { libraryMaterial } from '../../_shared/materials'
+import { libraryMaterial, materialsFor } from '../../_shared/materials'
 
 export interface Layers {
   /** Every layer's height but the first's, mm. */
@@ -316,19 +316,38 @@ export function noteOf(whats: string[]): string {
  *  the one every workspace weighs that material at. */
 function libraryDensity(id: string): number {
   const d = libraryMaterial(id)?.density
-  if (d === undefined) throw new Error(`The material library has no density for ${id}.`)
+  if (d === undefined) throw new Error(`The material library has no density for ${id}${id === 'brass' ? '' : ' (FreeCAD’s cards loaded? partMaterialsReady first)'}.`)
   return d
 }
 
 /** What the hardware is made of, g/cm³: steel nuts and bearings (the
  *  library's generic steel) and free-cutting brass inserts (its brass),
- *  read from the shared library; sintered NdFeB magnets, which the library
- *  has no entry for, a typical figure kept here. */
+ *  read from the shared library when asked — generic steel is a FreeCAD
+ *  card, loaded at run time (partMaterialsReady); sintered NdFeB magnets,
+ *  which the library has no entry for, a typical figure kept here. */
 export const PART_MATERIALS = {
   ndfeb: { label: 'NdFeB', density: 7.5 },
-  steel: { label: 'steel', library: 'steel-generic', density: libraryDensity('steel-generic') },
-  brass: { label: 'brass', library: 'brass', density: libraryDensity('brass') },
+  steel: {
+    label: 'steel',
+    library: 'steel-generic',
+    get density(): number {
+      return libraryDensity('steel-generic')
+    },
+  },
+  brass: {
+    label: 'brass',
+    library: 'brass',
+    get density(): number {
+      return libraryDensity('brass')
+    },
+  },
 } as const
+
+/** Ready for partSolid of this kind: a nut or a bearing waits for the
+ *  library's steel (a FreeCAD card, loaded at run time). */
+export function partMaterialsReady(kind: string | undefined): Promise<void> {
+  return materialsFor(kind === 'nut' || kind === 'bearing' ? [PART_MATERIALS.steel.library] : [])
+}
 
 /** A deep-groove bearing is not solid steel: races, balls and cage come to
  *  about this share of the ring they fill (a 608 weighs about 12 g, its

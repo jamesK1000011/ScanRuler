@@ -46,6 +46,22 @@ saves carry the same number as `appVersion`. How a release is cut is in
   from a scan scattering well above its scanner; Thread widens its diameter
   tolerance to it, so sizes a noisy scanner can't tell apart come back
   tied. The `scanner.*` commands and saved projects are unchanged.
+- **FreeCAD's material cards: loaded, not linked** (2026-11-09). The
+  material library's 131 FreeCAD cards (100 LGPL-2.0-or-later, 31 CC BY
+  3.0) are no longer built into the app: they are one data file,
+  `materials/freecad-cards.json`, fetched the first time a material is
+  needed and kept for the session, with the LGPL-2.0 and CC BY 3.0 texts
+  beside it, and anyone may put their own conversion of the cards in its
+  place. The app's own materials (the filaments, PC, HDPE, POM, brass) are
+  there at once, so weighing or solving a PLA part waits for nothing; a part
+  of steel or aluminium waits for the cards rather than being taken for one
+  with none, and the body's material list says while they load or if they
+  cannot be had (`material.list` still lists the app's own then, and says
+  why the rest are missing). The headless engine reads the file from disk:
+  `npm run build:engine` copies it beside `engine.mjs`. The imprint says
+  where the cards are and points to FreeCAD's material resources;
+  CONTRIBUTING.md records the exemption, and CI checks that no card is in
+  the build's scripts.
 - **Materials and setups, followed through** (2026-11-09). Mass and
   Strength list each body's own material — printed or solid — and the old
   material list is now for a body with none (*If none set*). A printability

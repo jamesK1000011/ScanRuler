@@ -14,7 +14,7 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { hwCommands } from '../app/hwCommands'
 import { DEFAULT_SETTINGS } from '../core/plan'
 import { PART_MATERIALS } from '../core/embed'
-import { libraryMaterial } from '../../_shared/materials'
+import { ensureMaterials, libraryMaterial } from '../../_shared/materials'
 import { embedsFrom } from '../app/projectSection'
 import { settingsOf, useHw } from '../state/hwStore'
 
@@ -476,7 +476,9 @@ describe('the encased parts’ mass (hw.masses)', () => {
     expect(p.material).toBe('steel')
   })
 
-  test('steel and brass weigh as the shared library has them; NdFeB, not in it, its own', () => {
+  test('steel and brass weigh as the shared library has them; NdFeB, not in it, its own', async () => {
+    // Generic steel is a FreeCAD card, loaded at run time; brass is the app's own.
+    await ensureMaterials()
     expect(PART_MATERIALS.steel.density).toBe(libraryMaterial('steel-generic')!.density)
     expect(PART_MATERIALS.brass.density).toBe(libraryMaterial('brass')!.density)
     expect(libraryMaterial('ndfeb')).toBe(undefined)

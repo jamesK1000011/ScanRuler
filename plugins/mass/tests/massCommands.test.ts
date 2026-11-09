@@ -21,6 +21,7 @@ import { calls, handlers, sections } from './massFakes'
 import { describeMass, massCommands } from '../app/massCommands'
 import { useMass } from '../state/massStore'
 import { useAssigned } from '../../_shared/materials/assigned'
+import { libraryMaterial, resetMaterialLibrary } from '../../_shared/materials'
 
 type Run = (input: Record<string, unknown>, ctx: unknown) => Promise<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
 const run = (name: string, input: Record<string, unknown> = {}) => (massCommands as unknown as { name: string; run: Run }[]).find((c) => c.name === name)!.run(input, { progress() {} })
@@ -226,7 +227,12 @@ describe('the Mass commands', () => {
     const none = await run('properties')
     expect(none.note).toMatch(/No material set on Grip, Plate — assumed PLA as printed/)
     expect(none.bodies[0].assumed).toBe(true)
+    // Steel is a FreeCAD card, loaded at run time: from a library that has
+    // not loaded it, the command waits for it rather than weighing the
+    // plate as unset.
+    resetMaterialLibrary()
     useAssigned.getState().assign({ '2': 'steel-s235jr', '1': 'pla' })
+    expect(libraryMaterial('steel-s235jr')).toBeUndefined()
     const solid = await run('properties')
     expect(solid.bodies[1]).toMatchObject({ body: 'Plate', material: 'S235JR', as: 'solid', density: 7.8 })
     expect(solid.bodies[1].mass).toBeCloseTo(7.8, 3)

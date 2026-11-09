@@ -8,9 +8,9 @@
 import { arr, enumOf, int, obj, oneOf, str } from '../../../src/commands/schema'
 import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { CATEGORIES, LIBRARY, LIBRARY_ALIASES, libraryMaterial, searchLibrary, type Material } from '../../_shared/materials'
+import { CATEGORIES, ensureMaterials, library, LIBRARY_ALIASES, libraryMaterial, libraryNote, materialsFor, searchLibrary, type Material } from '../../_shared/materials'
 import { PRINTED } from '../../_shared/materials/printed'
-import { resolveAssignment, useAssigned, type Assignment, type CustomMaterial, type ResolvedMaterial } from '../../_shared/materials/assigned'
+import { assignedReady, resolveAssignment, useAssigned, type Assignment, type CustomMaterial, type ResolvedMaterial } from '../../_shared/materials/assigned'
 import { bodyKeyOf, setupFor } from '../../_shared/setups'
 
 interface ReverseBody {
@@ -74,6 +74,8 @@ export function describeMaterials() {
       return { body: b.name, id: b.id, material: m ? m.id : 'unknown', name: m?.name ?? String(assigned[bodyKeyOf(b)]) }
     }),
     ...(bodies.length > set.length ? { unassigned: bodies.length - set.length } : {}),
+    // A FreeCAD card reads as unknown until the cards are loaded: say so.
+    ...(set.some((b) => !resolveAssignment(assigned[bodyKeyOf(b)])) && libraryNote() ? { library: libraryNote() } : {}),
   }
 }
 
@@ -93,10 +95,17 @@ const list: Command<{ category?: string; q?: string; limit?: number; offset?: nu
   }),
   readOnly: true,
   run: async ({ category, q, limit = 40, offset = 0 }) => {
+    // Without FreeCAD's cards the app's own are still listed, and the
+    // answer says what is missing.
+    const loaded = await ensureMaterials().then(
+      () => true,
+      () => false,
+    )
     const found = searchLibrary({ category, q })
     const counts: Record<string, number> = {}
-    if (!category && !q) for (const m of LIBRARY) counts[m.category] = (counts[m.category] ?? 0) + 1
+    if (!category && !q) for (const m of library()) counts[m.category] = (counts[m.category] ?? 0) + 1
     return {
+      ...(loaded ? {} : { note: libraryNote() }),
       total: found.length,
       ...(offset ? { offset } : {}),
       materials: found.slice(offset, offset + limit).map(brief),
@@ -115,6 +124,7 @@ const get: Command<{ material?: string; body?: Ref }> = {
   run: async ({ material, body }) => {
     if (material !== undefined && body !== undefined) throw new CommandError('invalid_input', 'Give a material or a body, not both.')
     if (material !== undefined) {
+      await materialsFor([material])
       const m = libraryMaterial(material)
       if (!m) throw new CommandError('invalid_input', `No material "${material}" in the library: material.list { q } finds one.`)
       const aliases = Object.entries(LIBRARY_ALIASES)
@@ -122,6 +132,7 @@ const get: Command<{ material?: string; body?: Ref }> = {
         .map(([a]) => a)
       return { material: { ...m, ...(aliases.length ? { aliases } : {}), ...(PRINTED[m.id] ? { printed: PRINTED[m.id] } : {}) } }
     }
+    await assignedReady()
     if (body !== undefined) {
       const b = bodyOf(body)
       const m = resolveAssignment(useAssigned.getState().assigned[bodyKeyOf(b)])
@@ -169,6 +180,7 @@ const set: Command<{ body: Ref | Ref[]; material: string | Record<string, unknow
   input: obj({ body: bodiesRef, material: oneOf([str('A library id or common name.', { minLength: 1 }), { type: 'object', description: 'One of your own: { name, base?, density, youngsMPa, poisson, yieldMPa, ultimateMPa }.' }]) }, ['body', 'material']),
   run: async ({ body, material }) => {
     const picked = bodiesOf(body)
+    await assignedReady([typeof material === 'string' ? material : material && typeof material === 'object' && !Array.isArray(material) ? material.base : undefined])
     let a: Assignment
     if (typeof material === 'string') {
       const m = libraryMaterial(material)

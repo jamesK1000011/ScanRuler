@@ -40,3 +40,5 @@ jobs:
       - name: The agent server (mcp/)
         run: npm --prefix mcp ci && npm --prefix mcp test
       - run: npm run build
+      - name: The material cards are loaded, not linked
+        run: node scripts/check-loaded-assets.mjs dist

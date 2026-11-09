@@ -9,7 +9,7 @@ import { classClearance, fromPrintFit, fromReadings, itGrade, pair, phi, stack, 
 import { clearanceLabel, labelWidth } from '../core/kernel'
 import { planHinge, planPin, planSnap, planTest, type Ctx } from '../core/plans'
 import { materialOf, MATERIALS, snap, wedgeForce } from '../core/snap'
-import { libraryMaterial, MATERIALS as SHARED } from '../../_shared/materials'
+import { ensureMaterials, libraryMaterial, MATERIALS as SHARED, resetMaterialLibrary } from '../../_shared/materials'
 import { readFileSync } from 'node:fs'
 import { stepMean, toleranceUnit } from '../core/fits'
 import { savedIn } from '../app/projectSection'
@@ -258,9 +258,14 @@ describe('red team: figures against their sources', () => {
     near(none.strain!.value, 0.01)
     expect(none.notes.some((n) => /No hub wall/.test(n))).toBe(true)
   })
-  it('the materials: shared ids and labels, the Strength workspace’s moduli, strain under printed yield', () => {
+  it('the materials: shared ids and labels, the Strength workspace’s moduli, strain under printed yield', async () => {
     const js = readFileSync(new URL('../../../mcp/src/extras/fea.js', import.meta.url), 'utf8')
-    // Nylon is Fits' own name for the library's polyamide.
+    // Nylon is Fits' own name for the library's polyamide — before FreeCAD's
+    // cards are loaded too: the name, not the card, makes it nylon.
+    resetMaterialLibrary()
+    expect(materialOf('pa6')?.id).toBe('nylon')
+    expect(materialOf('PA6-Generic')?.id).toBe('nylon')
+    await ensureMaterials()
     expect(libraryMaterial('nylon')?.id).toBe('pa6-generic')
     expect(materialOf('pa6')?.id).toBe('nylon')
     for (const m of MATERIALS) {

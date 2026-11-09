@@ -3,15 +3,15 @@
 // field is coloured over, and the material a study solves in: the body's
 // own, as printed only in a print setup.
 import { readFileSync } from 'node:fs'
-import { describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test } from 'vitest'
 import { feaSection } from '../app/projectSection'
 import { DEFAULT_SETUP, setupOf, useFea } from '../state/feaStore'
 import { rangeOf } from '../viewer/resultLayer'
-import { densityOf, MATERIAL_ALIASES, MATERIAL_IDS, materialId, MATERIALS } from '../../_shared/materials'
+import { densityOf, ensureMaterials, libraryMaterial, MATERIAL_ALIASES, MATERIAL_IDS, materialId, MATERIALS, resetMaterialLibrary } from '../../_shared/materials'
 import { PRINTED } from '../../_shared/materials/printed'
 import { useAssigned } from '../../_shared/materials/assigned'
 import { registerStateSection } from '../../../src/commands/stateSections'
-import { isotropicFigures, materialKeyOf, studyMaterial } from '../app/feaMaterial'
+import { isotropicFigures, materialKeyOf, studyMaterial, studyMaterialReady } from '../app/feaMaterial'
 
 describe('the study in a project', () => {
   test('round trip, and a hostile file cleaned', () => {
@@ -85,6 +85,9 @@ describe('the material a study solves in', () => {
   registerStateSection('reverse', () => ({ bodies: [{ id: 4, name: 'Bracket' }, { id: 9, name: 'Clip' }] }))
   registerStateSection('setups', () => setups)
   const study = { material: 'petg', overrides: {} }
+  // FreeCAD's cards are loaded at run time; studyMaterial reads them once
+  // they are, as fea.solve has them (studyMaterialReady).
+  beforeAll(() => ensureMaterials())
 
   test('a steel body: solid, the same every way, its figures sent whole', () => {
     setups = []
@@ -129,6 +132,18 @@ describe('the material a study solves in', () => {
     expect(m.job.overrides.Exy).toBe(5000)
     expect(m.job.overrides.Zt).toBe(40)
     expect(isotropicFigures({ youngsMPa: 1000, poisson: 0.25 }).missing).toEqual(['strength (Xt, Xc, Zt, Zc, S, Sz)'])
+  })
+  test('a steel body before the cards are loaded: the solve waits for them, never solving it as unset', async () => {
+    setups = []
+    resetMaterialLibrary()
+    useAssigned.setState({ assigned: { '4': 'steel-s235jr' } })
+    // Not loaded: the card is not found, and the body would read as unset.
+    expect(libraryMaterial('steel-s235jr')).toBeUndefined()
+    const m = await studyMaterialReady(4, study)
+    expect(m).toMatchObject({ label: 'S235JR', density: 7.8, as: 'solid' })
+    expect(m.assumed).toBeUndefined()
+    expect(m.job.overrides.Exy).toBe(210000)
+    useAssigned.setState({ assigned: {} })
   })
   test('a result solved in another material is stale', () => {
     setups = []

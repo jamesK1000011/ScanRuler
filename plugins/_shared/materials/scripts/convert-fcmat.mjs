@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // FreeCAD's material cards (FCMat, YAML) to the compact table the app reads,
-// plugins/_shared/materials/freecad.json. Run again when the cards change:
+// public/materials/freecad-cards.json — a static asset the library fetches
+// on first use, never bundled: the cards are loaded, not linked
+// (CONTRIBUTING.md). Run again when the cards change:
 //
 //   node plugins/_shared/materials/scripts/convert-fcmat.mjs <Resources>
 //
 // <Resources> is FreeCAD's src/Mod/Material/Resources — the folder holding
 // Materials/{Standard,Machining} and Models. The cards' data stays under
 // each card's own licence (LGPL-2.0-or-later, CC-BY-3.0, GPL-2.0-or-later),
-// which every entry carries with its author; MATERIALS-LICENSES.md beside
-// the table credits them. This script is the fork's own.
+// which every entry carries with its author; the licence texts lie beside
+// the file and plugins/_shared/materials/MATERIALS-LICENSES.md credits them. This script is the fork's own.
 //
 // The cards are a small subset of YAML (nested maps, quoted scalars, folded
 // `>-` text, comments; the one list, a model's Inherits, unused, reads as
@@ -276,6 +278,15 @@ export function convert(resources) {
   return entries
 }
 
+/** What the file says of itself, for whoever finds it without the app. */
+export const CARDS_ABOUT =
+  "FreeCAD's material cards (https://github.com/FreeCAD/FreeCAD, src/Mod/Material/Resources/Materials), converted to ScanRuler's units by plugins/_shared/materials/scripts/convert-fcmat.mjs. Each material keeps its card's licence (source.license: LGPL-2.0-or-later or CC-BY-3.0), author, path and UUID; the licence texts are LGPL-2.0.txt and CC-BY-3.0.txt beside this file. ScanRuler loads this file at run time and does not link it into its bundle: replace it with your own conversion and the app reads that."
+
+/** The file the app fetches: what it is, then one material a line. */
+export function cardsFile(entries) {
+  return `{\n"about": ${JSON.stringify(CARDS_ABOUT)},\n"materials": [\n${entries.map((e) => JSON.stringify(e)).join(',\n')}\n]\n}\n`
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const resources = process.argv[2]
   if (!resources) {
@@ -283,8 +294,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(2)
   }
   const entries = convert(resolve(resources))
-  const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'freecad.json')
-  writeFileSync(out, JSON.stringify(entries).replace(/\},\{"id"/g, '},\n{"id"').replace(/^\[/, '[\n').replace(/\]$/, '\n]\n'))
+  const out = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'public', 'materials', 'freecad-cards.json')
+  writeFileSync(out, cardsFile(entries))
   const licences = entries.reduce((m, e) => ((m[e.source.license] = (m[e.source.license] ?? 0) + 1), m), {})
   console.log(`${entries.length} materials → ${relative(process.cwd(), out)}`, licences)
 }

@@ -82,14 +82,36 @@ source, and any change to OCCT itself would have to be published; we make none.
 A commercial exception does not cover it: OCCT stays LGPL in every build. CI
 cannot see this one, because `occt-wasm`'s package declares only its wrapper's
 licenses, so this paragraph is the record. That is the whole of the exemption: no
-other LGPL code, and nothing GPL, ever.
+other LGPL code, and nothing GPL, ever — save the data below.
+
+**The one LGPL data is loaded, not linked, too.** The material library
+([plugins/_shared/materials/](plugins/_shared/materials/)) offers
+[FreeCAD](https://www.freecad.org/)'s material cards: 100 under
+LGPL-2.0-or-later and 31 under CC-BY-3.0, converted to this app's units by
+our own script. They are not imported into any module. They are one data file,
+[public/materials/freecad-cards.json](public/materials/freecad-cards.json),
+a static asset fetched on first use (read from disk by the headless engine,
+whose build copies it beside `engine.mjs`) and replaceable by anyone with
+their own conversion of the cards — the same relinking the OCCT paragraph
+keeps possible. Each entry keeps its card's path, UUID, author and licence;
+the LGPL-2.0 and CC BY 3.0 texts lie beside the file; the imprint names it,
+says it is loaded, not linked, and points at its source (FreeCAD's
+`src/Mod/Material/Resources`). The CC-BY-3.0 cards travel in the same file:
+the dependency list allows CC-BY only as 4.0 for data-only packages, so
+they take the asset rule below instead, licence text beside them. The
+app's own materials (`fork.ts`) stay bundled. A commercial exception does not
+cover the cards: they keep their licences in every build. CI checks the
+build (`scripts/check-loaded-assets.mjs`): the file and its licence texts
+beside it, and no card in any script. That is the whole of this exemption:
+data only, these cards only.
 
 Assets follow the same rule with one carve-out: the bundled fonts in
 [public/fonts/](public/fonts/) are SIL OFL 1.1, which permits bundling with
 software of any license as long as the font files keep their own license text
-alongside them (they do — the `OFL-*.txt` files). New fonts, icons or sample
-meshes need a license that allows commercial redistribution; keep the license
-file next to the asset.
+alongside them (they do — the `OFL-*.txt` files). New fonts, icons, sample
+meshes or data files need a license that allows commercial redistribution; keep
+the license file next to the asset (the material cards' `LGPL-2.0.txt` and
+`CC-BY-3.0.txt` in [public/materials/](public/materials/)).
 
 Checking: `npx license-checker --excludePrivatePackages --onlyAllow "…"`
 (exact allowlist in the workflow). CI enforces it on every PR and push via

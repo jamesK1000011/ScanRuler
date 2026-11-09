@@ -1,9 +1,12 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Material data: sources and licences
 
-The material library (`index.ts`) is two tables.
+The material library (`index.ts`) is two tables: the fork's own, bundled,
+and FreeCAD's cards, **loaded, not linked** — a data file of their own
+beside the app, read at run time and never imported into its code
+(CONTRIBUTING.md records why).
 
-## FreeCAD's material cards — `freecad.json`
+## FreeCAD's material cards — `public/materials/freecad-cards.json`
 
 131 materials converted from the material cards of [FreeCAD](https://www.freecad.org/)
 (`src/Mod/Material/Resources/Materials/Standard` and `…/Machining`), with
@@ -16,6 +19,19 @@ carries in `source` with the card's path, UUID and author:
 |---|---|
 | LGPL-2.0-or-later | 100 (95 that say so; 5 metal cards with no License line, shipped in FreeCAD's LGPL material library — `source.licenseNote` marks them) |
 | CC-BY-3.0 | 31 |
+
+The file is a static asset, not a module: the page fetches it from
+`materials/freecad-cards.json` beside the build the first time a material
+is needed, the headless engine reads its copy beside `dist-engine/engine.mjs`
+(`npm run build:engine` puts it there), and the tests read it from
+`public/materials/`. It says what it is in its `about` field, and the
+licence texts lie beside it: `LGPL-2.0.txt` (the GNU Library General Public
+License, version 2) and `CC-BY-3.0.txt` (Creative Commons Attribution 3.0
+Unported). Replace it with your own conversion of the cards (the same shape:
+`{ about, materials: [...] }`) and the app reads that. Source: FreeCAD's
+[Material Resources](https://github.com/FreeCAD/FreeCAD/tree/main/src/Mod/Material/Resources).
+`scripts/check-loaded-assets.mjs` checks a build carries the file and its
+licence texts, and no card in any script.
 
 FreeCAD's `Default` card (GPL-2.0-or-later, a placeholder of density
 1 kg/m³) is left out: it is no material.
@@ -48,11 +64,12 @@ typical figure for balsa, MDF and particle board (`densitySource` says
 which).
 
 CC-BY-3.0: https://creativecommons.org/licenses/by/3.0/ — LGPL-2.0:
-https://www.gnu.org/licenses/old-licenses/lgpl-2.0.html
+https://www.gnu.org/licenses/old-licenses/lgpl-2.0.html (both texts in
+`public/materials/`).
 
 ## The fork's own — `fork.ts` and `printed.ts`
 
-AGPL-3.0-only, like the app. Typical figures, each entry's `source.basis`
+AGPL-3.0-only, like the app, and bundled: there before the cards load. Typical figures, each entry's `source.basis`
 saying where from: the printing filaments (PLA, PETG, ABS, ASA, PETG-CF,
 PA6-CF, TPU 95A) from Bambu Lab's data sheets, as the app has always used
 them; polycarbonate, HDPE, POM and free-cutting brass from makers' data

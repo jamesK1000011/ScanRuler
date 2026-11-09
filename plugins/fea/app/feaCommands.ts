@@ -15,7 +15,7 @@ import { MATERIAL_IDS, MATERIAL_NAMES, materialId, MATERIALS } from '../../_shar
 import { readStateSections } from '../../../src/commands/stateSections'
 import { ownedBy, setupValue, writeOwned, type Owned, type Setup } from '../../_shared/setups'
 import { useAgentLink } from '../../../src/commands/agentLink'
-import { materialKeyOf, studyMaterial, type StudyMaterial } from './feaMaterial'
+import { materialKeyOf, studyMaterialReady, type StudyMaterial } from './feaMaterial'
 
 /** The printed materials the server starts from: the shared table
  *  (plugins/_shared/materials/), which extras/fea.js MATERIALS matches. */
@@ -403,7 +403,7 @@ const solve: Command<Record<string, never>> = {
       const moved = s.holds.concat(s.loads as Hold[]).filter((p) => p.faces && p.bodyKey && p.bodyKey !== b.key).map((p) => p.name)
       const fixtures = await Promise.all(s.holds.map(async (h) => ({ name: h.name, triangles: await named(h.name, h) })))
       const loads = await Promise.all(s.loads.map(async (l) => ({ name: l.name, triangles: await named(l.name, l), ...(l.force ? { force: l.force } : { pressure: l.pressure }) })))
-      const mat = studyMaterial(b.id, s)
+      const mat = await studyMaterialReady(b.id, s)
       const materialKey = materialKeyOf(b.name)
       const weight = s.gravity ? await weightOf(s, b.name, mat) : null
       // A body in a print setup is solved as that setup stands it on the bed.

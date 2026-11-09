@@ -14,7 +14,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { arr, bool, enumOf, num, obj, oneOf, str } from '../../../src/commands/schema'
 import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { materialOfBody } from '../../_shared/materials/assigned'
+import { awaitingMaterials, materialOfBody } from '../../_shared/materials/assigned'
 import { bodyKeyOf, setupFor, setupsOf, type Setup } from '../../_shared/setups'
 import { checkCut, type CutFigures, type Finding } from '../core/check'
 import { layOut } from '../core/drawing'
@@ -270,4 +270,4 @@ const rules: Command<{ machine?: CutKind; material?: string; thickness?: number 
   },
 }
 
-export const cutCommands = [check, exportFile, rules] as Command<never>[]
+export const cutCommands = awaitingMaterials([check, exportFile, rules] as Command<never>[])

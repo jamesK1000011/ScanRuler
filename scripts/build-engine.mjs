@@ -4,10 +4,13 @@
 // packages it uses left to Node to find in this checkout's node_modules —
 // which is why it is built here and run from here. scanruler-mcp runs it
 // with --engine <path>, or --headless for this checkout's dist-engine; the
-// plugins the build finds are in it, as they are in the page.
+// plugins the build finds are in it, as they are in the page. The assets
+// it reads at run time (public/materials/) are copied beside it.
 //
 //   npm run build:engine
 
+import { cpSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'vite'
 
@@ -29,4 +32,10 @@ await build({
   },
   ssr: { target: 'node' },
 })
-console.log('Built dist-engine/engine.mjs')
+// The run-time assets the engine reads rather than bundles (src/plugins/
+// assets.ts), copied beside it with the licence texts that go with them:
+// the material library's FreeCAD cards are loaded, not linked
+// (CONTRIBUTING.md), in the engine as in the page.
+const ASSETS = ['materials']
+for (const dir of ASSETS) cpSync(join(root, 'public', dir), join(root, 'dist-engine', dir), { recursive: true })
+console.log(`Built dist-engine/engine.mjs, with ${ASSETS.map((d) => `${d}/`).join(', ')} beside it`)

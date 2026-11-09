@@ -12,7 +12,7 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { ballast, BB_GRAMS, boxInside, combine, FILLERS, freeName, inside, type M3, massOf, MATERIALS, pocketSize, type Print, readStl, type V3 } from '../core/mass'
 import { setupOf, useMass, type BodyMass, type EmbeddedMass, type Pocket } from '../state/massStore'
 import { MATERIAL_NAMES, materialId } from '../../_shared/materials'
-import { materialOfBody, useAssigned } from '../../_shared/materials/assigned'
+import { assignedReady, assignedWaiting, materialOfBody, useAssigned } from '../../_shared/materials/assigned'
 import { printFillOf } from '../../_shared/materials/printed'
 import { bodyKeyOf, ownedBy, setupFor, setupsOf, writeOwned, type Owned } from '../../_shared/setups'
 import { historyAsync } from '../../../src/state/historyStore'
@@ -222,6 +222,10 @@ const properties: Command<{ bodies?: string[] }> = {
 }
 
 async function weigh(bodies?: string[]) {
+  // A body set to a FreeCAD card is weighed in it, never as unset: the
+  // cards are loaded first where a body needs them — and only then is
+  // there a wait before the setup the reading is keyed by is read.
+  if (assignedWaiting()) await assignedReady()
   const picked = bodiesNamed(bodies)
   const how = howsKey(picked)
   const key = bodiesKey()
@@ -257,6 +261,7 @@ const calibrate: Command<{ grams?: number; body?: string; reset?: boolean }> = {
   input: obj({ grams: num('What the print weighs, g.', { exclusiveMinimum: 0 }), body: str('The body printed; the only one shown by default.'), reset: { type: 'boolean' } }),
   history: false,
   run: async ({ grams, body, reset }) => {
+    if (assignedWaiting()) await assignedReady()
     if (reset) {
       st().set({ scale: 1 })
       useMass.setState({ reading: null, pocket: null })
@@ -325,6 +330,7 @@ const plan: Command<{ body?: string; filler?: string; width?: number; depth?: nu
   readOnly: true,
   long: true,
   run: async ({ body, filler, width, depth }) => {
+    if (assignedWaiting()) await assignedReady()
     const t = st().target
     if (!t) throw new CommandError('invalid_state', 'Set the target first (mass.target { mass, com }).')
     useMass.setState({ pocket: null })

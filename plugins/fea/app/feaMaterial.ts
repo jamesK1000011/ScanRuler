@@ -12,7 +12,7 @@
 import { readStateSection } from '../../../src/commands/stateSections'
 import { CommandError } from '../../../src/plugins/api'
 import { libraryMaterial, materialId } from '../../_shared/materials'
-import { materialOfBody, useAssigned, type ResolvedMaterial } from '../../_shared/materials/assigned'
+import { assignedReady, materialOfBody, useAssigned, type ResolvedMaterial } from '../../_shared/materials/assigned'
 import { PRINTED } from '../../_shared/materials/printed'
 import { bodyKeyOf, setupFor } from '../../_shared/setups'
 
@@ -48,6 +48,14 @@ export function isotropicFigures(m: Pick<ResolvedMaterial, 'youngsMPa' | 'shearM
     Object.assign(figures, { Xt: X, Xc: C, Zt: X, Zc: C, S, Sz: S })
   }
   return { figures, missing }
+}
+
+/** studyMaterial once the material can be read: a body set to a FreeCAD
+ *  card waits for the cards (loaded at run time), rather than solving in
+ *  the study's filament as though it had none. */
+export async function studyMaterialReady(bodyId: number | null, study: { material: string; overrides: Record<string, number> }): Promise<StudyMaterial> {
+  await assignedReady([study.material])
+  return studyMaterial(bodyId, study)
 }
 
 /** The study's material for a Reverse Engineer body, by id. */

@@ -20,7 +20,7 @@ import { atKey, useDfm, type Checked, type DfmSettings, type NumberedFinding } f
 import { bodyTriangles, encasedIn, pickBody, reverseBodies, staleReference } from './body'
 import { asEncased, type EncasedPart } from '../core/encased'
 import { ownedBy, setupFor, writeOwned, type Owned } from '../../_shared/setups'
-import { materialOfBody } from '../../_shared/materials/assigned'
+import { awaitingMaterials, materialOfBody } from '../../_shared/materials/assigned'
 import { historyAsync } from '../../../src/state/historyStore'
 
 const PACK = pack as RulePack
@@ -572,5 +572,5 @@ export const wall: Command<{ body?: string | number; min?: number }> = {
 /** Every one runs without the page (Command.headless) — dfm.check on a
  *  body only (target body): the scan and the reference part are read off
  *  the viewport. */
-export const dfmCommands = ([settings, profiles, rules, check, wall, explain, waive, report, guides, considerations] as Command<never>[]).map((c) => ({ ...c, headless: true }))
+export const dfmCommands = awaitingMaterials([settings, profiles, rules, check, wall, explain, waive, report, guides, considerations] as Command<never>[]).map((c) => ({ ...c, headless: true }))
 

@@ -11,7 +11,7 @@ import { runCommand } from '../../../src/commands/registry'
 import { arr, enumOf, num, obj, oneOf, str } from '../../../src/commands/schema'
 import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { materialOfBody } from '../../_shared/materials/assigned'
+import { awaitingMaterials, materialOfBody } from '../../_shared/materials/assigned'
 import { bodyKeyOf, setupFor, setupsOf, type Setup } from '../../_shared/setups'
 import { zip } from '../../_shared/zip'
 import { boxOfTris, checkMill, directionOf, directionWord, minWallFor, stockOf, type EdgeIn, type FaceIn, type Finding, type Tris, type V3 } from '../core/reach'
@@ -235,4 +235,4 @@ const exportFile: Command<{ bodies?: (string | number)[]; setup?: string }> = {
   },
 }
 
-export const millCommands = [check, exportFile] as Command<never>[]
+export const millCommands = awaitingMaterials([check, exportFile] as Command<never>[])
