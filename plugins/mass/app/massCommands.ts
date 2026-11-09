@@ -66,7 +66,7 @@ async function encased(names: string[]): Promise<{ parts: EmbeddedMass[]; notes:
     const all = combine(p.centres.map((com) => ({ mass: p.mass, com, inertia: p.inertia })))
     return { id: p.id, body: p.body, what: p.what, count: p.centres.length, material: p.material, mass: r3(all.mass), com: v3(all.com), inertia: all.inertia.map((row) => row.map(r3)) as M3 }
   })
-  const notes = [...(r.uncounted?.length ? [`Not counted, weight not known: ${r.uncounted.map((u) => `${u.what} in ${u.body} (${u.id})`).join(', ')}. Give its grams in hw.embed.`] : []), ...(r.warnings ?? [])]
+  const notes = [...(r.uncounted?.length ? [`Not counted, weight not known: ${r.uncounted.map((u) => `${u.what} in ${u.body} (${u.id})`).join(', ')}. Give its grams in hw.embed, or in hw.record for a pocket recorded there.`] : []), ...(r.warnings ?? [])]
   return { parts, notes }
 }
 
