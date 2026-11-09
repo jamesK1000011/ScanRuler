@@ -131,9 +131,7 @@ export function scenarios(env) {
         expect: (j, c) => checkSound(j) ?? (c.embedded && !/void/i.test(stringify(j)) ? 'an encased pocket was cut but the check names no void' : null),
         why: 'Valid, closed, the sealed pocket reported as a void.',
       },
-      { id: 'export_stl', tool: 'reverse_export_stl', needs: ['body'], args: (c) => ({ bodies: [c.body], path: out('A-bin.stl') }), save: (j, c) => (c.binStl = out('A-bin.stl')), why: 'dfm.check reads the scan or the reference, not a body: round trip through a file.' },
-      { id: 'open_reference', tool: 'deviation_open_reference', needs: ['binStl'], args: (c) => ({ path: c.binStl }), why: 'Open the body’s STL as the reference for dfm.' },
-      { id: 'dfm_settings', tool: 'dfm_settings', args: { target: 'reference' }, why: 'Check the reference, not the scan.' },
+      { id: 'dfm_settings', tool: 'dfm_settings', needs: ['body'], args: (c) => ({ target: 'body', body: c.body }), why: 'Check the body as it is: no STL round trip, no stale copy.' },
       {
         id: 'dfm_check',
         tool: 'dfm_check',
