@@ -53,7 +53,8 @@ class Thickness(unittest.TestCase):
         err, o = self.call("thickness_measure")
         self.assertFalse(err, o)
         s = o["thickness"]["stats"]
-        self.assertGreater(s["measured"], 0.5 * s["total"])
+        # Corners and the vertices along the edges read past maxThickness.
+        self.assertGreater(s["measured"], 0.3 * s["total"])
         # 4 mm square across a face; up to 4 * sqrt(2) along an edge's normal.
         self.assertGreater(s["min"], 3.9)
         self.assertLessEqual(s["max"], 6)
