@@ -546,4 +546,9 @@ const progress: Command<{ req: string; phase: string; detail?: string }> = {
   run: async (p) => ({ taken: progressed(p) }),
 }
 
-export const feaCommands = [tools, setup, hold, load, clear, solve, cancel, results, show, answer, progress] as Command<never>[]
+/** fea.show colours the part on the stage, which a session without the
+ *  page has not got; the rest run headless (Command.headless) — the solve
+ *  asked of the agent's server the engine runs in, as the page asks it. */
+const PAGE_ONLY: Record<string, string> = { show: 'fea.results gives the last answer — the worst safety factor and where, the largest stress and displacement; nothing is drawn.' }
+
+export const feaCommands = ([tools, setup, hold, load, clear, solve, cancel, results, show, answer, progress] as Command<never>[]).map((c) => (PAGE_ONLY[c.name] ? { ...c, headlessInstead: PAGE_ONLY[c.name] } : { ...c, headless: true }))
