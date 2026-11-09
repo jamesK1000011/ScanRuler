@@ -18,6 +18,10 @@ saves carry the same number as `appVersion`. How a release is cut is in
     file says or 3 mm, named "(placeholder)", so the parts' reach, the
     enclosure and a clearance check see it. The import and the panel say
     which parts they are.
+  - **Reverse engineer**: `reverse.body.clearance` judges as well as
+    measures. Each pair gets a verdict — an overlap always fails, and with
+    `min` a gap under it fails too — and the answer says whether every
+    pair passed. The gaps and overlaps are given as before.
 - **Scanner in 3D Measure** (2026-11-08). The 3D Measure panel has a
   Scanner section: choose this project's scanner profile or the noise
   measured from the scan, Measure noise on the open scan, Save as profile,

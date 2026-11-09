@@ -648,16 +648,26 @@ describe('a case round a part, through the commands', () => {
     await run('reverse.feature.add', { feature: { kind: 'extrude', sketchId: 'Module outline', extent: { kind: 'distance', from: 4, to: 14 }, op: 'new' } })
     await run('reverse.body.set', { body: 'Solid 1', name: 'Case' })
     await run('reverse.body.set', { body: 'Solid 2', name: 'Module' })
-    const before = await run<{ against: { name: string; gap: number; overlap?: number }[] }>('reverse.body.clearance', { body: 'Module' })
-    expect(before.against).toEqual([{ id: expect.any(Number), name: 'Case', gap: 0, overlap: expect.closeTo(20 * 12 * 6, 3), touching: true }])
+    const before = await run<{ against: { name: string; gap: number; overlap?: number }[]; pass: boolean; failed: number }>('reverse.body.clearance', { body: 'Module' })
+    // An overlap fails, min or none.
+    expect(before.against).toEqual([{ id: expect.any(Number), name: 'Case', gap: 0, overlap: expect.closeTo(20 * 12 * 6, 3), touching: true, verdict: 'fail', why: 'overlap' }])
+    expect(before.pass).toBe(false)
+    expect(before.failed).toBe(1)
 
     const keepOut = await run<Brief>('reverse.feature.add', { feature: { kind: 'offsetBody', body: 'Module', distance: 0.4 } })
     expect(keepOut.result?.status).toBe('ok')
     expect(keepOut.bodies.changed).toHaveLength(1)
     const pocket = await run<Brief>('reverse.feature.add', { feature: { kind: 'boolean', op: 'cut', body: 'Case', tool: keepOut.bodies.changed![0].name } })
     expect(pocket.result?.status).toBe('ok')
-    const after = await run<{ against: { name: string; gap: number }[] }>('reverse.body.clearance', { body: 'Module', against: ['Case'] })
+    const after = await run<{ against: { name: string; gap: number; verdict: string }[]; pass: boolean }>('reverse.body.clearance', { body: 'Module', against: ['Case'] })
     expect(after.against[0].gap).toBeCloseTo(0.4, 3)
+    expect(after.against[0].verdict).toBe('pass')
+    expect(after.pass).toBe(true)
+    // Judged against a least gap: 0.4 passes 0.3 and fails 0.5.
+    const roomy = await run<{ against: { verdict: string }[]; min: number; pass: boolean }>('reverse.body.clearance', { body: 'Module', against: ['Case'], min: 0.3 })
+    expect(roomy).toMatchObject({ min: 0.3, pass: true, against: [{ verdict: 'pass' }] })
+    const tight = await run<{ against: { verdict: string; why: string }[]; pass: boolean; failed: number }>('reverse.body.clearance', { body: 'Module', against: ['Case'], min: 0.5 })
+    expect(tight).toMatchObject({ pass: false, failed: 1, against: [{ verdict: 'fail', why: 'under min' }] })
   })
 
   it('drills a hole for a heat-set insert into a standoff’s top', async () => {

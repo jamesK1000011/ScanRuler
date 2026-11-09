@@ -226,7 +226,7 @@ Example: `{ body: 7, name: "Housing" }`
 
 Also: the name is what the panel lists; a body is told by its id, which stays with it while the feature that made it does.
 
-**`reverse_body_clearance`** `{ body, against? }` — the clearance between a solid and others (every other solid by default): per body the least distance (`gap`, mm), or where they touch or run into each other `gap: 0` and the shared `overlap`, mm³ — a part in its case, a board on its standoffs. Nearest first. Changes nothing.
+**`reverse_body_clearance`** `{ body, against?, min? }` — the clearance between a solid and others (every other solid by default): per body the least distance (`gap`, mm), or where they touch or run into each other `gap: 0` and the shared `overlap`, mm³ — a part in its case, a board on its standoffs. Each pair gets a `verdict`: `fail` where they overlap, or where the gap is under `min` (mm) when given (`why`: `overlap` or `under min`); `pass` otherwise. `pass` is true when every pair passes; `failed` counts those that do not. Nearest first. Changes nothing.
 Example: `{ body: "Board", against: ["Case"] }`
 
 **`reverse_body_section`** `{ plane, offsets?, bodies? }` — the bodies cut at a plane, exact, no scan needed: chains of lines, arcs and circles in its [u, v]. **`reverse_body_probe`** `{ points?, rays? }` — distance to the nearest face (negative inside); a ray `{ from, dir }`'s `span`: a width, a thickness.

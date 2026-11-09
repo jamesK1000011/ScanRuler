@@ -142,14 +142,14 @@ export const bodySet: Command<{ body: Ref; name?: string | null; color?: string 
   },
 }
 
-export const clearance: Command<{ body: Ref; against?: Ref[] }> = {
+export const clearance: Command<{ body: Ref; against?: Ref[]; min?: number }> = {
   name: 'clearance',
   title: 'How bodies stand to each other',
   description:
-    'The clearance between a body and others — every other solid body by default: for each, the least distance between the two (gap, mm), or, where they touch or run into each other, a gap of 0 and the volume they share (overlap, mm³) — the check that a part fits its case, a board its standoffs. Nearest first. Changes nothing.',
-  input: obj({ body: bodyRef, against: arr(bodyRef, 'The bodies to measure it against; every other solid one by default.', { minItems: 1 }) }, ['body']),
+    'The clearance between a body and others — every other solid body by default: for each, the least distance between the two (gap, mm), or, where they touch or run into each other, a gap of 0 and the volume they share (overlap, mm³) — the check that a part fits its case, a board its standoffs. Each pair is judged: verdict fail where they overlap, or where the gap is under min when given (why says which); pass otherwise. pass is true when every pair passes. Nearest first. Changes nothing.',
+  input: obj({ body: bodyRef, against: arr(bodyRef, 'The bodies to measure it against; every other solid one by default.', { minItems: 1 }), min: num('The least gap that passes, mm; an overlap always fails.', { minimum: 0 }) }, ['body']),
   readOnly: true,
-  run: async ({ body, against }) => {
+  run: async ({ body, against, min }) => {
     const s = await ready()
     const b = bodyNamed(body)
     if (b.surface) invalid(`${b.name} is a surface — a clearance is between solids.`)
@@ -163,10 +163,13 @@ export const clearance: Command<{ body: Ref; against?: Ref[] }> = {
       const r = await client.clearance(b.id, o.id).catch((e) => {
         throw new CommandError('failed', errorMessage(e))
       })
-      rows.push({ id: o.id, name: o.name, gap: r.gap, ...(r.overlap > 0 ? { overlap: r.overlap } : {}), ...(r.gap === 0 ? { touching: true } : {}) })
+      // A hair under min is the kernel's distance, not a real shortfall.
+      const why = r.overlap > 0 ? 'overlap' : min !== undefined && r.gap < min - 1e-6 ? 'under min' : null
+      rows.push({ id: o.id, name: o.name, gap: r.gap, ...(r.overlap > 0 ? { overlap: r.overlap } : {}), ...(r.gap === 0 ? { touching: true } : {}), verdict: why ? 'fail' : 'pass', ...(why ? { why } : {}) })
     }
     rows.sort((x, y) => x.gap - y.gap || (y.overlap ?? 0) - (x.overlap ?? 0))
-    return { body: { id: b.id, name: b.name }, against: rows }
+    const failed = rows.filter((r) => r.verdict === 'fail').length
+    return { body: { id: b.id, name: b.name }, against: rows, ...(min !== undefined ? { min } : {}), pass: failed === 0, failed }
   },
 }
 
