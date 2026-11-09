@@ -70,4 +70,7 @@ each of its three pages' plugins, so any of them alone brings it.
 | `tolerance(setup)` | The machine's tolerance: `{ kind: 'print', fit }`, `{ kind: 'kerf', kerf }`, `{ kind: 'it', grade }` — Fits sizes with `print` today and refuses the others until their sizing is added in `plugins/fits/app/fitsCommands.ts` (`calibrationNow`) |
 | `Settings` | Its settings on the Make tab, a component given `{ setup }`; changes run `setup.set` |
 
-The print setup's type is `plugins/_shared/printSetup.ts`.
+The print setup's type is `plugins/_shared/printSetup.ts`; the PCB order
+setup's (`pcb`: a board made by a board house, its page Order) is
+`plugins/pcb-order/app/orderSetup.ts`, with no tolerance — and the board's
+enclosure is a part of its own, in a print, cut or mill setup.

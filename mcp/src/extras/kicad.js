@@ -18,7 +18,7 @@ import { accessSync, constants, existsSync, statSync } from 'node:fs'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, join, resolve } from 'node:path'
-import { fabLayers, MAX_BOARD_BYTES, readBoard } from './kicadBoard.js'
+import { boardRules, fabLayers, MAX_BOARD_BYTES, readBoard } from './kicadBoard.js'
 import { home } from './slicer.js'
 import { zipStore } from './zip.js'
 
@@ -218,7 +218,10 @@ export async function readBoardFile(path, env = process.env) {
   const f = await boardFile(path, env.SCANRULER_CWD ?? process.cwd())
   const board = readBoard(await readFile(f.path, 'utf8'), { name: f.name })
   const sch = join(dirname(f.path), `${f.name}.kicad_sch`)
-  return { file: f.path, modified: f.modified, schematic: existsSync(sch) ? sch : null, ...board }
+  // The design rules DRC holds the board to, from the project beside it.
+  const pro = join(dirname(f.path), `${f.name}.kicad_pro`)
+  const rules = existsSync(pro) ? boardRules(await readFile(pro, 'utf8').catch(() => '')) : null
+  return { file: f.path, modified: f.modified, schematic: existsSync(sch) ? sch : null, ...board, rules: rules ? { ...rules, from: basename(pro) } : null }
 }
 
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..*$/, '').replace('T', '-')

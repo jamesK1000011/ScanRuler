@@ -14,8 +14,8 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { extraTools } from '../src/extras/index.js'
-import { readBoard, parseSexpr, fabLayers, heightOf } from '../src/extras/kicadBoard.js'
-import { checkPositions, fabName, fabPackage, fabPositions, findKicadCli, importBoard, kicadTools, lists, parseCsv, PLACEHOLDER_HEIGHT, runDrc, summariseDrc, unmodelledParts } from '../src/extras/kicad.js'
+import { boardRules, readBoard, parseSexpr, fabLayers, heightOf } from '../src/extras/kicadBoard.js'
+import { checkPositions, fabName, fabPackage, fabPositions, findKicadCli, importBoard, kicadTools, lists, parseCsv, PLACEHOLDER_HEIGHT, readBoardFile, runDrc, summariseDrc, unmodelledParts } from '../src/extras/kicad.js'
 import { zipEntries } from '../src/extras/zip.js'
 import { fakeKicad } from './fakeKicad.js'
 
@@ -149,6 +149,53 @@ test('parts with no 3D model: found with their box and height, for placeholders'
   assert.equal(unmodelledParts(b, ['Could not add 3D model to U31.']).some((x) => x.ref === 'U3'), false)
   assert.deepEqual(heightOf('2,5', ''), { height: 2.5, from: 'property' })
   assert.equal(heightOf('', 'R_0603'), null)
+})
+
+test('the figures a board house compares: copper layers, narrowest track, least via and hole, parts to place and list', () => {
+  const edge = '(gr_rect (start 0 0) (end 40 30) (layer Edge.Cuts))'
+  const layers = '(layers (0 "F.Cu" signal) (1 "In1.Cu" power) (2 "In2.Cu" signal) (31 "B.Cu" signal) (44 "Edge.Cuts" user))'
+  const fp = (ref, inner) => `(footprint "X:Y" (layer "F.Cu") (at 20 15) (property "Reference" "${ref}") ${inner})`
+  const smd = '(pad "1" smd rect (at 0 0) (size 1 1) (layers "F.Cu"))'
+  const b = readBoard(`(kicad_pcb (general (thickness 1.6)) ${layers} ${edge}
+    (segment (start 1 1) (end 5 1) (width 0.25) (layer "F.Cu") (net 1))
+    (segment (start 1 2) (end 5 2) (width 0.127) (layer "B.Cu") (net 2))
+    (arc (start 1 3) (mid 2 4) (end 3 3) (width 0.2) (layer "F.Cu") (net 1))
+    (via (at 6 6) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (net 1))
+    (via (at 7 6) (size 0.45) (drill 0.2) (layers "F.Cu" "B.Cu") (net 2))
+    ${fp('R1', smd)}
+    ${fp('J1', '(pad "1" thru_hole circle (at 0 0) (size 1.7 1.7) (drill 1) (layers "*.Cu"))')}
+    ${fp('U4', `${smd} (attr smd dnp)`)}
+    ${fp('LOGO1', '(attr board_only exclude_from_pos_files exclude_from_bom)')}
+    ${fp('TP1', `${smd} (attr smd exclude_from_bom)`)}
+    ${fp('JP1', `${smd} (attr smd exclude_from_pos_files)`)}
+  )`)
+  assert.deepEqual(b.stats, {
+    copperLayers: 4,
+    tracks: 3,
+    minTrack: 0.127,
+    vias: 2,
+    minVia: 0.45,
+    minViaDrill: 0.2,
+    minDrill: 0.2,
+    parts: { placed: ['R1', 'J1', 'TP1'], listed: ['R1', 'J1', 'JP1'] },
+  })
+  // No tracks, no vias: nulls, not zeros.
+  const bare = readBoard(`(kicad_pcb ${edge})`)
+  assert.deepEqual([bare.stats.copperLayers, bare.stats.minTrack, bare.stats.minDrill], [null, null, null])
+})
+
+test('the design rules DRC holds the board to, from the .kicad_pro beside it', async () => {
+  // The least clearance a net class allows, never under the board's minimum.
+  assert.deepEqual(boardRules(JSON.stringify({ board: { design_settings: { rules: { min_clearance: 0.1, min_track_width: 0.15, min_through_hole_diameter: 0.3, min_via_drill: 0.25 } } }, net_settings: { classes: [{ name: 'Default', clearance: 0.2 }, { name: 'Fine', clearance: 0.08 }] } })), { clearance: 0.1, track: 0.15, hole: 0.25 })
+  assert.deepEqual(boardRules(JSON.stringify({ net_settings: { classes: [{ clearance: 0.2, track_width: 0.25 }] } })), { clearance: 0.2, track: 0.25, hole: null })
+  assert.equal(boardRules('{}'), null)
+  assert.equal(boardRules('not json'), null)
+  const { board, env } = await setUp()
+  assert.equal((await readBoardFile(board, env)).rules, null)
+  await writeFile(board.replace(/\.kicad_pcb$/, '.kicad_pro'), JSON.stringify({ net_settings: { classes: [{ clearance: 0.2 }] } }))
+  const read = await readBoardFile(board, env)
+  assert.deepEqual(read.rules, { clearance: 0.2, track: null, hole: null, from: 'tiny.kicad_pro' })
+  assert.equal(read.stats.copperLayers, 2)
 })
 
 test('flags read off --help as words, not the start of a longer one', () => {

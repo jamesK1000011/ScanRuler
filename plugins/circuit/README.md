@@ -52,7 +52,8 @@ bundled; `tsci` is run as a program.
 | `circuit.build` | `tsci build` and `tsci export` into a job folder; opens the board |
 | `circuit.files` | Projects, builds and their files |
 | `circuit.open` | A circuit.json, by build, path or text |
-| `circuit.stats` | The board's figures |
+| `circuit.read` | A build's or project's text file, or one inside its Gerbers zip |
+| `circuit.stats` | The board's figures, and its parts by name |
 | `circuit.resistance` | Each net's trace resistance for a conductor |
 | `circuit.set` | Conductor, thicknesses, keep-out height, solids, project |
 | `circuit.bodies` | The board, copper and keep-outs into Reverse Engineer |

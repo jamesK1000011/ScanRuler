@@ -2,7 +2,7 @@
 // The merged tabs as the plugins in this build declare them: Parts (Catalog
 // · Generate), Fits (Design · Hardware · Calibrate from a scan), Electronics
 // (KiCad · tscircuit · Printed wiring), Make (a print setup's Check · Slice ·
-// Send), Analyze
+// Send; a PCB order setup's Order), Analyze
 // (Strength · Mass · Wear) and Docs (Manual · Patent). Each page keeps the workspace id
 // projects were saved with, and every page names the same host. Found by a
 // glob, so a build without one of the plugins checks the rest.
@@ -12,7 +12,9 @@ import { barTabsIn } from '../../../src/app/workspaceHosts'
 import { ANALYZE, DOCS, ELECTRONICS, FITS, MAKE, PARTS } from '../workspaces'
 import { PRINT_SETUP } from '../printSetup'
 
-const found = Object.values(import.meta.glob<{ default: ScanRulerPlugin }>('../../{catalog,gen,hw,wear-repair,pcb,circuit,printed,fits,fit-comp,dfm-fdm,slicer-loop,printer-handoff,fea,mass,assembly-manual,patent-kit}/plugin.ts', { eager: true })).map((m) => m.default)
+const found = Object.values(import.meta.glob<{ default: ScanRulerPlugin }>('../../{catalog,gen,hw,wear-repair,pcb,circuit,printed,fits,fit-comp,dfm-fdm,slicer-loop,printer-handoff,pcb-order,fea,mass,assembly-manual,patent-kit}/plugin.ts', { eager: true })).map((m) => m.default)
+// The PCB order setup, when its plugin is in the build.
+const PCB_ORDER_SETUP = Object.values(import.meta.glob<{ PCB_ORDER_SETUP: { pages: readonly string[]; title: string } }>('../../pcb-order/app/orderSetup.ts', { eager: true }))[0]?.PCB_ORDER_SETUP
 const tabs = found.flatMap((p) => (p.workspace ? [p.workspace] : []))
 const pagesOf = (id: string) => tabs.filter((t) => t.host?.id === id).sort((a, b) => a.order - b.order)
 
@@ -20,7 +22,7 @@ const EXPECTED: Record<string, [string, string][]> = {
   [PARTS.id]: [['catalog', 'Catalog'], ['gen', 'Generate']],
   [FITS.id]: [['fits', 'Design'], ['hw', 'Hardware'], ['fit-scan', 'Calibrate from a scan']],
   [ELECTRONICS.id]: [['pcb', 'KiCad'], ['circuit', 'tscircuit'], ['printed', 'Printed wiring']],
-  [MAKE.id]: [['dfm', 'Check'], ['slice', 'Slice'], ['print', 'Send']],
+  [MAKE.id]: [['dfm', 'Check'], ['slice', 'Slice'], ['print', 'Send'], ['pcbo', 'Order']],
   [ANALYZE.id]: [['fea', 'Strength'], ['mass', 'Mass'], ['wear', 'Wear']],
   [DOCS.id]: [['assembly', 'Manual'], ['patent', 'Patent']],
 }
@@ -47,8 +49,12 @@ describe('the merged tabs', () => {
 
   it('the Make tab: once Print, its pages a print setup’s, the ids projects keep', () => {
     expect([MAKE.id, MAKE.label]).toEqual(['make', 'Make'])
-    expect(MAKE.pages).toEqual(['dfm', 'slice', 'print'])
-    expect(PRINT_SETUP.pages).toEqual(MAKE.pages)
+    expect(MAKE.pages).toEqual(['dfm', 'slice', 'print', 'pcbo'])
+    expect(PRINT_SETUP.pages).toEqual(['dfm', 'slice', 'print'])
+    if (PCB_ORDER_SETUP) {
+      expect(PCB_ORDER_SETUP.pages).toEqual(['pcbo'])
+      expect(PCB_ORDER_SETUP.title.length).toBeLessThanOrEqual(60)
+    }
     // workspace.set "print" still opens Send: a page's own id comes first.
     expect(pagesOf(MAKE.id).every((p) => p.id !== MAKE.id)).toBe(true)
     expect(PRINT_SETUP.title.length).toBeLessThanOrEqual(60)

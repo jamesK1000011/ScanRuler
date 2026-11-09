@@ -7,6 +7,30 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Make › Order: a circuit board ordered from a board house** (2026-11-09).
+  A new kind of setup, **PCB order** (`type: "pcb"`), holds a board from
+  Electronics — KiCad or tscircuit, brought in as a body — and its order:
+  a fab profile (generic, JLCPCB, PCBWay, OSH Park: typical figures for
+  each one's standard service, said so, never the fab's word; `limits`
+  takes the fab's own), layers, thickness, finish, quantity and assembly
+  (none, or SMT by the fab from the BOM and CPL). Its page is **Order**.
+  `pcbo.check` runs the DRC and holds the board against the fab — the
+  narrowest trace, the least space between copper (measured on a tscircuit
+  board; on a KiCad board, the least its `.kicad_pro` rules allow, which
+  DRC holds it to), the smallest drill, layers, size, thickness, finish —
+  and, for assembly, every part in both the BOM and the CPL; `part.review`
+  judges a board in such a setup by it. `pcbo.package` gathers the order
+  into one zip: the Gerbers and drill files zipped to upload, the BOM and
+  CPL, the board as STEP, KiCad's DRC report and an order sheet (size,
+  layers, thickness, finish, quantity, assembly, the files, what to put
+  right first). The board's enclosure stays a part of its own, in a print
+  (or cut, or mill) setup: one put in the order is an error, and one in no
+  setup is pointed to a print setup. Both run headless. Alongside:
+  `pcb.open` now gives the board's copper layers, narrowest track, least
+  via and drill and part counts (`stats`) and its `.kicad_pro` rules
+  (`rules`); `circuit.stats` names the parts (`refs`); `circuit.read`
+  reads a build's text file, or one inside its Gerbers zip.
+
 - **Setups: how each part is made, and the Make tab** (2026-11-09). A
   build mixes processes part by part — printed brackets, laser-cut plates,
   machined parts, boards, bought parts — and, as in Fusion, a setup now

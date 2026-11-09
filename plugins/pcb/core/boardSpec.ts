@@ -48,6 +48,25 @@ export interface KicadBoard {
   connectors: BoardConnector[]
   footprints: { count: number; top: number; bottom: number }
   layers?: { name: string }[]
+  /** What a board house compares with its capabilities (mm), from the
+   *  file: absent on a board read by an older server. */
+  stats?: BoardStats
+  /** The design rules DRC holds the board to, from its .kicad_pro (mm);
+   *  null without one. */
+  rules?: { clearance: number | null; track: number | null; hole: number | null; from?: string } | null
+}
+
+export interface BoardStats {
+  copperLayers: number | null
+  tracks: number
+  minTrack: number | null
+  vias: number
+  minVia: number | null
+  minViaDrill: number | null
+  minDrill: number | null
+  /** How many parts a placement list should hold, and a parts list (the
+   *  server names them; the page keeps the counts). */
+  parts: { placed: number; listed: number }
 }
 
 export interface Bounds {

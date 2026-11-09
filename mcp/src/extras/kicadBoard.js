@@ -536,6 +536,7 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
   return {
     name,
     format: version,
+    stats: boardStats(root, layers, footprints),
     generator,
     thickness: r4(thickness),
     layers,
@@ -580,6 +581,69 @@ export function readBoard(text, { name = 'board', edgeReach = EDGE_REACH } = {})
 }
 
 const r4 = (x) => Math.round(x * 10000) / 10000
+
+/** How many references a parts list here carries at most. */
+const MAX_REFS = 5000
+
+/**
+ * What a board house compares with its capabilities: the copper layers,
+ * the narrowest track, the smallest via and the smallest hole drilled
+ * (vias and pads, plated or not), and the parts by reference — those a
+ * placement list should hold (not board-only, not left out of placement
+ * files, not do-not-populate) and those a parts list should. Clearance is
+ * not measured from the file: KiCad's DRC holds the board to its own rules
+ * (boardRules, from the .kicad_pro), and those are what can be compared.
+ */
+export function boardStats(root, layers, footprints) {
+  const copper = layers.filter((l) => /\.Cu$/.test(l.name) && l.type !== 'user')
+  const widths = []
+  for (const t of root) if (isList(t) && (t[0] === 'segment' || t[0] === 'arc')) widths.push(num(find(t, 'width')?.[1]))
+  const tracks = widths.filter((w) => Number.isFinite(w) && w > 0)
+  const vias = root.filter((t) => isList(t) && t[0] === 'via').map((v) => ({ size: num(find(v, 'size')?.[1]), drill: num(find(v, 'drill')?.[1]) }))
+  const viaDrills = vias.map((v) => v.drill).filter((d) => Number.isFinite(d) && d > 0)
+  const padDrills = footprints.flatMap((f) => f.pads.map((p) => p.drill)).filter((d) => d > 0)
+  const least = (xs) => (xs.length ? r4(Math.min(...xs)) : null)
+  const live = footprints.filter((f) => f.ref && !f.attr.includes('board_only') && !f.attr.includes('dnp'))
+  return {
+    copperLayers: copper.length || null,
+    tracks: tracks.length,
+    minTrack: least(tracks),
+    vias: vias.length,
+    minVia: least(vias.map((v) => v.size).filter((d) => Number.isFinite(d) && d > 0)),
+    minViaDrill: least(viaDrills),
+    minDrill: least([...viaDrills, ...padDrills]),
+    parts: {
+      placed: [...new Set(live.filter((f) => !f.attr.includes('exclude_from_pos_files') && f.pads.length).map((f) => f.ref))].slice(0, MAX_REFS),
+      listed: [...new Set(live.filter((f) => !f.attr.includes('exclude_from_bom')).map((f) => f.ref))].slice(0, MAX_REFS),
+    },
+  }
+}
+
+/**
+ * The board's own design rules, from the project file beside it (KiCad 6
+ * and later keep them there): the least clearance any net class allows
+ * (never under the board's minimum), the least track width and the least
+ * hole. Null for each the file does not say; null whole without a file.
+ */
+export function boardRules(projectText) {
+  let pro
+  try {
+    pro = JSON.parse(projectText)
+  } catch {
+    return null
+  }
+  const rules = pro?.board?.design_settings?.rules ?? {}
+  const classes = [...(Array.isArray(pro?.net_settings?.classes) ? pro.net_settings.classes : []), ...(pro?.net_settings?.default ? [pro.net_settings.default] : [])]
+  const pos = (x) => (typeof x === 'number' && Number.isFinite(x) && x > 0 ? x : null)
+  const leastOf = (xs) => (xs.length ? Math.min(...xs) : null)
+  const min = pos(rules.min_clearance)
+  const cls = leastOf(classes.map((c) => pos(c?.clearance)).filter((x) => x !== null))
+  const clearance = cls === null ? min : min === null ? cls : Math.max(min, cls)
+  const track = pos(rules.min_track_width) ?? leastOf(classes.map((c) => pos(c?.track_width)).filter((x) => x !== null))
+  const hole = leastOf([pos(rules.min_through_hole_diameter), pos(rules.min_via_drill) ?? null].filter((x) => x !== null))
+  if (clearance === null && track === null && hole === null) return null
+  return { clearance: clearance === null ? null : r4(clearance), track: track === null ? null : r4(track), hole: hole === null ? null : r4(hole) }
+}
 
 /** A part's height above the board, where the file says it: a Height
  *  property (mm), else _H<n>mm in the footprint's name. */

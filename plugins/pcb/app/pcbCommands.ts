@@ -12,7 +12,7 @@ import { runCommand, runWithin } from '../../../src/commands/registry'
 import { anyObject, arr, bool, bytes, enumOf, num, obj, oneOf, str } from '../../../src/commands/schema'
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { boardIn, boardSpecOf, connectorBoxes, placeBodies, type BodyRow, type KicadBoard } from '../core/boardSpec'
+import { boardIn, boardSpecOf, connectorBoxes, placeBodies, type BoardStats, type BodyRow, type KicadBoard } from '../core/boardSpec'
 import { matchPlaceholders, placeholderName, placeholderNote, placeholderStep, unmodelledIn } from '../core/placeholders'
 import { answered, askServer, Cancelled, progressed } from './pcbAsk'
 import { usePcb, type DrcResult, type FabResult, type Imported, type Naming, type Tools } from '../state/pcbStore'
@@ -71,7 +71,15 @@ function pathOf(given?: string): string {
 /** What the page keeps of a board: the read, without its parts list. */
 function kept(u: unknown): KicadBoard {
   const b = boardIn(u)
-  return { name: b.name, file: b.file, schematic: b.schematic ?? null, thickness: b.thickness, origin: b.origin, size: b.size, outline: b.outline, holes: b.holes, connectors: b.connectors, footprints: b.footprints }
+  return { name: b.name, file: b.file, schematic: b.schematic ?? null, thickness: b.thickness, origin: b.origin, size: b.size, outline: b.outline, holes: b.holes, connectors: b.connectors, footprints: b.footprints, ...(statsKept(b.stats) ?? {}), ...(b.rules !== undefined ? { rules: b.rules } : {}) }
+}
+
+/** The board's figures as the page keeps them: its parts counted, not named. */
+function statsKept(s: unknown): { stats: BoardStats } | null {
+  const x = s as (Omit<BoardStats, 'parts'> & { parts?: { placed?: unknown; listed?: unknown } }) | undefined
+  if (!x || typeof x !== 'object') return null
+  const n = (v: unknown) => (Array.isArray(v) ? v.length : typeof v === 'number' ? v : 0)
+  return { stats: { ...x, parts: { placed: n(x.parts?.placed), listed: n(x.parts?.listed) } } }
 }
 
 const boardOut = (b: KicadBoard) => ({
@@ -82,6 +90,8 @@ const boardOut = (b: KicadBoard) => ({
   holes: b.holes.map((h) => ({ ref: h.ref, x: h.x, y: h.y, d: h.d })),
   connectors: b.connectors.map((c) => ({ ref: c.ref, kind: c.kind, side: c.side, centre: c.centre, face: c.face, opening: c.opening })),
   footprints: b.footprints,
+  ...(b.stats ? { stats: b.stats } : {}),
+  ...(b.rules !== undefined ? { rules: b.rules } : {}),
 })
 
 interface ReverseBody extends BodyRow {}
@@ -116,7 +126,7 @@ const tools: Command<{ fresh?: boolean }> = {
 const open: Command<{ path: string }> = {
   name: 'open',
   title: 'Open a KiCad board',
-  description: 'Read a .kicad_pcb (no KiCad needed): its outline, thickness, mounting holes and the connectors at its edge — each with the side it faces and the opening a wall needs for it, a typical size labelled so. Brings nothing in (pcb.import does). Coordinates in mm, centred on the outline’s box, y up, the board’s bottom at z = 0. One undo step.',
+  description: 'Read a .kicad_pcb (no KiCad needed): its outline, thickness, mounting holes and the connectors at its edge — each with the side it faces and the opening a wall needs for it, a typical size labelled so; stats — copper layers, the narrowest track, the least via and drill, how many parts to place and to list — and rules, the least clearance, track and hole its .kicad_pro holds DRC to. Brings nothing in (pcb.import does). Coordinates in mm, centred on the outline’s box, y up, the board’s bottom at z = 0. One undo step.',
   input: obj({ path: pathIn }, ['path']),
   long: true,
   label: ({ path }) => `open ${String(path).split(/[\\/]/).pop()}`,

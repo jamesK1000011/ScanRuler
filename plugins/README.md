@@ -16,6 +16,7 @@ not in this repository.
 | [import-plus/](import-plus/) | More model formats — GLB, glTF, FBX, 3DS, Collada, AMF, VRML in the Open pickers and dropped, and .blend through Blender |
 | [dfm-fdm/](dfm-fdm/) | Printability check (Make › a print setup's 1 Check) — FDM rules from editable profiles on a scan, a reference part or a Reverse engineer body as it is now, with findings you can waive |
 | [printer-handoff/](printer-handoff/) | Printer hand-off (Make › a print setup's 3 Send) — the guide for the MCP server's printer tools, and the start requests; a print starts only on your Start |
+| [pcb-order/](pcb-order/) | Board order (Make › a PCB order setup's Order) — a KiCad or tscircuit board checked against a fab's typical figures, and its Gerbers, drill, BOM, CPL, STEP and order sheet in one zip |
 | [catalog/](catalog/) | Parts catalog (Parts › Catalog) — standard parts by size, catalogue links, Sketchfab/Thingiverse/Cults3D search, downloads brought in with their licence |
 | [slicer-loop/](slicer-loop/) | Slicing (Make › a print setup's 2 Slice) — OrcaSlicer, Bambu Studio and PrusaSlicer from ScanRuler, through scanruler-mcp's extras; the step shows the pauses and corrections that go in |
 | [wear-repair/](wear-repair/) | Wear repair (Analyze › Wear) — worn regions back onto the mirrored half or the CAD; a part pre-warped so it comes out true |
@@ -111,7 +112,7 @@ the same one:
 | Parts | Catalog (`catalog`) · Generate (`gen`) |
 | Fits | Design (`fits`) · Hardware (`hw`) · Calibrate from a scan (`fit-scan`, fit-comp) |
 | Electronics | KiCad (`pcb`) · tscircuit (`circuit`) · Printed wiring (`printed`) |
-| Make (was Print) | a print setup's 1 Check (`dfm`) · 2 Slice (`slice`) · 3 Send (`print`), under the list of setups (setups) |
+| Make (was Print) | a print setup's 1 Check (`dfm`) · 2 Slice (`slice`) · 3 Send (`print`); a PCB order setup's Order (`pcbo`, pcb-order) — under the list of setups (setups) |
 | Analyze | Strength (`fea`) · Mass (`mass`) · Wear (`wear`, wear-repair) |
 | Docs | Manual (`assembly`) · Patent (`patent`) |
 

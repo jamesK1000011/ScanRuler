@@ -309,7 +309,20 @@ const stats: Command<Record<string, never>> = {
   readOnly: true,
   run: async () => {
     const l = loaded()
-    return { name: l.name, ...statsOut(l.stats), problems: l.board.problems.length }
+    return { name: l.name, ...statsOut(l.stats), refs: [...new Set(l.board.components.map((c) => c.name).filter((n): n is string => !!n))].slice(0, 5000), problems: l.board.problems.length }
+  },
+}
+
+const read: Command<{ job?: string; project?: string; path: string; entry?: string }> = {
+  name: 'read',
+  title: 'A build’s file, as text',
+  description: 'A text file of a build (job) or project, through the agent’s server — circuit.json, bom.csv, pick_and_place.csv, a Gerber or drill file, a STEP: its text. A zip (gerbers.zip) answers with what it holds (entries); entry: one of them, as text. 20 MB at most. Changes nothing.',
+  input: obj({ job: str('A build’s job id.'), project: str('A project name or folder.'), path: str('The file, relative to the job or project.', { minLength: 1 }), entry: str('A file inside a zip.') }, ['path']),
+  readOnly: true,
+  long: true,
+  run: async ({ job, project, path, entry }, ctx) => {
+    if (job !== undefined && project !== undefined) throw new CommandError('invalid_input', 'Give job or project, not both.')
+    return ask<Record<string, unknown>>('read', { path, ...(job !== undefined ? { job } : {}), ...(project !== undefined ? { project } : {}), ...(entry !== undefined ? { entry } : {}) }, ctx)
   },
 }
 
@@ -495,4 +508,4 @@ export { setupOf }
  *  line is asked of the agent's server the engine runs in, as the page asks
  *  it, and the board's solids are built in this thread (plugin.ts
  *  headless). */
-export const circuitCommands = ([tools, newProject, buildCmd, filesCmd, open, stats, resistance, set, bodies, clear, stopCmd, answer, progress] as Command<never>[]).map((c) => ({ ...c, headless: true }))
+export const circuitCommands = ([tools, newProject, buildCmd, filesCmd, read, open, stats, resistance, set, bodies, clear, stopCmd, answer, progress] as Command<never>[]).map((c) => ({ ...c, headless: true }))

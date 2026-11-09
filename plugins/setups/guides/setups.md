@@ -29,6 +29,10 @@ Each setting is optional; one left unset leaves each workspace on its own settin
 
 Each answer that used a setup's value says so (`setup`, a mass row's `as`, `layers.from`, a note). An input given to a command for one call still wins over the setup.
 
-## 4. The review follows the setup
+## 4. Other kinds
+
+A board ordered from a board house is a **PCB order** setup (`type: "pcb"`, page Order): the board's body, the fab, layers, thickness, finish, quantity and assembly — see the **pcb-order** guide. Only the board goes in it; its enclosure is a part of its own, in a print (or cut, or mill) setup.
+
+## 5. The review follows the setup
 
 `part_review { body }` judges a part in a print setup by the printing checks, a part in a setup of another kind by that kind's own checks, and informs on a part in no setup. The wall is read for every part, however it is made. See the **review** guide.

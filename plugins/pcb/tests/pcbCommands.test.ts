@@ -87,6 +87,18 @@ describe('pcb commands', () => {
     expect((usePcb.getState().board as unknown as { components?: unknown }).components).toBe(undefined)
     await expect(run('open', { path: '/boards/tiny.step' })).rejects.toThrow(/not a KiCad board/)
   })
+  it('open keeps the board’s figures for an order: the parts counted, the rules as read', async () => {
+    const keep = server.read
+    server.read = () => ({ result: { ...BOARD, stats: { copperLayers: 2, tracks: 4, minTrack: 0.2, vias: 1, minVia: 0.6, minViaDrill: 0.3, minDrill: 0.3, parts: { placed: ['J1', 'R1'], listed: ['J1', 'R1', 'H1'] } }, rules: { clearance: 0.2, track: null, hole: null, from: 'tiny.kicad_pro' } } })
+    const r = await run('open', { path: PATH })
+    server.read = keep
+    expect(r.board.stats).toEqual({ copperLayers: 2, tracks: 4, minTrack: 0.2, vias: 1, minVia: 0.6, minViaDrill: 0.3, minDrill: 0.3, parts: { placed: 2, listed: 3 } })
+    expect(r.board.rules).toEqual({ clearance: 0.2, track: null, hole: null, from: 'tiny.kicad_pro' })
+    expect(usePcb.getState().board!.stats!.parts).toEqual({ placed: 2, listed: 3 })
+    // A board read by an older server: no figures, none made up.
+    await run('open', { path: PATH })
+    expect(usePcb.getState().board!.stats).toBe(undefined)
+  })
   it('import: bodies named, a taken name not reused, the reach measured', async () => {
     const r = await run('import', { path: PATH })
     expect(asked[0]).toMatchObject({ action: 'import', data: { path: PATH, components: true, subst: true, dnp: false } })

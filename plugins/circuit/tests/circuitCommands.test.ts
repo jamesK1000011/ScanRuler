@@ -52,6 +52,17 @@ describe('the Circuit commands', () => {
     await fails(run('open', { json: text, job: 'x' }), /one of job, path or json/)
     await fails(run('open', { json: '{}' }), /not a list/)
   })
+  it('stats name the board’s parts; read takes a build’s file, or one inside its zip, as text', async () => {
+    fresh()
+    await run('open', { json: text, name: 'blinky.circuit.json' })
+    const s = await run('stats')
+    expect(s.refs).toEqual(['R1', 'LED1', 'J1'])
+    answers.read = (a) => ({ path: `/j/${a.path}`, ...(a.entry ? { entry: a.entry, text: 'G04*' } : { text: 'Designator\nR1\n' }) })
+    expect((await run('read', { job: 'j1', path: 'bom.csv' })).text).toBe('Designator\nR1\n')
+    expect((await run('read', { job: 'j1', path: 'gerbers.zip', entry: 'F_Cu.gtl' })).text).toBe('G04*')
+    expect(asked.filter((a) => a.action === 'read').map((a) => a.args)).toEqual([{ path: 'bom.csv', job: 'j1' }, { path: 'gerbers.zip', job: 'j1', entry: 'F_Cu.gtl' }])
+    await fails(run('read', { job: 'j1', project: 'p', path: 'x' }), /not both/)
+  })
   it('refuse figures with no board open', async () => {
     fresh()
     await fails(run('stats'), /No board is open/)

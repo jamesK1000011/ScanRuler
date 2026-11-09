@@ -19,7 +19,11 @@ here with a parser of ScanRuler's own (`mcp/src/extras/kicadBoard.js`).
   circles, polygons, in footprints too), its thickness, its mounting holes
   (MountingHole footprints, footprints of unplated holes only, circles on
   Edge.Cuts), and the connectors within 2.5 mm of the edge. Each connector
-  gets the wall it faces and the opening it needs.
+  gets the wall it faces and the opening it needs. And what a board
+  house compares (`stats`): the copper layers, the narrowest track, the
+  least via and drill, how many parts to place and to list — and
+  (`rules`) the least clearance, track and hole the `.kicad_pro` beside
+  the board holds DRC to, for Make › Order (`pcbo.check`).
 - **Import.** `kicad-cli pcb export step`, centred on the outline's box,
   brought in as bodies: the board named after its file, the edge
   connectors after their references. Measures the parts' reach above and
