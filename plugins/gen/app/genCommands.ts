@@ -9,7 +9,7 @@ import { anyObject, bool, enumOf, num, obj, str } from '../../../src/commands/sc
 import { readStateSections } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { generatorOf, GENERATORS, matchParts, valuesOf, type Generator, type Value } from '../core/generators'
-import type { GenPart } from '../core/genWorker'
+import type { GenPart } from '../core/genBuild'
 import { boardIn, type BoardSpec } from '../core/boardBox'
 import { bodiesBox } from '../../_shared/bodiesBox'
 import type { Box3 } from '../../_shared/clear'
@@ -309,4 +309,6 @@ const stopCmd: Command<Record<string, never>> = {
   },
 }
 
-export const genCommands: Command[] = [list, set, make, exportFile, measure, stopCmd] as Command[]
+/** Every one runs without the page (Command.headless): the app run
+ *  headless builds in its own thread (plugin.ts headless). */
+export const genCommands: Command[] = ([list, set, make, exportFile, measure, stopCmd] as Command[]).map((c) => ({ ...c, headless: true }))

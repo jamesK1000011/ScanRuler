@@ -16,7 +16,7 @@ vi.mock('../app/genClient', () => import('./genFakes'))
 import { builds, calls, handlers, sections } from './genFakes'
 import { genCommands } from '../app/genCommands'
 import { useGen } from '../state/genStore'
-import type { GenPart } from '../core/genWorker'
+import type { GenPart } from '../core/genBuild'
 
 type Run = (input: Record<string, unknown>, ctx: unknown) => Promise<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
 const ctx = { progress() {} }

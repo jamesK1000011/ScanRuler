@@ -6,6 +6,7 @@
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerHistory } from '../../src/state/historyStore'
+import { buildInThread } from './app/genClient'
 import { describeGen, genCommands } from './app/genCommands'
 import { genSection } from './app/projectSection'
 import { useGenPlugin } from './app/useGenPlugin'
@@ -37,6 +38,13 @@ const plugin: ScanRulerPlugin = {
       when: 'asked for a Gridfinity bin or baseplate, a storage bin on a grid, or a project box or enclosure with a lid — a standard part made to size rather than modelled by hand',
       text: () => import('./guides/gen.md?raw').then((m) => m.default),
     })
+  },
+  // The app run without a browser (src/headless/engine.ts): the parts built
+  // in this thread, on a kernel of their own, as the worker builds them.
+  async headless() {
+    const { localBuilder } = await import('./core/genLocal')
+    buildInThread(localBuilder())
+    return () => buildInThread(null)
   },
 }
 

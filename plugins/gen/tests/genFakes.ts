@@ -4,7 +4,7 @@
 // as a test sets them), the schema builders, the session's state
 // sections, CommandError, and the worker's client — builds that finish
 // when the test says.
-import type { GenAnswer, GenAsk } from '../core/genWorker'
+import type { GenAnswer, GenAsk } from '../core/genBuild'
 
 export const handlers: Record<string, (input: never) => unknown> = {}
 export const calls: { name: string; input: Record<string, unknown> }[] = []

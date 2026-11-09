@@ -6,7 +6,7 @@
 import { box, BOX_DEFAULTS, checkBox, lid, type BoxParams } from './enclosure'
 import { BOARD_BOX_DEFAULTS, boardBox, boardBoxPlan, boardLid, checkBoardBox, type BoardBoxParams, type BoardSpec } from './boardBox'
 import { BASE_DEFAULTS, baseplate, bin, BIN_DEFAULTS, checkBin, MAGNET, magnetsOf, type BaseParams, type BinParams } from './gridfinity'
-import type { GenPart } from './genWorker'
+import type { GenPart } from './genBuild'
 import type { GenKernel, H } from './kernel'
 
 export type Value = number | boolean

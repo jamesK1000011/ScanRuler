@@ -4,7 +4,7 @@
 
 import { create } from 'zustand'
 import { GENERATORS, type Value } from '../core/generators'
-import type { GenPart } from '../core/genWorker'
+import type { GenPart } from '../core/genBuild'
 import type { BoardSpec } from '../core/boardBox'
 
 export interface Made {
