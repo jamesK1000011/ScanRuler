@@ -7,6 +7,24 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **The design and build workspaces run headless** (2026-11-08). With
+  `scanruler-mcp --headless` (or `--engine`), the app runs inside the
+  agent's server with no page, and most of the design and build commands
+  answered `unavailable`. Now Generate (`gen.*`, its parts built in the
+  server's own thread), Hardware (`hw.*`), Mass (`mass.*`), Printability
+  (`dfm.*`, checking a Reverse Engineer body: `dfm.settings { target:
+  "body" }`), Strength (`fea.*` but `fea.show`), Fits (`fit.*` from
+  numbers), Electronics › KiCad (`pcb.*`) and tscircuit (`circuit.*`) run
+  there, with `reverse.body.clearance` and `reverse.body.set`. What the
+  page asks of the agent's server — Gmsh and CalculiX, kicad-cli,
+  tscircuit — the engine asks of the server it runs in, the same way. What
+  still needs the page (a scan, the viewport) says, where there is one,
+  what does its work headless: `deviation.open_reference` points to
+  `reverse.import.step` and a body check, `dfm.check` on the scan to
+  `target: "body"`, `fit.measure` to `fit.calibrate { readings }`.
+  `scanruler_write`, `_files` and `_read` are there headless too, in the
+  server's output folder, so an answer too long to carry can be read back.
+
 - **Gridfinity magnets get their pause** (2026-11-08). A Gridfinity bin or
   baseplate made with `magnets: true` cut the holes but told the Hardware
   workspace nothing, so no print pause was planned and the magnets' weight
