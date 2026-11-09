@@ -13,10 +13,11 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { registerCoreCommands } from '../../../src/commands/core'
 import { GUIDES_READ_MOST } from '../../../src/commands/core/guide'
-import { listGuides } from '../../../src/commands/guides'
+import { listGuides, resetGuideReads } from '../../../src/commands/guides'
 import { listCommands, runCommand } from '../../../src/commands/registry'
 import { installPlugins } from '../../../src/plugins/registry'
 import { GUIDE_ANSWER_CAP, quotedReads } from '../../../tests/guideReads'
+import { BUILDING_SECTIONS, guideGate } from '../app/rePlan'
 
 const GUIDES = new URL('../guides/', import.meta.url)
 const SKILL = new URL('../skills/scan-reverse-engineering/SKILL.md', import.meta.url)
@@ -121,6 +122,21 @@ describe('the Reverse engineer’s guides', () => {
       const answer = await runCommand('guide.read', input)
       expect(JSON.stringify(answer).length, `${name}: ${quoted}`).toBeLessThanOrEqual(GUIDE_ANSWER_CAP)
     }
+  })
+
+  it('let a small edit start from the Start here sections, and the building gate take any part of §2', async () => {
+    installed()
+    for (const topic of ['model', 'scan-to-cad']) {
+      const s = (await runCommand('guide.read', { topic, section: 'Start here' })) as { section: string; text: string }
+      expect(s.section, topic).toBe('Start here')
+      expect(s.text.length, topic).toBeLessThan(3_000)
+    }
+    // Every section the gate takes is one the model guide answers.
+    for (const section of BUILDING_SECTIONS) await expect(runCommand('guide.read', { topic: 'model', section }), section).resolves.toMatchObject({ topic: 'model' })
+    // Start here alone quiets it.
+    resetGuideReads()
+    await runCommand('guide.read', { topic: 'model', section: 'Start here' })
+    expect(guideGate(null)).toBeNull()
   })
 
   it('name Python only among the scan guide’s fallbacks', () => {

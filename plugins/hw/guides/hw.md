@@ -113,6 +113,8 @@ whether a modelled bore will take a bearing.
 
 ## Parts encased in the print
 
+<!-- read when: before sealing a part inside the print — hw.embed, or encase on hw.plan -->
+
 A nut, magnet, bearing, insert, weight, RFID tag or any part of the person's
 own can be sealed inside a print: the pocket is printed open, the print
 pauses, the part is dropped in, and the layers above close over it.

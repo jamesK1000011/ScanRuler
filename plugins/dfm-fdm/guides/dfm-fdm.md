@@ -89,6 +89,8 @@ checked.
 
 ## Published guides
 
+<!-- read when: before checking against a published design guide, or importing one -->
+
 `dfm_guides` lists design guides from service bureaus, printer makers and a university, each figure with its publisher, page and the date it was read. No guide is a standard, and they disagree: `dfm_guides { action: "compare" }` shows them side by side, with where they differ.
 
 - `dfm_settings { guide: "uzh-amf" }` stacks a guide's numbers over the nozzle, material and printer. `dfm_rules` then says the guide set them.

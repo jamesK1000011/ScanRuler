@@ -2,9 +2,26 @@
 
 # Modelling a part in the Reverse engineer (ScanRuler)
 
-Solids built feature by feature, the way a designer builds them: from numbers you are given, a drawing, a part described in words — or a 3D scan, when the **scan-to-cad** guide comes after this one and says how the numbers come from the scan. This guide is how ScanRuler works for a modeller and how to build a part that holds up: clean, designer-like topology, the design's sizes as parameters, no slivers, steps or ledges where faces meet, rounds that run on. The first read gives how to work with ScanRuler (§1), the handover checks (§3) and the red flags; §2 Building comes under `later` with when to read it, and is read by section before the first feature is added.
+Solids built feature by feature, the way a designer builds them: from numbers you are given, a drawing, a part described in words — or a 3D scan, when the **scan-to-cad** guide comes after this one and says how the numbers come from the scan. This guide is how ScanRuler works for a modeller and how to build a part that holds up: clean, designer-like topology, the design's sizes as parameters, no slivers, steps or ledges where faces meet, rounds that run on. Start here, below, maps the guide and gives the rules every feature keeps: read it first, then the sections the task needs. A whole read gives how to work with ScanRuler (§1), the handover checks (§3) and the red flags; §2 Building comes under `later` with when to read it, and is read by section before the first feature of a new part is added.
 
 **model-reference** has every command's shape (Command shapes), the feature kinds with their fields, constraints and picks (Feature kinds), how u and v lie on each plane (Plane frames), what answers cost (Reply cost) and what refusals mean (Errors) — read a section when you need it: `guide_read { topic: "model-reference", section: "Plane frames" }`. Command shapes is long: read it by its parts ("Reverse engineer: features", "Scan and measuring", …).
+
+## Start here
+
+The guide by section — each read alone by its heading, as `guide_read { topic: "model", section: "Kernel judgement" }`:
+
+- **1. Working with ScanRuler** (9 k): the session and a page that holds someone else's part, notes on the part, batches, jobs, headless servers, helpers, keeping context small. At a task's start.
+- **2. Building** (6 k): the order and the rules every feature keeps. Before the first feature of a new part. Its parts, each alone when the part has it: **2a. Symmetric parts**, **2b. Lofts and analytic surfaces** (2 k), **2c. Shared edges** (5 k), **2d. Pre-fillet gate**, **2e. From a drawing** (5 k), **Kernel judgement** (7 k: what the kernel refuses and what to do — when a build fails), **Working with builds** (5 k: jobs, rebuild cost, deferred builds — before a long run of changes).
+- **3. Before every handover** (1 k) and **Red flags** (10 k): before the handover, and when a result looks wrong.
+
+**A small edit** to a part already built — a hole, a round, a size, a feature moved: this section and the part of §2 the edit touches are enough. What holds for every feature:
+
+- The design's sizes are parameters named as a drawing labels them (`bore_d`, `wall_t`), changed with `reverse_parameter_set` — not numbers typed into a feature.
+- Detail after the form it sits on. Fillets and chamfers last, major first, after the pre-fillet gate (§2d). Threads after everything that touches the hole, on a bore at the tap drill.
+- A repeat is one feature and a `pattern` or `mirror`, never coordinates typed by hand.
+- After a cut, `result.status` and the body's volume must have gone down; a cut that splits a body says which piece kept its id in its `warning`.
+- After an insert (`reverse_feature_add { after }`) or other tree surgery, pick faces and edges by `near`, `through` or `box`, never by index.
+- A build refused, or a feature that fails: Kernel judgement, before trying again.
 
 ## 1. Working with ScanRuler
 
@@ -23,7 +40,7 @@ Solids built feature by feature, the way a designer builds them: from numbers yo
 
 ## 2. Building
 
-<!-- read when: before the first feature is added — the first feature.add with it unread answers a warning -->
+<!-- read when: before the first feature is added to a new part — the first feature.add with neither this nor Start here read answers a warning; a small edit needs Start here and the part of §2 it touches -->
 
 Decide first: the symmetry plane, the analytic surfaces, the order of mirror and fillets, the keep-tool intersections, and **which sketches share edges** (§2c).
 

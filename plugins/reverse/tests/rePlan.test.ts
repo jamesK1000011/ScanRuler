@@ -45,9 +45,9 @@ describe('the session plan', () => {
     const first = await run<{ warning?: string }>('reverse.feature.add', { feature: plate })
     expect(first.warning).toMatch(/^no plan set: reverse\.plan\.set with the archetype, the regions and the target before building/)
     // The building guide unread is the other half of the same warning.
-    expect(first.warning).toMatch(/the model guide's §2 Building was not read: guide_read \{ topic: "model", section: "2\. Building" \}/)
+    expect(first.warning).toMatch(/the model guide was not read before building: guide_read \{ topic: "model", section: "Start here" \}/)
     const second = await run<{ warning?: string; planWarning?: string }>('reverse.feature.add', { feature: block })
-    expect(second.warning ?? '').not.toMatch(/no plan set|§2 Building/)
+    expect(second.warning ?? '').not.toMatch(/no plan set|model guide was not read/)
     expect(second.planWarning).toBeUndefined()
   })
 

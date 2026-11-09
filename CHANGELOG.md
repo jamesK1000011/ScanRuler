@@ -7,6 +7,27 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **A lighter start for agents** (2026-11-09). The MCP server's tool list
+  and the Reverse engineer's guides cost an agent less before it does any
+  work. `--tools lean` (`SCANRULER_MCP_TOOLS=lean`) lists the session,
+  guide, history, project and view tools and the server's own — some 45 kB
+  in place of over 600 kB with every workspace, 26 kB in place of 96 kB
+  headless — and the rest in groups that `scanruler_tools { enable }` lists
+  when the task needs them; the client is told the list changed, and one
+  that does not list again runs them through `scanruler_batch`. In every
+  mode the fields each tool repeated — `wait`, `timings`, where a file is
+  written, `saveTo` — say a line, and what they share is said once in the
+  server's instructions (Paths); `guide_read` names the guides by id, the
+  index saying what each is for. The model and scan-to-cad guides open
+  with a Start here: the map of the guide and the rules every feature
+  keeps. The first feature added warns until Start here or any part of §2
+  Building was read, not the whole of §2, so a small edit reads 2 k of the
+  guide rather than 30 k. The scan-to-cad guide's inspection, measuring and
+  design-loop sections come in parts read alone, and each archetype is a
+  section of its own. The Hardware guide's encased parts and the FDM
+  guide's published guides wait for their moment. A guide too long for one
+  read keeps room for the note naming what it left out.
+  `scripts/mcp-tool-sizes.mjs` measures the tool list per mode.
 - **The design and build workspaces run headless** (2026-11-08). With
   `scanruler-mcp --headless` (or `--engine`), the app runs inside the
   agent's server with no page, and most of the design and build commands

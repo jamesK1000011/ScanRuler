@@ -389,18 +389,32 @@ export function planGate(s: ReverseSession | null): string | null {
   return PLAN_GATE
 }
 
-/** The model guide's building section, read before the first feature: the
- *  kernel's habits, the order of rounds and the pre-fillet gate are there. */
-const BUILDING_GUIDE = { topic: 'model', section: '2. Building' } as const
-export const GUIDE_GATE = `the model guide's §2 Building was not read: guide_read { topic: "${BUILDING_GUIDE.topic}", section: "${BUILDING_GUIDE.section}" } before building — the kernel's habits and the order of rounds are there`
+/** The model guide's sections, any one of which read before the first
+ *  feature quiets the warning: Start here — the rules every feature keeps,
+ *  and the map to the part of §2 the work needs, for a small edit — §2
+ *  Building whole, or one of its parts. Asking all of §2 (30 k with its
+ *  parts) before a hole is cut cost more than the edit. */
+const BUILDING_GUIDE = { topic: 'model', section: 'Start here' } as const
+export const BUILDING_SECTIONS = [
+  'Start here',
+  '2. Building',
+  '2a. Symmetric parts',
+  '2b. Lofts and analytic surfaces',
+  '2c. Shared edges — no slivers, no steps',
+  '2d. Pre-fillet gate',
+  '2e. From a drawing',
+  'Kernel judgement',
+  'Working with builds',
+] as const
+export const GUIDE_GATE = `the model guide was not read before building: guide_read { topic: "${BUILDING_GUIDE.topic}", section: "${BUILDING_GUIDE.section}" } — the rules every feature keeps, and which part of §2 Building the work needs (all of §2 before the first feature of a new part)`
 
 const guideWarned = new WeakSet<ReverseSession>()
 let guideWarnedBare = false
 
-/** What a change that added a feature answers while the building section
- *  was not read — once a session; null otherwise. */
+/** What a change that added a feature answers while none of those
+ *  sections was read — once a session; null otherwise. */
 export function guideGate(s: ReverseSession | null): string | null {
-  if (guideSectionRead(BUILDING_GUIDE.topic, BUILDING_GUIDE.section)) return null
+  if (BUILDING_SECTIONS.some((section) => guideSectionRead(BUILDING_GUIDE.topic, section))) return null
   if (s ? guideWarned.has(s) : guideWarnedBare) return null
   if (s) guideWarned.add(s)
   else guideWarnedBare = true
