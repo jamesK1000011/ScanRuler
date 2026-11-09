@@ -15,10 +15,10 @@ import { type Command, CommandError } from '../../../src/plugins/api'
 import { fitsOf } from '../core/check'
 import { featuresOf, overlapping, patternOffsets, type Pattern, type Placement, type V2, type V3 } from '../core/features'
 import { FITS, type Fit, type Head, HEADS, type Kind, KINDS, sizesOf, table } from '../core/hardware'
-import { boundaryDown, boundaryUp, EMBED_KINDS, type EmbedKind, encasedCut, EPS, type Layers, type ObjectSpec, pauseLayer, profileReach, schedule } from '../core/embed'
+import { boundaryDown, boundaryUp, EMBED_KINDS, type EmbedKind, encasedCut, EPS, inertiaOf, type Layers, type ObjectSpec, partSolid, pauseLayer, profileReach, restDepth, schedule } from '../core/embed'
 import { type Cut, cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings, type Spec, type Step } from '../core/plan'
 import { calibratedKinds, withPrinterFit } from '../core/printerFit'
-import { type Embed, type EmbedPlan, settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
+import { type Embed, type EmbedPlan, type EmbedSolid, settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
 import { readPrinterFit } from '../../_shared/readPrinterFit'
 
 type Json = Record<string, unknown>
@@ -256,6 +256,7 @@ const specFields: Record<string, JsonSchema> = {
   object: objectIn,
   clearance: num('Encased: mm on the pocket’s diameter or each side, in place of the setting.', { minimum: 0, maximum: 3 }),
   what: str('Encased: what goes in, for the pause’s message (“a 6x3 magnet” by default).', { minLength: 1 }),
+  grams: num('Encased: what one part weighs, g, for the mass of the part it is in. Needed for an object; the table’s figure otherwise.', { exclusiveMinimum: 0, maximum: 100000 }),
 }
 
 const planFields: Record<string, JsonSchema> = { ...specFields, at: atIn, name: str('The features’ base name; the hardware’s by default, numbered.', { minLength: 1 }) }
@@ -279,6 +280,7 @@ interface PlanArgs {
   object?: ObjectSpec
   clearance?: number
   what?: string
+  grams?: number
 }
 
 /** Names already taken in Reverse Engineer, lower case. */
@@ -317,7 +319,7 @@ async function planOf(a: PlanArgs) {
   const encase = a.encase !== undefined && a.encase !== false
   if (!encase) {
     if (a.kind === 'object') invalid('object: an encased pocket only — give encase: true (or use hw.embed).')
-    for (const k of ['object', 'clearance', 'what'] as const) if (a[k] !== undefined) invalid(`${k}: an encased pocket’s only — give encase: true (or use hw.embed).`)
+    for (const k of ['object', 'clearance', 'what', 'grams'] as const) if (a[k] !== undefined) invalid(`${k}: an encased pocket’s only — give encase: true (or use hw.embed).`)
     if (a.size === undefined) invalid('size: needed.')
   }
   const placed = await place(a.at, offsets)
@@ -567,7 +569,16 @@ function encasedPlan(a: PlanArgs, placed: Placed, offsets: V2[]) {
   const pauses = base === null ? [] : [...new Set(tops)].map((t) => ({ top: t, ...pauseLayer(t - base, layers) }))
   for (const p of pauses) if (!p.onBoundary) warn.push(`Warning: the pocket's top (${r3(p.top - base!)} above the bed) is not on a layer boundary at ${S.layerHeight} layers (first ${S.firstLayer}): the layer it falls in may be printed closed over it. Pause is before layer ${p.layer}; check the slice.`)
   if (base === null) notes.push('The body’s place on the bed was not read (is it built?): hw.pauses gives the layer once it is.')
-  const embed: EmbedPlan = { kind: a.kind, label: cut.label, what: cut.what, tops, roof: measured, minRoof, span: cut.span, ...(pauses.length ? { pauses: pauses.map((p) => ({ layer: p.layer, z: p.z, printZ: p.printZ, onBoundary: p.onBoundary })) } : {}), ...(base !== null ? { bedZ: base } : {}) }
+  // The part itself, for the mass of the part it is in: resting at the
+  // pocket's low end, one per copy.
+  const part = partSolid(a.kind, a.size, a.object, a.grams)
+  let solid: EmbedSolid | undefined
+  if (part) {
+    const at = restDepth(pocket.from as number, pocket.to as number, part.length, dz)
+    const centres = offsets.map(([du, dv]) => [0, 1, 2].map((i) => r3(placed.entry[i] + du * placed.basisU[i] + dv * placed.basisV[i] + at * placed.direction[i])) as V3)
+    solid = { material: part.material, mass: r6(part.mass), centres, inertia: inertiaOf(part, placed.direction, placed.basisU, placed.basisV).map((row) => row.map(r6)) as EmbedSolid['inertia'], reach: r3(part.reach) }
+  } else notes.push('Its weight is not known, so the part’s mass leaves it out: give grams, what one weighs.')
+  const embed: EmbedPlan = { kind: a.kind, label: cut.label, what: cut.what, tops, roof: measured, minRoof, span: cut.span, ...(pauses.length ? { pauses: pauses.map((p) => ({ layer: p.layer, z: p.z, printZ: p.printZ, onBoundary: p.onBoundary })) } : {}), ...(base !== null ? { bedZ: base } : {}), ...(solid ? { solid } : {}) }
   return finish(a, placed, offsets, cut, [...cut.notes, ...notes, ...warn], embed)
 }
 
@@ -581,12 +592,15 @@ const nextId = (have: Embed[]) => `E${Math.max(0, ...have.map((e) => Number(/^E(
 /** The plan's pockets recorded, one per height (copies at one height are
  *  one, counted). */
 function record(e: EmbedPlan, body: string, features: string[]): Embed[] {
-  const groups = new Map<number, number>()
-  for (const t of e.tops) groups.set(t, (groups.get(t) ?? 0) + 1)
+  // Each top's copies, by index: their centres go with them.
+  const groups = new Map<number, number[]>()
+  e.tops.forEach((t, i) => groups.set(t, [...(groups.get(t) ?? []), i]))
   const all = [...st().embeds]
   const added: Embed[] = []
-  for (const [top, count] of groups) {
-    const one: Embed = { id: nextId(all), body, kind: e.kind, label: e.label, what: count > 1 && groups.size > 1 ? e.what.replace(/ ×\d+$/, '') + ` ×${count}` : e.what, top, roof: e.roof, minRoof: e.minRoof, span: e.span, count, features, ...(e.bedZ !== undefined ? { bedZ: e.bedZ } : {}) }
+  for (const [top, at] of groups) {
+    const count = at.length
+    const solid = e.solid && e.solid.centres.length === e.tops.length ? { ...e.solid, centres: at.map((i) => e.solid!.centres[i]) } : undefined
+    const one: Embed = { id: nextId(all), body, kind: e.kind, label: e.label, what: count > 1 && groups.size > 1 ? e.what.replace(/ ×\d+$/, '') + ` ×${count}` : e.what, top, roof: e.roof, minRoof: e.minRoof, span: e.span, count, features, ...(e.bedZ !== undefined ? { bedZ: e.bedZ } : {}), ...(solid ? { solid } : {}) }
     all.push(one)
     added.push(one)
   }
@@ -935,6 +949,47 @@ const pauses: Command<PausesIn> = {
   run: async (a) => pausesOf(a),
 }
 
+/** The encased parts as solids, for the mass of the parts they are in:
+ *  Mass adds them to its weighing, the Strength workspace to the part's
+ *  own weight. */
+export function massesOf(bodies?: string[]) {
+  const feats = new Set((((readStateSections().reverse as { features?: { name: string }[] } | undefined)?.features) ?? []).map((f) => f.name))
+  const parts = []
+  const uncounted: { id: string; body: string; what: string }[] = []
+  const gone: string[] = []
+  const warnings: string[] = []
+  for (const e of st().embeds) {
+    if (bodies && !bodies.includes(e.body)) continue
+    if (e.features.length && !e.features.every((f) => feats.has(f))) {
+      gone.push(e.id)
+      continue
+    }
+    if (!e.solid) {
+      uncounted.push({ id: e.id, body: e.body, what: e.what })
+      continue
+    }
+    const bed = baseOf(e.body)
+    if (e.bedZ !== undefined && bed !== null && Math.abs(bed - e.bedZ) > 1e-3) warnings.push(`${e.id}: ${e.body}’s bottom is at Z ${r3(bed)}, not ${r3(e.bedZ)} as when it was ${e.features.length ? 'cut' : 'recorded'} — if the body was moved, its part is counted where it was: cut or record it again.`)
+    const s = e.solid
+    parts.push({ id: e.id, body: e.body, what: e.what, count: s.centres.length, material: s.material, mass: s.mass, total: r6(s.mass * s.centres.length), centres: s.centres, inertia: s.inertia, reach: s.reach })
+  }
+  return {
+    parts,
+    ...(uncounted.length ? { uncounted } : {}),
+    ...(gone.length ? { gone: `${gone.join(', ')}: the features that cut ${gone.length === 1 ? 'it are' : 'them are'} gone — left out.` } : {}),
+    ...(warnings.length ? { warnings } : {}),
+  }
+}
+
+const masses: Command<{ bodies?: string[] }> = {
+  name: 'masses',
+  title: 'What the encased parts weigh',
+  description: 'The encased parts as solids, for the mass of the part they are in: for each, its body, what it is, how many, the material, what one weighs (g) and all of them (total), each one’s centre (mm, part frame), one’s inertia about its centre (g·mm², part frame) and its furthest point from its centre (mm). mass.properties adds them to the part; fea.solve to its own weight. uncounted: parts whose weight is not known (an object without grams, a pocket recorded without a part). Parts whose cut is gone are left out. bodies: only these. Changes nothing.',
+  input: obj({ bodies: { type: 'array', items: { type: 'string' }, description: 'Only these bodies’ parts.' } }),
+  readOnly: true,
+  run: async ({ bodies }) => massesOf(bodies),
+}
+
 const unembed: Command<{ id?: string; all?: boolean }> = {
   name: 'unembed',
   title: 'Forget an encased part',
@@ -954,4 +1009,4 @@ const unembed: Command<{ id?: string; all?: boolean }> = {
   },
 }
 
-export const hwCommands = [list, set, plan, pattern, embed, apply, check, clearPlan, recordCmd, pauses, unembed] as Command<never>[]
+export const hwCommands = [list, set, plan, pattern, embed, apply, check, clearPlan, recordCmd, pauses, masses, unembed] as Command<never>[]

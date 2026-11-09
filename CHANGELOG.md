@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Mass counts encased parts** (2026-11-08). A magnet, nut, bearing or
+  insert encased by the Hardware workspace was left out of the part's mass,
+  balance point and inertia. Each now carries its own mass (the table's
+  size in NdFeB, steel or brass; `grams` gives what one weighs, and is
+  needed for an object), resting at the pocket's low end, saved with the
+  project. `hw.masses` lists them; `mass.properties` adds them to the total
+  and lists them under `embedded` (`embeddedMass` for theirs alone), the
+  Mass panel shows them, `mass.calibrate` takes them off the grams weighed,
+  and a reading goes stale when they change. A pocket whose part's weight
+  isn't known is named, not counted silently.
 - **Printability reads the walls of a body** (2026-11-08). The thin-wall
   rule used to run on a scan only, so a body's walls — the skin round an
   insert or over a magnet pocket — were never checked. On a body or the

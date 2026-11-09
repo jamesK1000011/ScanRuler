@@ -18,11 +18,16 @@ that brings the part to a target.
    - The inertia about the centre of mass (g·mm²), with principal moments
      and axes.
    - The bodies together.
+   - Parts encased in them (the Hardware workspace's: a magnet or nut
+     dropped in at a pause) under `embedded`, each with its mass and
+     centre, counted in the total; `embeddedMass` is theirs alone. One whose
+     weight isn't known (an object without `grams`) is named in the note.
    `closed: false` means the mesh has holes, or faces wound both ways, and
    its volume isn't to be trusted.
 3. **Calibrate:** `mass.calibrate { grams }` with a print of the same
    settings weighed on the scales. Every reading after that matches their
-   printer and spool. `reset: true` undoes it. With more than one body
+   printer and spool. Encased parts are taken off the grams first, so
+   weigh it with them in. `reset: true` undoes it. With more than one body
    shown, say which was printed (`body`). A print more than 5 times off (or
    under a fifth) is refused: the settings don't match it.
 

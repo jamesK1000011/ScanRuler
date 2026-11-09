@@ -32,11 +32,32 @@ export interface BodyMass {
   closed: boolean
 }
 
+/** Parts encased in a body (the Hardware workspace's): a nut, a magnet.
+ *  Copies of one are one row. */
+export interface EmbeddedMass {
+  id: string
+  body: string
+  what: string
+  count: number
+  material: string
+  /** g, all of them. */
+  mass: number
+  com: V3
+  /** About their centre of mass, g·mm². */
+  inertia: M3
+}
+
 export interface Reading {
   at: string
   /** The Reverse Engineer bodies as they were weighed: a reading of others is stale. */
   bodiesKey: string
+  /** The encased parts as they were: a reading of others is stale. */
+  embedsKey?: string
+  /** The printed bodies alone. */
   bodies: BodyMass[]
+  /** Parts encased in them, counted in the total. */
+  embedded?: EmbeddedMass[]
+  /** Bodies and encased parts together. */
   total: { mass: number; com: V3; inertia: M3 }
 }
 

@@ -103,6 +103,14 @@ export function MassPanel() {
                 </span>
               </div>
             ))}
+          {r.embedded?.map((e) => (
+            <div key={e.id} className="kv" title="Encased in the print, counted in the mass">
+              <span className="pl-aside">{e.what}</span>
+              <span className="pl-aside">
+                {g(e.mass)} g at ({at(len, e.com)})
+              </span>
+            </div>
+          ))}
           {r.bodies.some((b) => !b.closed) && <Status tone="warn">A body’s mesh has holes: its volume is not to trust.</Status>}
           <details>
             <summary>Inertia</summary>

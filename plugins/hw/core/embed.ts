@@ -308,3 +308,144 @@ export function noteOf(whats: string[]): string {
   for (const w of whats) n.set(w, (n.get(w) ?? 0) + 1)
   return `Insert ${[...n].map(([w, k]) => (k > 1 ? `${w} (${k})` : w)).join(', ')}`
 }
+
+// ---- the part's own mass ------------------------------------------------------------------
+
+/** What the hardware is made of, g/cm³ — typical figures: sintered NdFeB
+ *  magnets, steel nuts and bearings, brass inserts. */
+export const PART_MATERIALS = {
+  ndfeb: { label: 'NdFeB', density: 7.5 },
+  steel: { label: 'steel', density: 7.85 },
+  brass: { label: 'brass', density: 8.5 },
+} as const
+
+/** A deep-groove bearing is not solid steel: races, balls and cage come to
+ *  about this share of the ring they fill (a 608 weighs about 12 g, its
+ *  ring of steel 18). */
+export const BEARING_FILL = 0.65
+
+/** One encased part as a solid, about its own centre. */
+export interface PartSolid {
+  /** What it is made of, in words. */
+  material: string
+  /** g, one part. */
+  mass: number
+  /** Its length along the hole, mm: it rests at the pocket's low end. */
+  length: number
+  /** Moments of inertia about its centre, g·mm²: about the sheet's u and v
+   *  (turned by angleDeg on the sheet), and about the hole. */
+  moments: [number, number, number]
+  angleDeg?: number
+  /** Its furthest point from its centre, mm. */
+  reach: number
+}
+
+/** A prism along the hole, as mass and moments: area A (mm²), second
+ *  moments of the section about u, v (mm⁴), height h, density ρ (g/cm³). */
+function prism(A: number, Iu: number, Iv: number, h: number, rho: number) {
+  const m = (rho * A * h) / 1000
+  const k = m / A
+  return { m, moments: [k * Iu + (m * h * h) / 12, k * Iv + (m * h * h) / 12, k * (Iu + Iv)] as [number, number, number] }
+}
+const disc = (r: number) => ({ A: Math.PI * r * r, I: (Math.PI * r ** 4) / 4 })
+
+/** A round part with a bore through it (none at 0). */
+function ring(od: number, bore: number, h: number, rho: number) {
+  const o = disc(od / 2), i = disc(bore / 2)
+  const a = prism(o.A, o.I, o.I, h, rho)
+  if (!(bore > 0)) return a
+  const b = prism(i.A, i.I, i.I, h, rho)
+  return { m: a.m - b.m, moments: [0, 1, 2].map((k) => a.moments[k] - b.moments[k]) as [number, number, number] }
+}
+
+/**
+ * The part that goes into an encased pocket, as a solid: its mass, where
+ * its centre sits along the hole, and its moments — from the table's size
+ * and the kind's usual material (a nut as an ISO 4032 hex with its bore, a
+ * bearing a ring at BEARING_FILL, an insert a brass ring over the screw).
+ * grams, when given, is what one weighs: it scales the figures (an
+ * object's density is worked out from it). An object without grams, or a
+ * size the table has not, gives null: its mass is not known.
+ */
+export function partSolid(kind: string, size?: string, object?: ObjectSpec, grams?: number): PartSolid | null {
+  let s: { m: number; moments: [number, number, number] }
+  let length: number
+  let reach: number
+  let material: string
+  let angleDeg: number | undefined
+  const reachOf = (r: number, h: number) => Math.hypot(r, h / 2)
+  if (kind === 'magnet') {
+    const mg = magnetOf(size ?? '')
+    if (!mg) return null
+    s = ring(mg.d, 0, mg.t, PART_MATERIALS.ndfeb.density)
+    ;[length, reach, material] = [mg.t, reachOf(mg.d / 2, mg.t), PART_MATERIALS.ndfeb.label]
+  } else if (kind === 'nut') {
+    const m = metricOf(size ?? '')
+    if (!m) return null
+    // A regular hexagon across flats s: area √3/2 s², second moment about
+    // any line through its centre 5√3/144 s⁴.
+    const sf = m.nut.s
+    const hex = prism((Math.sqrt(3) / 2) * sf * sf, ((5 * Math.sqrt(3)) / 144) * sf ** 4, ((5 * Math.sqrt(3)) / 144) * sf ** 4, m.nut.m, PART_MATERIALS.steel.density)
+    const bore = ring(m.d, 0, m.nut.m, PART_MATERIALS.steel.density)
+    s = { m: hex.m - bore.m, moments: [0, 1, 2].map((k) => hex.moments[k] - bore.moments[k]) as [number, number, number] }
+    ;[length, reach, material] = [m.nut.m, reachOf(sf / Math.sqrt(3), m.nut.m), PART_MATERIALS.steel.label]
+  } else if (kind === 'bearing') {
+    const b = bearingOf(size ?? '')
+    if (!b) return null
+    const r = ring(b.od, b.bore, b.width, PART_MATERIALS.steel.density)
+    s = { m: r.m * BEARING_FILL, moments: r.moments.map((x) => x * BEARING_FILL) as [number, number, number] }
+    ;[length, reach, material] = [b.width, reachOf(b.od / 2, b.width), PART_MATERIALS.steel.label]
+  } else if (kind === 'insert') {
+    const ins = insertOf(size ?? '')
+    const thread = metricOf((size ?? '').split(' ')[0])
+    if (!ins || !thread) return null
+    s = ring(ins.od, thread.d, ins.length, PART_MATERIALS.brass.density)
+    ;[length, reach, material] = [ins.length, reachOf(ins.od / 2, ins.length), PART_MATERIALS.brass.label]
+  } else if (kind === 'object' && object && grams !== undefined) {
+    if (object.shape === 'box') {
+      const [w, l, h] = object.size
+      s = prism(w * l, (w * l ** 3) / 12, (l * w ** 3) / 12, h, 1)
+      ;[length, reach, angleDeg] = [h, Math.hypot(w, l, h) / 2, object.angleDeg]
+    } else {
+      s = ring(object.diameter, 0, object.height, 1)
+      ;[length, reach] = [object.height, reachOf(object.diameter / 2, object.height)]
+    }
+    material = 'as weighed'
+  } else return null
+  if (grams !== undefined) {
+    if (!(Number.isFinite(grams) && grams > 0)) return null
+    const k = grams / s.m
+    s = { m: grams, moments: s.moments.map((x) => x * k) as [number, number, number] }
+    if (kind !== 'object') material = `${material}, as weighed`
+  }
+  return { material, mass: s.m, length, moments: s.moments, ...(angleDeg ? { angleDeg } : {}), reach }
+}
+
+type M3 = [V3, V3, V3]
+type V3 = [number, number, number]
+
+/** A part's inertia about its centre in the part's frame, g·mm²: its
+ *  moments about the sheet's u and v (turned by its angle) and the hole's
+ *  direction. */
+export function inertiaOf(p: PartSolid, direction: V3, basisU: V3, basisV: V3): M3 {
+  const t = ((p.angleDeg ?? 0) * Math.PI) / 180
+  const u = [0, 1, 2].map((i) => Math.cos(t) * basisU[i] + Math.sin(t) * basisV[i])
+  const v = [0, 1, 2].map((i) => -Math.sin(t) * basisU[i] + Math.cos(t) * basisV[i])
+  const axes = [u, v, direction]
+  const I: M3 = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ]
+  for (let k = 0; k < 3; k++) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) I[i][j] += p.moments[k] * axes[k][i] * axes[k][j]
+  return I
+}
+
+/** Where the part's centre sits along the hole, from the surface, in a
+ *  pocket running from `from` to `to`: it rests at the end lower in Z (dz,
+ *  the hole's direction's Z), or in the middle of a level one. */
+export function restDepth(from: number, to: number, length: number, dz: number): number {
+  if (dz < -1e-6) return to - length / 2
+  if (dz > 1e-6) return from + length / 2
+  return (from + to) / 2
+}

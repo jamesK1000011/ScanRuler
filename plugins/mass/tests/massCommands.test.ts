@@ -4,7 +4,8 @@
 // named, a calibration that is one step and stays in range, a target with
 // a part dropped, a plan made again when the body changed, the walls round
 // the pocket counted, a pocket too narrow for BBs, feature names that don't
-// collide, a stale plan refused, and weighings that overlap.
+// collide, a stale plan refused, weighings that overlap, and the parts
+// encased in the print counted.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/commands/registry', () => import('./massFakes'))
@@ -13,7 +14,7 @@ vi.mock('../../../src/commands/stateSections', () => import('./massFakes'))
 vi.mock('../../../src/plugins/api', () => import('./massFakes'))
 
 import { calls, handlers, sections } from './massFakes'
-import { massCommands } from '../app/massCommands'
+import { describeMass, massCommands } from '../app/massCommands'
 import { useMass } from '../state/massStore'
 
 type Run = (input: Record<string, unknown>, ctx: unknown) => Promise<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -54,7 +55,11 @@ handlers['reverse.feature.add'] = async (i: { features: { name: string }[] }) =>
   features.push(...i.features.map((f) => ({ name: f.name })))
   return { ok: true }
 }
+let encased: unknown = null
+sections.hw = () => ({ encased })
 function fresh() {
+  delete handlers['hw.masses']
+  encased = null
   useMass.getState().reset()
   bodies = [{ id: 1, name: 'Grip', visible: true, volume: 48000, faces: 6 }]
   geo[1] = box([-20, -15, 0], [20, 15, 40])
@@ -155,6 +160,40 @@ describe('the Mass commands', () => {
     await run('ballast')
     bodies = [{ ...bodies[0], volume: 47000 }]
     await refused(run('apply'), /changed since/)
+  })
+  it('count the parts encased in the body: in the total, its balance point and inertia, listed apart', async () => {
+    fresh()
+    const plain = await run('properties')
+    const m = plain.total.mass
+    const I = (x: number) => [
+      [x, 0, 0],
+      [0, x, 0],
+      [0, 0, x],
+    ]
+    handlers['hw.masses'] = async (i: { bodies: string[] }) => ({
+      parts: i.bodies.includes('Grip') ? [{ id: 'E1', body: 'Grip', what: 'a 10x5 magnet', material: 'NdFeB', mass: 3, centres: [[10, 0, 35], [-10, 0, 35]], inertia: I(50) }] : [],
+      uncounted: [{ id: 'E2', body: 'Grip', what: 'a tag' }],
+    })
+    encased = [{ id: 'E1' }, { id: 'E2' }]
+    const r = await run('properties')
+    expect(r.bodies[0].mass).toBe(plain.bodies[0].mass)
+    expect(r.embeddedMass).toBe(6)
+    expect(r.total.mass).toBeCloseTo(m + 6, 3)
+    expect(r.total.com[2]).toBeCloseTo((m * 20 + 6 * 35) / (m + 6), 3)
+    expect(r.embedded).toEqual([{ id: 'E1', body: 'Grip', what: 'a 10x5 magnet', count: 2, material: 'NdFeB', mass: 6, com: [0, 0, 35], inertia: [[100, 0, 0], [0, 700, 0], [0, 0, 700]] }])
+    // Two 3 g magnets 10 off the axis, 15 above the plastic's centre.
+    const d = 35 - r.total.com[2]
+    const dp = r.total.com[2] - 20
+    expect(r.total.inertia[1][1]).toBeCloseTo(plain.total.inertia[1][1] + m * dp * dp + 700 + 6 * d * d, 1)
+    expect(r.note).toContain('a tag in Grip (E2)')
+    expect(describeMass().reading!.stale).toBe(undefined)
+    // Another part encased since: the reading is stale.
+    encased = [{ id: 'E1' }]
+    expect(describeMass().reading!.stale).toBe(true)
+    // Weighed on the scales with its magnets in: they come off the grams.
+    await run('calibrate', { grams: m * 1.1 + 6 })
+    expect(useMass.getState().scale).toBeCloseTo(1.1, 3)
+    await refused(run('calibrate', { grams: 5 }), /no more than the parts encased/)
   })
   it('stay busy while any weighing runs, and keep no reading of a setup since changed', async () => {
     fresh()

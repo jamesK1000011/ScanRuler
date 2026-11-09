@@ -7,10 +7,10 @@
 
 import { runCommand, runWithin } from '../../../src/commands/registry'
 import { arr, enumOf, int, num, obj, str, vec3 } from '../../../src/commands/schema'
-import { readStateSections } from '../../../src/commands/stateSections'
+import { readStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
-import { ballast, BB_GRAMS, boxInside, combine, FILLERS, freeName, inside, massOf, MATERIALS, pocketSize, readStl, type V3 } from '../core/mass'
-import { setupOf, useMass, type BodyMass, type Pocket } from '../state/massStore'
+import { ballast, BB_GRAMS, boxInside, combine, FILLERS, freeName, inside, type M3, massOf, MATERIALS, pocketSize, readStl, type V3 } from '../core/mass'
+import { setupOf, useMass, type BodyMass, type EmbeddedMass, type Pocket } from '../state/massStore'
 import { MATERIAL_NAMES, materialId } from '../../_shared/materials'
 
 const st = () => useMass.getState()
@@ -29,10 +29,46 @@ interface ReverseFeature {
   name?: string
 }
 
-const reverse = () => (readStateSections().reverse ?? {}) as { bodies?: ReverseBody[]; features?: ReverseFeature[] }
+// One section, not all: the readout's mass part reads this, and all of them
+// would read it again.
+const reverse = () => (readStateSection('reverse') ?? {}) as { bodies?: ReverseBody[]; features?: ReverseFeature[] }
 const solids = (): ReverseBody[] => (reverse().bodies ?? []).filter((b) => !b.surface)
 /** The solid bodies as they stand: a reading or a plan of others is stale. */
 const bodiesKey = () => JSON.stringify(solids().map((b) => [b.id, b.name, b.visible, b.volume ?? null, b.faces ?? null]))
+
+/** The encased parts as they stand (the Hardware workspace's list): a
+ *  reading made with others is stale. */
+const embedsKey = () => JSON.stringify((readStateSection('hw') as { encased?: unknown } | undefined)?.encased ?? null)
+
+interface HwPart {
+  id: string
+  body: string
+  what: string
+  material: string
+  mass: number
+  centres: V3[]
+  inertia: M3
+}
+
+/** The parts encased in these bodies — a magnet, a nut dropped in at a
+ *  pause — read from the Hardware workspace (hw.masses), each set of
+ *  copies as one, about its own centre; and those whose weight it does not
+ *  know, said. None where the workspace is not in the build. */
+async function encased(names: string[]): Promise<{ parts: EmbeddedMass[]; notes: string[] }> {
+  let r: { parts?: HwPart[]; uncounted?: { id: string; body: string; what: string }[]; warnings?: string[] }
+  try {
+    r = (await runCommand('hw.masses', { bodies: names })) as typeof r
+  } catch (e) {
+    if (e instanceof CommandError && e.code === 'unknown_command') return { parts: [], notes: [] }
+    throw e
+  }
+  const parts = (r.parts ?? []).map((p) => {
+    const all = combine(p.centres.map((com) => ({ mass: p.mass, com, inertia: p.inertia })))
+    return { id: p.id, body: p.body, what: p.what, count: p.centres.length, material: p.material, mass: r3(all.mass), com: v3(all.com), inertia: all.inertia.map((row) => row.map(r3)) as M3 }
+  })
+  const notes = [...(r.uncounted?.length ? [`Not counted, weight not known: ${r.uncounted.map((u) => `${u.what} in ${u.body} (${u.id})`).join(', ')}. Give its grams in hw.embed.`] : []), ...(r.warnings ?? [])]
+  return { parts, notes }
+}
 
 /** The density printed: the material's, or the one given, times the
  *  calibration. g/cm³. */
@@ -84,7 +120,7 @@ export function describeMass() {
   return {
     setup: setupOf(s),
     density: r3(density()),
-    ...(s.reading ? { reading: { at: s.reading.at, ...(s.reading.bodiesKey !== bodiesKey() ? { stale: true } : {}), total: { mass: r3(s.reading.total.mass), com: v3(s.reading.total.com) }, bodies: s.reading.bodies.map((b) => ({ body: b.body, mass: b.mass, com: b.com })) } } : {}),
+    ...(s.reading ? { reading: { at: s.reading.at, ...(s.reading.bodiesKey !== bodiesKey() || (s.reading.embedsKey ?? embedsKey()) !== embedsKey() ? { stale: true } : {}), total: { mass: r3(s.reading.total.mass), com: v3(s.reading.total.com) }, bodies: s.reading.bodies.map((b) => ({ body: b.body, mass: b.mass, com: b.com })), ...(s.reading.embedded?.length ? { embedded: s.reading.embedded.map((e) => ({ id: e.id, body: e.body, what: e.what, mass: e.mass, com: e.com })) } : {}) } } : {}),
     ...(s.pocket ? { pocket: s.pocket } : {}),
   }
 }
@@ -123,7 +159,7 @@ const setup: Command<{ material?: string; density?: number | null; infill?: numb
 const properties: Command<{ bodies?: string[] }> = {
   name: 'properties',
   title: 'Weigh the part',
-  description: 'Mass (g), volume (mm³), surface (mm²), centre of mass (mm) and inertia about it (g·mm², with principal moments and axes) of each body — the shown solid bodies by default — printed as set up, and of them together. closed: false means a mesh with holes or faces wound both ways, whose volume is not to trust. Reads the bodies as meshed now.',
+  description: 'Mass (g), volume (mm³), surface (mm²), centre of mass (mm) and inertia about it (g·mm², with principal moments and axes) of each body — the shown solid bodies by default — printed as set up, and of them together. Parts encased in them (the Hardware workspace’s: a magnet, a nut dropped in at a pause) are listed under embedded with their mass and centre, and counted in the total; embeddedMass is theirs alone. closed: false means a mesh with holes or faces wound both ways, whose volume is not to trust. Reads the bodies as meshed now.',
   input: obj({ bodies: arr(str(undefined, { minLength: 1 }), 'Bodies by name.', { minItems: 1 }) }),
   readOnly: true,
   long: true,
@@ -138,11 +174,16 @@ async function weigh(bodies?: string[]) {
   useMass.setState({ busy: 'Weighing…' })
   try {
     const list = await measure(picked, how)
-    const total = combine(list)
-    const reading = { at: new Date().toISOString(), bodiesKey: key, bodies: list, total: { mass: r3(total.mass), com: v3(total.com), inertia: total.inertia.map((row) => row.map(r3)) as BodyMass['inertia'] } }
+    const eKey = embedsKey()
+    const held = await encased(picked.map((b) => b.name))
+    const total = combine([...list, ...held.parts])
+    const reading = { at: new Date().toISOString(), bodiesKey: key, embedsKey: eKey, bodies: list, ...(held.parts.length ? { embedded: held.parts } : {}), total: { mass: r3(total.mass), com: v3(total.com), inertia: total.inertia.map((row) => row.map(r3)) as BodyMass['inertia'] } }
     // Set up otherwise while it weighed: this reading is not of the setup now.
     if (JSON.stringify(print()) === JSON.stringify(how)) useMass.setState({ reading })
-    return { density: r3(how.density), ...reading, ...(list.some((b) => !b.closed) ? { note: `Not closed: ${list.filter((b) => !b.closed).map((b) => b.body).join(', ')} — its volume is not to trust.` } : {}) }
+    const notes = [...(list.some((b) => !b.closed) ? [`Not closed: ${list.filter((b) => !b.closed).map((b) => b.body).join(', ')} — its volume is not to trust.`] : []), ...held.notes]
+    const { embedsKey: _k, ...out } = reading
+    void _k
+    return { density: r3(how.density), ...out, ...(held.parts.length ? { embeddedMass: r3(held.parts.reduce((t, p) => t + p.mass, 0)) } : {}), ...(notes.length ? { note: notes.join(' ') } : {}) }
   } finally {
     if (--weighing === 0) useMass.setState({ busy: null })
   }
@@ -156,7 +197,7 @@ const SCALE_MAX = 5
 const calibrate: Command<{ grams?: number; body?: string; reset?: boolean }> = {
   name: 'calibrate',
   title: 'Calibrate from a print on the scales',
-  description: 'A print weighed (grams) against what it works out to, printed as set up: the density is scaled by the difference (0.2 to 5 times), so every reading after matches your printer and spool. reset: true goes back to the material’s figures. Weigh a print of the same material, infill and walls. body: the body printed — needed when more than one is shown.',
+  description: 'A print weighed (grams) against what it works out to, printed as set up: the density is scaled by the difference (0.2 to 5 times), so every reading after matches your printer and spool. Parts encased in it (hw.masses) are taken off the grams first: weigh it with them in. reset: true goes back to the material’s figures. Weigh a print of the same material, infill and walls. body: the body printed — needed when more than one is shown.',
   input: obj({ grams: num('What the print weighs, g.', { exclusiveMinimum: 0 }), body: str('The body printed; the only one shown by default.'), reset: { type: 'boolean' } }),
   history: false,
   run: async ({ grams, body, reset }) => {
@@ -171,17 +212,24 @@ const calibrate: Command<{ grams?: number; body?: string; reset?: boolean }> = {
     weighing++
     useMass.setState({ busy: 'Weighing…' })
     let b: BodyMass
+    let held: Awaited<ReturnType<typeof encased>>
     try {
       ;[b] = await measure(picked, print(1))
+      held = await encased([b.body])
     } finally {
       if (--weighing === 0) useMass.setState({ busy: null })
     }
     if (!(b.mass > 0)) throw new CommandError('invalid_state', `${b.body} works out to no mass as set up (no walls and no infill?): nothing to scale.`)
-    const scale = grams / b.mass
-    if (!(scale >= SCALE_MIN && scale <= SCALE_MAX)) throw new CommandError('invalid_input', `${grams} g against ${r3(b.mass)} g worked out is ×${r3(scale)}: more than ${SCALE_MIN} to ${SCALE_MAX} times off — check the material, infill and walls match the print.`)
+    // The print on the scales holds its encased parts: the plastic is the rest.
+    const parts = r3(held.parts.reduce((t, p) => t + p.mass, 0))
+    const plastic = grams - parts
+    if (!(plastic > 0)) throw new CommandError('invalid_input', `${grams} g is no more than the parts encased in ${b.body} weigh (${parts} g): weigh the print with them in.`)
+    const scale = plastic / b.mass
+    if (!(scale >= SCALE_MIN && scale <= SCALE_MAX)) throw new CommandError('invalid_input', `${grams} g${parts ? ` (${r3(plastic)} g less the encased parts)` : ''} against ${r3(b.mass)} g worked out is ×${r3(scale)}: more than ${SCALE_MIN} to ${SCALE_MAX} times off — check the material, infill and walls match the print.`)
     st().set({ scale })
     useMass.setState({ reading: null, pocket: null })
-    return { ...describeMass(), scale: r3(scale), ...(b.closed ? {} : { note: `${b.body}’s mesh is not closed: its volume is not to trust.` }) }
+    const notes = [...(parts ? [`${parts} g of encased parts taken off the grams.`] : []), ...(b.closed ? [] : [`${b.body}’s mesh is not closed: its volume is not to trust.`]), ...held.notes]
+    return { ...describeMass(), scale: r3(scale), ...(notes.length ? { note: notes.join(' ') } : {}) }
   },
 }
 
@@ -224,7 +272,7 @@ const plan: Command<{ body?: string; filler?: string; width?: number; depth?: nu
     useMass.setState({ pocket: null })
     if (filler) st().set({ filler })
     const fill = FILLERS[st().filler]
-    if (!st().reading || st().reading!.bodiesKey !== bodiesKey()) await weigh()
+    if (!st().reading || st().reading!.bodiesKey !== bodiesKey() || (st().reading!.embedsKey ?? embedsKey()) !== embedsKey()) await weigh()
     const reading = st().reading
     if (!reading) throw new CommandError('failed', 'The setup changed while the part was weighed: plan again.')
     const name = body ?? (reading.bodies.length === 1 ? reading.bodies[0].body : null)

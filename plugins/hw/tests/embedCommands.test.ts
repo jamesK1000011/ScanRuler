@@ -12,6 +12,7 @@ import { registerStateSection } from '../../../src/commands/stateSections'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { hwCommands } from '../app/hwCommands'
 import { DEFAULT_SETTINGS } from '../core/plan'
+import { embedsFrom } from '../app/projectSection'
 import { settingsOf, useHw } from '../state/hwStore'
 
 type V3 = [number, number, number]
@@ -132,7 +133,12 @@ describe('hw.embed', () => {
   test('a magnet from the top face: sunk under 3 layers, top on a boundary, its pause', async () => {
     const p = await run('embed', { kind: 'magnet', size: '6x3', at: { body: 'Block', face: 0 } })
     expect(p.steps[0]).toMatchObject({ role: 'pocket', diameter: 6.3, from: 0.6, to: 3.8 })
-    expect(p.embed).toEqual({ kind: 'magnet', label: '6x3 magnet', what: 'a 6x3 magnet', tops: [9.4], roof: 0.6, minRoof: 0.6, span: 6.3, pauses: [{ layer: 48, z: 9.4, printZ: 9.6, onBoundary: true }], bedZ: 0 })
+    const { solid, ...embed } = p.embed
+    expect(embed).toEqual({ kind: 'magnet', label: '6x3 magnet', what: 'a 6x3 magnet', tops: [9.4], roof: 0.6, minRoof: 0.6, span: 6.3, pauses: [{ layer: 48, z: 9.4, printZ: 9.6, onBoundary: true }], bedZ: 0 })
+    // The magnet itself: NdFeB, resting on the pocket's floor (3.8 down), 3 thick.
+    expect(solid.material).toBe('NdFeB')
+    expect(solid.centres).toEqual([[0, 0, 7.7]])
+    expect(solid.mass).toBeCloseTo((7.5 * Math.PI * 9 * 3) / 1000, 5)
     expect(warnings(p)).toEqual([])
     // The cut starts under the surface: closed above.
     const cut = p.features.find((f: Json) => f.kind === 'extrude')
@@ -417,5 +423,65 @@ describe('the encased pocket in OCCT', () => {
     expect(k.containsPoint(b, P3([x, 0, 5 - 3.3]))).toBe(false)
     expect(k.containsPoint(b, P3([x, 2.85, 5 - 2.5]))).toBe(true)
     k.releaseAll()
+  })
+})
+
+describe('the encased parts’ mass (hw.masses)', () => {
+  test('a magnet cut in is a solid: its mass, where it rests, its inertia; copies at one top each placed', async () => {
+    await run('apply', { kind: 'magnet', size: '6x3', encase: true, at: { body: 'Block', face: 0 }, pattern: { kind: 'rectangle', width: 20, height: 10 } })
+    const m = await run('masses')
+    expect(m.parts.length).toBe(1)
+    const p = m.parts[0]
+    const one = (7.5 * Math.PI * 9 * 3) / 1000
+    expect(p.count).toBe(4)
+    expect(p.mass).toBeCloseTo(one, 5)
+    expect(p.total).toBeCloseTo(4 * one, 5)
+    expect(p.centres.map((c: V3) => c.join(',')).sort()).toEqual(['-10,-5,7.7', '-10,5,7.7', '10,-5,7.7', '10,5,7.7'])
+    // A disc about its axis (world Z here): m r²/2; across it m(3r² + t²)/12.
+    expect(p.inertia[2][2]).toBeCloseTo((one * 9) / 2, 4)
+    expect(p.inertia[0][0]).toBeCloseTo((one * (27 + 9)) / 12, 4)
+    expect(p.inertia[0][1]).toBeCloseTo(0, 6)
+  })
+
+  test('from below it rests on the floor nearest the bed; a nut is steel with its bore', async () => {
+    await run('apply', { kind: 'nut', size: 'M3', shaft: false, encase: true, at: { body: 'Block', face: 1 } })
+    const p = (await run('masses')).parts[0]
+    // Cut up from Z 0 under a 0.6 floor: the nut's 2.4 sits on it.
+    expect(p.centres[0][2]).toBeCloseTo(0.6 + 1.2, 6)
+    const hex = (Math.sqrt(3) / 2) * 5.5 ** 2 - Math.PI * 1.5 ** 2
+    expect(p.mass).toBeCloseTo((7.85 * hex * 2.4) / 1000, 5)
+    expect(p.material).toBe('steel')
+  })
+
+  test('an object needs its grams; a recorded cavity is uncounted; a gone cut left out', async () => {
+    const o = await run('embed', { kind: 'object', object: { shape: 'cylinder', diameter: 8, height: 2 }, what: 'a slug', at: { body: 'Block', face: 0 } })
+    expect(o.embed.solid).toBe(undefined)
+    expect(o.notes.some((n: string) => /give grams/.test(n))).toBe(true)
+    await run('apply')
+    await run('apply', { kind: 'object', object: { shape: 'cylinder', diameter: 8, height: 2 }, what: 'a weighed slug', grams: 7.5, encase: true, at: { body: 'Block', face: 0, point: [10, 10, 10] } })
+    await run('record', { body: 'Block', top: 4, what: 'a tag' })
+    const m = await run('masses')
+    expect(m.parts.map((x: Json) => [x.what, x.mass])).toEqual([['a weighed slug', 7.5]])
+    expect(m.parts[0].material).toBe('as weighed')
+    expect(m.uncounted.map((x: Json) => x.what)).toEqual(['a slug', 'a tag'])
+    // A grams given to a hardware part scales the table's.
+    await refused(run('plan', { kind: 'magnet', size: '6x3', grams: 1, at: { body: 'Block', face: 0 } }), /grams: an encased pocket’s only/)
+    // Its cut taken away: no longer in the part.
+    const slug = useHw.getState().embeds.find((e) => e.what === 'a weighed slug')!
+    features = features.filter((f) => !slug.features.includes(f.name))
+    const left = await run('masses')
+    expect(left.parts).toEqual([])
+    expect(left.gone).toMatch(new RegExp(`^${slug.id}:`))
+  })
+
+  test('saved with the project and read back whole', async () => {
+    await run('apply', { kind: 'magnet', size: '6x3', encase: true, at: { body: 'Block', face: 0 } })
+    const saved = JSON.parse(JSON.stringify(useHw.getState().embeds))
+    const back = embedsFrom(saved)
+    expect(back[0].solid).toEqual(saved[0].solid)
+    // A solid whose centres don't match its count is dropped, the embed kept.
+    const bad = embedsFrom([{ ...saved[0], solid: { ...saved[0].solid, centres: [] } }])
+    expect(bad.length).toBe(1)
+    expect(bad[0].solid).toBe(undefined)
   })
 })

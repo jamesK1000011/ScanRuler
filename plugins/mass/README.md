@@ -11,7 +11,11 @@ thing, a handle that has to sit right in the hand, or a counterweight.
   walls × line width inside the surface, at full density (each face's slab,
   less the overlap at convex edges and plus the gap at concave ones), and
   the inside is at the infill's share.
-- **Calibrating:** weigh a print and the density scales to match.
+- **Encased parts:** magnets, nuts, bearings and inserts the Hardware
+  workspace encases (`hw.masses`) are added to the total — their mass,
+  centre and inertia — and listed apart.
+- **Calibrating:** weigh a print and the density scales to match (less the
+  encased parts).
 - **Ballast:** a pocket filled with a denser filler (steel BBs, lead shot,
   tungsten), solved so that mass and balance point both reach the target,
   the walls printed round the pocket counted. It's checked to lie clear of

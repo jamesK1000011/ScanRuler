@@ -40,7 +40,14 @@ geometry is ScanRuler's own; no CAD package's code is used.
 | `hw.embed` | An encased pocket planned: sunk under its roof, its top on a layer boundary, its pause |
 | `hw.record` | A pocket cut another way (or Mass's ballast) recorded for its pause |
 | `hw.pauses` | The pause layers, merged per layer, and `slicer_slice`'s `pauses` |
+| `hw.masses` | The encased parts as solids — mass, centres, inertia — for Mass and Strength |
 | `hw.unembed` | Forget an encased part (its cut stays) |
+
+An encased nut, magnet, bearing or insert carries its own mass, from the
+table's size and its usual material (NdFeB 7.5, steel 7.85, brass 8.5
+g/cm³; a bearing at 65 % of its steel ring), resting at the pocket's low
+end; `grams` gives what one weighs instead, and is needed for an object.
+`mass.properties` adds them to the part, and `fea.solve` to its own weight.
 
 The settings and the encased parts are saved with the project and are part
 of the undo history.

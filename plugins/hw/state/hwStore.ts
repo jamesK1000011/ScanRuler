@@ -28,6 +28,23 @@ export interface PlanOut {
   embed?: EmbedPlan
 }
 
+type V3 = [number, number, number]
+
+/** An encased part's own mass, for the part's: what one weighs, where each
+ *  one's centre sits and its inertia about it. */
+export interface EmbedSolid {
+  /** What it is made of, in words. */
+  material: string
+  /** g, one part. */
+  mass: number
+  /** Each one's centre, part frame, mm. */
+  centres: V3[]
+  /** One part's inertia about its centre, part frame, g·mm². */
+  inertia: [V3, V3, V3]
+  /** Its furthest point from its centre, mm. */
+  reach: number
+}
+
 /** A pocket closed in the part, as hw.embed plans it. */
 export interface EmbedPlan {
   kind: string
@@ -43,6 +60,9 @@ export interface EmbedPlan {
   pauses?: { layer: number; z: number; printZ: number; onBoundary: boolean }[]
   /** The body's lowest Z as planned, where known. */
   bedZ?: number
+  /** The part as a solid, its centres one per top; none where its mass is
+   *  not known (an object not weighed). */
+  solid?: EmbedSolid
 }
 
 /** A part encased in the print: the pocket it goes in, and where the print
@@ -72,6 +92,9 @@ export interface Embed {
   /** Its body's lowest Z when it was cut or recorded: a body moved since
    *  takes its pocket with it, the top recorded here not. */
   bedZ?: number
+  /** The part as a solid, a centre for each of count: for the mass of the
+   *  part it is in. None where its mass is not known. */
+  solid?: EmbedSolid
 }
 
 export interface HwState extends Settings {

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The Hardware workspace's part of a project file: the settings that size
 // its holes, and the parts encased in the print — each pocket's top, for
-// its pause. Not the plan or the check — read again in a moment — nor the
+// its pause, and the part's own mass. Not the plan or the check — read again in a moment — nor the
 // cuts, which are Reverse Engineer's features and saved with it.
 
 import type { ProjectSection } from '../../../src/app/projectSections'
 import { FITS, type Fit, type Kind, KINDS } from '../core/hardware'
 import { DEFAULT_SETTINGS, type Settings } from '../core/plan'
-import { type Embed, settingsOf, useHw } from '../state/hwStore'
+import { type Embed, type EmbedSolid, settingsOf, useHw } from '../state/hwStore'
 
 interface SavedHw {
   version: 1
@@ -41,6 +41,17 @@ export function settingsFrom(u: Record<string, unknown>): Settings {
 }
 
 const text = (x: unknown, max: number): x is string => typeof x === 'string' && x.length > 0 && x.length <= max
+const vec = (x: unknown): x is [number, number, number] => Array.isArray(x) && x.length === 3 && x.every((c) => fin(c, -1e6, 1e6))
+
+/** An encased part's mass as a file holds it, whole, or none. */
+function solidFrom(u: unknown, count: number): EmbedSolid | null {
+  if (!u || typeof u !== 'object') return null
+  const s = u as Record<string, unknown>
+  if (!text(s.material, 80) || !fin(s.mass, 0, 1e7) || !fin(s.reach, 0, 1e4)) return null
+  if (!Array.isArray(s.centres) || s.centres.length !== count || !s.centres.every(vec)) return null
+  if (!Array.isArray(s.inertia) || s.inertia.length !== 3 || !s.inertia.every((r) => Array.isArray(r) && r.length === 3 && r.every((c) => fin(c, -1e12, 1e12)))) return null
+  return { material: s.material, mass: s.mass, centres: s.centres as EmbedSolid['centres'], inertia: s.inertia as EmbedSolid['inertia'], reach: s.reach }
+}
 
 /** The encased parts a file holds: each one whole and in range, or left out. */
 export function embedsFrom(u: unknown): Embed[] {
@@ -53,7 +64,8 @@ export function embedsFrom(u: unknown): Embed[] {
     if (!(e.roof === null || fin(e.roof, 0, 1e4))) continue
     const features = Array.isArray(e.features) ? e.features.filter((f): f is string => text(f, 200)) : []
     if (out.some((x) => x.id === e.id)) continue
-    out.push({ id: e.id, body: e.body, kind: e.kind, label: e.label, what: e.what, top: e.top, roof: e.roof as number | null, minRoof: e.minRoof, span: e.span, count: e.count as number, features, ...(text(e.source, 20) ? { source: e.source } : {}), ...(fin(e.bedZ, -1e5, 1e5) ? { bedZ: e.bedZ } : {}) })
+    const solid = solidFrom(e.solid, e.count as number)
+    out.push({ id: e.id, body: e.body, kind: e.kind, label: e.label, what: e.what, top: e.top, roof: e.roof as number | null, minRoof: e.minRoof, span: e.span, count: e.count as number, features, ...(text(e.source, 20) ? { source: e.source } : {}), ...(fin(e.bedZ, -1e5, 1e5) ? { bedZ: e.bedZ } : {}), ...(solid ? { solid } : {}) })
   }
   return out
 }

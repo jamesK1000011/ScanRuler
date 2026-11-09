@@ -165,7 +165,12 @@ pauses, the part is dropped in, and the layers above close over it.
    - A part whose cut was removed, or whose body isn't built, is left out
      and named. `hw.unembed { id }` or `{ all: true }` forgets one.
    - `hw.clear` puts away the last plan and check; nothing cut changes.
-6. Tell the person, per pause: the layer, what goes in, and which way up (a
+6. The part's mass: a nut, magnet, bearing or insert counts its own weight
+   (the table's size, NdFeB, steel or brass), resting at the pocket's low
+   end; `grams` gives what one weighs instead and is needed for an object.
+   `hw.masses` lists them; `mass.properties` and `fea.solve` (own weight)
+   add them. A pocket recorded without a part is named as not counted.
+7. Tell the person, per pause: the layer, what goes in, and which way up (a
    magnet's poles). They press resume on the printer, or through
    `printer_resume`, which asks them.
 
