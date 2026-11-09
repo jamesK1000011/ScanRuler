@@ -11,12 +11,6 @@ and brought into Reverse Engineer as bodies to finish, check and export.
   `wall: 0` the bin is a solid block, for cutting your own pocket.
 - **Gridfinity baseplate.** A grid of pockets, open underneath, or on a
   3 mm floor with magnet holes.
-
-With magnets, `gen.make` records the magnets with the Hardware workspace in
-the same undo step (`hw.record` with the magnet's size and each one's
-centre), so `hw.pauses` plans a pause to drop them in and `mass.properties`
-counts their weight. A bin's holes open onto the bed (a magnet dropped in at
-the pause is printed over); a baseplate's open into its pockets.
 - **Project box.** A rounded box and a lid whose lip drops inside at a set
   clearance, with optional M3 corner bosses. The lid is laid out beside the
   box, top down, so it prints flat.
@@ -29,6 +23,14 @@ the pause is printed over); a baseplate's open into its pockets.
   lid on a lip. It takes a board besides its values (`board`: outline,
   thickness, the parts' reach, holes, openings). Electronics › KiCad makes
   one from a KiCad board.
+
+With magnets, `gen.make` records the magnets with the Hardware workspace in
+the same undo step (`hw.record` with the magnet's size and each one's
+centre), so `hw.pauses` plans a pause to drop them in and `mass.properties`
+counts their weight; the answer lists them under `encased`, and says so
+where the Hardware workspace isn't in the build. A bin's holes open onto
+the bed (a magnet dropped in at the pause is printed over); a baseplate's
+open into its pockets.
 
 Holes, lid clearances, the gap round a board and the opening margins follow
 the printer's fit calibration from Fits where there is one and they are not
@@ -55,8 +57,10 @@ used.
 `board_box`; the board set last is used when none is given, and
 `gen.measure` gives the standoffs and openings planned.
 
-Every panel control runs one of these. An agent gets the same tools
-(`gen_list`, `gen_make` and so on).
+Every panel control runs one of these — the generator, its values, Make,
+Stop, the defaults, and *Printer fits* (shown when a calibration would move
+a value) — and an agent gets the same tools (`gen_list`, `gen_make` and so
+on).
 
 ## Saved with the project
 

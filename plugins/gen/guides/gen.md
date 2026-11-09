@@ -8,7 +8,7 @@ Standard parts made to size as solids, then finished in Reverse Engineer.
 4. Finish it there: cut a pocket or a slot with `reverse.feature.add`, move it with `moveBody`, check it with `reverse.body.check`, and export with `reverse.export.stl` or `reverse.export.step`.
 5. `gen.export { format: "step" | "stl" }` gives the file alone, without the project.
 
-Gridfinity: 42 mm cells, 7 mm height units (base included, the 4.4 mm stacking lip on top). A bin is 0.5 mm short of the grid; a baseplate is the grid. `wall: 0` gives a solid block, ready for `reverse.feature.add` to cut a custom pocket, such as a tool's outline from `scan.outline`.
+Gridfinity: 42 mm cells, 7 mm height units (base included, the 4.4 mm stacking lip on top). A bin is 0.5 mm short of the grid; a baseplate is the grid. `wall: 0` gives a solid block, ready for `reverse.feature.add` to cut a custom pocket, such as a tool's outline from `scan.outline`. With `magnets: true`, `gen.make` records the 6 × 2 magnets with the Hardware workspace in the same step (`encased` in the answer): `hw.pauses` gives the layer to pause at to drop them in, and Mass and Strength count their weight. A note says when they couldn't be recorded (no Hardware workspace in the build).
 
 Project box: `clearance` is the gap each side between the lid's lip and the wall. 0.2 mm suits most printers, 0.3 mm for a loose fit. With `screws`, M3 bosses stand in the corners with 2.5 mm pilot holes for self-tapping screws, and the lid has 3.4 mm clearance holes.
 
