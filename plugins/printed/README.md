@@ -82,6 +82,23 @@ The heat warning is a rule of thumb on power per metre of run (`heatWarn`,
 1 W/m by default, halved for a filament with no published use
 temperature). It is not a thermal model of the part.
 
+## The panel
+
+The **Method** (conductive traces or channels for copper) and what carries
+the current: the filament (or your own Ω·cm along and through), or copper
+wire by gauge and outer diameter, tape by width and thickness, or paint by
+Ω per square. **Where**: the body, the flat face by its index, the depth
+(a trace's top under the surface, or a channel's roof), a trace's
+thickness, and for a tunnel whether the wire is laid *at a pause* or
+*threaded after*. **Nets**, one per line: its name, points or two pads,
+width and vias. *Plan* works it out, *Route* routes the two-pad nets first,
+*Make* makes it (`printed.apply`); the plan shows each net's resistance and
+length and the warnings, and is planned again when a setting has changed.
+*Check* gives each net's drop and power at the current, *Export* the STLs;
+each circuit made is listed, its × taking it off the export list.
+*Settings*: nozzle, layer height, clearance, trace width, current, heat
+warning; *Defaults*.
+
 ## Input, and tying in other tools
 
 A net is `{ name, width?, points? | path?, pads?, vias? }`. `points` lie on
