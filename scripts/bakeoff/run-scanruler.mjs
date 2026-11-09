@@ -88,7 +88,7 @@ try {
       result.deviation[p.name] = { skipped: `missing ${existsSync(p.scan) ? p.ref : p.scan}` }
       continue
     }
-    await dev('scan_open', { path: p.scan }, `${p.name}: the scan`)
+    await dev('scan_open', { path: p.scan, discard: true }, `${p.name}: the scan`)
     await dev('workspace_set', { workspace: 'deviation' }, 'the Deviation workspace')
     await dev('deviation_open_reference', { path: p.ref }, `${p.name}: the reference`)
     const a = await dev('deviation_align', {}, `${p.name}: best fit`)

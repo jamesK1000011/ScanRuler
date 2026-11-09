@@ -33,9 +33,12 @@ try {
   result.steps.made = made.json
   let review = await call('part_review', { body: 'Bin', spec: BRIEF.spec, material: BRIEF.material }, 'one verdict')
   result.steps.review = review.json
-  const thin = (review.json?.findings ?? []).find((f) => f.source === 'wall' && f.severity === 'error')
-  if (thin?.at) {
-    review = await call('part_review', { body: 'Bin', spec: BRIEF.spec, material: BRIEF.material, waive: [{ at: thin.at, reason: BRIEF.waiveReason }] }, 'the lip waived')
+  // The lip's thin runs, waived in the one call: the lip stands above the
+  // bin's height (units x 7 mm), so a thin run up there is the lip.
+  const lipZ = BRIEF.params.units * 7
+  const lip = (review.json?.findings ?? []).filter((f) => f.source === 'wall' && f.severity === 'error' && f.at?.[2] >= lipZ)
+  if (lip.length) {
+    review = await call('part_review', { body: 'Bin', spec: BRIEF.spec, material: BRIEF.material, waive: lip.map((f) => ({ at: f.at, reason: BRIEF.waiveReason })) }, 'the lip waived')
     result.steps.reviewWaived = review.json
   }
   const check = await call('body_check', { body: 'Bin' }, 'soundness, for the scorecard')

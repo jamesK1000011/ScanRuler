@@ -186,7 +186,8 @@ def least_wall(shape, spacing=3.0, reach=12.0, cap=600):
                     p = f.valueAt(u, v)
                     if not f.isInside(p, 1e-6, True):
                         continue
-                    if min(e.distToShape(Part.Vertex(p))[0] for e in f.Edges) < spacing / 2:
+                    vx = Part.Vertex(p)
+                    if min(w.distToShape(vx)[0] for w in f.Wires) < spacing / 2:
                         continue
                     nrm = f.normalAt(u, v)
                 except Exception:
@@ -205,19 +206,10 @@ def least_wall(shape, spacing=3.0, reach=12.0, cap=600):
         budget -= taken
     least = None
     readings = []
-    for p, nrm, step in samples:
-        a = p - nrm * 1e-3
-        b = p - nrm * reach
-        ray = Part.LineSegment(a, b).toShape()
-        try:
-            hits = solid.section(ray).Vertexes
-        except Exception:
+    hits = _ray_hits(shape, [(p, nrm) for (p, nrm, _) in samples], reach)
+    for (p, nrm, step), t in zip(samples, hits):
+        if t is None:
             continue
-        ds = sorted((h.Point - p).Length for h in hits)
-        ds = [x for x in ds if x > 2e-3]
-        if not ds:
-            continue
-        t = ds[0]
         readings.append((t, vec(p), step))
         if least is None or t < least[0]:
             least = (t, p)
@@ -255,3 +247,36 @@ def thin_runs(readings, limit, link):
         if t < r["least"]:
             r["least"], r["at"] = t, p
     return sorted(runs.values(), key=lambda r: r["least"])
+
+
+def _ray_hits(shape, rays, reach, tol=0.01):
+    """For each ray (start, inward normal), how far in it leaves the
+    material: the nearest crossing of the shape's surface past 2 µm, within
+    reach, or None. All rays against one fine tessellation at once
+    (Möller–Trumbore, numpy), in place of a boolean per ray."""
+    import numpy as np
+
+    pts, tris = shape.tessellate(tol)
+    if not tris or not rays:
+        return [None] * len(rays)
+    P = np.array([[q.x, q.y, q.z] for q in pts], dtype=float)
+    T = np.array(tris)
+    v0, v1, v2 = P[T[:, 0]], P[T[:, 1]], P[T[:, 2]]
+    e1, e2 = v1 - v0, v2 - v0
+    out = []
+    for p, n in rays:
+        o = np.array([p.x, p.y, p.z], dtype=float)
+        d = -np.array([n.x, n.y, n.z], dtype=float)
+        h = np.cross(d, e2)
+        a = np.einsum("ij,ij->i", e1, h)
+        ok = np.abs(a) > 1e-12
+        f = np.zeros_like(a)
+        f[ok] = 1.0 / a[ok]
+        s_ = o - v0
+        u = f * np.einsum("ij,ij->i", s_, h)
+        q = np.cross(s_, e1)
+        v = f * (q @ d)
+        t = f * np.einsum("ij,ij->i", e2, q)
+        m = ok & (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9) & (t > 2e-3) & (t <= reach)
+        out.append(round(float(t[m].min()), 3) if m.any() else None)
+    return out
