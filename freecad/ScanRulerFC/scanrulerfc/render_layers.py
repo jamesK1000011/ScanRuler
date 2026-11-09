@@ -52,7 +52,9 @@ def deviation_map(session, a):
     v = np.asarray(v, dtype=float).copy()
     with np.errstate(invalid="ignore"):
         v[np.abs(v) > d["maxDistance"]] = np.nan
-    rng = float(d["range"])
+    # ScanRuler's range, but never under the tolerance: a scan that sits
+    # on the reference would otherwise spread its rounding over the colours.
+    rng = max(float(d["range"] or 0), float(d["tolerance"] or 0), 1e-3)
     side = "against the element " + str(d["target"]["ref"]) if d["source"] == "element" and d["target"] else "against the reference"
     return {"layers": [{"name": "scan", "V": sc.V, "F": sc.F, "values": v, "creases": False}], "unit": "mm", "cmap": "jet", "worst": "abs",
             "range": [-rng, rng], "label": "DEVIATION",
