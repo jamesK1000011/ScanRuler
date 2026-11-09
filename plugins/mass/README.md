@@ -12,8 +12,11 @@ thing, a handle that has to sit right in the hand, or a counterweight.
   less the overlap at convex edges and plus the gap at concave ones), and
   the inside is at the infill's share.
 - **Encased parts:** magnets, nuts, bearings and inserts the Hardware
-  workspace encases (`hw.masses`) are added to the total — their mass,
-  centre and inertia — and listed apart.
+  workspace encases or records (`hw.masses`; Generate's Gridfinity magnets
+  among them) are added to the total — their mass, centre and inertia —
+  and listed apart (`embedded`, `embeddedMass`). One whose weight isn't
+  known (an object recorded without `grams`) is named, not counted, and a
+  reading goes stale when they change.
 - **Calibrating:** weigh a print and the density scales to match (less the
   encased parts).
 - **Ballast:** a pocket filled with a denser filler (steel BBs, lead shot,
@@ -21,6 +24,18 @@ thing, a handle that has to sit right in the hand, or a counterweight.
   the walls printed round the pocket counted. It's checked to lie clear of
   the body's surface, then cut into it as Reverse Engineer
   features (sketch and extrude cut), so it stays editable there.
+
+## The panel
+
+Material, infill, walls and line width, then **Weigh**: the mass (and the
+calibration's scale), the balance point, each body and each encased part
+with its mass and centre, and the principal inertia under *Inertia*.
+**Calibrate** takes the grams a print weighed (*Reset* goes back to the
+material's figures). **Target and ballast**: the mass wanted and the
+balance point X, Y, Z (*Set target*, *Clear*), the filler, *Plan the
+ballast* — the pocket's size and place, or why it doesn't fit — and *Cut
+the pocket*. The Hardware panel's *From Mass* records the pocket for its
+print pause. Each control runs a command below.
 
 ## Commands
 

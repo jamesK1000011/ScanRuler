@@ -97,7 +97,8 @@ simplest load that puts the whole weight where the part bears on the print;
 how it rests inside the pocket changes the stress only right at the pocket
 (Saint-Venant). The answer's `gravity.mass` includes them and
 `gravity.embedded` is theirs. A part whose weight isn't known is named in
-the note.
+the note, and so is an agent's server too old to take them (one without
+the `fea.encased` feature): restarting the agent app brings the new one.
 
 ## Limits
 
