@@ -13,6 +13,9 @@ import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
 import { FILLERS, MATERIALS, type V3 } from '../core/mass'
 import { useMass } from '../state/massStore'
+import { readStateSection } from '../../../src/commands/stateSections'
+import { resolveAssignment, useAssigned } from '../../_shared/materials/assigned'
+import { setupFor } from '../../_shared/setups'
 import './mass.css'
 
 const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
@@ -42,8 +45,56 @@ function NumberField({ label, value, unit, step, min, max, onCommit, testId }: {
   )
 }
 
+interface Solid {
+  id: number
+  name: string
+}
+
+/** Reverse Engineer's solid bodies, looked at every second or two while
+ *  here: the readout is not a store to subscribe to. */
+function useSolids(): Solid[] {
+  const [list, setList] = useState<Solid[]>([])
+  useEffect(() => {
+    const look = () => {
+      const all = ((readStateSection('reverse') as { bodies?: (Solid & { surface?: boolean })[] } | undefined)?.bodies ?? []).filter((b) => !b.surface)
+      const next = all.map((b) => ({ id: b.id, name: b.name }))
+      setList((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next))
+    }
+    look()
+    const t = setInterval(look, 1500)
+    return () => clearInterval(t)
+  }, [])
+  return list
+}
+
+/** Each body's own material, and how it is weighed: as printed in a print
+ *  setup, solid in another; a body with none takes the picker below. */
+function BodyMaterials({ fallback }: { fallback: string }) {
+  const solids = useSolids()
+  const assigned = useAssigned((x) => x.assigned)
+  if (!solids.length) return null
+  return (
+    <div className="mass-materials" data-test="mass-materials">
+      {solids.map((b) => {
+        const own = resolveAssignment(assigned[String(b.id)])
+        const setup = setupFor(String(b.id))
+        const printed = own ? setup?.type === 'print' : !setup || setup.type === 'print'
+        return (
+          <div key={b.id} className="kv">
+            <span className="pl-aside">{b.name}</span>
+            <span className="pl-aside" title={own ? undefined : 'No material set: weighed in the one below'}>
+              {own ? own.name : `${fallback} (none set)`}, {printed ? 'printed' : 'solid'}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function MassPanel() {
   const s = useMass()
+  const installed = useAssigned((x) => x.installed)
   const len = useLength()
   const busy = s.busy !== null
   const [grams, setGrams] = useState('')
@@ -65,9 +116,10 @@ export function MassPanel() {
           <p>What a part weighs as printed, where it balances and how it turns — walls solid, the inside at the infill’s share. Weigh a print to calibrate it to your printer.</p>
         </InfoDot>
       </div>
-      <label className="mass-row">
-        <span>Material</span>
-        <select value={s.material} aria-label="Material" disabled={busy} onChange={(e) => void run('setup', { material: e.target.value })}>
+      {installed && <BodyMaterials fallback={s.density !== undefined ? `${s.density} g/cm³` : (MATERIALS[s.material]?.label ?? s.material)} />}
+      <label className="mass-row" title={installed ? 'For bodies with no material of their own' : undefined}>
+        <span>{installed ? 'If none set' : 'Material'}</span>
+        <select value={s.material} aria-label={installed ? 'Material for bodies with none' : 'Material'} disabled={busy} onChange={(e) => void run('setup', { material: e.target.value })}>
           {Object.entries(MATERIALS).map(([id, m]) => (
             <option key={id} value={id}>
               {m.label} ({m.density} g/cm³)

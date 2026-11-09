@@ -15,7 +15,9 @@ found. FreeCAD ships both.
 - `fea.setup { body, build, material }`. **build** is the way the layers
   stack, in the part's frame: "+z" printed as it stands, "+x" stood on its
   −X end. Ask how it will be printed. If they haven't decided, solving it
-  two ways is the answer to "which way up?".
+  two ways is the answer to "which way up?". For a body in a print setup
+  the setup's way up governs: a build along an axis is written to the
+  setup too (`printSetup.wrote`); a result goes stale when it turns.
 - Materials: pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a (the same ids
   and densities as Mass). In-layer and
   across-layer stiffness and tensile strength come from Bambu Lab

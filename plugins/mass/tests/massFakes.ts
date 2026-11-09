@@ -2,7 +2,7 @@
 // What the Mass commands reach outside the plugin, faked for their test:
 // the command registry (Reverse Engineer's export.stl and feature.add as a
 // test sets them), the schema builders, the session's state sections (the
-// setups among them), and
+// setups among them), the undo history (a step run as it is), and
 // CommandError.
 
 export const handlers: Record<string, (input: never) => unknown> = {}
@@ -31,3 +31,6 @@ export class CommandError extends Error {
 
 /** A change run within another, as the registry does it. */
 export const runWithin = runCommand
+
+/** An undo step: the job run, as the history runs it. */
+export const historyAsync = (_label: string, job: () => Promise<void>) => job()

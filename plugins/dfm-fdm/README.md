@@ -44,12 +44,24 @@ A body in a print setup (`setup.of`; plugins/setups) is checked with what
 that setup sets of its nozzle, printer and way up, over `dfm.settings`;
 the answer's `setup` names it and what it set. A profile the setup names
 that Check has not is said in `setup.notes`, and Check's own is used.
+`dfm.settings` with a nozzle, printer or way up while a body in a print
+setup is the target writes them to that setup too (`printSetup.wrote`; see
+plugins/setups).
+
+A body with a material of its own (`material.set`; plugins/material) is
+checked with that material's profile — PLA, PETG (PETG-CF too), ABS and ASA,
+TPU; a material of your own by the one it is based on — and the settings'
+material is the fallback for a part with none, or whose material has no
+profile here (said in the note). `dfm.check { material }` gives a profile
+for one check over both. The answer's `material` says which profile and
+from where (`check`, `part` or `settings`); the panel says it with the
+verdict.
 
 ## Commands (`dfm.*`)
 
 | Command | Changes | What |
 |---|---|---|
-| `dfm.settings` | settings | Nozzle, material, printer, up axis, scan, reference or body |
+| `dfm.settings` | settings | Nozzle, material (for a part with none), printer, up axis, scan, reference or body |
 | `dfm.profiles` | nothing | The pack and the profiles there are |
 | `dfm.rules` | the project's rules | The rules in force and which layer set each number; set or clear the project's own change |
 | `dfm.check` | findings | Runs the checks |

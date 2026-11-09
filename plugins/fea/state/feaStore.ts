@@ -96,8 +96,10 @@ export interface FeaState extends FeaSetup {
   busy: string | null
   since: number | null
   phase: string | null
-  /** materialKey: the body's material and setup as solved (feaMaterial). */
-  result: (FeaAnswer & { at: string; setup: FeaSetup; bodyKey: string | null; materialKey?: string }) | null
+  /** materialKey: the body's material and setup as solved (feaMaterial);
+   *  built: the build direction solved — a print setup's way up, or the
+   *  study's. */
+  result: (FeaAnswer & { at: string; setup: FeaSetup; bodyKey: string | null; materialKey?: string; built?: number[] }) | null
   /** Bumped by reset: an answer for an older study is dropped. */
   gen: number
   field: Field

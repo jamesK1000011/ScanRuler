@@ -29,6 +29,8 @@ Each setting is optional; one left unset leaves each workspace on its own settin
 
 Each answer that used a setup's value says so (`setup`, a mass row's `as`, `layers.from`, a note). An input given to a command for one call still wins over the setup.
 
+Set in a workspace — `dfm_settings` (nozzle, printer, up), `fea_setup` (build), `hw_set` (layerHeight, firstLayer), `mass_setup` (walls, infill, lineMm) — such a setting is written to the print setup too when every body it reaches is in that one setup (the answer's `printSetup.wrote`, one undo step). Otherwise the answer's `printSetup.governed` and note name each setup that sets it and the `setup_set` that changes it there; the workspace's own value is for the parts in no print setup.
+
 ## 4. Other kinds
 
 - A **cut** setup (`type: "cut"`): parts laser-, waterjet-, plasma- or router-cut from sheet — the machine, the sheet's thickness and size, the kerf, the least feature, whether the file is kerf-compensated. Its page is Cut; the **cut** guide.

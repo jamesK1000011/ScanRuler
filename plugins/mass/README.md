@@ -30,7 +30,10 @@ thing, a handle that has to sit right in the hand, or a counterweight.
 
 ## The panel
 
-Material, infill, walls and line width, then **Weigh**: the mass (and the
+Each body with its own material (set in Reverse Engineer's body list),
+printed or solid; the material for a body with none (*If none set*; just
+*Material* without the Materials plugin), infill, walls and line width,
+then **Weigh**: the mass (and the
 calibration's scale), the balance point, each body and each encased part
 with its mass and centre, and the principal inertia under *Inertia*.
 **Calibrate** takes the grams a print weighed (*Reset* goes back to the
@@ -45,7 +48,7 @@ print pause. Each control runs a command below.
 | Command | What it does |
 |---|---|
 | `mass.materials` | Materials' and fillers' densities |
-| `mass.setup` | Material or density, infill, walls, line width, filler |
+| `mass.setup` | Material or density (for a body with none), infill, walls, line width (written to the print setup every solid body is in), filler |
 | `mass.properties` | Mass, volume, area, centre of mass, inertia, principal axes; per body and together |
 | `mass.calibrate` | Scale to a weighed print; `reset` |
 | `mass.target` | Mass and balance point wanted; `clear` |

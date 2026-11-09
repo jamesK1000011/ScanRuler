@@ -5,7 +5,8 @@
 // kept. A hole placed on a face, along an axis, level and tilted; the cut
 // made through reverse.feature.add inside hw.apply's own step (no wait on
 // itself), numbered, and taken out again whole when a feature fails; a
-// pattern; a slot's way; a hole checked; the settings.
+// pattern; a slot's way; a hole checked; the settings, the layers written
+// to the print setup the part is in.
 import { beforeAll, describe, expect, test } from 'vitest'
 import { runCommand, registerCommands } from '../../../src/commands/registry'
 import { registerStateSection } from '../../../src/commands/stateSections'
@@ -107,7 +108,22 @@ const fake: Command<Json>[] = [
 /** The Block's box, given in the tests that read it. */
 let blockBounds: { min: V3; max: V3 } | null = null
 
+/** The print setups, as the setups plugin keeps them; none but where a test sets them. */
+let held: Json[] = []
+const setupSet: Command<Json> = {
+  name: 'set',
+  title: 'Change a setup',
+  description: 'A stand-in for the setups plugin’s.',
+  input: anyIn,
+  run: async (i) => {
+    held = held.map((s) => (s.id === i.id ? { ...s, ...i.settings } : s))
+    return { setup: held.find((s) => s.id === i.id) }
+  },
+}
+
 beforeAll(() => {
+  registerCommands('setup', [setupSet] as Command<never>[])
+  registerStateSection('setups', () => ({ setups: held }))
   registerCommands('reverse', fake as Command<never>[])
   registerCommands('hw', hwCommands)
   registerStateSection('reverse', () => ({ features: features.map((f) => ({ name: f.name })), bodies: [{ id: 1, name: 'Block', ...(blockBounds ? { bounds: blockBounds } : {}) }] }))
@@ -285,6 +301,18 @@ describe('hw.check and hw.set', () => {
     expect(settingsOf(useHw.getState())).toEqual(DEFAULT_SETTINGS)
     expect(useHw.getState().plan?.stale).toBe(true)
     await refused(runCommand('hw.set', {}), /Give a setting/)
+  })
+  test('the layers: written to the print setup the part is in; a reset only says it governs', async () => {
+    held = [{ id: 'S1', type: 'print', name: 'Block print', bodies: ['1'], layerHeight: 0.28 }]
+    const r = (await runCommand('hw.set', { layerHeight: 0.12, roofLayers: 4 })) as Json
+    expect(held[0].layerHeight).toBe(0.12)
+    expect(r.printSetup.wrote).toEqual({ id: 'S1', name: 'Block print', settings: { layerHeight: 0.12 } })
+    expect(useHw.getState().layerHeight).toBe(0.12)
+    const back = (await runCommand('hw.set', { reset: true })) as Json
+    expect(held[0].layerHeight).toBe(0.12)
+    expect(back.printSetup.governed[0]).toEqual({ id: 'S1', name: 'Block print', bodies: ['Block'], settings: { layerHeight: 0.12 } })
+    expect(back.note).toMatch(/whose layerHeight 0.12 governs it/)
+    held = []
   })
   test('hw.list', async () => {
     const l = (await runCommand('hw.list', { kind: 'magnet' })) as Json

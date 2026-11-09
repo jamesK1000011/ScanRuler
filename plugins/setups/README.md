@@ -53,6 +53,18 @@ workspace's own then), `sharedSetupValue(bodies, key)` and
 `machineTolerance({ body } | { setup })`. Without this plugin every body is
 in no setup and every workspace goes by its own settings.
 
+A workspace that sets one of the print setup's settings in its own command
+— `dfm.settings` (nozzle, printer, up), `fea.setup` (its build direction as
+up), `hw.set` (layerHeight, firstLayer), `mass.setup` (walls, infill,
+lineMm) — says where it lands with `ownedBy(bodies, values)` and
+`writeOwned(plan)`, all four alike. When every body its setting reaches is
+in one print setup, the values are written to that setup too, through
+`setup.set` within the same undo step (`printSetup.wrote`, the setup's other
+bodies named); otherwise each print setup that sets them for some of those
+bodies governs there, and the answer names it with the `setup.set` that
+changes it (`printSetup.governed`). The workspace keeps its own value either
+way, for the parts in no print setup.
+
 ## A kind of setup: registerSetupType
 
 A plugin brings a kind of setup from its `install()` with

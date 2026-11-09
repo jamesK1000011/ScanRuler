@@ -31,6 +31,9 @@ export interface Checked {
   /** On a CAD part: the least wall read (null: none within reach), one
    *  extrusion line and the minimum wall, mm. */
   wall?: { least: number | null; line?: number; limit: number }
+  /** The material profile stacked, and from where: given for the check,
+   *  the part's own material, or Check's setting (a part with none). */
+  material?: { profile: string | null; from: 'check' | 'part' | 'settings'; part?: string }
 }
 
 export interface Waiver {

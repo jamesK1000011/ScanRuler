@@ -10,7 +10,8 @@
 
 import { runWithin } from '../../../src/commands/registry'
 import { bool, enumOf, int, num, obj, oneOf, str, vec3, type JsonSchema } from '../../../src/commands/schema'
-import { readStateSections } from '../../../src/commands/stateSections'
+import { readStateSection, readStateSections } from '../../../src/commands/stateSections'
+import { historyAsync } from '../../../src/state/historyStore'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { fitsOf } from '../core/check'
 import { featuresOf, overlapping, patternOffsets, type Pattern, type Placement, type V2, type V3 } from '../core/features'
@@ -20,7 +21,7 @@ import { type Cut, cutDepth, DEFAULT_SETTINGS, planCut, PlanError, type Settings
 import { calibratedKinds, withPrinterFit } from '../core/printerFit'
 import { type Embed, type EmbedPlan, type EmbedSolid, settingsOf, useHw, type PlanInput, type PlanOut } from '../state/hwStore'
 import { readPrinterFit } from '../../_shared/readPrinterFit'
-import { setupValue, sharedSetupValue } from '../../_shared/setups'
+import { ownedBy, setupValue, sharedSetupValue, writeOwned, type Owned } from '../../_shared/setups'
 
 type Json = Record<string, unknown>
 type Ref = string | number
@@ -660,7 +661,7 @@ const lengthIn = (d: string, max: number) => num(`${d}, mm.`, { minimum: 0, maxi
 const set: Command<SetIn> = {
   name: 'set',
   title: 'Hole settings',
-  description: 'How holes are sized: allowance (mm added to each diameter and across-flats, FDM holes printing small — one number for every kind, or by kind: screw 0.2, nut 0.2, insert 0, pilot 0, magnet 0.2, bearing 0.1 by default; one left at its default follows the printer’s fit calibration from Fits, moved by how far its holes are off the typical 0.2), printerFit (size holes with that calibration, on; false keeps the allowances as set), fit (ISO 273 class, medium), headMargin (counterbore over the head, 0.4), headSink (head below the surface, 0.2), teardrop (level clearance holes, on), bridgeLayer (a sacrificial layer at each step of an upright hole, 0 for none), insertExtra (hole past the insert, 1), magnetExtra (pocket past the magnet, 0.2); for encased parts: roofLayers (3), layerHeight and firstLayer (0.2 — as the slicer profile prints), bridgeMax (widest roof over air without a warning, 10), dropClearance (0.3) and dropHeadroom (0.2). reset: true for the defaults. Saved with the project.',
+  description: 'How holes are sized: allowance (mm added to each diameter and across-flats, FDM holes printing small — one number for every kind, or by kind: screw 0.2, nut 0.2, insert 0, pilot 0, magnet 0.2, bearing 0.1 by default; one left at its default follows the printer’s fit calibration from Fits, moved by how far its holes are off the typical 0.2), printerFit (size holes with that calibration, on; false keeps the allowances as set), fit (ISO 273 class, medium), headMargin (counterbore over the head, 0.4), headSink (head below the surface, 0.2), teardrop (level clearance holes, on), bridgeLayer (a sacrificial layer at each step of an upright hole, 0 for none), insertExtra (hole past the insert, 1), magnetExtra (pocket past the magnet, 0.2); for encased parts: roofLayers (3), layerHeight and firstLayer (0.2 — as the slicer profile prints; a print setup’s for a body in one: written to it too when every solid body is in that one setup (printSetup.wrote), else the answer names each print setup that sets them and the setup.set that changes it (printSetup.governed)), bridgeMax (widest roof over air without a warning, 10), dropClearance (0.3) and dropHeadroom (0.2). reset: true for the defaults. Saved with the project.',
   input: obj({
     allowance: oneOf([num('Every kind, mm.', { minimum: -1, maximum: 2 }), obj(Object.fromEntries(KINDS.map((k) => [k, num('mm', { minimum: -1, maximum: 2 })])), [], 'By kind, mm.')], 'mm added to diameters.'),
     printerFit: bool('Size holes with the printer’s fit calibration from Fits (default on).'),
@@ -681,18 +682,31 @@ const set: Command<SetIn> = {
   }),
   history: false,
   run: async ({ reset, allowance, ...rest }) => {
-    if (reset) {
-      st().set(settingsOf(DEFAULT_SETTINGS))
+    // The layers are a print setup's for a body in one: every solid body
+    // in one setup — written there too; a reset only says who governs.
+    const solids = ((readStateSection('reverse') as { bodies?: { id: number; surface?: boolean }[] } | undefined)?.bodies ?? []).filter((b) => !b.surface)
+    const answer = (owned: Owned) => {
       const plan = st().plan
       if (plan) useHw.setState({ plan: { ...plan, stale: true } })
-      return describeHw()
+      const { note, ...printSetup } = owned
+      return { ...describeHw(), ...(Object.keys(printSetup).length ? { printSetup } : {}), ...(note ? { note } : {}) }
+    }
+    if (reset) {
+      const owned = ownedBy(solids, { layerHeight: DEFAULT_SETTINGS.layerHeight, firstLayer: DEFAULT_SETTINGS.firstLayer }, { write: false }).owned
+      st().set(settingsOf(DEFAULT_SETTINGS))
+      return answer(owned)
     }
     if (allowance === undefined && Object.keys(rest).length === 0) invalid('Give a setting to change, or reset: true.')
     const a = allowance === undefined ? {} : { allowance: typeof allowance === 'number' ? (Object.fromEntries(KINDS.map((k) => [k, allowance])) as Record<Kind, number>) : { ...st().allowance, ...allowance } }
-    st().set({ ...rest, ...a })
-    const plan = st().plan
-    if (plan) useHw.setState({ plan: { ...plan, stale: true } })
-    return describeHw()
+    const plan = ownedBy(solids, { layerHeight: rest.layerHeight, firstLayer: rest.firstLayer })
+    let owned: Owned = plan.owned
+    if (plan.into) {
+      await historyAsync('Agent: hole settings', async () => {
+        owned = await writeOwned(plan)
+        st().set({ ...rest, ...a })
+      })
+    } else st().set({ ...rest, ...a })
+    return answer(owned)
   },
 }
 

@@ -18,7 +18,9 @@ import { paramProblem, stack, validateGuide, type Guide, type Layer, type Overri
 import pack from '../rules/fdm-default.json'
 import { atKey, useDfm, type Checked, type DfmSettings, type NumberedFinding } from '../state/dfmStore'
 import { bodyTriangles, pickBody, reverseBodies, staleReference } from './body'
-import { setupFor } from '../../_shared/setups'
+import { ownedBy, setupFor, writeOwned, type Owned } from '../../_shared/setups'
+import { materialOfBody } from '../../_shared/materials/assigned'
+import { historyAsync } from '../../../src/state/historyStore'
 
 const PACK = pack as RulePack
 const glob = (g: Record<string, Profile>) => Object.values(g).sort((a, b) => a.id.localeCompare(b.id))
@@ -69,6 +71,32 @@ export function fromSetup(s: DfmSettings, body: string): { settings: DfmSettings
   return { settings: { ...s, ...over }, setup: { id: setup.id, name: setup.name, sets: Object.keys(over), ...(notes.length ? { notes } : {}) } }
 }
 
+/** Check's material profile for a library material: the filament it is,
+ *  or the one a material of the person's own is based on; undefined for
+ *  one Check has no profile for. */
+const PROFILE_OF: Readonly<Record<string, string>> = { pla: 'pla', petg: 'petg', 'petg-cf': 'petg', abs: 'abs-asa', asa: 'abs-asa', 'tpu-95a': 'tpu' }
+
+/** Which material profile a check stacks, and from where: the one given
+ *  for the check (an override), else the part's own material (material.set)
+ *  — a body's — else Check's setting, the fallback for a part with none. */
+export interface CheckMaterial {
+  profile: string | null
+  from: 'check' | 'part' | 'settings'
+  /** The part's material, by name, when it has one. */
+  part?: string
+  note?: string
+}
+
+export function materialFor(s: DfmSettings, body: { id: number; name: string } | null, given?: string): CheckMaterial {
+  const own = body ? materialOfBody(body.id) : null
+  const part = own ? { part: own.name } : {}
+  if (given !== undefined) return { profile: given, from: 'check', ...part, ...(own ? { note: `${given} given for this check, over ${body!.name}’s own material (${own.name}).` } : {}) }
+  if (!own) return { profile: s.material, from: 'settings' }
+  const id = PROFILE_OF[own.id] ?? (own.bulkFrom ? PROFILE_OF[own.bulkFrom] : undefined)
+  if (id && MATERIALS.some((p) => p.id === id)) return { profile: id, from: 'part', ...part }
+  return { profile: s.material, from: 'settings', ...part, note: `${body!.name} is ${own.name}, which has no material profile here (${MATERIALS.map((p) => p.id).join(', ')}): checked with Check’s own (${s.material ?? 'none'}).` }
+}
+
 function weld(src: ArrayLike<number>, index: ArrayLike<number> | null): { positions: Float64Array; indices: Uint32Array } {
   const count = index ? index.length : src.length / 3
   const map = new Map<string, number>()
@@ -88,10 +116,19 @@ function weld(src: ArrayLike<number>, index: ArrayLike<number> | null): { positi
   return { positions: Float64Array.from(pos), indices }
 }
 
+/** The body a target body check would read, or null where it cannot say. */
+function tryPick(ref: string | number | null): ReturnType<typeof pickBody> | null {
+  try {
+    return pickBody(ref)
+  } catch {
+    return null
+  }
+}
+
 export const settings: Command<Partial<DfmSettings>> = {
   name: 'settings',
   title: 'What the part is printed on',
-  description: `Choose the profiles the rules are stacked from — nozzle (${NOZZLES.map((p) => p.id).join(', ')}; 0.4 by default), material (${MATERIALS.map((p) => p.id).join(', ')}), printer (${PRINTERS.map((p) => p.id).join(', ')}), and a published guide stacked over them (${SHIPPED_GUIDES.map((g) => g.id).join(', ')}, or one imported with dfm.guides) — which way of the part stands up on the bed (up, +z by default), and what is checked: the scan (default), the reference part, or a Reverse Engineer body as it stands now (target body; body names it, by name or id — the one solid body shown by default). null clears a profile. Call with nothing to read them. Kept with the project.`,
+  description: `Choose the profiles the rules are stacked from — nozzle (${NOZZLES.map((p) => p.id).join(', ')}; 0.4 by default), material (${MATERIALS.map((p) => p.id).join(', ')}), printer (${PRINTERS.map((p) => p.id).join(', ')}), and a published guide stacked over them (${SHIPPED_GUIDES.map((g) => g.id).join(', ')}, or one imported with dfm.guides) — which way of the part stands up on the bed (up, +z by default), and what is checked: the scan (default), the reference part, or a Reverse Engineer body as it stands now (target body; body names it, by name or id — the one solid body shown by default). null clears a profile. The material is the fallback for a part with no material of its own: a body set with material.set is checked with its own material’s profile (dfm.check says which). For a body checked that is in a print setup, the setup’s nozzle, printer and way up govern: set here they are written to that setup too when it prints every body checked (printSetup.wrote), else the answer names the setup that governs and the setup.set that changes it (printSetup.governed). Call with nothing to read them. Kept with the project.`,
   input: obj({
     up: enumOf(UPS, 'Which way of the part stands up on the bed.'),
     nozzle: { oneOf: [enumOf(NOZZLES.map((p) => p.id)), { type: 'null' }], description: 'The nozzle profile, or null.' },
@@ -106,8 +143,25 @@ export const settings: Command<Partial<DfmSettings>> = {
     if (p.guide && !guidesNow().some((g) => g.id === p.guide)) throw new CommandError('not_found', `No guide "${p.guide}" — have ${guidesNow().map((g) => g.id).join(', ')}.`)
     // A body named is looked for now, while the name can still be put right.
     if (p.body !== undefined && p.body !== null && reverseBodies()) pickBody(p.body)
-    if (Object.keys(p).length) useDfm.getState().set(p)
-    return { settings: useDfm.getState().settings }
+    // The body these settings check, as they will stand: the print setup
+    // it is in owns its nozzle, printer and way up.
+    const next = { ...useDfm.getState().settings, ...p }
+    const checked = next.target === 'body' && reverseBodies() ? tryPick(next.body) : null
+    const plan = ownedBy(checked ? [checked] : [], { nozzle: p.nozzle, printer: p.printer, up: p.up })
+    let owned: Owned = plan.owned
+    if (plan.into) {
+      await historyAsync('Agent: printability settings', async () => {
+        owned = await writeOwned(plan)
+        useDfm.getState().set(p)
+      })
+    } else if (Object.keys(p).length) useDfm.getState().set(p)
+    const mat = checked ? materialFor(next, checked) : null
+    // A material set here says when the body checked has its own.
+    const matNote = p.material === undefined || !mat ? undefined : mat.from === 'part' ? `${checked!.name} is checked with its own material (${mat.part}: profile ${mat.profile}); this material is for a part with none.` : mat.note
+    const notes = [owned.note, matNote].filter(Boolean)
+    const { note: _n, ...printSetup } = owned
+    void _n
+    return { settings: useDfm.getState().settings, ...(mat ? { material: { profile: mat.profile, from: mat.from, ...(mat.part ? { part: mat.part } : {}) } } : {}), ...(Object.keys(printSetup).length ? { printSetup } : {}), ...(notes.length ? { note: notes.join(' ') } : {}) }
   },
 }
 
@@ -193,19 +247,20 @@ function needsViewport(target: 'scan' | 'reference'): void {
   throw new CommandError('unavailable', `Checking the ${target === 'scan' ? 'scan' : 'reference part'} needs the viewport, and this session has none (headless). Check a Reverse Engineer body as it stands instead: dfm.settings { target: "body", body } (the one solid body shown by default), then dfm.check.`)
 }
 
-export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?: string | number }> = {
+export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?: string | number; material?: string }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. body: that Reverse Engineer body, whatever the target, the settings left as they are. A body in a print setup (setup.of) is checked with what the setup sets of its nozzle, printer and way up, over these settings; setup in the answer names it and what it set. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. body: that Reverse Engineer body, whatever the target, the settings left as they are. A body in a print setup (setup.of) is checked with what the setup sets of its nozzle, printer and way up, over these settings; setup in the answer names it and what it set. A body with a material of its own (material.set) is checked with that material’s profile, the settings’ material only for a part with none; material: a profile for this check alone, over both. The answer’s material says which profile and from where (check, part or settings), and the note when the part’s material has no profile here. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
   input: obj({
     only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }),
     detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.'),
     body: oneOf([str(undefined, { minLength: 1 }), num()], 'Check this Reverse Engineer body, by name or id, whatever the settings’ target — the settings stay as they are.'),
+    material: enumOf(MATERIALS.map((p) => p.id), 'A material profile for this check alone, over the part’s own and the settings’.'),
   }),
   history: false,
   timeoutMs: 5 * 60_000,
-  run: async ({ only, detail = 'brief', body: asked }, ctx) => {
+  run: async ({ only, detail = 'brief', body: asked, material: given }, ctx) => {
     // A body asked for is checked as target body would check it, the
     // settings left as they are.
     const set = useDfm.getState().settings
@@ -213,7 +268,10 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
     // A body in a print setup is checked as that setup prints it.
     const picked = base.target === 'body' ? pickBody(base.body) : null
     const made = picked ? fromSetup(base, picked.name) : null
-    const s = made ? made.settings : base
+    // The part's own material picks the profile; the settings' is the
+    // fallback, one given for the check wins over both.
+    const mat = materialFor(base, picked, given)
+    const s = { ...(made ? made.settings : base), material: mat.profile }
     const frame = buildFrame(s.up as Up)
     let mesh: { positions: Float64Array; indices: Uint32Array }
     let thickness: Float32Array | null = null
@@ -287,6 +345,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
     const allSkipped = [...skippedExtra.filter((x) => !only || only.includes(x.rule)), ...skipped.filter((x) => !skippedExtra.some((y) => y.rule === x.rule))]
     const reading = wall && thinRule ? wallReading(wall, thinRule.params.minMm, wallLine(thinRule), frame) : null
     if (reading) checked = { ...checked, wall: { least: reading.least, line: reading.line, limit: reading.limit } }
+    checked = { ...checked, material: { profile: mat.profile, from: mat.from, ...(mat.part ? { part: mat.part } : {}) } }
     useDfm.getState().result(numbered, allSkipped, checked)
     const open = numbered.filter((f) => !f.waived)
     const count = (sev: string) => open.filter((f) => f.severity === sev).length
@@ -297,6 +356,8 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?:
       ...(checked.stale ? { stale: checked.stale } : {}),
       profiles: layers(s).map((l) => l.name),
       ...(made ? { setup: made.setup } : {}),
+      material: checked.material,
+      ...(mat.note ? { note: mat.note } : {}),
       verdict: count('error') ? 'fix before printing' : count('warning') ? 'printable with care' : 'no findings',
       errors: count('error'),
       warnings: count('warning'),

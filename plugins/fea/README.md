@@ -6,7 +6,10 @@ body under load with the finite element method. The material model is
 print-aware: stiffer and stronger in its layers than across them, with the
 layers' normal set by the build direction — for a body in a print setup
 that sets its way up (plugins/setups), the setup's, said in the solve's
-note.
+note. A result goes stale when that way up turns. A build direction set
+here along one of the six axes is written to the print setup that prints
+the body too (`printSetup.wrote`); one off the axes leaves the setup's to
+govern, said with the `setup.set` that changes it.
 
 The work runs on your computer, through the agent's server
 (`mcp/src/extras/fea.js`):
@@ -36,7 +39,9 @@ to agree between the programs.
 1. Build or import the part in Reverse Engineer.
 2. In Strength:
    - Choose the body, how it is printed, the material and the safety factor
-     wanted.
+     wanted. A body with a material of its own (set in Reverse Engineer's
+     body list) shows it, printed or solid; the list under it (*If none
+     set*) is for a body with none.
    - Hold it by faces, either the ones selected in Reverse Engineer or the
      flat faces facing a direction.
    - Load faces with a force (N) or a pressure (MPa), and count the part's

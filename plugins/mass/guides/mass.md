@@ -15,7 +15,10 @@ that brings the part to a target.
 1. `mass.setup { material, infill, walls, lineMm }`. Ask what they print with,
    or take their slicer profile: infill in percent, walls as line count, line
    width in mm (0.42 for a 0.4 mm nozzle). `density` in g/cm³ overrides the
-   material's.
+   material's. The walls, infill and line width are a print setup's for a
+   body in one: when every solid body is in the same print setup they are
+   written to it too; otherwise the answer's note names the setup that
+   governs and the `setup_set` that changes it.
 2. `mass.properties` (all the shown bodies, or `bodies`). It gives:
    - Each body's mass (g), volume and area.
    - The centre of mass (mm).

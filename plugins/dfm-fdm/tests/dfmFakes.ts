@@ -2,8 +2,9 @@
 // What the dfm commands reach outside the plugin, faked for their test: the
 // viewport (a scan mesh and a reference geometry a test sets, or none), the
 // app's stores they read, the command registry (Reverse Engineer's
-// export.stl as a test sets it), the state sections, the schema builders,
-// and CommandError.
+// export.stl as a test sets it — and setup.set run within a change), the
+// undo history (a step run as it is), the state sections, the schema
+// builders, and CommandError.
 
 export const stage: {
   scene: boolean
@@ -53,6 +54,11 @@ export async function runCommand(name: string, input: Record<string, unknown>): 
   if (!h) throw new Error(`No command ${name}.`)
   return h(input as never)
 }
+
+/** A change run within another, as the registry does it. */
+export const runWithin = runCommand
+/** An undo step: the job run, as the history runs it. */
+export const historyAsync = (_label: string, job: () => Promise<void>) => job()
 
 export const sections: { reverse?: () => unknown; setups?: () => unknown } = {}
 export const readStateSection = (id: string) => (id === 'reverse' || id === 'setups' ? sections[id]?.() : undefined)

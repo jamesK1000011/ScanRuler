@@ -23,6 +23,7 @@
 // print setup's type is printSetup.ts.
 
 import type { ComponentType } from 'react'
+import { runWithin } from '../../src/commands/registry'
 import { readStateSection } from '../../src/commands/stateSections'
 import type { JsonSchema } from '../../src/commands/schema'
 import type { PrinterFit } from './printerFit'
@@ -228,4 +229,70 @@ export function machineTolerance(ref: { body?: string | number; setup?: string }
   const s = ref.setup !== undefined ? (setupsOf().find((x) => x.id === ref.setup || same(x.name, ref.setup!)) ?? null) : ref.body !== undefined ? setupFor(ref.body) : null
   if (!s) return null
   return setupTypeOf(s.type)?.tolerance?.(s) ?? null
+}
+
+// ---- a workspace's own setting that a setup owns -----------------------------------------
+// Check's nozzle, printer and way up; Strength's build direction; Hardware's
+// layers; Mass's walls, infill and line width: each workspace keeps its own,
+// for the parts in no print setup, and a print setup's value wins for a
+// part in it. A workspace setting one of these says where it lands, all
+// alike (ownedBy, then writeOwned): the parts it reaches all in one print
+// setup — written there too, one undo step with the workspace's own; some
+// in print setups that set it — those setups govern them, said with the
+// setup.set that changes it there.
+
+/** What a setting set in a workspace did in the print setups. */
+export interface Owned {
+  /** Every body it reaches is in this setup: the values were written to it too. */
+  wrote?: { id: string; name: string; settings: Record<string, unknown> }
+  /** Else the setups that set some of these for some of the bodies, which govern them. */
+  governed?: { id: string; name: string; bodies: string[]; settings: Record<string, unknown> }[]
+  /** The same in words, for the answer's note. */
+  note?: string
+}
+
+/** Where values a workspace sets land, for the bodies its setting reaches:
+ *  the one setup to write them to (null for none), and what to say. The
+ *  values as the setup's settings, by its keys; null drops one. write:
+ *  false — a value no setup can hold, a reset — says only who governs. */
+export function ownedBy(bodies: readonly (string | number | { id: number })[], values: Readonly<Record<string, unknown>>, opts: { type?: string; write?: boolean } = {}): { into: Setup | null; values: Record<string, unknown>; owned: Owned } {
+  const type = opts.type ?? 'print'
+  const given = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined))
+  const none = { into: null, values: given, owned: {} }
+  if (!bodies.length || !Object.keys(given).length) return none
+  const keys = bodies.map((b) => bodyKeyOf(b))
+  const of = keys.map((k) => setupFor(k, type))
+  const names = (ks: string[]) => ks.map(bodyNameOf).join(', ')
+  const verb = (n: number) => (n === 1 ? 'is' : 'are')
+  const first = of[0]
+  if (opts.write !== false && first && of.every((s) => s?.id === first.id)) {
+    const others = first.bodies.filter((b) => !keys.includes(b) && !keys.some((k) => same(bodyNameOf(k), b)))
+    const note = `Written to ${first.name} (${first.id}) too: ${names(keys)} ${verb(keys.length)} printed by it, and it governs ${keys.length === 1 ? 'it' : 'them'}${others.length ? ` — ${others.map(bodyNameOf).join(', ')} in it follow${others.length === 1 ? 's' : ''}` : ''}.`
+    return { into: first, values: given, owned: { wrote: { id: first.id, name: first.name, settings: given }, note } }
+  }
+  const governed: NonNullable<Owned['governed']> = []
+  for (const s of [...new Map(of.flatMap((x) => (x ? [[x.id, x] as const] : []))).values()]) {
+    const sets = Object.fromEntries(Object.keys(given).flatMap((k) => (s[k] !== undefined && s[k] !== null ? [[k, s[k]]] : [])))
+    if (!Object.keys(sets).length) continue
+    governed.push({ id: s.id, name: s.name, bodies: keys.filter((_, i) => of[i]?.id === s.id).map(bodyNameOf), settings: sets })
+  }
+  if (!governed.length) return none
+  const show = (v: unknown) => (typeof v === 'string' ? `"${v}"` : JSON.stringify(v))
+  const each = governed.map((g) => {
+    const ks = Object.keys(g.settings)
+    return `${g.bodies.join(', ')} ${verb(g.bodies.length)} in ${g.name} (${g.id}), whose ${ks.map((k) => `${k} ${show(g.settings[k])}`).join(', ')} govern${ks.length === 1 ? 's' : ''} ${g.bodies.length === 1 ? 'it' : 'them'} — setup.set { id: "${g.id}", settings: { ${ks.map((k) => `${k}: ${show(given[k])}`).join(', ')} } } changes it there`
+  })
+  return { into: null, values: given, owned: { governed, note: `${each.join('; ')}. Set here for the parts in no print setup.` } }
+}
+
+/** Write what ownedBy found to its setup, through setup.set, inside the
+ *  change running now (its undo step): the setup as written, or nothing to
+ *  write. */
+export async function writeOwned(plan: ReturnType<typeof ownedBy>): Promise<Owned> {
+  if (!plan.into) return plan.owned
+  await runWithin('setup.set', { id: plan.into.id, settings: plan.values })
+  // As the setup keeps them: a nozzle 0.40 is "0.4".
+  const now = setupsOf().find((s) => s.id === plan.into!.id)
+  const kept = now ? Object.fromEntries(Object.keys(plan.values).map((k) => [k, now[k] ?? null])) : plan.values
+  return { ...plan.owned, wrote: { ...plan.owned.wrote!, settings: kept } }
 }

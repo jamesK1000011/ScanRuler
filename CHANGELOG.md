@@ -7,6 +7,24 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Materials and setups, followed through** (2026-11-09). Mass and
+  Strength list each body's own material — printed or solid — and the old
+  material list is now for a body with none (*If none set*). A printability
+  check of a body takes its profile from the body's own material (PLA,
+  PETG and PETG-CF, ABS and ASA, TPU; a material of your own by the one it
+  is based on); Check's material is the fallback for a part with none or one
+  it has no profile for, `dfm.check { material }` overrides it for one
+  check, and the answer and panel say which was used. A strength result
+  goes out of date when the body's print setup turns it another way up.
+  Set in a workspace, what a print setup owns — Check's nozzle, printer and
+  way up, Strength's build direction, Hardware's layers, Mass's walls,
+  infill and line width — is written to the print setup too when every part
+  it reaches is in that one setup, in the same undo step; otherwise the
+  answer names the setup that governs and the `setup.set` that changes it.
+  The FreeCAD material cards' credit is in the imprint whenever the library
+  is in the build, with or without the Materials plugin. Hardware weighs
+  steel nuts and bearings and brass inserts at the library's densities (7.9
+  and 8.47 g/cm³, from 7.85 and 8.5).
 - **Cut and mill setups: parts cut from sheet and machined** (2026-11-09).
   Two new kinds of setup on the Make tab, each with a page of its own.
   **Cut** — laser, waterjet, plasma, or a router cutting through: a part

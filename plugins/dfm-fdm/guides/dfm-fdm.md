@@ -62,8 +62,16 @@ checked.
 
 A body in a print setup (`setup_of { body }`; the **setups** guide) is
 checked with that setup's nozzle, printer and way up where it sets them —
-the answer's `setup` says which. Change them on the setup (`setup_set`),
-not with `dfm_settings`, for a body in one.
+the answer's `setup` says which. Change them on the setup (`setup_set`);
+`dfm_settings` with the body as the target writes them to its setup too,
+and the answer's `printSetup` says so.
+
+A body with a material of its own (`material_set`) is checked with that
+material's profile, whatever `dfm_settings` says: the settings' material is
+for a part with none. The answer's `material` says which profile and from
+where; its note says when the part's material has no profile here (a metal,
+PA6-CF) and Check's own was used. `dfm_check { material }` checks once with
+another profile.
 
 For a part that is not printed — cut, machined — `dfm_wall { body, min }`
 reads its least wall alone, with none of the printing rules.

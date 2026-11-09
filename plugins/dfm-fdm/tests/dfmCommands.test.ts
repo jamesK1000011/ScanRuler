@@ -4,8 +4,10 @@
 // stands after an edit, picked by name or as the one shown; and a reference
 // part made from a body that has changed since, checked as an older copy;
 // and a body's walls read, a magnet's thin skin found; a body in a print
-// setup checked as that setup prints it; and the wall alone, for a part
-// made any way.
+// setup checked as that setup prints it, and what is set in Check that the
+// setup owns written to it; a body checked with its own material's
+// profile, Check's the fallback; and the wall alone, for a part made any
+// way.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/commands/host', () => import('./dfmFakes'))
@@ -16,10 +18,12 @@ vi.mock('../../../src/plugins/api', () => import('./dfmFakes'))
 vi.mock('../../../src/state/store', () => import('./dfmFakes'))
 vi.mock('../../../src/state/deviationStore', () => import('./dfmFakes'))
 vi.mock('../../../src/state/thicknessStore', () => import('./dfmFakes'))
+vi.mock('../../../src/state/historyStore', () => import('./dfmFakes'))
 
 import { app, calls, deviation, handlers, sections, stage } from './dfmFakes'
 import { dfmCommands } from '../app/dfmCommands'
 import { useDfm } from '../state/dfmStore'
+import { useAssigned } from '../../_shared/materials/assigned'
 
 type Run = (input: Record<string, unknown>, ctx: unknown) => Promise<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
 const run = (name: string, input: Record<string, unknown> = {}) => (dfmCommands as unknown as { name: string; run: Run }[]).find((c) => c.name === name)!.run(input, { progress() {} })
@@ -56,6 +60,7 @@ function fresh() {
   geo[1] = box([-20, -15, 0], [20, 15, 40])
   useDfm.getState().reset()
   sections.setups = undefined
+  useAssigned.setState({ assigned: {} })
   Object.assign(stage, { scene: true, scan: null, reference: null })
   Object.assign(app, { fileName: null, busy: false, statusText: '' })
   Object.assign(deviation, { nominalName: null, nominalBusy: false, nominalMadeFrom: null })
@@ -128,7 +133,7 @@ describe('a body', () => {
     const after = await run('check')
     expect(after.stamp).toBe('b2')
     expect(after.findings.find((f: { rule: string }) => f.rule === 'tall-thin')?.value).toBe(15)
-    expect(useDfm.getState().checked).toEqual({ target: 'body', part: 'Grip', stamp: 'b2', wall: { least: 4, line: 0.4, limit: 0.8 } })
+    expect(useDfm.getState().checked).toEqual({ target: 'body', part: 'Grip', stamp: 'b2', wall: { least: 4, line: 0.4, limit: 0.8 }, material: { profile: null, from: 'settings' } })
   })
   it('is the one shown, or the one named; a body not there is refused', async () => {
     fresh()
@@ -243,6 +248,69 @@ describe('a body in a print setup', () => {
     sections.setups = () => ({ setups: [{ id: 'S1', type: 'cut', name: 'Plates', bodies: ['Grip'], nozzle: '0.6' }] })
     const r = await run('check', { body: 'Grip' })
     expect(r.setup).toBe(undefined)
+  })
+})
+
+describe('what Check sets that a print setup owns', () => {
+  it('a body checked in a print setup: its nozzle and way up written to that setup too', async () => {
+    fresh()
+    let held = [{ id: 'S1', type: 'print', name: 'Print', bodies: ['1', '7'], nozzle: '0.4' } as Record<string, unknown>]
+    sections.setups = () => ({ setups: held })
+    handlers['setup.set'] = (i: { id: string; settings: Record<string, unknown> }) => {
+      held = held.map((s) => (s.id === i.id ? { ...s, ...i.settings } : s))
+    }
+    const r = await run('settings', { target: 'body', nozzle: '0.6', up: '-x' })
+    expect(calls.filter((c) => c.name === 'setup.set')).toEqual([{ name: 'setup.set', input: { id: 'S1', settings: { nozzle: '0.6', up: '-x' } } }])
+    expect(r.printSetup.wrote).toEqual({ id: 'S1', name: 'Print', settings: { nozzle: '0.6', up: '-x' } })
+    expect(r.note).toMatch(/Written to Print \(S1\) too: Grip is printed by it/)
+    // Check's own too, for the parts in no print setup.
+    expect(useDfm.getState().settings.nozzle).toBe('0.6')
+    const c = await run('check', { only: ['overhang'] })
+    expect(c.setup.sets).toEqual(['nozzle', 'up'])
+  })
+  it('the scan checked, or a setting no setup owns: nothing written', async () => {
+    fresh()
+    sections.setups = () => ({ setups: [{ id: 'S1', type: 'print', name: 'Print', bodies: ['1'] }] })
+    const r = await run('settings', { nozzle: '0.6' })
+    expect(r.printSetup).toBe(undefined)
+    await run('settings', { target: 'body', material: 'petg' })
+    expect(calls.filter((c) => c.name === 'setup.set')).toEqual([])
+  })
+})
+
+describe('the material a body is checked with', () => {
+  it('its own material’s profile, Check’s the fallback for a part with none, said which', async () => {
+    fresh()
+    await run('settings', { target: 'body', material: 'pla' })
+    const none = await run('check', { only: ['overhang'] })
+    expect(none.material).toEqual({ profile: 'pla', from: 'settings' })
+    useAssigned.setState({ assigned: { '1': 'petg' } })
+    const own = await run('check', { only: ['overhang'] })
+    expect(own.material).toEqual({ profile: 'petg', from: 'part', part: 'PETG' })
+    expect(own.profiles).toContain('material petg')
+    expect(useDfm.getState().checked?.material?.from).toBe('part')
+    // The settings say a part's own material wins.
+    const set = await run('settings', { material: 'abs-asa' })
+    expect(set.material.from).toBe('part')
+    expect(set.note).toMatch(/Grip is checked with its own material \(PETG: profile petg\)/)
+  })
+  it('a material based on a filament takes its profile; one with none here falls back, said so', async () => {
+    fresh()
+    await run('settings', { target: 'body', material: 'pla' })
+    useAssigned.setState({ assigned: { '1': { custom: { name: 'My ASA', base: 'asa' } } } })
+    expect((await run('check', { only: ['overhang'] })).material.profile).toBe('abs-asa')
+    useAssigned.setState({ assigned: { '1': 'pa6-cf' } })
+    const r = await run('check', { only: ['overhang'] })
+    expect(r.material).toEqual({ profile: 'pla', from: 'settings', part: 'PA6-CF' })
+    expect(r.note).toMatch(/Grip is PA6-CF, which has no material profile here/)
+  })
+  it('one given for the check wins over both', async () => {
+    fresh()
+    await run('settings', { target: 'body', material: 'pla' })
+    useAssigned.setState({ assigned: { '1': 'petg' } })
+    const r = await run('check', { only: ['overhang'], material: 'tpu' })
+    expect(r.material).toEqual({ profile: 'tpu', from: 'check', part: 'PETG' })
+    expect(r.profiles).toContain('material tpu')
   })
 })
 

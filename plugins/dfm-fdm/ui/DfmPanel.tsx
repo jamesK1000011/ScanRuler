@@ -88,10 +88,10 @@ const toShown = (k: string, n: number, len: BoundLength) => (powerOf(k) ? n / le
 const fromShown = (k: string, v: number, len: BoundLength) => (powerOf(k) ? v * len.fromDisplay(1) ** powerOf(k) : v)
 const fmt = (n: number) => (Math.abs(n) >= 100 ? n.toFixed(0) : Math.abs(n) >= 10 ? n.toFixed(1) : n.toFixed(2)).replace(/\.?0+$/, '')
 
-function ProfileSelect({ label, value, list, field }: { label: string; value: string | null; list: Json[]; field: string }) {
+function ProfileSelect({ label, value, list, field, title }: { label: string; value: string | null; list: Json[]; field: string; title?: string }) {
   const busy = useDfmView((s) => s.busy !== null)
   return (
-    <label className="field">
+    <label className="field" title={title}>
       <span>{label}</span>
       <select
         value={value ?? ''}
@@ -307,6 +307,11 @@ export function DfmPanel() {
             {st.checked.wall.least === null ? 'No thin wall found' : `Thinnest wall ${len.fmt(st.checked.wall.least, 2)}`} — {st.checked.wall.line !== undefined && `one line is ${len.fmt(st.checked.wall.line, 2)}, `}the minimum {len.fmt(st.checked.wall.limit, 2)}
           </p>
         )}
+        {st.checked?.material?.part && (
+          <p className="hint" data-test="dfm-material">
+            {st.checked.material.from === 'part' ? `Checked as ${st.checked.material.part}, the part’s material` : st.checked.material.from === 'check' ? `Checked as ${st.checked.material.profile}, given for this check` : `${st.checked.material.part} has no profile here: checked as ${st.checked.material.profile ?? 'no material'}`}
+          </p>
+        )}
         {st.checked?.stale && (
           <Status tone="warn" testId="dfm-stale">
             {st.checked.stale}
@@ -415,7 +420,7 @@ export function DfmPanel() {
           </select>
         </label>
         <ProfileSelect label="Nozzle" value={s.nozzle} list={(p?.nozzles as Json[]) ?? []} field="nozzle" />
-        <ProfileSelect label="Material" value={s.material} list={(p?.materials as Json[]) ?? []} field="material" />
+        <ProfileSelect label="Material" value={s.material} list={(p?.materials as Json[]) ?? []} field="material" title="For a part with no material of its own" />
         <ProfileSelect label="Printer" value={s.printer} list={(p?.printers as Json[]) ?? []} field="printer" />
         <label className="field">
           <span>

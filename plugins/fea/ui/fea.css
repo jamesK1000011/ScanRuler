@@ -2,6 +2,7 @@
 .fea-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 .fea-row > span { flex: 0 0 96px; color: var(--muted, #888); font-size: 12px; }
 .fea-row > select, .fea-row > input { flex: 1; min-width: 0; }
+.fea-row > span + span { flex: 1; min-width: 0; color: inherit; font-size: inherit; }
 .fea-num { width: 64px; flex: 0 0 64px; }
 .fea-inline { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; flex: none; }
 .fea-adder { margin: 4px 0 10px; }

@@ -14,7 +14,8 @@ import { setupOf, useMass, type BodyMass, type EmbeddedMass, type Pocket } from 
 import { MATERIAL_NAMES, materialId } from '../../_shared/materials'
 import { materialOfBody, useAssigned } from '../../_shared/materials/assigned'
 import { printFillOf } from '../../_shared/materials/printed'
-import { bodyKeyOf, setupFor, setupsOf } from '../../_shared/setups'
+import { bodyKeyOf, ownedBy, setupFor, setupsOf, writeOwned, type Owned } from '../../_shared/setups'
+import { historyAsync } from '../../../src/state/historyStore'
 
 const st = () => useMass.getState()
 const r3 = (x: number) => Math.round(x * 1000) / 1000
@@ -180,7 +181,7 @@ const materials: Command<Record<string, never>> = {
 const setup: Command<{ material?: string; density?: number | null; infill?: number; walls?: number; lineMm?: number; filler?: string }> = {
   name: 'setup',
   title: 'How the part is printed',
-  description: 'For a body with no material of its own (material.set gives one): the material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a) or its density (g/cm³; null for the material’s — a material picked alone also goes back to its own), the infill (percent), the walls (count) and line width (mm) — the walls taken as solid all round, the inside at the infill’s share; also the walls and infill of a printed body whose print setup does not give them — and the ballast filler (mass.materials lists them). Returns the setup and the density used.',
+  description: 'For a body with no material of its own (material.set gives one): the material (pla, petg, abs, asa, petg-cf, pa6-cf, tpu-95a) or its density (g/cm³; null for the material’s — a material picked alone also goes back to its own), the infill (percent), the walls (count) and line width (mm) — the walls taken as solid all round, the inside at the infill’s share; also the walls and infill of a printed body whose print setup does not give them — and the ballast filler (mass.materials lists them). The walls, infill and line width are a print setup’s for a body in one: when every solid body is in the same print setup they are written to it too (printSetup.wrote); else the answer names each print setup that sets them, which governs its bodies, and the setup.set that changes it (printSetup.governed). Returns the setup and the density used.',
   input: obj({
     material: enumOf(MATERIAL_NAMES),
     density: { oneOf: [num('g/cm³.', { minimum: 0.01, maximum: 25 }), { type: 'null' }], description: 'The density in place of the material’s, g/cm³; null for the material’s.' },
@@ -193,9 +194,20 @@ const setup: Command<{ material?: string; density?: number | null; infill?: numb
   run: async ({ material: named, density: d, infill, walls, lineMm, filler }) => {
     const material = named === undefined ? undefined : materialId(named)
     const dens = d !== undefined ? { density: d ?? undefined } : material ? { density: undefined } : {}
-    st().set({ ...(material ? { material } : {}), ...dens, ...(infill !== undefined ? { infill } : {}), ...(walls !== undefined ? { walls } : {}), ...(lineMm !== undefined ? { lineMm } : {}), ...(filler ? { filler } : {}) })
+    const patch = { ...(material ? { material } : {}), ...dens, ...(infill !== undefined ? { infill } : {}), ...(walls !== undefined ? { walls } : {}), ...(lineMm !== undefined ? { lineMm } : {}), ...(filler ? { filler } : {}) }
+    // The walls, infill and line width are a print setup's for a body in
+    // one: every solid body in one setup — written there too.
+    const plan = ownedBy(solids(), { walls, infill, lineMm })
+    let owned: Owned = plan.owned
+    if (plan.into) {
+      await historyAsync('Agent: how the part is printed', async () => {
+        owned = await writeOwned(plan)
+        st().set(patch)
+      })
+    } else st().set(patch)
     useMass.setState({ reading: null, pocket: null })
-    return describeMass()
+    const { note, ...printSetup } = owned
+    return { ...describeMass(), ...(Object.keys(printSetup).length ? { printSetup } : {}), ...(note ? { note } : {}) }
   },
 }
 

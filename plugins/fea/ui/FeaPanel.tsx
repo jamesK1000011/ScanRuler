@@ -14,7 +14,10 @@ import { fmtLen, toDisplay, unitWord, type DisplayUnits } from '../../../src/cor
 import { useStore } from '../../../src/state/store'
 import { InfoDot } from '../../../src/ui/InfoDot'
 import { Status } from '../../_shared/ui/kit'
-import { bodies as listBodies, FIELDS, MATERIAL_IDS, MATERIALS, staleness, wasCancelled } from '../app/feaCommands'
+import { bodies as listBodies, builtFor, FIELDS, MATERIAL_IDS, MATERIALS, staleness, wasCancelled } from '../app/feaCommands'
+import { resolveAssignment, useAssigned } from '../../_shared/materials/assigned'
+import { PRINTED } from '../../_shared/materials/printed'
+import { setupFor } from '../../_shared/setups'
 import { useFea, type Field, type Load } from '../state/feaStore'
 import { rangeOf } from '../viewer/resultLayer'
 import './fea.css'
@@ -256,7 +259,9 @@ export function FeaPanel() {
   const units = usePrefs((s) => s.units)
   const busy = s.busy !== null
   const [tools, setTools] = useState<{ ready: boolean; howTo?: string; error?: string } | null>(null)
-  const [bodies, setBodies] = useState<{ name: string; key: string }[]>([])
+  const [bodies, setBodies] = useState<{ id: number; name: string; key: string }[]>([])
+  const installed = useAssigned((x) => x.installed)
+  const assigned = useAssigned((x) => x.assigned)
   const [target, setTarget] = useState<string | null>(null)
   // Reverse Engineer's bodies, looked at every second or two while here.
   useEffect(() => {
@@ -278,6 +283,12 @@ export function FeaPanel() {
   }, [link])
   const current = bodies.find((b) => s.body !== null && b.name.toLowerCase() === s.body.toLowerCase())
   const gone = s.body !== null && !current
+  // The body's own material, and whether it solves as printed: in a print
+  // setup, with printing figures — else solid.
+  const own = current ? resolveAssignment(assigned[String(current.id)]) : null
+  const printSetup = current ? setupFor(String(current.id), 'print') : null
+  const ownAs = own && printSetup && !own.custom && PRINTED[own.id] ? 'printed' : 'solid'
+  const upFrom = builtFor(current?.name ?? null, s.build).up
   const commitTarget = () => {
     if (target === null) return
     const v = Number(target)
@@ -324,9 +335,26 @@ export function FeaPanel() {
           {buildId(s.build) === 'custom' && <option value="custom">Along {s.build.map((x) => x.toFixed(2)).join(', ')}</option>}
         </select>
       </label>
-      <label className="fea-row">
-        <span>Material</span>
-        <select value={s.material} disabled={busy} aria-label="Material" onChange={(e) => void run('setup', { material: e.target.value })}>
+      {upFrom && (
+        <p className="pl-aside" data-test="fea-up-from" title="Change it in the print setup on the Make tab">
+          Built {upFrom.value} up, as {upFrom.setup.name} prints it
+        </p>
+      )}
+      {installed && (
+        <div className="fea-row" data-test="fea-own-material" title="Set in Reverse Engineer’s body list">
+          <span>Material</span>
+          {own ? (
+            <span>
+              {own.name} <span className="pl-aside">{ownAs}</span>
+            </span>
+          ) : (
+            <span className="pl-aside">{current ? 'None set' : '—'}</span>
+          )}
+        </div>
+      )}
+      <label className="fea-row" title={installed ? 'For bodies with no material of their own' : undefined}>
+        <span>{installed ? 'If none set' : 'Material'}</span>
+        <select value={s.material} disabled={busy} aria-label={installed ? 'Material for bodies with none' : 'Material'} onChange={(e) => void run('setup', { material: e.target.value })}>
           {MATERIAL_IDS.map((m) => (
             <option key={m} value={m}>
               {MATERIALS[m].label}

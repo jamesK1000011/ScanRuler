@@ -6,13 +6,16 @@
 // the pocket counted, a pocket too narrow for BBs, feature names that don't
 // collide, a stale plan refused, weighings that overlap, the parts
 // encased in the print counted, and each body weighed in its own material —
-// solid, or as printed only in a print setup.
+// solid, or as printed only in a print setup; and the walls and infill set
+// here written to the print setup every body is in, or the one that
+// governs named.
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/commands/registry', () => import('./massFakes'))
 vi.mock('../../../src/commands/schema', () => import('./massFakes'))
 vi.mock('../../../src/commands/stateSections', () => import('./massFakes'))
 vi.mock('../../../src/plugins/api', () => import('./massFakes'))
+vi.mock('../../../src/state/historyStore', () => import('./massFakes'))
 
 import { calls, handlers, sections } from './massFakes'
 import { describeMass, massCommands } from '../app/massCommands'
@@ -254,6 +257,26 @@ describe('the Mass commands', () => {
     // Its name kept from an older project counts the same.
     setups = [{ id: 'S1', type: 'print', name: 'Grip print', bodies: ['Grip'], infill: 100 }]
     expect((await run('properties')).total.mass).toBe(solid.total.mass)
+  })
+  it('write the walls and infill to the print setup every body is in; else name the one that governs', async () => {
+    fresh()
+    setups = [{ id: 'S1', type: 'print', name: 'Grip print', bodies: ['1'] }]
+    handlers['setup.set'] = (i: { id: string; settings: Record<string, unknown> }) => {
+      setups = (setups as { id: string }[]).map((s) => (s.id === i.id ? { ...s, ...i.settings } : s))
+    }
+    const r = await run('setup', { walls: 3, infill: 40, material: 'petg' })
+    expect(calls.filter((c) => c.name === 'setup.set')).toEqual([{ name: 'setup.set', input: { id: 'S1', settings: { walls: 3, infill: 40 } } }])
+    expect(r.printSetup.wrote).toEqual({ id: 'S1', name: 'Grip print', settings: { walls: 3, infill: 40 } })
+    expect(useMass.getState().walls).toBe(3)
+    // A body in no setup beside it: Mass's own changes, and the setup's governs its body.
+    bodies = [...bodies, { id: 2, name: 'Plate', visible: true, volume: 1000, faces: 6 }]
+    calls.length = 0
+    const split = await run('setup', { walls: 5 })
+    expect(calls.filter((c) => c.name === 'setup.set')).toEqual([])
+    expect(split.printSetup.governed).toEqual([{ id: 'S1', name: 'Grip print', bodies: ['Grip'], settings: { walls: 3 } }])
+    expect(split.note).toContain('setup.set { id: "S1", settings: { walls: 5 } }')
+    expect(useMass.getState().walls).toBe(5)
+    delete handlers['setup.set']
   })
   it('keep no reading once a body’s material changes', async () => {
     fresh()

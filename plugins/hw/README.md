@@ -83,7 +83,10 @@ pocket's top above the bed is its Z less its body's lowest point (the
 slicer sets an object's lowest point on the bed), or the lowest of the
 bodies exported together. For bodies in print setups that agree on them,
 `layerHeight` and `firstLayer` are the setups' (the answer's `layers.from`
-says so); the layers given to `hw.pauses` still win. The
+says so); the layers given to `hw.pauses` still win. `hw.set` with a layer
+height or first layer writes them to the print setup too when every solid
+body is in that one setup, else names the setups that govern (see
+plugins/setups). The
 cuts are Reverse Engineer features, saved and undone there.
 
 `hw.apply` makes its change through `reverse.feature.add` with `runWithin`
