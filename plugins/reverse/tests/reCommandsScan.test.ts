@@ -270,9 +270,10 @@ describe('bodies looked over, exported and described', () => {
 
   it('reverse.export.stl writes the bodies as one binary STL to a chord', async () => {
     const body = await boxBody(20, 0)
-    type Stl = { file: { name: string; mimeType: string; bytes: Uint8Array }; triangles: number; chord: number; bodies: { id: number }[] }
+    type Stl = { file: { name: string; mimeType: string; bytes: Uint8Array }; triangles: number; chord: number; bodies: { id: number; stamp?: string }[] }
     const out = await run<Stl>('reverse.export.stl')
-    expect(out.bodies).toEqual([{ id: body.id, name: 'Solid 1' }])
+    expect(out.bodies).toMatchObject([{ id: body.id, name: 'Solid 1' }])
+    expect(out.bodies[0].stamp).toMatch(/^[0-9a-f]{8}$/)
     expect(out.file.mimeType).toBe('model/stl')
     expect(out.file.name).toBe('box-body.stl')
     expect(out.triangles).toBe(12)

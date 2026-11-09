@@ -5149,13 +5149,13 @@
     {
       "name": "workspace.set",
       "title": "Show a workspace",
-      "description": "Put a workspace on screen: measure (fitting elements and dimensions), deviation (scan against a reference part or an element), thickness (wall thickness), flat (2D measuring of an image or a section), or a plugin’s by its id — session.state lists them under app.plugins. Commands put their own workspace on screen; this is for showing the person something.",
+      "description": "Put a workspace on screen: measure (fitting elements and dimensions), deviation (scan against a reference part or an element), thickness (wall thickness), flat (2D measuring of an image or a section), or a plugin’s by its id — session.state lists them under app.plugins. Some plugins’ workspaces are pages of one tab (session.state tab names it while one is up): the tab’s id opens its page last shown, a page’s id that page. Commands put their own workspace on screen; this is for showing the person something.",
       "input": {
         "type": "object",
         "properties": {
           "workspace": {
             "type": "string",
-            "description": "The workspace — measure, deviation, thickness, flat, or a plugin’s id.",
+            "description": "The workspace — measure, deviation, thickness, flat, a plugin’s id, or a tab’s.",
             "minLength": 1
           }
         },
