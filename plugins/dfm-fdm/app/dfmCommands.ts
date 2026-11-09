@@ -5,7 +5,7 @@
 // where it is meant.
 
 import { commandHost, requireScene, sceneOf } from '../../../src/commands/host'
-import { anyObject, arr, bool, enumOf, num, obj, str } from '../../../src/commands/schema'
+import { anyObject, arr, bool, enumOf, num, obj, oneOf, str } from '../../../src/commands/schema'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { useDeviation } from '../../../src/state/deviationStore'
 import { useStore } from '../../../src/state/store'
@@ -171,16 +171,23 @@ function needsViewport(target: 'scan' | 'reference'): void {
   throw new CommandError('unavailable', `Checking the ${target === 'scan' ? 'scan' : 'reference part'} needs the viewport, and this session has none (headless). Check a Reverse Engineer body as it stands instead: dfm.settings { target: "body", body } (the one solid body shown by default), then dfm.check.`)
 }
 
-export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
+export const check: Command<{ only?: string[]; detail?: 'brief' | 'full'; body?: string | number }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
-  input: obj({ only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }), detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.') }),
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — a wall thinner than one extrusion line (the rule’s lineMm: the nozzle, or the profile’s line width) is an error, one from a line up to the minimum (minMm) a warning — it prints as a single line; wall gives the least wall read, where, one line (line) and the limit (level: under one line, or single line); a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and the part of a flat underside with no wall under it on the opposite side, which prints in air — flat ceilings needing a bridge longer than the limit (the longest straight line across from a wall going down to the one opposite), upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. body: that Reverse Engineer body, whatever the target, the settings left as they are. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
+  input: obj({
+    only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }),
+    detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.'),
+    body: oneOf([str(undefined, { minLength: 1 }), num()], 'Check this Reverse Engineer body, by name or id, whatever the settings’ target — the settings stay as they are.'),
+  }),
   history: false,
   timeoutMs: 5 * 60_000,
-  run: async ({ only, detail = 'brief' }, ctx) => {
-    const s = useDfm.getState().settings
+  run: async ({ only, detail = 'brief', body: asked }, ctx) => {
+    // A body asked for is checked as target body would check it, the
+    // settings left as they are.
+    const set = useDfm.getState().settings
+    const s = asked === undefined ? set : { ...set, target: 'body' as const, body: asked }
     const frame = buildFrame(s.up as Up)
     let mesh: { positions: Float64Array; indices: Uint32Array }
     let thickness: Float32Array | null = null

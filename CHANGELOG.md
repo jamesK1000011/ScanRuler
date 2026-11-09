@@ -24,6 +24,26 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `target: "body"`, `fit.measure` to `fit.calibrate { readings }`.
   `scanruler_write`, `_files` and `_read` are there headless too, in the
   server's output folder, so an answer too long to carry can be read back.
+- **One answer to "is this part done?"** (2026-11-08). A new plugin,
+  Part review, adds `part.review`: on a Reverse Engineer body it runs the
+  checks the build has — `reverse.body.check`, `reverse.body.clearance`
+  against the other bodies shown, `dfm.check` on the body,
+  `mass.properties`, `hw.pauses` and the last `fea.results` when it still
+  holds — and answers one small verdict (pass, fix or unknown), the
+  findings worst first with the command each came from, the key figures,
+  the printer calibration in use, and what each check did (ran, skipped and
+  why, failed and why). `part.spec` keeps a design spec with the project —
+  least wall and clearance, mass bounds or a target, least safety factor,
+  steepest overhang, number of pauses — which every review after judges
+  against. `dfm.check { body }` checks a body without changing the
+  settings' target. The new **review** guide tells an agent to end each
+  change with a review.
+- **What a change did, without describing the part again** (2026-11-08).
+  `history.diff` answers what changed in the modelled part since a
+  checkpoint or since the last change that changed it: per body the stamp,
+  volume, area, face count and box; bodies, features and encased parts
+  added, removed or edited; and which review checks to run again. Plugins
+  add their share with `registerPartDigest`.
 
 - **Gridfinity magnets get their pause** (2026-11-08). A Gridfinity bin or
   baseplate made with `magnets: true` cut the holes but told the Hardware

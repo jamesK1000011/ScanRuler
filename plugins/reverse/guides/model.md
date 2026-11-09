@@ -121,6 +121,9 @@ Slivers and steps come from an edge drawn twice with its own numbers. A part of 
 - `reverse_feature_clear` removes the whole tree in one undo step; parameters stay.
 
 ## 3. Before every handover — the person's notes on the last parts were nearly all these
+
+End every change with `part_review` and read `history_diff` for what it did rather than describe the part again (the **review** guide, where the build has it); before the handover the review's verdict is pass, or the reply says why not.
+
 1. `reverse_note_list`: every open note done or answered. The plan (`reverse_plan_set`): its target met or "not done" said, every region ticked or skipped with a reason, every feature removed after failing named in the chat.
 2. Every feature and every junction close up, model only (`show: { scan: false }`): no step, ridge or square corner under about 0.3 mm that is not intent, no void, nothing of one feature poking into another's pocket; two features meant as one (a slit through a ledge) one face, not two 0.15 mm apart; what lines up (a bore, the slot it feeds, an arm) on one axis.
 3. Rounds that run on, run on; a rebuilt piece wears its neighbour's profile.
