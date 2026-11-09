@@ -4,7 +4,7 @@
 // rule and where that rule's number comes from — and waived with a reason
 // where it is meant.
 
-import { commandHost, requireScene } from '../../../src/commands/host'
+import { commandHost, requireScene, sceneOf } from '../../../src/commands/host'
 import { anyObject, arr, bool, enumOf, num, obj, str } from '../../../src/commands/schema'
 import { type Command, CommandError } from '../../../src/plugins/api'
 import { useDeviation } from '../../../src/state/deviationStore'
@@ -164,6 +164,13 @@ function wallReading(w: WallSamples, limit: number, line: number, frame: BuildFr
 const notOnStage = (loading: boolean, what: string) =>
   loading ? new CommandError('busy', `${what} is still opening — check again once it is in.`) : new CommandError('invalid_state', `${what} is not on the stage.`)
 
+/** The scan and the reference part are read off the viewport: a session
+ *  without one (the app run headless) checks a body instead. */
+function needsViewport(target: 'scan' | 'reference'): void {
+  if (sceneOf()) return
+  throw new CommandError('unavailable', `Checking the ${target === 'scan' ? 'scan' : 'reference part'} needs the viewport, and this session has none (headless). Check a Reverse Engineer body as it stands instead: dfm.settings { target: "body", body } (the one solid body shown by default), then dfm.check.`)
+}
+
 export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
@@ -180,6 +187,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
     const skippedExtra: { rule: string; why: string }[] = []
     let checked: Checked
     if (s.target === 'scan') {
+      needsViewport('scan')
       checked = { target: 'scan', part: useStore.getState().fileName ?? 'part' }
       if (!useStore.getState().fileName) throw new CommandError('no_scan', 'There is no part open — open it with scan.open (or import.open), or set target: reference.')
       const sm = requireScene('Checking the part').scanMesh()
@@ -209,6 +217,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
       mesh = { positions: arrayToBuild(frame, w.positions), indices: w.indices }
       checked = { target: 'body', part: body.name, ...(stamp ? { stamp } : {}) }
     } else {
+      needsViewport('reference')
       const dev = useDeviation.getState()
       if (!dev.nominalName) throw new CommandError('invalid_state', 'No reference part is open — deviation.open_reference, or set target: scan or body.')
       const g = requireScene('Checking the part').nominalGeometry()
@@ -418,5 +427,8 @@ export const considerations: Command<Record<string, never>> = {
   },
 }
 
-export const dfmCommands = [settings, profiles, rules, check, explain, waive, report, guides, considerations] as Command<never>[]
+/** Every one runs without the page (Command.headless) — dfm.check on a
+ *  body only (target body): the scan and the reference part are read off
+ *  the viewport. */
+export const dfmCommands = ([settings, profiles, rules, check, explain, waive, report, guides, considerations] as Command<never>[]).map((c) => ({ ...c, headless: true }))
 

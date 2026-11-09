@@ -93,6 +93,24 @@ describe('a part that is not there to check', () => {
   })
 })
 
+describe('without a viewport (the app run headless)', () => {
+  it('turns the scan and the reference part away naming a body, and checks a body', async () => {
+    fresh()
+    stage.scene = false
+    for (const target of ['scan', 'reference'] as const) {
+      await run('settings', { target })
+      const refused = await run('check').then(
+        () => null,
+        (e: { code: string; message: string }) => e,
+      )
+      expect(refused?.code).toBe('unavailable')
+      expect(refused?.message).toMatch(/target: "body"/)
+    }
+    await run('settings', { target: 'body' })
+    expect((await run('check')).part).toBe('Grip')
+  })
+})
+
 describe('a body', () => {
   it('is checked as it stands now, edits and all', async () => {
     fresh()
