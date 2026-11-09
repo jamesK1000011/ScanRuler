@@ -582,4 +582,7 @@ const stopCmd: Command<Record<string, never>> = {
   },
 }
 
-export const fitsCommands = [list, set, calibrate, pairCmd, stackCmd, snapCmd, hingeCmd, pinCmd, test, apply, file, stopCmd] as Command<never>[]
+/** Every one runs without the page (Command.headless): the sizes are
+ *  worked out from numbers, the parts built in this thread headless
+ *  (plugin.ts headless) and brought into Reverse Engineer's bodies. */
+export const fitsCommands = ([list, set, calibrate, pairCmd, stackCmd, snapCmd, hingeCmd, pinCmd, test, apply, file, stopCmd] as Command<never>[]).map((c) => ({ ...c, headless: true }))

@@ -366,4 +366,15 @@ export const keymapsCommand: Command<{ action: 'list' | 'add' | 'remove'; keymap
   },
 }
 
-export const fitCommands = [settings, features, tag, measureCommand, suggest, exportCommand, compensatedMesh, runs, profiles, keymapsCommand] as Command<never>[]
+/** What reads the scan against the reference part needs the page; the
+ *  settings, the runs measured and what they suggest run without it
+ *  (Command.headless). A print's sizes, measured by hand, calibrate the
+ *  printer headless through the Fits design page's fit.calibrate. */
+const BY_HAND = 'fit.calibrate { readings: [{ kind, model, measured }] } calibrates the printer from sizes measured on a print by hand, with no scan.'
+const PAGE_ONLY: Record<string, string | null> = { features: BY_HAND, tag: BY_HAND, measure: BY_HAND, compensated_mesh: null }
+
+export const fitCommands = ([settings, features, tag, measureCommand, suggest, exportCommand, compensatedMesh, runs, profiles, keymapsCommand] as Command<never>[]).map((c) => {
+  if (!(c.name in PAGE_ONLY)) return { ...c, headless: true }
+  const instead = PAGE_ONLY[c.name]
+  return instead ? { ...c, headlessInstead: instead } : c
+})

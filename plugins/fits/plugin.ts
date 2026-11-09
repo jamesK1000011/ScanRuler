@@ -9,6 +9,7 @@
 import { registerCommands, registerGuide, registerStateSection, type ScanRulerPlugin } from '../../src/plugins/api'
 import { registerProjectSection } from '../../src/app/projectSections'
 import { registerHistory } from '../../src/state/historyStore'
+import { setBuilder } from './app/fitsClient'
 import { describeFits, fitsCommands, refreshAnswers } from './app/fitsCommands'
 import { fitsSection } from './app/projectSection'
 import { useFitsPlugin } from './app/useFitsPlugin'
@@ -48,6 +49,13 @@ const plugin: ScanRulerPlugin = {
       when: 'asked how big to make a hole or a peg so printed parts slide, turn or press together; to design a snap-fit hook or clip, a print-in-place hinge, or a pin and socket; to add up a tolerance stack; or to calibrate clearances to a printer with a test print',
       text: () => import('./guides/fits.md?raw').then((m) => m.default),
     })
+  },
+  // The app run without a browser (src/headless/engine.ts): the parts built
+  // in this thread, on a kernel of their own, as the worker builds them.
+  async headless() {
+    const { localBuilder } = await import('./core/fitsLocal')
+    setBuilder(localBuilder())
+    return () => setBuilder(null)
   },
 }
 
