@@ -11,6 +11,8 @@ import { NumberField } from '../../../src/ui/NumberField'
 import { Status } from '../../_shared/ui/kit'
 import { generatorOf, GENERATORS, type Param, type Value } from '../core/generators'
 import { useGen } from '../state/genStore'
+import { calibratedDefaults } from '../core/printerFit'
+import { readPrinterFit } from '../../_shared/readPrinterFit'
 import './gen.css'
 
 const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
@@ -38,7 +40,11 @@ export function GenPanel() {
   const s = useGen()
   const len = useLength()
   const g = generatorOf(s.generator) ?? GENERATORS[0]
-  const values: Record<string, Value> = { ...g.defaults, ...(s.values[g.id] ?? {}) }
+  // What it builds with: holes, gaps and margins not set follow the printer's fit calibration.
+  const printerFit = readPrinterFit()
+  const applies = Object.keys(calibratedDefaults(g, printerFit)).length > 0
+  const calibrated = calibratedDefaults(g, s.printerFit ? printerFit : null)
+  const values: Record<string, Value> = { ...g.defaults, ...calibrated, ...(s.values[g.id] ?? {}) }
   const why = g.board && !s.board ? 'No board yet: bring one in from Electronics › KiCad.' : g.check(values, s.board)
   const setOne = (key: string, v: Value) => void run('set', { generator: g.id, params: { [key]: v } })
   return (
@@ -81,6 +87,12 @@ export function GenPanel() {
             <CountField key={p.key} p={p} value={values[p.key] as number} disabled={s.busy} onCommit={(v) => setOne(p.key, Math.round(v))} />
           )
         ),
+      )}
+      {applies && (
+        <label className="gen-row" title={`Holes, gaps and margins not set follow ${printerFit!.label}`}>
+          <span>Printer fits</span>
+          <input type="checkbox" aria-label="Follow the printer’s fit calibration" disabled={s.busy} data-test="gen-printer-fit" checked={s.printerFit} onChange={(e) => void run('set', { generator: g.id, printerFit: e.target.checked })} />
+        </label>
       )}
       {why && <Status tone="warn">{why}</Status>}
       <div className="toolrow">

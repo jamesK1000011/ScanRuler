@@ -26,9 +26,14 @@ that stay editable in Reverse Engineer.
 
 - `allowance`, by kind. FDM holes print small, so this much is added to every
   diameter and across-flats: screw 0.2, nut 0.2, insert 0 (the table is
-  already the hole to model), pilot 0, magnet 0.2, bearing 0.1. If the user
-  has measured their printer (the `fit-comp` workspace, or a test print), set
-  it from that.
+  already the hole to model), pilot 0, magnet 0.2, bearing 0.1. These suit a
+  printer whose holes print 0.2 small. When the printer is calibrated in Fits
+  (`fit.calibrate`, or a scanned print's `fit.measure`), every allowance left
+  at its default moves by the calibration's difference from 0.2 (holes 0.3
+  small: screw 0.3, insert 0.1), and the answers say which calibration they
+  used (`printerFit`). Don't copy the calibration in by hand: an allowance
+  you set stays as set, and Fits' figures are written in other signs.
+- `printerFit`: on by default; false sizes holes with the allowances as set.
 - `fit`: the ISO 273 class, medium by default.
 - `headMargin`: the counterbore over the head, 0.4.
 - `headSink`: how far the head sits below the surface, 0.2.

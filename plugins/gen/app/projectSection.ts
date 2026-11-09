@@ -54,7 +54,7 @@ export function setupIn(u: unknown): GenSetup {
   } catch {
     // A board this version does not read: dropped, the values kept.
   }
-  return { generator, values, board }
+  return { generator, values, board, printerFit: typeof o.printerFit === 'boolean' ? o.printerFit : DEFAULT_GEN.printerFit }
 }
 
 export const genSection: ProjectSection<SavedGen> = {
@@ -76,7 +76,7 @@ export const genSection: ProjectSection<SavedGen> = {
   hasContent: (v) => Object.keys(v.setup.values ?? {}).length > 0 || !!v.setup.board,
   watch(changed) {
     return useGen.subscribe((s, prev) => {
-      if (s.generator !== prev.generator || s.values !== prev.values || s.board !== prev.board) changed()
+      if (s.generator !== prev.generator || s.values !== prev.values || s.board !== prev.board || s.printerFit !== prev.printerFit) changed()
     })
   },
 }

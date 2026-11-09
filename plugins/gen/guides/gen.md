@@ -14,4 +14,6 @@ Project box: `clearance` is the gap each side between the lid's lip and the wall
 
 `gen.set` sets the values the panel shows; `gen.make` and the others take the values set unless they are given.
 
+Printer fits: the holes (`holes`, the hole allowance on magnet, screw, insert and pilot holes), `clearance`, `gap` and `margin` suit a printer whose holes print 0.2 small. When the printer is calibrated in Fits (`fit.calibrate`, or a scanned print's `fit.measure`), those not set by hand move with the calibration, and the answers say which calibration and what it set (`printerFit`, `calibrated`). Don't copy the calibration into them by hand: Fits writes its figures in other signs, and a value you set is kept as set. `printerFit: false` on `gen.set`, `gen.make`, `gen.measure` or `gen.export` builds with the defaults as they are.
+
 Board enclosure (`board_box`): made round a board, which Electronics › KiCad gives (`pcb.enclosure`, `pcb.plan`). `gen.make { generator: "board_box", board }` takes one directly: `{ outline: [[x, y]…], thickness, above, below, holes: [{ x, y, d }], openings: [{ side, centre, width, z0, z1 }] }`, mm, the board's bottom at z = 0. `standoff` must clear the parts underneath (`below`). The screw size comes from each hole.

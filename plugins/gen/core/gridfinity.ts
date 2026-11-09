@@ -17,6 +17,9 @@ import { P, prism, stepped, type GenKernel, type H } from './kernel'
 export const GRID = 42
 export const UNIT = 7
 const CLEAR = 0.5
+/** The magnet pocket (6.5 for a 6 mm magnet) and the M3 screw hole, radii. */
+const MAGNET_R = 3.25
+const SCREW_R = 1.5
 const BASE_H = 4.75
 const LIP_H = 4.4
 const OUTER_R = 3.75
@@ -43,18 +46,24 @@ export interface BinParams {
   dividersY: number
   /** A label ledge along the back, mm deep (0: none). */
   label: number
+  /** Added to the magnet and screw holes' diameters, mm: printed holes
+   *  come out small. 0 suits the typical printer; the printer's fit
+   *  calibration sets it when there is one. */
+  holes: number
 }
 
-export const BIN_DEFAULTS: BinParams = { x: 1, y: 1, units: 3, lip: true, magnets: false, screws: false, wall: 1.2, floor: 1, dividersX: 0, dividersY: 0, label: 0 }
+export const BIN_DEFAULTS: BinParams = { x: 1, y: 1, units: 3, lip: true, magnets: false, screws: false, wall: 1.2, floor: 1, dividersX: 0, dividersY: 0, label: 0, holes: 0 }
 
 export interface BaseParams {
   x: number
   y: number
   /** Magnet pockets under each cell's corners, in a thicker plate. */
   magnets: boolean
+  /** Added to the magnet holes' diameters, mm, as a bin's. */
+  holes: number
 }
 
-export const BASE_DEFAULTS: BaseParams = { x: 3, y: 3, magnets: false }
+export const BASE_DEFAULTS: BaseParams = { x: 3, y: 3, magnets: false, holes: 0 }
 
 export function checkBin(p: BinParams): string | null {
   if (!(Number.isInteger(p.x) && p.x >= 1 && p.x <= 10 && Number.isInteger(p.y) && p.y >= 1 && p.y <= 10)) return 'x and y are whole cells, 1 to 10.'
@@ -150,8 +159,8 @@ export function bin(k: GenKernel, p: BinParams): H {
   for (const [cx, cy] of centres)
     for (const sx of [-1, 1])
       for (const sy of [-1, 1]) {
-        if (p.magnets) holes.push(k.translate(k.makeCylinder(3.25, 2.41), cx + sx * 13, cy + sy * 13, -0.01))
-        if (p.screws) holes.push(k.translate(k.makeCylinder(1.5, 6.01), cx + sx * 13, cy + sy * 13, -0.01))
+        if (p.magnets) holes.push(k.translate(k.makeCylinder(MAGNET_R + (p.holes ?? 0) / 2, 2.41), cx + sx * 13, cy + sy * 13, -0.01))
+        if (p.screws) holes.push(k.translate(k.makeCylinder(SCREW_R + (p.holes ?? 0) / 2, 6.01), cx + sx * 13, cy + sy * 13, -0.01))
       }
   if (holes.length) body = k.cutAll(body, holes)
   return body
@@ -182,7 +191,7 @@ export function baseplate(k: GenKernel, p: BaseParams): H {
           [floor + T + 0.01, 0, 4],
         ]),
       )
-      if (p.magnets) for (const sx of [-1, 1]) for (const sy of [-1, 1]) pockets.push(k.translate(k.makeCylinder(3.25, 2.41), cx + sx * 13, cy + sy * 13, floor - 2.4))
+      if (p.magnets) for (const sx of [-1, 1]) for (const sy of [-1, 1]) pockets.push(k.translate(k.makeCylinder(MAGNET_R + (p.holes ?? 0) / 2, 2.41), cx + sx * 13, cy + sy * 13, floor - 2.4))
     }
   plate = k.cutAll(plate, pockets)
   return plate

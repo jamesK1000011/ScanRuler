@@ -160,6 +160,23 @@ describe('pcb commands', () => {
     expect(calls.some((c) => c.name === 'reverse.feature.add')).toBe(false)
     expect(usePcb.getState().enclosureMade?.bodies).toEqual(['tiny box', 'tiny lid'])
   })
+  it('enclosure: says which printer fits Generate sized it with, and passes printerFit: false on', async () => {
+    await run('import', { path: PATH })
+    const keep = handlers['gen.make']
+    handlers['gen.make'] = async (i: { board: { name: string }; printerFit?: boolean }) => ({ bodies: [`${i.board.name} box`, `${i.board.name} lid`], plan: { standoffs: [] }, parts: [], ...(i.printerFit === false ? {} : { printerFit: 'printer fits from 2026-11-08 (PETG)', calibrated: { holes: 0.1, gap: 1.05 } }) })
+    const r = await run('enclosure')
+    expect(r.printerFit).toBe('printer fits from 2026-11-08 (PETG)')
+    expect(r.calibrated).toEqual({ holes: 0.1, gap: 1.05 })
+    // Not given: Generate's own setting holds.
+    expect(Object.hasOwn(calls.find((c) => c.name === 'gen.make')!.input, 'printerFit')).toBe(false)
+    calls.length = 0
+    const off = await run('enclosure', { printerFit: false })
+    expect(calls.find((c) => c.name === 'gen.make')!.input).toMatchObject({ printerFit: false })
+    expect(off.printerFit).toBe(undefined)
+    await run('plan', { printerFit: false })
+    expect(calls.find((c) => c.name === 'gen.measure')!.input).toMatchObject({ printerFit: false })
+    handlers['gen.make'] = keep
+  })
   it('a board that came in off its place: the enclosure moved to it', async () => {
     shift = [0, 0, -1.6]
     await run('import', { path: PATH })

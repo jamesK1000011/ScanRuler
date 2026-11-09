@@ -18,8 +18,9 @@ export async function runCommand(name: string, input: Record<string, unknown>): 
 const schema = (..._args: unknown[]) => ({})
 export const arr = schema, enumOf = schema, int = schema, num = schema, obj = schema, str = schema, vec3 = schema, anyObject = schema, bool = schema
 
-export const sections: { reverse?: () => unknown } = {}
+export const sections: { reverse?: () => unknown; fits?: () => unknown } = {}
 export const readStateSections = () => ({ reverse: sections.reverse?.() }) as Record<string, unknown>
+export const readStateSection = (id: string): unknown => (id === 'fits' ? sections.fits?.() : id === 'reverse' ? sections.reverse?.() : undefined)
 
 export class CommandError extends Error {
   code: string

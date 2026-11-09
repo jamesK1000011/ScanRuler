@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **Hardware, Generate and Boards size to the printer** (2026-11-08). With
+  the printer calibrated in Fits, Hardware's hole allowances (screws, nuts,
+  inserts, pilots, magnets, bearings), Generate's new hole allowance
+  (Gridfinity magnet and screw holes, project box screw holes, board
+  enclosure insert and pilot holes) and its lid clearance, gap to the board
+  and opening margin, and so Boards' enclosure, move with the calibration's
+  difference from the typical printer the defaults are made for. A value
+  you set yourself is kept as set. Each answer says which calibration it
+  used ("printer fits from 2026-11-08 (MK4, PETG)"); *Printer fits* in the
+  Hardware and Generate panels, or `printerFit: false`, turns it off.
 - **One printer calibration for every workspace** (2026-11-08). The
   printer's fit calibration from Fits (a test coupon, values entered, or a
   scanned print on Calibrate from a scan) now reaches Hardware, Generate

@@ -87,6 +87,7 @@ export interface HwState extends Settings {
 
 export const settingsOf = (s: Settings): Settings => ({
   allowance: { ...s.allowance },
+  printerFit: s.printerFit,
   fit: s.fit,
   headMargin: s.headMargin,
   headSink: s.headSink,

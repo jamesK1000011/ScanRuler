@@ -316,19 +316,23 @@ function specNow(above?: number | null, below?: number | null) {
   return boardSpecOf(s.board!, { above: above !== undefined ? above : s.above, below: below !== undefined ? below : s.below, measured: s.imported?.components ? { above: s.imported.above, below: s.imported.below } : null, boxes: s.imported?.boxes, skip: s.skip })
 }
 
-const plan: Command<{ params?: Record<string, unknown>; above?: number; below?: number }> = {
+const printerFitIn = bool('false: the enclosure’s holes, gaps and margins as Generate’s defaults, not moved by the printer’s fit calibration from Fits (on by default, unless turned off in Generate).')
+/** Passed on to Generate only when given: its own setting holds otherwise. */
+const fitArg = (printerFit?: boolean) => (printerFit !== undefined ? { printerFit } : {})
+
+const plan: Command<{ params?: Record<string, unknown>; above?: number; below?: number; printerFit?: boolean }> = {
   name: 'plan',
   title: 'The enclosure, worked out',
-  description: 'What pcb.enclosure would make, without making it: the board as the enclosure takes it (outline, thickness, the parts’ reach, holes and the openings with their sizes — typical ones said so), each standoff (screw size, insert or pilot hole, depth) and the box’s and lid’s sizes. params override the enclosure’s values for this one look. Changes nothing.',
-  input: obj({ params: anyObject('board_box values by key, for this look only.'), above: num('mm', { minimum: 0, maximum: 200 }), below: num('mm', { minimum: 0, maximum: 100 }) }),
+  description: 'What pcb.enclosure would make, without making it: the board as the enclosure takes it (outline, thickness, the parts’ reach, holes and the openings with their sizes — typical ones said so), each standoff (screw size, insert or pilot hole, depth) and the box’s and lid’s sizes; printerFit: the printer’s fit calibration the holes, gaps and margins not set follow, with what it set. params override the enclosure’s values for this one look. Changes nothing.',
+  input: obj({ params: anyObject('board_box values by key, for this look only.'), above: num('mm', { minimum: 0, maximum: 200 }), below: num('mm', { minimum: 0, maximum: 100 }), printerFit: printerFitIn }),
   readOnly: true,
   long: true,
   timeoutMs: 300_000,
-  run: async ({ params, above, below }) => {
+  run: async ({ params, above, below, printerFit }) => {
     const { spec, notes } = specNow(above, below)
     let measured: Record<string, unknown>
     try {
-      measured = (await runCommand('gen.measure', { generator: 'board_box', params: { ...st().enclosure, ...(params ?? {}) }, board: spec })) as Record<string, unknown>
+      measured = (await runCommand('gen.measure', { generator: 'board_box', params: { ...st().enclosure, ...(params ?? {}) }, board: spec, ...fitArg(printerFit) })) as Record<string, unknown>
     } catch (e) {
       if (e instanceof CommandError && e.code === 'unknown_command') throw new CommandError('failed', 'The enclosure is made by the Generate workspace, which this build does not have.')
       throw e
@@ -337,23 +341,23 @@ const plan: Command<{ params?: Record<string, unknown>; above?: number; below?: 
   },
 }
 
-const enclosure: Command<{ params?: Record<string, unknown>; name?: string; above?: number; below?: number }> = {
+const enclosure: Command<{ params?: Record<string, unknown>; name?: string; above?: number; below?: number; printerFit?: boolean }> = {
   name: 'enclosure',
   title: 'Make an enclosure round the board',
   description:
-    'Make a box round the board with Generate’s board_box and bring it into Reverse Engineer: standoffs under the mounting holes (heat-set insert holes, or pilots for self-tapping screws; screw size from the hole), room for the parts above and below (measured on import, or set: above, below), an opening in the wall for each edge connector (typical sizes for USB-C, micro-USB, barrel jack, pin header, JST and others; any other sized by its 3D model), and a lid on a lip, laid beside it. Made where the board is, so it stands round it. params: board_box values for this make (merged over those set with pcb.set). Returns the bodies, the openings and standoffs, and what was guessed. One undo step.',
-  input: obj({ params: anyObject('board_box values by key.'), name: str('What to call the bodies (up to 60 characters).', { minLength: 1 }), above: num('mm', { minimum: 0, maximum: 200 }), below: num('mm', { minimum: 0, maximum: 100 }) }),
+    'Make a box round the board with Generate’s board_box and bring it into Reverse Engineer: standoffs under the mounting holes (heat-set insert holes, or pilots for self-tapping screws; screw size from the hole), room for the parts above and below (measured on import, or set: above, below), an opening in the wall for each edge connector (typical sizes for USB-C, micro-USB, barrel jack, pin header, JST and others; any other sized by its 3D model), and a lid on a lip, laid beside it. Made where the board is, so it stands round it. The standoff holes, the gap to the board, the lid clearance and the opening margin follow the printer’s fit calibration from Fits unless set. params: board_box values for this make (merged over those set with pcb.set). Returns the bodies, the openings and standoffs, what was guessed, and printerFit: the calibration used, with what it set. One undo step.',
+  input: obj({ params: anyObject('board_box values by key.'), name: str('What to call the bodies (up to 60 characters).', { minLength: 1 }), above: num('mm', { minimum: 0, maximum: 200 }), below: num('mm', { minimum: 0, maximum: 100 }), printerFit: printerFitIn }),
   long: true,
   timeoutMs: 300_000,
   label: () => 'make enclosure',
-  run: async ({ params, name, above, below }, ctx) => {
+  run: async ({ params, name, above, below, printerFit }, ctx) => {
     const { spec, notes } = specNow(above, below)
     if (name !== undefined && (!name.trim() || name.length > 60)) invalid('name: 1 to 60 characters.')
     ctx.progress(ENCLOSING)
     usePcb.setState({ busy: ENCLOSING })
-    let made: { bodies: string[]; plan?: unknown; parts?: unknown }
+    let made: { bodies: string[]; plan?: unknown; parts?: unknown; printerFit?: string; calibrated?: Record<string, number> }
     try {
-      made = (await runWithin('gen.make', { generator: 'board_box', params: { ...st().enclosure, ...(params ?? {}) }, board: spec, ...(name ? { name: name.trim() } : {}) }, ctx)) as typeof made
+      made = (await runWithin('gen.make', { generator: 'board_box', params: { ...st().enclosure, ...(params ?? {}) }, board: spec, ...(name ? { name: name.trim() } : {}), ...fitArg(printerFit) }, ctx)) as typeof made
       const off = st().imported?.offset
       if (off && off.some((x) => Math.abs(x) > 0.05)) await runWithin('reverse.feature.add', { kind: 'moveBody', name: 'Enclosure to the board', bodies: made.bodies, translate: off }, ctx)
     } catch (e) {
@@ -364,7 +368,7 @@ const enclosure: Command<{ params?: Record<string, unknown>; name?: string; abov
       if (!running.size) usePcb.setState({ busy: null })
     }
     st().set({ enclosureMade: { at: now(), bodies: made.bodies } })
-    return { bodies: made.bodies, openings: spec.openings, holes: spec.holes, above: spec.above, below: spec.below, plan: made.plan, parts: made.parts, notes, status: `Enclosure: ${made.bodies.join(', ')} in Reverse Engineer.` }
+    return { bodies: made.bodies, openings: spec.openings, holes: spec.holes, above: spec.above, below: spec.below, plan: made.plan, parts: made.parts, ...(made.printerFit ? { printerFit: made.printerFit, calibrated: made.calibrated } : {}), notes, status: `Enclosure: ${made.bodies.join(', ')} in Reverse Engineer.` }
   },
 }
 

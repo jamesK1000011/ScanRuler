@@ -21,6 +21,9 @@ export interface GenSetup {
   values: Record<string, Record<string, Value>>
   /** The board a board enclosure goes round (Electronics › KiCad sets it). */
   board: BoardSpec | null
+  /** Holes, gaps and margins not set by hand follow the printer's fit
+   *  calibration (Fits), when there is one. */
+  printerFit: boolean
 }
 
 interface GenState extends GenSetup {
@@ -32,7 +35,7 @@ interface GenState extends GenSetup {
   reset(): void
 }
 
-export const DEFAULT_GEN: GenSetup = { generator: GENERATORS[0].id, values: {}, board: null }
+export const DEFAULT_GEN: GenSetup = { generator: GENERATORS[0].id, values: {}, board: null, printerFit: true }
 
 export const useGen = create<GenState>((set) => ({
   ...DEFAULT_GEN,
@@ -52,4 +55,4 @@ export const useGen = create<GenState>((set) => ({
   reset: () => set({ ...DEFAULT_GEN, busy: false, status: '', made: null }),
 }))
 
-export const setupOf = (s: GenSetup): GenSetup => ({ generator: s.generator, values: s.values, board: s.board })
+export const setupOf = (s: GenSetup): GenSetup => ({ generator: s.generator, values: s.values, board: s.board, printerFit: s.printerFit })

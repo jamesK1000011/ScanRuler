@@ -24,6 +24,12 @@ and brought into Reverse Engineer as bodies to finish, check and export.
   thickness, the parts' reach, holes, openings). Electronics › KiCad makes
   one from a KiCad board.
 
+Holes, lid clearances, the gap round a board and the opening margins follow
+the printer's fit calibration from Fits where there is one and they are not
+set by hand (`printerFit`; the convention is in
+[../_shared/printerFit.ts](../_shared/printerFit.ts), the mapping in
+`core/printerFit.ts`).
+
 The dimensions are Gridfinity's published ones (Zack Freedman's open
 system), written here from the specification. No other generator's code is
 used.

@@ -63,9 +63,12 @@ export interface BoardBoxParams {
   cutouts: boolean
   /** Added round each opening, each side. */
   margin: number
+  /** Added to the insert and pilot holes' diameters: printed holes come
+   *  out small. 0 suits the typical printer; the fit calibration sets it. */
+  holes: number
 }
 
-export const BOARD_BOX_DEFAULTS: BoardBoxParams = { wall: 2, floor: 2, lid: 2, lip: 3, clearance: 0.2, corner: 3, gap: 1, standoff: 5, headroom: 2, inserts: true, cutouts: true, margin: 0.5 }
+export const BOARD_BOX_DEFAULTS: BoardBoxParams = { wall: 2, floor: 2, lid: 2, lip: 3, clearance: 0.2, corner: 3, gap: 1, standoff: 5, headroom: 2, inserts: true, cutouts: true, margin: 0.5, holes: 0 }
 
 /** The screws a mounting hole takes, with the pilot a thread-forming screw
  *  cuts into and the heat-set insert's hole, length and least wall —
@@ -145,7 +148,8 @@ export function boardBoxPlan(p: BoardBoxParams, b: BoardSpec) {
     const s = screwFor(h.d)
     // units-ok: the board's numbers are an API in mm, answered to the agent in mm.
     if (!s) return { ...h, screw: null, note: `a ${h.d} mm hole is too small for an M2 screw: no standoff` }
-    const hole = p.inserts ? s.insert.hole : s.pilot
+    // The table's holes suit the typical printer; holes moves them to this one.
+    const hole = Math.round(((p.inserts ? s.insert.hole : s.pilot) + (p.holes ?? 0)) * 1000) / 1000
     const outer = Math.max(p.inserts ? s.insert.hole + 2 * s.insert.wall : s.pilot + 3, s.d + 2.4)
     // Into the floor too where the standoff is short, never through it.
     const room = p.standoff + p.floor - 0.6
@@ -181,6 +185,7 @@ export function checkBoardBox(p: BoardBoxParams, b?: BoardSpec | null): string |
   if (p.standoff < 1 || p.standoff > 50) return 'standoff: 1 to 50.'
   if (p.headroom < 0 || p.headroom > 100) return 'headroom: 0 to 100.'
   if (p.margin < 0 || p.margin > 5) return 'margin: 0 to 5.'
+  if (!fin(p.holes ?? 0) || (p.holes ?? 0) < -0.5 || (p.holes ?? 0) > 1) return 'holes: −0.5 to 1.'
   if (p.corner < 0 || p.corner > 50) return 'corner: 0 to 50.'
   if (!b) return null
   const k = boardBoxPlan(p, b)

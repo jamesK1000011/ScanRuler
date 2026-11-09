@@ -10,8 +10,12 @@
 import { bearingOf, FITS, type Fit, type Head, headsOf, insertOf, type Kind, KINDS, magnetOf, metricOf, sizesOf } from './hardware'
 
 export interface Settings {
-  /** Added to each diameter and across-flats, by kind. */
+  /** Added to each diameter and across-flats, by kind. One left at its
+   *  default follows the printer's fit calibration, where there is one
+   *  and printerFit is on (withPrinterFit). */
   allowance: Record<Kind, number>
+  /** Size holes with the printer's fit calibration (Fits) when there is one. */
+  printerFit: boolean
   /** The ISO 273 clearance class. */
   fit: Fit
   /** A counterbore's diameter over the head's. */
@@ -45,6 +49,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   allowance: { screw: 0.2, nut: 0.2, insert: 0, pilot: 0, magnet: 0.2, bearing: 0.1 },
+  printerFit: true,
   fit: 'medium',
   headMargin: 0.4,
   headSink: 0.2,

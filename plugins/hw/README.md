@@ -16,7 +16,9 @@ bodies as named sketch and extrude-cut features that stay editable there:
   cylinder of your own (a weight, a tag) — in a pocket closed under a roof,
   with the layer the print pauses at to drop each one in.
 
-Every diameter gets a printing allowance (0.2 mm by default; by kind). Level
+Every diameter gets a printing allowance (0.2 mm by default; by kind),
+moved by the printer's fit calibration from Fits where there is one
+(`printerFit`, plugins/_shared/printerFit.ts). Level
 holes are teardropped point up, and an upright stepped hole can keep a
 sacrificial bridge layer. `hw.check` reads a round hole on a body and says
 what it fits, and how loose or tight.
@@ -29,7 +31,7 @@ geometry is ScanRuler's own; no CAD package's code is used.
 | Command | What it does |
 |---|---|
 | `hw.list` | The table, and the settings |
-| `hw.set` | Allowances, clearance class, head margin and sink, teardrop, bridge layer, insert and magnet extra; `reset` |
+| `hw.set` | Allowances, printer fit on or off, clearance class, head margin and sink, teardrop, bridge layer, insert and magnet extra; `reset` |
 | `hw.plan` | The hole placed on a body — every step, depth and the features — changing nothing |
 | `hw.pattern` | The same for a bolt circle, rectangle or grid |
 | `hw.apply` | Cut the plan (or a hole given) into the body: one undo step, all or none |

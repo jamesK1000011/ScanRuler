@@ -23,9 +23,12 @@ export interface BoxParams {
   clearance: number
   /** Corner bosses for M3 screws through the lid. */
   screws: boolean
+  /** Added to the screw holes' diameters, mm: printed holes come out small.
+   *  0 suits the typical printer; the printer's fit calibration sets it. */
+  holes: number
 }
 
-export const BOX_DEFAULTS: BoxParams = { width: 80, depth: 60, height: 30, corner: 4, wall: 2, floor: 2, lid: 2, lip: 3, clearance: 0.2, screws: true }
+export const BOX_DEFAULTS: BoxParams = { width: 80, depth: 60, height: 30, corner: 4, wall: 2, floor: 2, lid: 2, lip: 3, clearance: 0.2, screws: true, holes: 0 }
 
 /** M3: the pilot hole a self-tapping screw cuts into, the clearance hole in
  *  the lid, and the boss around it. */
@@ -77,7 +80,7 @@ export function box(k: GenKernel, p: BoxParams): H {
     const top = p.height - p.lip
     const bosses = bossCentres(p).map(([x, y]) => k.translate(k.makeCylinder(BOSS, top - p.floor + 0.01), x, y, p.floor - 0.01))
     body = k.fuseAll([body, ...bosses])
-    body = k.cutAll(body, bossCentres(p).map(([x, y]) => k.translate(k.makeCylinder(PILOT, top - p.floor), x, y, p.floor + 0.6)))
+    body = k.cutAll(body, bossCentres(p).map(([x, y]) => k.translate(k.makeCylinder(PILOT + (p.holes ?? 0) / 2, top - p.floor), x, y, p.floor + 0.6)))
   }
   return body
 }
@@ -100,6 +103,6 @@ export function lid(k: GenKernel, p: BoxParams): H {
     }
     plate = k.fuse(plate, ring)
   }
-  if (p.screws) plate = k.cutAll(plate, bossCentres(p).map(([x, y]) => k.translate(k.makeCylinder(PASS, p.lid + 0.02), dx + x, y, -0.01)))
+  if (p.screws) plate = k.cutAll(plate, bossCentres(p).map(([x, y]) => k.translate(k.makeCylinder(PASS + (p.holes ?? 0) / 2, p.lid + 0.02), dx + x, y, -0.01)))
   return plate
 }

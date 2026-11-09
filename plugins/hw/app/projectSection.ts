@@ -23,6 +23,7 @@ export function settingsFrom(u: Record<string, unknown>): Settings {
   const a = u.allowance && typeof u.allowance === 'object' ? (u.allowance as Record<string, unknown>) : {}
   return {
     allowance: Object.fromEntries(KINDS.map((k) => [k, fin(a[k], -1, 2) ? a[k] : d.allowance[k]])) as Record<Kind, number>,
+    printerFit: typeof u.printerFit === 'boolean' ? u.printerFit : d.printerFit,
     fit: typeof u.fit === 'string' && (FITS as readonly string[]).includes(u.fit) ? (u.fit as Fit) : d.fit,
     headMargin: fin(u.headMargin, 0, 3) ? u.headMargin : d.headMargin,
     headSink: fin(u.headSink, 0, 5) ? u.headSink : d.headSink,
@@ -79,7 +80,7 @@ export const hwSection: ProjectSection<SavedHw> = {
   },
   hasContent: () => true,
   watch(changed) {
-    const keys = ['allowance', 'fit', 'headMargin', 'headSink', 'teardrop', 'bridgeLayer', 'insertExtra', 'magnetExtra', 'roofLayers', 'layerHeight', 'firstLayer', 'bridgeMax', 'dropClearance', 'dropHeadroom', 'embeds'] as const
+    const keys = ['allowance', 'printerFit', 'fit', 'headMargin', 'headSink', 'teardrop', 'bridgeLayer', 'insertExtra', 'magnetExtra', 'roofLayers', 'layerHeight', 'firstLayer', 'bridgeMax', 'dropClearance', 'dropHeadroom', 'embeds'] as const
     return useHw.subscribe((s, prev) => {
       if (keys.some((k) => s[k] !== prev[k])) changed()
     })

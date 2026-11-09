@@ -13,7 +13,9 @@ import { InfoDot } from '../../../src/ui/InfoDot'
 import { NumberField } from '../../../src/ui/NumberField'
 import { Status } from '../../_shared/ui/kit'
 import { FITS, type Head, headsOf, type Kind, KINDS, metricOf, sizesOf } from '../core/hardware'
-import { useHw } from '../state/hwStore'
+import { withPrinterFit } from '../core/printerFit'
+import { settingsOf, useHw } from '../state/hwStore'
+import { readPrinterFit } from '../../_shared/readPrinterFit'
 import './hw.css'
 
 const report = (e: unknown) => useStore.setState({ errorText: e instanceof Error ? e.message : String(e) })
@@ -198,6 +200,9 @@ export function HwPanel() {
   const heads = metric ? headsOf(metric) : []
   const bodies = bodyNames()
   const plan = s.plan
+  // What holes are sized with: the allowances left at their default follow the calibration.
+  const printerFit = readPrinterFit()
+  const sized = withPrinterFit(settingsOf(s), s.printerFit ? printerFit : null)
   return (
     <div className="group" data-test="hw-panel">
       <div className="sec-head">
@@ -396,8 +401,13 @@ export function HwPanel() {
 
       <details className="hw-settings">
         <summary>Settings</summary>
+        <label className="hw-row" title={printerFit ? `Allowances left at their default follow ${printerFit.label}` : 'Calibrate the printer on the Fits tab to size holes to it'}>
+          <span>Printer fits</span>
+          <input type="checkbox" aria-label="Size holes with the printer’s fit calibration" data-test="hw-printer-fit" checked={s.printerFit} onChange={(e) => void run('set', { printerFit: e.target.checked })} />
+        </label>
+        {s.printerFit && printerFit && <p className="hint" data-test="hw-printer-fit-used">Sized with {printerFit.label}.</p>}
         {KINDS.map((k) => (
-          <NumberField key={k} label={`${KIND_LABEL[k]} allowance`} kind="length" value={s.allowance[k]} step={0.05} min={-1} hint={<p>Added to the diameter: printed holes come out small.</p>} onCommit={(v) => void run('set', { allowance: { [k]: v } })} />
+          <NumberField key={k} label={`${KIND_LABEL[k]} allowance`} kind="length" value={sized.allowance[k]} step={0.05} min={-1} hint={<p>Added to the diameter: printed holes come out small.</p>} onCommit={(v) => void run('set', { allowance: { [k]: v } })} />
         ))}
         <label className="hw-row">
           <span>Clearance</span>
