@@ -1,6 +1,10 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Repairing a worn part and pre-warping a print
 
+The person has the same steps in the Wear repair tab (Model, after Mesh
+Tools): its panel runs these `wear.*` commands, so what you set there they
+see, and the other way round.
+
 ## Repairing wear
 
 1. **Choose what the part should be.** Use `wear.reference`:

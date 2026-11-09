@@ -41,7 +41,7 @@ says which layer set it.
 | `dfm.guides` | imported guides | List, compare side by side, import, export, remove published guides |
 | `dfm.considerations` | nothing | The design-review questions no rule measures, each naming the rule that checks it or that it is the person's call |
 
-The agent guide is `guide.read { id: "dfm-fdm" }`.
+The agent guide is `guide.read { topic: "dfm-fdm" }`.
 
 ## Rules and profiles
 

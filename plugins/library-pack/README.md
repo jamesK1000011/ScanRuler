@@ -46,4 +46,4 @@ on this computer. You upload it yourself.
 | `pack.presets` | presets | Platform presets, built in and your own |
 | `pack.build` | nothing | The zip |
 
-The agent guide is `guide.read { id: "library-pack" }`.
+The agent guide is `guide.read { topic: "library-pack" }`.

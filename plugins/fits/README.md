@@ -111,7 +111,7 @@ under different verbs.
 | `fit.stop` | nothing | Stops a build |
 
 Every panel control runs one of these, and an agent gets the same tools.
-The agent guide is `guide.read { id: "fits" }`.
+The agent guide is `guide.read { topic: "fits" }`.
 
 ## Saved with the project
 

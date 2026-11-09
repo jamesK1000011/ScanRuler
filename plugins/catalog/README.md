@@ -86,4 +86,4 @@ library's token to that library's host only, and keeps keys out of every
 error. Zips are read whole and refused when damaged, encrypted or a zip
 bomb; a take stages in its own folder.
 
-The agent guide is `guide.read { id: "catalog" }`.
+The agent guide is `guide.read { topic: "catalog" }`.

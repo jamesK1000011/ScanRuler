@@ -36,7 +36,7 @@ where it installs, then on the `PATH`.
 What was last opened (name, as, format, units, up, triangles, parts) is in
 `session.state` under `plugins.import.last`.
 
-The agent guide is `guide.read { id: "import-plus" }`.
+The agent guide is `guide.read { topic: "import-plus" }`.
 
 ## Layout
 

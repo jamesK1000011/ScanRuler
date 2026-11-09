@@ -42,7 +42,7 @@ Each control runs the command below.
 | `thread.lookup` | nothing | One size's basic dimensions |
 | `thread.settings` | settings | Default families; `pitchFloor` (scanner scale error); `reset` |
 
-The agent guide is `guide.read { id: "thread-match" }`.
+The agent guide is `guide.read { topic: "thread-match" }`.
 
 ## Layout
 

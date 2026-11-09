@@ -40,7 +40,7 @@ being its page.
 | `wear.rebuild` | nothing | The repaired part as an STL, with the wear before and after |
 | `wear.prewarp` | runs | The pre-warped target as an STL, the print's RMS, and whether to stop |
 
-The agent guide is `guide.read { id: "wear-repair" }`.
+The agent guide is `guide.read { topic: "wear-repair" }`.
 
 ## Layout
 

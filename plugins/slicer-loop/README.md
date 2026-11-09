@@ -18,7 +18,7 @@ the MCP server's, because a page can't start a program:
 - `pauses.js` puts pauses for parts dropped in mid-print into the G-code.
 
 Its tools are listed when `SCANRULER_MCP_EXTRAS` names `slicer`. This plugin
-carries the guide an agent reads first, `guide.read { id: "slicer-loop" }`.
+carries the guide an agent reads first, `guide.read { topic: "slicer-loop" }`.
 
 ## Tools
 

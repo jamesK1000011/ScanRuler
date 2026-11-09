@@ -22,12 +22,17 @@ as STL — and pick the **Texture** tab.
   the surface, a stamp placed once.
 - **Where it goes**: *Keep plain* paints the surfaces that must stay as they
   are; *Texture only* paints the only surfaces to texture. Mark with the
-  window, brush or lasso and take the marking into the layer.
+  window, brush or lasso and take the marking into the layer (*Use
+  marking*, *Add*, *Remove*); *Show* lights the layer's region, *Clear*
+  empties it, and *Clear marking* drops the marking (`texture.clear_marking`).
 - **Output**: resolution, triangle budget, the bed face kept plain, and
   *Leave plain faces exactly as they are* (on by default) so a mating face
   comes out untouched.
-- **Preview** builds it coarser and shows it in place of the scan; **Export
-  STL / 3MF** builds it at full resolution.
+- **Preview** builds it coarser and shows it in place of the scan;
+  **Estimate** gives the triangles a full build comes to, and whether the
+  budget squeezes them, before a long build; **Export STL / 3MF** builds it
+  at full resolution, and after one, **Check plain surfaces** says whether
+  every plain vertex is still where it was. **Stop** stops a build.
 
 ## For agents
 

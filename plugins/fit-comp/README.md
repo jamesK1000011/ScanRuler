@@ -40,7 +40,7 @@ and both read the same offsets.
 | `fit.profiles` | profiles | Named correction sets per printer, material and nozzle |
 | `fit.keymaps` | key maps | Your own slicer key maps beside the built-in ones |
 
-The agent guide is `guide.read { id: "fit-comp" }`.
+The agent guide is `guide.read { topic: "fit-comp" }`.
 
 ## Slicer key maps
 

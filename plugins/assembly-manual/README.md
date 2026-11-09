@@ -55,7 +55,7 @@ places in Reverse Engineer.
 | `asm.theme` | settings | Theme files: list, import, export, remove |
 | `asm.review` | nothing | The IEC/IEEE 82079-1 checklist |
 
-The agent guide is `guide.read { id: "assembly-manual" }`.
+The agent guide is `guide.read { topic: "assembly-manual" }`.
 
 ## Layout
 

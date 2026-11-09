@@ -38,7 +38,7 @@ to 37 CFR 1.84, and a draft description tied to the same numerals.
 | `patent.draft` | draft | Read and write sections; the brief description; a scaffold |
 | `patent.save` | nothing | A zip, the drawings PDF, the specification PDF or the Markdown, to save locally |
 
-The agent guide is `guide.read { id: "patent-kit" }`.
+The agent guide is `guide.read { topic: "patent-kit" }`.
 
 ## Layout
 
