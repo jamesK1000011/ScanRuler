@@ -208,7 +208,8 @@ class Tools(unittest.TestCase):
     def test_cut_mirror_undo(self):
         self.ok("scan_open", {"path": self.stl, "discard": True})
         box = self.ok("scan_info")["scan"]["box"]
-        mid = (box["min"][2] + box["max"][2]) / 2
+        # The island floats above the box: the box is 10 tall from the bottom.
+        mid = box["min"][2] + 5
         c = self.ok("mesh_cut", {"plane": "XY", "offset": mid, "keep": "minus"})
         self.assertLessEqual(c["mesh"]["bounds"]["max"][2], mid + 1e-6)
         self.assertEqual(c["report"]["capped"], 1)
