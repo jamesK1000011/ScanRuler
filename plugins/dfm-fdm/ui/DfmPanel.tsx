@@ -284,10 +284,19 @@ export function DfmPanel() {
             <div key={f.id} className={`pl-card dfm-finding${f.waived ? ' waived' : ''}`} data-test="dfm-finding" data-severity={f.severity}>
               <button className="dfm-finding-head" onClick={() => useDfmView.setState({ open: isOpen ? null : f.id, why: null, waiving: null })}>
                 <span className="pl-num">{f.id}</span>
-                <span className="name">{RULE_WORDS[f.rule] ?? f.rule}</span>
-                <span className="dfm-value">
-                  {showValue(f.value, f.unit, len)} <small>/ {showValue(f.limit, f.unit, len)}</small>
-                </span>
+                {f.rule === 'thin-wall' && f.severity === 'info' ? (
+                  <>
+                    <span className="name">Sharp edge</span>
+                    <span className="dfm-value">{showValue(f.value, f.unit, len)} long</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="name">{RULE_WORDS[f.rule] ?? f.rule}</span>
+                    <span className="dfm-value">
+                      {showValue(f.value, f.unit, len)} <small>/ {showValue(f.limit, f.unit, len)}</small>
+                    </span>
+                  </>
+                )}
               </button>
               {f.waived && <p className="hint">Waived: {f.waived}</p>}
               {isOpen && (

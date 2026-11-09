@@ -40,7 +40,11 @@ saves carry the same number as `appVersion`. How a release is cut is in
   reference part, `dfm.check` now lays samples over the faces and reads
   the wall behind each along the face's normal, against the profile's
   minimum; the answer's `wall` gives the thinnest wall and where, and the
-  panel shows it.
+  panel shows it. A taper to a knife edge, such as a Gridfinity bin's
+  stacking lip, is not a thin wall: where the faces meet at 26.6° or more
+  it comes back as an info finding, a sharp edge with where it is and about
+  how long, and is left out of the thinnest wall. A uniformly thin skin is
+  still an error.
 - **Printability checks a body as it is now** (2026-11-08). Print › Check
   and `dfm.check` can check a Reverse engineer body directly (target `body`,
   with `body` by name or id; the one solid body shown by default; the

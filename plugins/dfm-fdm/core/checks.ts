@@ -6,7 +6,7 @@
 // triangles a check flags, so one ledge is one finding, not a thousand.
 
 import type { EffectiveRule } from './rules'
-import { thinRuns, type WallSamples } from './wall'
+import { sharpEdges, thinRuns, type WallSamples } from './wall'
 
 export interface Part {
   positions: Float64Array
@@ -216,10 +216,19 @@ export function runChecks(part: Part, rules: readonly EffectiveRule[]): { findin
         if ((!th || th.length !== m.p.length / 3) && part.wall) {
           // Both faces of a wall are within its thickness of each other, and
           // a sample within its spacing of the next: one run per wall.
-          for (const run of thinRuns(part.wall, P.minMm, 1.5 * Math.max(part.wall.spacing, P.minMm))) {
+          const link = 1.5 * Math.max(part.wall.spacing, P.minMm)
+          for (const run of thinRuns(part.wall, P.minMm, link)) {
             if (run.area < (P.minAreaMm2 ?? 0)) continue
             // units-ok: the agent's readout, in millimetres always
             add(rule, { value: r(run.least), limit: P.minMm, unit: 'mm', at: [r(run.at[0]), r(run.at[1]), r(run.at[2])], areaMm2: r(run.area, 1), says: `a wall ${r(run.least)} mm thick over ${r(run.area, 1)} mm² — under ${P.minMm} mm: thicken it, or print it with a finer nozzle` })
+          }
+          // A taper to a knife edge — a stacking lip, a chamfer — thickens
+          // past the limit within a step or two of its edge: not a thin
+          // wall, but worth knowing the tip prints as one line.
+          for (const e of sharpEdges(part.wall, P.minMm, link)) {
+            if (e.area < (P.minAreaMm2 ?? 0)) continue
+            // units-ok: the agent's readout, in millimetres always
+            add({ ...rule, severity: 'info' }, { value: r(e.length, 1), limit: P.minMm, unit: 'mm', at: [r(e.at[0]), r(e.at[1]), r(e.at[2])], areaMm2: r(e.area, 1), says: `a sharp edge about ${r(e.length, 1)} mm long: under ${P.minMm} mm only near the edge, it prints as a single line` })
           }
           break
         }

@@ -10,6 +10,15 @@
 // A hit only counts as the far side if it faces back at the ray within 60°,
 // as the scan's measure asks: a ray grazing along a rib, or leaving through a
 // rim, would otherwise report the length of the part.
+//
+// Each sample also keeps how far the far side leans from parallel: a wall
+// between parallel faces is as thin a step along as here, but where the faces
+// meet at an angle — a lip or a chamfer narrowing to a knife edge — the wall
+// thickens by tan(angle) for each step away from the edge. A taper of 26.6°
+// or more (tan ½: the limit reached within two limits of the edge, whatever
+// the limit) is a sharp edge, which the slicer prints as a single line, not
+// a thin wall; a shallower one, or a draft, is thin for long enough to be
+// one.
 
 export interface WallSamples {
   /** Each sample's point on the surface, x y z. */
@@ -18,6 +27,10 @@ export interface WallSamples {
   thickness: Float32Array
   /** The surface each sample stands for, mm². */
   area: Float32Array
+  /** How fast the wall thickens along the surface, mm per mm: the tangent
+   *  of the angle between the two faces — 0 between parallel faces; NaN
+   *  when nothing within `reach`. */
+  taper: Float32Array
   /** The spacing laid out — wider than asked when the part is large. */
   spacing: number
   reach: number
@@ -94,10 +107,14 @@ function buildBvh(p: Float64Array, idx: Uint32Array): Bvh {
   return { box, start, count, tris }
 }
 
+/** The triangle the last `shoot` hit. */
+let hitTri = -1
+
 /** Distance along the ray to the nearest triangle that faces it, within
- *  (near, far); Infinity when none. */
+ *  (near, far); Infinity when none; the triangle in `hitTri`. */
 function shoot(b: Bvh, p: Float64Array, idx: Uint32Array, normal: Float64Array, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, near: number, far: number): number {
   let best = far
+  hitTri = -1
   const ix = 1 / dx, iy = 1 / dy, iz = 1 / dz
   const stack = [0]
   while (stack.length) {
@@ -134,7 +151,10 @@ function shoot(b: Bvh, p: Float64Array, idx: Uint32Array, normal: Float64Array, 
       const v = f * (dx * qx + dy * qy + dz * qz)
       if (v < 0 || u + v > 1) continue
       const d = f * (e2x * qx + e2y * qy + e2z * qz)
-      if (d > near && d < best) best = d
+      if (d > near && d < best) {
+        best = d
+        hitTri = t
+      }
     }
   }
   return best < far ? best : Infinity
@@ -215,7 +235,7 @@ export function probeWalls(p: Float64Array, idx: Uint32Array, opts: { spacing: n
 
   const bvh = buildBvh(p, idx)
   const count = areas.length
-  const thickness = new Float32Array(count)
+  const thickness = new Float32Array(count), taper = new Float32Array(count)
   // Nothing nearer than this counts: the face the ray starts on, or a
   // coincident copy of it.
   const near = 1e-4 * Math.max(1, opts.reach)
@@ -224,35 +244,45 @@ export function probeWalls(p: Float64Array, idx: Uint32Array, opts: { spacing: n
     const dx = inward * normal[3 * t], dy = inward * normal[3 * t + 1], dz = inward * normal[3 * t + 2]
     const d = shoot(bvh, p, idx, normal, pts[3 * i], pts[3 * i + 1], pts[3 * i + 2], dx, dy, dz, near, opts.reach)
     thickness[i] = d === Infinity ? NaN : d
+    if (d === Infinity) taper[i] = NaN
+    else {
+      const h = hitTri
+      const c = Math.min(1, Math.abs(normal[3 * t] * normal[3 * h] + normal[3 * t + 1] * normal[3 * h + 1] + normal[3 * t + 2] * normal[3 * h + 2]))
+      taper[i] = Math.sqrt(1 - c * c) / c
+    }
   }
-  return { points: Float64Array.from(pts), thickness, area: Float32Array.from(areas), spacing: s, reach: opts.reach }
+  return { points: Float64Array.from(pts), thickness, area: Float32Array.from(areas), taper, spacing: s, reach: opts.reach }
 }
 
-/** The thin places: samples under `limit` joined into runs where they lie
- *  within `link` of each other — both faces of one thin wall are one run —
- *  each with its least wall, where that is, and the surface it covers. */
-export function thinRuns(w: WallSamples, limit: number, link: number): { least: number; at: [number, number, number]; area: number; samples: number }[] {
-  const thin: number[] = []
-  for (let i = 0; i < w.thickness.length; i++) if (w.thickness[i] < limit) thin.push(i)
-  if (!thin.length) return []
+/** A wall that thickens by half a step or more for each step along: from
+ *  its edge it reaches any limit within two limits, so what is under the
+ *  limit is the taper to a sharp edge, not a thin wall. Taken from the
+ *  taper alone, not the thickness, so one wedge is all edge or all wall. */
+const TAPERED = 0.5
+const atEdge = (w: WallSamples, i: number) => w.taper[i] >= TAPERED
+
+/** The samples picked joined into runs where they lie within `link` of each
+ *  other, each with its least wall, where that is, and the surface it covers. */
+function runsOf(w: WallSamples, pick: number[], link: number): { least: number; at: [number, number, number]; area: number; samples: number; members: number[] }[] {
+  if (!pick.length) return []
   const key = (x: number, y: number, z: number) => `${Math.floor(x / link)},${Math.floor(y / link)},${Math.floor(z / link)}`
   const grid = new Map<string, number[]>()
-  for (const i of thin) {
+  for (const i of pick) {
     const k = key(w.points[3 * i], w.points[3 * i + 1], w.points[3 * i + 2])
     const cell = grid.get(k)
     if (cell) cell.push(i)
     else grid.set(k, [i])
   }
   const seen = new Set<number>()
-  const out: { least: number; at: [number, number, number]; area: number; samples: number }[] = []
-  for (const i0 of thin) {
+  const out: { least: number; at: [number, number, number]; area: number; samples: number; members: number[] }[] = []
+  for (const i0 of pick) {
     if (seen.has(i0)) continue
     seen.add(i0)
-    const stack = [i0]
-    let least = Infinity, at = i0, area = 0, samples = 0
+    const stack = [i0], members: number[] = []
+    let least = Infinity, at = i0, area = 0
     while (stack.length) {
       const i = stack.pop()!
-      samples++
+      members.push(i)
       area += w.area[i]
       if (w.thickness[i] < least) {
         least = w.thickness[i]
@@ -270,15 +300,47 @@ export function thinRuns(w: WallSamples, limit: number, link: number): { least: 
               stack.push(j)
             }
     }
-    out.push({ least, at: [w.points[3 * at], w.points[3 * at + 1], w.points[3 * at + 2]], area, samples })
+    out.push({ least, at: [w.points[3 * at], w.points[3 * at + 1], w.points[3 * at + 2]], area, samples: members.length, members })
   }
   return out.sort((a, b) => a.least - b.least)
 }
 
+/** The thin places: samples under `limit`, not at a sharp edge, joined into
+ *  runs where they lie within `link` of each other — both faces of one thin
+ *  wall are one run — each with its least wall, where that is, and the
+ *  surface it covers. */
+export function thinRuns(w: WallSamples, limit: number, link: number): { least: number; at: [number, number, number]; area: number; samples: number }[] {
+  const thin: number[] = []
+  for (let i = 0; i < w.thickness.length; i++) if (w.thickness[i] < limit && !atEdge(w, i)) thin.push(i)
+  return runsOf(w, thin, link).map(({ members: _, ...run }) => run)
+}
+
+/** The sharp edges: samples under `limit` on a taper (TAPERED), joined into runs like thinRuns, each with its tip, the surface
+ *  under the limit, and about how long the edge is. */
+export function sharpEdges(w: WallSamples, limit: number, link: number): { at: [number, number, number]; length: number; area: number; samples: number }[] {
+  const edge: number[] = []
+  for (let i = 0; i < w.thickness.length; i++) if (w.thickness[i] < limit && atEdge(w, i)) edge.push(i)
+  // Each face of a wedge is under the limit for limit / taper back from
+  // the edge, so a sample covers area × taper / limit of edge — half of
+  // that, the other face covering the rest.
+  return runsOf(w, edge, link).map((run) => {
+    let length = 0
+    for (const i of run.members) length += (w.area[i] * w.taper[i]) / (2 * limit)
+    return { at: run.at, length, area: run.area, samples: run.samples }
+  })
+}
+
 /** The least wall read anywhere, and where; null when every wall is past
- *  the reach. */
-export function leastWall(w: WallSamples): { least: number; at: [number, number, number] } | null {
-  let best = -1
-  for (let i = 0; i < w.thickness.length; i++) if (w.thickness[i] === w.thickness[i] && (best < 0 || w.thickness[i] < w.thickness[best])) best = i
+ *  the reach. With `edges: false`, a taper (TAPERED) is not a wall — a
+ *  knife edge reads as nothing at its tip — and is passed over, unless
+ *  there is nothing else. */
+export function leastWall(w: WallSamples, opts: { edges?: boolean } = {}): { least: number; at: [number, number, number] } | null {
+  const pick = (skip: (i: number) => boolean) => {
+    let best = -1
+    for (let i = 0; i < w.thickness.length; i++) if (w.thickness[i] === w.thickness[i] && !skip(i) && (best < 0 || w.thickness[i] < w.thickness[best])) best = i
+    return best
+  }
+  let best = opts.edges === false ? pick((i) => atEdge(w, i)) : -1
+  if (best < 0) best = pick(() => false)
   return best < 0 ? null : { least: w.thickness[best], at: [w.points[3 * best], w.points[3 * best + 1], w.points[3 * best + 2]] }
 }

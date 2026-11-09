@@ -69,6 +69,11 @@ checked.
   skin over an insert or a magnet pocket is found even where the mesh has no
   vertex. `wall` in the answer gives the thinnest wall read, where, and the
   limit; `least: null` means every wall is thicker than the check reaches.
+  A taper to a knife edge — a stacking lip, a chamfer — is thin only near
+  its edge and is not a thin wall: where the two faces meet at 26.6° or
+  more, it comes back as an info finding, "a sharp edge", with about how
+  long it is (and in `wall.sharpEdges`); the slicer prints its tip as a
+  single line. It is left out of the thinnest wall.
 - **small-hole** reads upright holes only. A sideways hole is an overhang at
   its top.
 - **The numbers are rules of thumb** for a typical printer. A tuned printer

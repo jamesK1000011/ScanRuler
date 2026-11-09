@@ -11,7 +11,7 @@ import { useDeviation } from '../../../src/state/deviationStore'
 import { useStore } from '../../../src/state/store'
 import { useThickness } from '../../../src/state/thicknessStore'
 import { runChecks } from '../core/checks'
-import { leastWall, probeWalls, type WallSamples } from '../core/wall'
+import { leastWall, probeWalls, sharpEdges, type WallSamples } from '../core/wall'
 import { arrayToBuild, buildFrame, fromBuild, UPS, type BuildFrame, type Up } from '../core/frame'
 import { CONSIDERATIONS, CONSIDERATIONS_CITE } from '../core/considerations'
 import { paramProblem, stack, validateGuide, type Guide, type Layer, type Override, type Profile, type RulePack } from '../core/rules'
@@ -140,11 +140,17 @@ export const rules: Command<{ action?: 'list' | 'set' | 'clear'; rule?: string; 
 /** The least wall read on a CAD part and where (in the part's frame),
  *  against the limit, with how it was read. */
 function wallReading(w: WallSamples, limit: number, frame: BuildFrame) {
-  const l = leastWall(w)
+  const l = leastWall(w, { edges: false })
   const at = [0, 0, 0]
   if (l) fromBuild(frame, l.at[0], l.at[1], l.at[2], at)
+  const edges = sharpEdges(w, limit, 1.5 * Math.max(w.spacing, limit)).map((e) => {
+    const p = [0, 0, 0]
+    fromBuild(frame, e.at[0], e.at[1], e.at[2], p)
+    return { at: p.map((v) => r(v)), length: r(e.length, 1) }
+  })
   return {
     ...(l ? { least: r(l.least), at: at.map((v) => r(v)), thin: l.least < limit } : { least: null, over: w.reach }),
+    ...(edges.length ? { sharpEdges: edges } : {}),
     limit,
     spacing: r(w.spacing),
     samples: w.thickness.length,
@@ -161,7 +167,7 @@ export const check: Command<{ only?: string[]; detail?: 'brief' | 'full' }> = {
   name: 'check',
   title: 'Check the part for FDM printing',
   description:
-    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — wall gives the least wall read, where, and the limit), overhangs past the angle — and flat undersides held on one side only, which print in air — flat ceilings bridging further than the limit, upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
+    'Check the part (the scan by default; dfm.settings target: scan, reference, or body — a Reverse Engineer body meshed as it stands now, so edits since are checked) against the rules in force: thin walls (on the scan from its thickness map; on a body or the reference part read by rays into the material from samples over the faces, round inserts and pockets too — wall gives the least wall read, where, and the limit; a taper to a knife edge, such as a stacking lip, is not a thin wall: it comes back as an info finding and in wall.sharpEdges, where and about how long), overhangs past the angle — and flat undersides held on one side only, which print in air — flat ceilings bridging further than the limit, upright holes too small to print open, too little of the footprint on the bed, a part too tall for its base, closed cavities, and open or non-manifold edges. Each finding: an id (F1 …), the rule, severity, value against limit with its unit, where it is (at, mm, in the part’s frame), the area it covers, and what to do. A finding at a place waived before (dfm.waive) comes back waived, with the reason. skipped says which rules could not run and why. only: just these rules. part names what was read; stale says the reference part was made from a body that has changed since — an older copy was checked. Kept until the next check; dfm.report writes them out.',
   input: obj({ only: arr(enumOf(PACK.rules.map((x) => x.id)), 'Just these rules.', { minItems: 1 }), detail: enumOf(['brief', 'full'], 'full adds each finding’s says text.') }),
   history: false,
   timeoutMs: 5 * 60_000,
