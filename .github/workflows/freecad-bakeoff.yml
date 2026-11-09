@@ -59,6 +59,7 @@ jobs:
           echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
           # Both add-ons importable, as in FreeCAD's Mod folder: Agent Link
           # from the fork, ScanRuler for FreeCAD from this repo.
+          echo "AGENTLINK_RENDERS=$GITHUB_WORKSPACE/bakeoff-out/freecad/renders" >> "$GITHUB_ENV"
           echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
