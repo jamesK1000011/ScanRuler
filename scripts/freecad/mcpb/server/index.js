@@ -20,7 +20,21 @@ const { spawn, spawnSync } = require('child_process')
 const readline = require('readline')
 
 const HOME = os.homedir()
-const HERE = path.dirname(__dirname)
+// The launcher itself updates too: a newer copy fetched last time (see
+// update) runs in place of this one, told where the extension's own files
+// are. A copy that fails to load leaves this one to serve.
+const LAUNCHER = path.join(HOME, '.config', 'freecad-agentlink', 'launcher', 'index.js')
+let delegated = false
+if (!process.env.AGENTLINK_BUNDLE && process.env.AGENTLINK_UPDATE !== 'false' && fs.existsSync(LAUNCHER)) {
+  process.env.AGENTLINK_BUNDLE = path.dirname(__dirname)
+  try {
+    require(LAUNCHER)
+    delegated = true
+  } catch (e) {
+    process.stderr.write(`freecad-agentlink: the updated launcher did not load (${e.message}); the installed one serves\n`)
+  }
+}
+const HERE = process.env.AGENTLINK_BUNDLE || path.dirname(__dirname)
 const ADDONS = path.join(HERE, 'addons')
 const PORT = Number(process.env.AGENTLINK_PORT || 7318)
 const OUT = expand(process.env.AGENTLINK_OUT || path.join(HOME, 'AgentLink'))
@@ -132,8 +146,14 @@ async function update() {
         }))
       }
     }
+    // The launcher, from the same branch as ScanRuler for FreeCAD.
+    const sr = SOURCES.findIndex((x) => x.repo === 'ScanRuler')
+    const launcher = await getFile(`https://raw.githubusercontent.com/${OWNER}/ScanRuler/${shas[sr]}/scripts/freecad/mcpb/server/index.js`)
+    new Function('require', 'module', 'exports', '__dirname', '__filename', launcher.toString('utf8')) // parses, or throws
     fs.rmSync(dir, { recursive: true, force: true })
     fs.renameSync(stage, dir)
+    fs.mkdirSync(path.dirname(LAUNCHER), { recursive: true })
+    fs.writeFileSync(LAUNCHER, launcher)
     fs.writeFileSync(stateFile, JSON.stringify({ version, at: new Date().toISOString() }))
     log(`fetched the add-ons from GitHub (${version})`)
     return { dir, version }
@@ -246,15 +266,70 @@ async function main() {
   const e = env(fc, { AGENTLINK_OUT: OUT, FREECAD_LIB: fc.lib, PYTHONPATH: pyPath, PYTHONUNBUFFERED: '1' })
   const [exe, args] = fc.py ? [fc.py, [script, '--out', OUT]] : [fc.cmd, [script]]
   log('headless:', exe, args.join(' '))
-  const child = spawn(exe, args, { env: e, cwd: OUT, stdio: ['pipe', 'pipe', 'pipe'] })
-  process.stdin.pipe(child.stdin)
-  protocolOut(child.stdout, 'freecad')
-  readline.createInterface({ input: child.stderr }).on('line', (l) => logFile.write(`freecad! ${l}\n`))
-  child.on('exit', (code, sig) => {
-    log(`headless FreeCAD ended (${code ?? sig})`)
-    process.exit(code ?? 1)
+  headless(exe, args, e)
+}
+
+/** FreeCAD's Python serving, restarted when it dies (a crash in OCC takes the
+ *  whole process): every call still waiting is answered with what happened,
+ *  and the next call goes to a fresh FreeCAD. The document of the one that
+ *  died is gone; the answer says so. */
+function headless(exe, args, e) {
+  const pending = new Map()
+  let child = null
+  let ending = false
+  let restarts = []
+  const send = (line) => {
+    if (child && child.stdin.writable) child.stdin.write(line + '\n')
+  }
+  const start = () => {
+    child = spawn(exe, args, { env: e, cwd: OUT, stdio: ['pipe', 'pipe', 'pipe'] })
+    readline.createInterface({ input: child.stdout }).on('line', (line) => {
+      if (!line.startsWith('{')) {
+        if (line.trim()) log('freecad:', line)
+        return
+      }
+      let id
+      try {
+        id = JSON.parse(line).id
+      } catch {}
+      if (id === '__restart') return
+      if (id !== undefined) pending.delete(id)
+      process.stdout.write(line + '\n')
+    })
+    readline.createInterface({ input: child.stderr }).on('line', (l) => logFile.write(`freecad! ${l}\n`))
+    child.on('exit', (code, sig) => {
+      log(`headless FreeCAD ended (${code ?? sig})`)
+      if (ending) process.exit(0)
+      const why = sig ? `stopped by ${sig}` : `exited with code ${code}`
+      for (const [id, method] of pending) {
+        const text = JSON.stringify({ error: { code: 'failed', message: `FreeCAD ${why} during this call and has been started again: the document and everything not saved in it is gone. session_state shows the fresh one; make the part again or doc_open what was saved. If the same call does this again, it is the call — try another way.` } })
+        process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result: method === 'tools/call' ? { content: [{ type: 'text', text }], isError: true } : {} }) + '\n')
+      }
+      pending.clear()
+      const now = Date.now()
+      restarts = restarts.filter((t) => now - t < 60000)
+      restarts.push(now)
+      if (restarts.length > 3) {
+        log('FreeCAD died more than three times in a minute: giving up')
+        process.exit(1)
+      }
+      start()
+      // The fresh process is told the session has begun.
+      send(JSON.stringify({ jsonrpc: '2.0', id: '__restart', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }))
+      send(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))
+    })
+  }
+  start()
+  readline.createInterface({ input: process.stdin }).on('line', (line) => {
+    try {
+      const msg = JSON.parse(line)
+      if (msg.id !== undefined && msg.method) pending.set(msg.id, msg.method)
+    } catch {}
+    send(line)
+  }).on('close', () => {
+    ending = true
+    if (child) child.stdin.end()
   })
-  process.stdin.on('end', () => child.stdin.end())
 }
 
 /** No FreeCAD: still a server, so Claude shows why instead of a dead entry. */
@@ -277,7 +352,9 @@ function serveError(message) {
   })
 }
 
-main().catch((e) => {
-  log('launcher failed:', e.stack || e.message)
-  process.exit(1)
-})
+if (!delegated) {
+  main().catch((e) => {
+    log('launcher failed:', e.stack || e.message)
+    process.exit(1)
+  })
+}

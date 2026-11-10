@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "freecad-agentlink",
   "display_name": "FreeCAD Agent Link",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Drive FreeCAD from Claude: parts, printability, strength, drawings, scans (ScanRuler for FreeCAD), and pictures of the work — headless, or in the FreeCAD window when its link is on.",
   "long_description": "Finds FreeCAD on this Mac and installs the Agent Link and ScanRuler for FreeCAD add-ons into its Mod folder. Works headless with no FreeCAD window open. To watch the work, open FreeCAD, pick the Agent Link workbench and press Start link, then start a new chat: the extension relays to the window. Agent Link is LGPL-2.1-or-later; ScanRuler for FreeCAD is AGPL-3.0-only, ported from ScanRuler by CNC Kitchen (Stefan Hermann).",
   "author": {
