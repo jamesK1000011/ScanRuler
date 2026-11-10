@@ -88,6 +88,7 @@ error (an open scan reads `unsure` there instead).
 Not ported, because FreeCAD or Agent Link already does it: generation,
 FEA, CAM, mass, materials, fits and hardware, slicing and printer hand-off,
 part review, setups, BumpMesh texturing (`texture_prepare`,
-`texture_check`). Not ported yet: patent kit (TechDraw does most of it),
+`texture_check`). Flatbed parts: `flat_objects` (parts parted from the background, with area, holes, caliper widths) and `flat_profile` (a knurl's or gear's teeth counted round a centre or along an axis).
+Not ported yet: patent kit (TechDraw does most of it),
 and the electronics pages (KiCad's own tools and KiCad StepUp cover the
 board).

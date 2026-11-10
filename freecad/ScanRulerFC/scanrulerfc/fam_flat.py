@@ -337,8 +337,109 @@ def tools(session):
 
     spot = {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
     ref = {"oneOf": [{"type": "integer", "minimum": 1}, {"type": "string", "minLength": 1}]}
+    def flat_objects(a):
+        import math
+
+        from . import flat_objects as FO
+
+        f = fl_state(session)
+        img = f.get("image")
+        if f["subject"] is None or f["subject"].get("kind") == "section" or not img:
+            raise ToolError("invalid_state", "flat_objects reads a flatbed image: flat_open_image first.")
+        units, unit, _chains, _ = sheet(session)
+        sx, sy = unit["x"], unit["y"]
+        min_area = a.get("minArea", 4 * sx * sy * 100)
+        r = FO.find_objects(img["gray"], sx, sy, min_area, a.get("threshold"), a.get("dark"), a.get("minHoleArea"))
+        f["objects"] = r["objects"]
+
+        def rd(v, d=4):
+            return round(float(v), d)
+
+        out = []
+        for i, o in enumerate(r["objects"]):
+            row = {"object": i + 1, "area": rd(o["area"], 3), "holes": o["holes"], "box": {"min": [rd(x) for x in o["box"]["min"]], "max": [rd(x) for x in o["box"]["max"]]},
+                   "centroid": [rd(x) for x in o["centroid"]], "equivalentDiameter": rd(o["equivalentDiameter"]),
+                   "feret": {"max": rd(o["feret"]["max"]), "maxAngleDeg": rd(math.degrees(o["feret"]["maxAngle"]), 2), "min": rd(o["feret"]["min"]), "minAngleDeg": rd(math.degrees(o["feret"]["minAngle"]), 2)},
+                   "axisAngleDeg": rd(math.degrees(o["axisAngle"]), 2)}
+            if a.get("outline"):
+                row["outline"] = [[rd(x, 3), rd(y, 3)] for x, y in o["outline"][:: max(1, len(o["outline"]) // 400)]]
+            out.append(row)
+        return {"units": units, "threshold": r["threshold"], "dark": r["dark"], "count": len(out), "objects": out[: a.get("limit", 100)],
+                **({"more": len(out) - a.get("limit", 100)} if len(out) > a.get("limit", 100) else {}),
+                "note": "In reading order: rows from the top of the sheet down, left to right. flat_profile takes them by number."}
+
+    def flat_profile(a):
+        import math
+
+        from . import flat_objects as FO
+
+        f = fl_state(session)
+        units, unit, chains, _ = sheet(session)
+        if a.get("object") is not None:
+            objs = f.get("objects")
+            if not objs:
+                raise ToolError("invalid_state", "No objects yet: flat_objects first.")
+            if not 1 <= a["object"] <= len(objs):
+                raise ToolError("invalid_input", f"object: 1 to {len(objs)}.")
+            o = objs[a["object"] - 1]
+            P = o["outline"]
+        elif a.get("chains"):
+            dc, _u = doc_chains(session)
+            bad = [i for i in a["chains"] if not 0 <= i < len(dc)]
+            if bad:
+                raise ToolError("invalid_input", f"chains: 0 to {len(dc) - 1}.")
+            P = np.concatenate([dc[i] for i in a["chains"]])
+            o = None
+        else:
+            raise ToolError("invalid_input", "Give object (a number from flat_objects) or chains.")
+        kind = a.get("kind", "radial")
+        if a.get("about") is not None:
+            el = element_named(f, a["about"])
+            if kind == "radial":
+                c = FC.ref_point(el["fit"])
+                if c is None:
+                    raise ToolError("invalid_input", f"{el['name']} has no centre: a radial profile is read about a circle, an arc or a point.")
+                about = {"kind": "radial", "center": c}
+            else:
+                ln = FC.ref_line(el["fit"])
+                if ln is None:
+                    raise ToolError("invalid_input", f"{el['name']} is no line: an axial profile is read along a line.")
+                about = {"kind": "axial", "origin": ln[0], "dir": ln[1]}
+        elif kind == "radial":
+            about = {"kind": "radial", "center": o["centroid"] if o else P.mean(0)}
+        else:
+            ang = o["axisAngle"] if o else math.atan2(*np.linalg.eigh(np.cov((P - P.mean(0)).T))[1][:, 1][::-1])
+            about = {"kind": "axial", "origin": o["centroid"] if o else P.mean(0), "dir": [math.cos(ang), math.sin(ang)]}
+        floor = 1.5 * max(unit["x"], unit["y"])
+        r = FO.outline_profile(P, about, floor, a.get("samples"), a.get("prominence"))
+
+        def side(sd):
+            out = {"peaks": len(sd["peaks"]), "max": round(sd["max"], 4), "min": round(sd["min"], 4),
+                   "peakMean": None if sd["peakMean"] is None else round(sd["peakMean"], 4), "valleyMean": None if sd["valleyMean"] is None else round(sd["valleyMean"], 4)}
+            if sd["pitch"] is not None:
+                out["pitch"] = round(math.degrees(sd["pitch"]), 4) if r["kind"] == "radial" else round(sd["pitch"], 4)
+                out["pitchUnit"] = "deg" if r["kind"] == "radial" else units
+            if sd["peakMean"] is not None and sd["valleyMean"] is not None:
+                out["depth"] = round(sd["peakMean"] - sd["valleyMean"], 4)
+            if a.get("detail") == "full":
+                out["peakList"] = [{"at": [round(x, 3) for x in p["at"]], "position": round(math.degrees(p["position"]) if r["kind"] == "radial" else p["position"], 3),
+                                    "value": round(p["value"], 4), "prominence": round(p["prominence"], 4)} for p in sd["peaks"]]
+            return out
+
+        about_out = {"kind": r["kind"], **({"center": [round(float(x), 4) for x in about["center"]]} if r["kind"] == "radial" else
+                                           {"origin": [round(float(x), 4) for x in about["origin"]], "dir": [round(float(x), 5) for x in about["dir"]]})}
+        return {"units": units, "about": about_out, "prominence": round(r["prominence"], 4), "sides": [side(sd) for sd in r["sides"]],
+                "note": "Radial: radius against angle about the centre; axial: distance from the axis, [0] left of its direction, [1] right."}
+
     kinds = ", ".join(f"{k}: {', '.join(f'{m[0]} ({m[1]})' for m in v)}" for k, v in METHODS.items())
     return [
+        Tool("flat_objects", "The separate parts on the flatbed image, parted from the background by a grey level (Otsu's unless threshold is given; dark: whether the parts are darker, read from the border by default) and numbered in reading order — what flat_profile takes by number. Returns each with area, holes, box, centroid, equivalentDiameter, feret (largest and smallest caliper widths and their directions), axisAngleDeg and, with outline: true, its outline. minArea drops specks (sheet units²). Changes nothing on the sheet.",
+             obj({"threshold": {"type": "integer", "minimum": 0, "maximum": 255}, "dark": {"type": "boolean"}, "minArea": {"type": "number", "minimum": 0}, "minHoleArea": {"type": "number", "minimum": 0},
+                  "outline": {"type": "boolean"}, "limit": {"type": "integer", "minimum": 1, "maximum": 1000}}), flat_objects),
+        Tool("flat_profile", "An outline read against a centre (kind radial, the default: a part seen from above — a knurl's or a gear's teeth round it) or along an axis (axial: a part lying on its side, each side apart), and its peaks counted by prominence. The outline: object (a number from flat_objects) or chains (edge chains by number). about: a 2D circle, arc or point (radial) or line (axial); else the object's own centroid or long axis. Returns per side peaks, pitch (degrees radial, sheet units axial), max, min, peakMean, valleyMean, depth; detail: full lists the peaks. samples and prominence override the defaults. Changes nothing.",
+             obj({"object": {"type": "integer", "minimum": 1}, "chains": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 1}, "kind": {"type": "string", "enum": ["radial", "axial"]},
+                  "about": {"type": ["integer", "string"]}, "samples": {"type": "integer", "minimum": 3, "maximum": 4096}, "prominence": {"type": "number", "exclusiveMinimum": 0},
+                  "detail": {"type": "string", "enum": ["brief", "full"]}}), flat_profile),
         Tool("flat_open_image", "Open a flatbed scan of a part — PNG (or JPEG where Qt's image reader loads) at the highest optical resolution — on the 2D sheet, in place of what was there, and find its edges. The scale the file declares (pHYs, JFIF) is taken until it is calibrated. Returns the 2D state, image.decoder saying how it was read.",
              obj({"path": {"type": "string", "minLength": 1}}, ["path"]), flat_open_image),
         Tool("flat_calibrate", "Set the image's scale against a known length: distance takes two places a known distance apart, diameter three or more on a circle of known diameter; mm is that length; places in the sheet's units as they are now. The edges are found again (their chain numbers change).",
