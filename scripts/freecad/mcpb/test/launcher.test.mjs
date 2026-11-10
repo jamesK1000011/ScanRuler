@@ -49,6 +49,9 @@ const fresh = path.join(root, 'fresh')
 for (const n of ['AgentLink', 'ScanRulerFC']) fs.mkdirSync(path.join(fresh, n), { recursive: true })
 fs.writeFileSync(path.join(fresh, 'AgentLink', 'VERSION'), '2.0\n')
 fs.writeFileSync(path.join(fresh, 'VERSION'), '2.0\n')
+// And the launcher itself, as GitHub serves it: #! first line and all.
+fs.mkdirSync(path.join(fresh, 'launcher'), { recursive: true })
+fs.copyFileSync(path.join(here, '..', 'server', 'index.js'), path.join(fresh, 'launcher', 'index.js'))
 
 // The launcher as the extension holds it: its own folder, no package.json
 // saying ES module (this repository's does).
@@ -103,6 +106,9 @@ try {
   assert.equal(up.result.isError, false, JSON.stringify(said))
   assert.equal(said.after, 'local+2.0')
   assert.equal(said.restarted, true)
+  const kept = path.join(root, '.config', 'freecad-agentlink', 'launcher')
+  assert.ok(fs.existsSync(path.join(kept, 'index.js')), 'the launcher was kept for the next start')
+  assert.ok(fs.existsSync(path.join(kept, 'package.json')))
   await wait(500)
   assert.ok(notes.includes('notifications/tools/list_changed'), notes.join())
   list = await call('tools/list')

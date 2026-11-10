@@ -119,6 +119,12 @@ async function getFile(url) {
 
 /** The cached add-ons brought up to the branches' heads. Returns the folder
  *  holding AgentLink and ScanRulerFC, and its version, or null. */
+/** A fetched launcher must parse before it is kept: as Node loads a file,
+ *  a first line #! is not code. */
+function checkLauncher(text) {
+  new Function('require', 'module', 'exports', '__dirname', '__filename', text.toString('utf8').replace(/^#!.*/, ''))
+}
+
 async function update() {
   // A folder holding AgentLink and ScanRuler for FreeCAD stands in for
   // GitHub: an install from a checkout, offline, or under test.
@@ -129,6 +135,15 @@ async function update() {
     try {
       v = 'local+' + fs.readFileSync(path.join(from, 'VERSION'), 'utf8').trim()
     } catch {}
+    // A launcher beside them is taken too, as one from GitHub would be.
+    const next = path.join(from, 'launcher', 'index.js')
+    if (fs.existsSync(next)) {
+      const text = fs.readFileSync(next)
+      checkLauncher(text)
+      fs.mkdirSync(path.dirname(LAUNCHER), { recursive: true })
+      fs.writeFileSync(LAUNCHER, text)
+      fs.writeFileSync(path.join(path.dirname(LAUNCHER), 'package.json'), '{"type": "commonjs"}\n')
+    }
     return { dir: from, version: v }
   }
   const stateFile = path.join(CACHE, 'state.json')
@@ -160,7 +175,7 @@ async function update() {
     // The launcher, from the same branch as ScanRuler for FreeCAD.
     const sr = SOURCES.findIndex((x) => x.repo === 'ScanRuler')
     const launcher = await getFile(`https://raw.githubusercontent.com/${OWNER}/ScanRuler/${shas[sr]}/scripts/freecad/mcpb/server/index.js`)
-    new Function('require', 'module', 'exports', '__dirname', '__filename', launcher.toString('utf8')) // parses, or throws
+    checkLauncher(launcher) // parses, or throws
     fs.rmSync(dir, { recursive: true, force: true })
     fs.renameSync(stage, dir)
     fs.mkdirSync(path.dirname(LAUNCHER), { recursive: true })
