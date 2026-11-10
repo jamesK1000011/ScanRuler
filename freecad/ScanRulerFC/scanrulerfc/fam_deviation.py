@@ -143,8 +143,11 @@ def read_reference(session, a):
             V = np.array([[p.x, p.y, p.z] for p in pts], dtype=float) * S.UNITS[units]
             F = np.array(tris, dtype=np.int64)
             kind = "mesh"
+        elif S.more_formats() and ext.lstrip(".") in S.more_formats().FORMATS:
+            V, F, _info = S.more_formats().read(path, units if "units" in a else None)
+            kind = "mesh"
         else:
-            raise ToolError("invalid_input", f"{name}: a STEP, IGES, BREP, STL, PLY, OBJ, OFF or 3MF file.")
+            raise ToolError("invalid_input", f"{name}: a STEP, IGES, BREP, STL, PLY, OBJ, OFF, 3MF, glTF/GLB, Collada, VRML or 3DS file.")
     V, F = weld(V, F, 1e-6)
     if len(F) == 0:
         raise ToolError("failed", f"{name}: no triangles.")

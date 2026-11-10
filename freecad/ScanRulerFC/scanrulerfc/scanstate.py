@@ -95,13 +95,29 @@ def scan_of(session):
     return s
 
 
-def load(path, units="mm"):
+def more_formats():
+    """Agent Link's readers for glTF/GLB, Collada, VRML and 3DS, where this
+    Agent Link has them."""
+    try:
+        from agentlink import meshformats
+
+        return meshformats
+    except ImportError:
+        return None
+
+
+def load(path, units="mm", given=True):
     """A scan from STL, PLY, OBJ, OFF or 3MF through FreeCAD's Mesh module,
-    scaled to millimetres."""
+    scaled to millimetres; glTF/GLB, Collada, VRML and 3DS through Agent
+    Link's readers, in the units their format says unless given."""
     import Mesh
 
     if units not in UNITS:
         raise ValueError(f"units: one of {', '.join(UNITS)}.")
+    mf = more_formats()
+    if mf and os.path.splitext(path)[1].lower().lstrip(".") in mf.FORMATS:
+        V, F, _info = mf.read(path, units if given else None)
+        return Scan(os.path.basename(path), V, F, units if given else "mm", path)
     m = Mesh.Mesh(path)
     pts, tris = m.Topology
     V = np.array([[p.x, p.y, p.z] for p in pts], dtype=float) * UNITS[units]

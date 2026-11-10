@@ -27,7 +27,7 @@ def tools(session):
         if st["scan"] is not None and (st["elements"] or st["dimensions"]) and not a.get("discard"):
             raise ToolError("invalid_state", f"{st['scan'].name} is open with {len(st['elements'])} elements and {len(st['dimensions'])} dimensions: discard: true replaces it.")
         try:
-            scan = S.load(path, a.get("units", "mm"))
+            scan = S.load(path, a.get("units", "mm"), given="units" in a)
         except ValueError as e:
             raise ToolError("invalid_input", str(e))
         st.update(S.fresh())
