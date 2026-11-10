@@ -3,7 +3,8 @@
 // FreeCAD Agent Link as a Claude Desktop extension: the MCP server Claude
 // starts. It finds FreeCAD on this Mac, puts the two add-ons bundled with it
 // (Agent Link and ScanRuler for FreeCAD) into FreeCAD's Mod folder so the
-// workbench and its Start link button are there, then serves:
+// workbench and its Start link button are there — the newest from GitHub
+// when it can be reached — then serves:
 //   - through the FreeCAD window, when the window's link is on (Start link
 //     in the Agent Link workbench) — the person watches the work happen;
 //   - else headless, FreeCAD's own Python with no window.
@@ -80,6 +81,68 @@ function userDir(fc) {
   return null
 }
 
+// The add-ons as published on GitHub: fetched when either branch moves, so
+// a fix reaches this Mac without a new extension. The bundled copy is the
+// fallback when GitHub cannot be reached.
+const OWNER = 'jamesK1000011'
+const SOURCES = [
+  { repo: 'FreeCAD', branch: 'agent-link', folder: 'src/Mod/AgentLink', dest: 'AgentLink' },
+  { repo: 'ScanRuler', branch: 'freecad-spike', folder: 'freecad/ScanRulerFC', dest: 'ScanRulerFC' },
+]
+const CACHE = path.join(HOME, '.config', 'freecad-agentlink')
+
+async function getJson(url) {
+  const r = await fetch(url, { headers: { 'User-Agent': 'freecad-agentlink', Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15000) })
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`)
+  return r.json()
+}
+
+async function getFile(url) {
+  const r = await fetch(url, { headers: { 'User-Agent': 'freecad-agentlink' }, signal: AbortSignal.timeout(30000) })
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`)
+  return Buffer.from(await r.arrayBuffer())
+}
+
+/** The cached add-ons brought up to the branches' heads. Returns the folder
+ *  holding AgentLink and ScanRulerFC, and its version, or null. */
+async function update() {
+  const stateFile = path.join(CACHE, 'state.json')
+  let state = {}
+  try {
+    state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+  } catch {}
+  const shas = await Promise.all(SOURCES.map((s) => getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/commits/${s.branch}`).then((c) => c.sha)))
+  const version = 'github+' + shas.map((x) => x.slice(0, 7)).join('+')
+  const dir = path.join(CACHE, 'addons')
+  if (state.version === version && fs.existsSync(path.join(dir, 'AgentLink'))) return { dir, version }
+  const stage = fs.mkdtempSync(path.join(CACHE, 'stage-'))
+  try {
+    for (const [i, s] of SOURCES.entries()) {
+      const [parent, name] = [s.folder.slice(0, s.folder.lastIndexOf('/')), s.folder.slice(s.folder.lastIndexOf('/') + 1)]
+      const listing = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/contents/${parent}?ref=${shas[i]}`)
+      const sub = listing.find((x) => x.name === name && x.type === 'dir')
+      const tree = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/git/trees/${sub.sha}?recursive=1`)
+      const files = tree.tree.filter((x) => x.type === 'blob' && !/(^|\/)(__pycache__|tests)\//.test(x.path))
+      for (let k = 0; k < files.length; k += 8) {
+        await Promise.all(files.slice(k, k + 8).map(async (f) => {
+          const data = await getFile(`https://raw.githubusercontent.com/${OWNER}/${s.repo}/${shas[i]}/${s.folder}/${f.path}`)
+          const p = path.join(stage, s.dest, f.path)
+          fs.mkdirSync(path.dirname(p), { recursive: true })
+          fs.writeFileSync(p, data)
+        }))
+      }
+    }
+    fs.rmSync(dir, { recursive: true, force: true })
+    fs.renameSync(stage, dir)
+    fs.writeFileSync(stateFile, JSON.stringify({ version, at: new Date().toISOString() }))
+    log(`fetched the add-ons from GitHub (${version})`)
+    return { dir, version }
+  } catch (e) {
+    fs.rmSync(stage, { recursive: true, force: true })
+    throw e
+  }
+}
+
 function bundledVersion() {
   try {
     return fs.readFileSync(path.join(ADDONS, 'VERSION'), 'utf8').trim()
@@ -91,8 +154,7 @@ function bundledVersion() {
 /** The add-ons into FreeCAD's Mod folder, when they are not there at this
  *  version already. Files of this version are written over; nothing else
  *  of the person's is touched. */
-function install(modDir) {
-  const v = bundledVersion()
+function install(modDir, src = ADDONS, v = bundledVersion()) {
   const stamp = path.join(modDir, 'AgentLink', '.installed-version')
   let have = null
   try {
@@ -101,7 +163,7 @@ function install(modDir) {
   if (have === v) return false
   fs.mkdirSync(modDir, { recursive: true })
   for (const name of ['AgentLink', 'ScanRulerFC']) {
-    fs.cpSync(path.join(ADDONS, name), path.join(modDir, name), { recursive: true, force: true })
+    fs.cpSync(path.join(src, name), path.join(modDir, name), { recursive: true, force: true })
   }
   fs.writeFileSync(stamp, v + '\n')
   log(`installed the add-ons (${v}) into ${modDir}`)
@@ -142,12 +204,26 @@ async function main() {
     return
   }
   log('FreeCAD:', fc.app)
+  let src = { dir: ADDONS, version: bundledVersion() }
+  if (process.env.AGENTLINK_UPDATE !== 'false') {
+    try {
+      fs.mkdirSync(CACHE, { recursive: true })
+      src = (await update()) || src
+    } catch (e) {
+      log('no update from GitHub, the bundled add-ons serve:', e.message)
+      const cached = path.join(CACHE, 'addons')
+      try {
+        const st = JSON.parse(fs.readFileSync(path.join(CACHE, 'state.json'), 'utf8'))
+        if (fs.existsSync(path.join(cached, 'AgentLink'))) src = { dir: cached, version: st.version }
+      } catch {}
+    }
+  }
   const ud = userDir(fc)
   let modDir = null
   if (ud) {
     modDir = path.join(ud, 'Mod')
     try {
-      install(modDir)
+      install(modDir, src.dir, src.version)
     } catch (e) {
       log('install failed:', e.message)
     }
@@ -164,7 +240,7 @@ async function main() {
 
   // Headless: the add-ons from the Mod folder (else the bundle), FreeCAD's
   // Python, no window.
-  const base = modDir && fs.existsSync(path.join(modDir, 'AgentLink')) ? modDir : ADDONS
+  const base = modDir && fs.existsSync(path.join(modDir, 'AgentLink')) ? modDir : src.dir
   const script = path.join(base, 'AgentLink', 'agentlink_headless.py')
   const pyPath = [path.join(base, 'AgentLink'), path.join(base, 'ScanRulerFC'), fc.lib].join(':')
   const e = env(fc, { AGENTLINK_OUT: OUT, FREECAD_LIB: fc.lib, PYTHONPATH: pyPath, PYTHONUNBUFFERED: '1' })
