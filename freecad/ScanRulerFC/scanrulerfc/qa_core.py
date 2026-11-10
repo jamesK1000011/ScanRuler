@@ -129,3 +129,145 @@ def thickness_grid(surface, P, d, side=60):
     t = t_top - t_bot
     ok = np.isfinite(t) & (t > 0)
     return cu[ok], cv[ok], t[ok], t_top[ok], t_bot[ok], u, v
+
+
+# ---- sheet: two skins close together (src/core/geometry/sheet.ts) --------------
+
+SHEET_SHARE = 0.5
+WALL_SHARE, WALLS_COVER, WALL_DEG, WALL_SAMPLE, WALL_TRIES, WALLS_MAX = 0.02, 0.6, 10, 3000, 150, 24
+APART_MAX, APART_LEAST = 6, 6
+ATTEMPTS = 6
+FACING = math.cos(math.pi / 6)
+SHEET_SAMPLE, APART_SAMPLE, SHEET_EVEN, SHEET_GAUGE = 6000, 30_000, 1.5, 3
+
+
+def _face_normals(V, F):
+    n = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    ln = np.linalg.norm(n, axis=1)
+    ln[ln == 0] = 1
+    return n / ln[:, None]
+
+
+def sheet_reading(g, surface, noise, sample=SHEET_SAMPLE, apart_sample=APART_SAMPLE):
+    """Each sampled point looks along its inward normal for the other skin
+    facing back; the gauge is how far it found it."""
+    P, N, F = g.P, g.N, g.F
+    areas = g.vertex_areas()
+    reach = min(6.0, max(1.0, 0.05 * g.bbox_diag))
+    near = max(1e-6, g.bbox_diag * 1e-5)
+    idx = np.arange(0, len(P), max(1, len(P) // sample))
+    nl = np.linalg.norm(N[idx], axis=1)
+    idx = idx[nl > 0]
+    O = P[idx]
+    D = -N[idx] / np.linalg.norm(N[idx], axis=1)[:, None]
+    FN = _face_normals(P, F)
+    gauge = np.full(len(idx), np.nan)
+    start = np.full(len(idx), near)
+    live = np.arange(len(idx))
+    for _ in range(ATTEMPTS):
+        if not len(live):
+            break
+        t, face = surface.raycast_first(O[live], D[live], start[live], reach)
+        hit = np.isfinite(t) & (face >= 0)
+        back = np.zeros(len(live), bool)
+        back[hit] = (FN[face[hit]] * D[live[hit]]).sum(1) >= FACING
+        gauge[live[back]] = t[back]
+        again = hit & ~back
+        start[live[again]] = t[again] + near
+        live = live[again]
+    all_area = float(areas[idx].sum())
+    found = np.isfinite(gauge)
+    two = float(areas[idx][found].sum()) / all_area if all_area > 0 else 0.0
+    gs = np.sort(gauge[found])
+
+    def pct(q):
+        return float(gs[min(len(gs) - 1, int(q * len(gs)))])
+
+    out = {"sampled": int(len(idx)), "reach": reach, "twoSkins": two, "gauge": {"p5": pct(0.05), "p50": pct(0.5), "p95": pct(0.95)} if len(gs) >= 12 else None}
+    if two < SHEET_SHARE or not out["gauge"]:
+        return out
+    apart = _apart(g, areas, apart_sample, max(1.5, 5 * out["gauge"]["p50"], 0.01 * g.bbox_diag), max(0.05, 3 * noise))
+    if apart:
+        out["apart"] = apart
+    return out
+
+
+def _walls(P, N, W, tol):
+    n = len(W)
+    free = np.ones(n, bool)
+    total = W.sum()
+    cos = math.cos(math.radians(WALL_DEG))
+    walls, covered = [], 0.0
+
+    def on(sel, nn, d):
+        return (np.abs(N[sel] @ nn) >= cos) & (np.abs(P[sel] @ nn - d) <= tol)
+
+    while len(walls) < WALLS_MAX:
+        left = np.nonzero(free)[0]
+        if len(left) < 3:
+            break
+        best, best_plane = 0.0, None
+        for c in left[:: max(1, len(left) // WALL_TRIES)]:
+            nn = N[c]
+            d = float(P[c] @ nn)
+            s = float(W[left][on(left, nn, d)].sum())
+            if s > best:
+                best, best_plane = s, (nn, d)
+        if best_plane is None or best < WALL_SHARE * total:
+            break
+        held = left[on(left, *best_plane)]
+        nn, d = best_plane
+        if len(held) >= 3:
+            X = P[held] - P[held].mean(0)
+            w, vec = np.linalg.eigh(X.T @ X)
+            nn = vec[:, 0]
+            d = float(P[held].mean(0) @ nn)
+        m = left[on(left, nn, d)]
+        share = float(W[m].sum())
+        if share < WALL_SHARE * total:
+            break
+        free[m] = False
+        u, v = (np.asarray(x) for x in ortho_basis(nn))
+        a, b = P[m] @ u, P[m] @ v
+        walls.append({"normal": nn, "d": d, "u": u, "v": v, "lo": (a.min(), b.min()), "hi": (a.max(), b.max())})
+        covered += share / total
+    return walls, covered
+
+
+def _apart(g, areas, sample, reach, tol):
+    step = max(1, len(g.P) // sample)
+    P = g.P[::step]
+    N = g.N[::step] / np.maximum(np.linalg.norm(g.N[::step], axis=1), 1e-12)[:, None]
+    W = areas[::step]
+    every = max(1, len(P) // WALL_SAMPLE)
+    walls, covered = _walls(P[::every], N[::every], W[::every], tol)
+    if covered < WALLS_COVER:
+        return None
+    total = float(areas.sum())
+    weight = total / W.sum()
+    kept = np.zeros(len(P), bool)
+    for w in walls:
+        a, b = P @ w["u"], P @ w["v"]
+        kept |= (np.abs(P @ w["normal"] - w["d"]) <= reach) & (a >= w["lo"][0] - reach) & (a <= w["hi"][0] + reach) & (b >= w["lo"][1] - reach) & (b <= w["hi"][1] + reach)
+    off = np.nonzero(~kept)[0]
+    link = 3 * math.sqrt(total / len(P))
+    from .dev_hotspots import components, neighbour_pairs
+
+    regions = []
+    if len(off):
+        Q = P[off]
+        q, p = neighbour_pairs(Q, Q, link)
+        ok = (q < p) & (((Q[q] - Q[p]) ** 2).sum(1) <= link * link)
+        lab = components(len(off), q[ok], p[ok])
+        least = 2 * reach * reach
+        for c in np.unique(lab):
+            m = off[lab == c]
+            if len(m) < APART_LEAST:
+                continue
+            w_ = W[m] * weight
+            area = float(w_.sum())
+            if not area >= least:
+                continue
+            regions.append({"center": (P[m] * w_[:, None]).sum(0) / area, "min": P[m].min(0), "max": P[m].max(0), "area": area})
+    regions.sort(key=lambda r: -r["area"])
+    return {"reach": reach, "walls": len(walls), "regions": regions[:APART_MAX], "more": max(0, len(regions) - APART_MAX)}

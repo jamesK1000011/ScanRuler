@@ -43,6 +43,7 @@ class QA(unittest.TestCase):
         self.assertEqual(o["thickness"]["axisFrom"], "the way most of the surface faces")
         self.assertTrue(any("Closed skin" in n for n in o["notes"]))
         self.assertNotIn("tessellation", o)
+        self.assertNotIn("sheet", o)
 
     def test_wedge(self):
         V, F = box_mesh(40, 30, 4, n=24)
@@ -53,6 +54,16 @@ class QA(unittest.TestCase):
         o = self.qa(V, F, axis="z")
         self.assertGreater(o["thickness"]["tiltDeg"], 1)
         self.assertTrue(any("apart" in n for n in o["notes"]))
+
+    def test_thin_shell(self):
+        Vo, Fo = box_mesh(40, 30, 20, n=24)
+        Vi, Fi = box_mesh(36, 26, 16, n=24)
+        V = np.concatenate([Vo, Vi]) + np.random.default_rng(5).normal(0, 0.01, (len(Vo) + len(Vi), 3))
+        F = np.concatenate([Fo, Fi[:, [0, 2, 1]] + len(Vo)])  # the inner skin faces in
+        o = self.qa(V, F, axis="z")
+        self.assertAlmostEqual(o["sheet"]["gauge"]["p50"], 2.0, delta=0.05)
+        self.assertGreater(o["sheet"]["twoSkins"], 0.75)  # rays off the edges run diagonally
+        self.assertTrue(any("two skins 2.00 mm apart" in n and "reads the box" in n for n in o["notes"]), o["notes"])
 
     def test_tube_and_cad(self):
         V, F = cylinder_mesh(5, 20, seg=64, rows=20, closed=False)
