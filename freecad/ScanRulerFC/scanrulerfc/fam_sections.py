@@ -216,8 +216,7 @@ def cut_section(scan, frame):
 def shadow_section(scan, frame, tolerance, play):
     """A shadow's loops as a section: (points, offsets, normals, what it is),
     each traced loop offset outwards by play + tolerance with FreeCAD's
-    exact 2D offset (corners kept sharp) and read at a quarter of the
-    tolerance."""
+    exact 2D offset (corners kept sharp) and read evenly every tolerance."""
     import FreeCAD
     import Part
 
@@ -243,12 +242,15 @@ def shadow_section(scan, frame, tolerance, play):
                 raise ToolError("failed", f"The shadow could not be offset {by:g} mm: {e} — a smaller play.")
         for f in (face.Faces or [face]):
             outer = f.OuterWire
-            q = outer.discretize(Deflection=tolerance / 4)
+            # Evenly spaced, as a cut's points are: a straight side read
+            # by its ends alone gives the line fitter nothing to fit.
+            q = outer.discretize(Distance=max(tolerance, cell))
             uv = np.array([(p.x, p.y) for p in q], dtype=float)
-            if SH.area(uv) < 0:
+            if np.allclose(uv[0], uv[-1]):
+                uv = uv[:-1]
+            if SH.area(np.vstack([uv, uv[:1]])) < 0:
                 uv = uv[::-1]
-            if not np.allclose(uv[0], uv[-1]):
-                uv = np.vstack([uv, uv[:1]])
+            uv = np.vstack([uv, uv[:1]])  # closed: the first point again, exactly
             # Outward: right of a counter-clockwise run.
             t = np.gradient(uv, axis=0)
             nrm = np.stack([t[:, 1], -t[:, 0]], axis=1)
