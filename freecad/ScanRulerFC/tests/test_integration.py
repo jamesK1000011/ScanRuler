@@ -103,6 +103,15 @@ class Integration(unittest.TestCase):
         w = meta["map"]["worst"]
         self.assertAlmostEqual(w["value"], 0.5, delta=0.1)
         self.assertLess(math.hypot(w["at"][0] - 28, w["at"][1] - 15), 4.5)
+        # Read on the reference: the whole box scanned, and the boss is
+        # scan standing 0.5 mm over the reference's top.
+        on = self.call("deviation_hotspots", {"on": "reference"})
+        print("on the reference:", json.dumps(on))
+        self.assertGreater(on["coveredPct"], 95)
+        self.assertAlmostEqual(on["mostInside"]["mm"], -0.5, delta=0.1)
+        self.assertLess(math.hypot(on["mostInside"]["at"][0] - 28, on["mostInside"]["at"][1] - 15), 4.5)
+        pic = self.call("view_render", {"map": "deviation-reference", "views": "top", "inline": False, "path": os.path.join(out, "reference_deviation.png")})
+        self.assertAlmostEqual(abs(pic["map"]["worst"]["value"]), 0.5, delta=0.1)
         self.call("thickness_measure")
         t = self.call("view_render", {"map": "thickness", "views": "all", "section": {"axis": "y"}, "inline": False, "path": os.path.join(out, "scan_thickness.png")})
         print("thickness picture:", json.dumps(t["map"]))

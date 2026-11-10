@@ -14,6 +14,7 @@ import numpy as np
 from agentlink.protocol import Tool, ToolError
 
 from . import dev_rigid as R
+from . import on_reference
 from . import scanstate as S
 from .dev_align import AlignError, align_from_pairs, align_local, auto_align
 from .dev_field import field_percentiles
@@ -165,6 +166,30 @@ def require_reference(session):
 
 
 # ---- the readout ----
+
+
+def reference_reading(session):
+    """The map read on the reference (on_reference), worked out once per
+    alignment and settings: {centres, normals, pieces, area, values, spacing}."""
+    from agentlink.protocol import ToolError
+
+    d = dstate(session)
+    ref = d["reference"]
+    scan = S.scan_of(session)
+    if ref is None or d["values"] is None:
+        raise ToolError("invalid_state", "No map against the reference to read on it: deviation_open_reference, then deviation_align.")
+    key = (len(scan.V), float(np.asarray(scan.V, dtype=float).sum()), float(d["maxDistance"]), float(d["tolerance"]), len(ref["V"]), float(np.asarray(ref["V"], dtype=float).sum()))
+    got = d.get("onReference")
+    if got and got["key"] == key:
+        return got
+    V, F = np.asarray(ref["V"], dtype=float), np.asarray(ref["F"], dtype=np.int64)
+    area = 0.5 * float(np.linalg.norm(np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]]), axis=1).sum())
+    spacing = on_reference.wanted_spacing(d["tolerance"], area)
+    centres, normals, pieces, areas = on_reference.cut(V, F, spacing)
+    values = on_reference.read(centres, normals, scan.V, scan.F, float(d["maxDistance"]))
+    got = {"key": key, "centres": centres, "normals": normals, "pieces": pieces, "area": areas, "values": values, "spacing": spacing}
+    d["onReference"] = got
+    return got
 
 
 def map_values(d):
@@ -408,7 +433,10 @@ def tools(session):
         scan = S.scan_of(session)
         d = dstate(session)
         if a.get("on", "scan") == "reference":
-            raise ToolError("invalid_input", "on: \"reference\" (the map read on the reference) is not in this port — read the map on the scan.")
+            got = reference_reading(session)
+            return {"on": "reference", "tolerance": d["tolerance"], "searchDistance": d["maxDistance"], "spacing": r3(got["spacing"]), "readings": int(len(got["values"])),
+                    **on_reference.summary(got["values"], got["area"], got["centres"], a.get("tolerance", d["tolerance"])),
+                    "note": "Read on the reference: positive where the reference stands outside the scan (the part lacks material there), negative inside; unscanned where no scan surface facing its way lies under it within the search distance. view_render { map: \"deviation-reference\" } shows it."}
         values = map_values(d)
         if values is None:
             raise ToolError("invalid_state", "There is no deviation map to read — deviation_align measures one against the reference part, deviation_set_target one against an element.")

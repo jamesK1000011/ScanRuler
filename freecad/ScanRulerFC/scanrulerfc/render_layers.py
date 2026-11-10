@@ -61,6 +61,21 @@ def deviation_map(session, a):
             "note": f"The scan {side}: red stands proud of it, blue below; grey past the max distance ({d['maxDistance']:g} mm) or unread. deviation_settings sets range and max distance."}
 
 
+def deviation_reference_map(session, a):
+    from .fam_deviation import dstate, reference_reading
+
+    d = dstate(session)
+    got = reference_reading(session)
+    P = got["pieces"]
+    V = P.reshape(-1, 3)
+    F = np.arange(len(V), dtype=np.int64).reshape(-1, 3)
+    v = np.repeat(np.asarray(got["values"], dtype=float), 3)
+    rng = max(float(d["range"] or 0), float(d["tolerance"] or 0), 1e-3)
+    return {"layers": [{"name": "reference", "V": V, "F": F, "values": v, "creases": True}], "unit": "mm", "cmap": "jet", "worst": "abs",
+            "range": [-rng, rng], "label": "ON THE REFERENCE",
+            "note": f"The reference read against the scan: red where it stands outside the scan (the part lacks material), blue inside; grey where no scan lies under it within {d['maxDistance']:g} mm — unscanned, or missing."}
+
+
 def thickness_map(session, a):
     from agentlink.protocol import ToolError
 
@@ -85,4 +100,5 @@ def register():
     render.register_layer("scan", scan_layer, "The open scan (grey).")
     render.register_layer("reference", reference_layer, "The deviation reference part (blue) — drawn when asked for by name, as it lies on the scan.")
     render.register_map("deviation", deviation_map, "The scan's deviation from the reference (ScanRuler), ±range.")
+    render.register_map("deviation-reference", deviation_reference_map, "The deviation read on the reference (ScanRuler's map on the reference): what the part lacks or has over the model, and what was not scanned.")
     render.register_map("thickness", thickness_map, "The scan's wall thickness (ScanRuler), red thin.")
