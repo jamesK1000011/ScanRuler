@@ -68,6 +68,11 @@ jobs:
         timeout-minutes: 6
         continue-on-error: true
         run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 update -qq && sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install -y -qq --no-install-recommends prusa-slicer xvfb > /dev/null && (prusa-slicer --help | head -1 || true)
+      - name: The Studio themes, pictured
+        # A GUI under a virtual screen: worth a look, never a failure.
+        continue-on-error: true
+        timeout-minutes: 10
+        run: bash scripts/freecad/theme-shots.sh freecad-addon/src/Mod/AgentLink "$AGENTLINK_RENDERS/theme"
       - name: Agent Link tests
         run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests -v
       - name: ScanRuler for FreeCAD tests
