@@ -229,6 +229,20 @@ async function main() {
     try {
       fs.mkdirSync(CACHE, { recursive: true })
       src = (await update()) || src
+      // A launcher newer than this one came with it: it serves from now,
+      // not from the next start.
+      if (!process.env.AGENTLINK_RELAUNCHED && fs.existsSync(LAUNCHER) && fs.readFileSync(LAUNCHER, 'utf8') !== fs.readFileSync(__filename, 'utf8')) {
+        process.env.AGENTLINK_RELAUNCHED = '1'
+        process.env.AGENTLINK_BUNDLE = HERE
+        try {
+          delete require.cache[require.resolve(LAUNCHER)]
+          require(LAUNCHER)
+          log('handed over to the launcher just fetched')
+          return
+        } catch (e) {
+          log('the launcher just fetched did not load; this one serves:', e.message)
+        }
+      }
     } catch (e) {
       log('no update from GitHub, the bundled add-ons serve:', e.message)
       const cached = path.join(CACHE, 'addons')
@@ -266,18 +280,51 @@ async function main() {
   const e = env(fc, { AGENTLINK_OUT: OUT, FREECAD_LIB: fc.lib, PYTHONPATH: pyPath, PYTHONUNBUFFERED: '1' })
   const [exe, args] = fc.py ? [fc.py, [script, '--out', OUT]] : [fc.cmd, [script]]
   log('headless:', exe, args.join(' '))
-  headless(exe, args, e)
+  headless(exe, args, e, { modDir, version: src.version })
 }
 
 /** FreeCAD's Python serving, restarted when it dies (a crash in OCC takes the
  *  whole process): every call still waiting is answered with what happened,
  *  and the next call goes to a fresh FreeCAD. The document of the one that
  *  died is gone; the answer says so. */
-function headless(exe, args, e) {
+// The launcher's own tool: the newest add-ons from GitHub, and FreeCAD
+// started again on them, without Claude starting again.
+const UPDATE_TOOL = {
+  name: 'agentlink_update',
+  description: 'Fetch the newest Agent Link and ScanRuler for FreeCAD from GitHub and start FreeCAD again on them, without restarting Claude: new tools and fixes from then on. The open document is lost unless saved (doc_save first). Answers the version before and after; the tool list is sent again.',
+  inputSchema: { type: 'object', properties: {} },
+}
+
+function headless(exe, args, e, inst = {}) {
   const pending = new Map()
+  const listing = new Set()
+  const initing = new Set()
   let child = null
   let ending = false
+  let updating = false
   let restarts = []
+  let version = inst.version
+  const reply = (id, payload, isError = false) =>
+    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(payload) }], isError } }) + '\n')
+  async function selfUpdate(id) {
+    const before = version
+    try {
+      fs.mkdirSync(CACHE, { recursive: true })
+      const got = await update()
+      if (!got) throw new Error('GitHub gave nothing')
+      if (inst.modDir) install(inst.modDir, got.dir, got.version)
+      version = got.version
+      if (got.version === before) {
+        reply(id, { before, after: version, restarted: false, note: 'Already the newest: nothing to do.' })
+        return
+      }
+      updating = true
+      child.kill()
+      reply(id, { before, after: version, restarted: true, note: 'FreeCAD started again on the new add-ons: the document is fresh (session_state). New tools are listed.' })
+    } catch (err) {
+      reply(id, { error: { code: 'unavailable', message: `No update: ${err.message}. The add-ons in place keep serving.` } }, true)
+    }
+  }
   const send = (line) => {
     if (child && child.stdin.writable) child.stdin.write(line + '\n')
   }
@@ -294,13 +341,36 @@ function headless(exe, args, e) {
       } catch {}
       if (id === '__restart') return
       if (id !== undefined) pending.delete(id)
+      if (id !== undefined && initing.has(id)) {
+        initing.delete(id)
+        try {
+          const msg = JSON.parse(line)
+          if (msg.result) {
+            msg.result.capabilities = msg.result.capabilities || {}
+            msg.result.capabilities.tools = { ...(msg.result.capabilities.tools || {}), listChanged: true }
+            line = JSON.stringify(msg)
+          }
+        } catch {}
+      }
+      if (id !== undefined && listing.has(id)) {
+        listing.delete(id)
+        try {
+          const msg = JSON.parse(line)
+          if (msg.result && Array.isArray(msg.result.tools)) {
+            msg.result.tools.push(UPDATE_TOOL)
+            line = JSON.stringify(msg)
+          }
+        } catch {}
+      }
       process.stdout.write(line + '\n')
     })
     readline.createInterface({ input: child.stderr }).on('line', (l) => logFile.write(`freecad! ${l}\n`))
     child.on('exit', (code, sig) => {
       log(`headless FreeCAD ended (${code ?? sig})`)
       if (ending) process.exit(0)
-      const why = sig ? `stopped by ${sig}` : `exited with code ${code}`
+      const planned = updating
+      updating = false
+      const why = planned ? 'was started again on the updated add-ons' : sig ? `stopped by ${sig}` : `exited with code ${code}`
       for (const [id, method] of pending) {
         const text = JSON.stringify({ error: { code: 'failed', message: `FreeCAD ${why} during this call and has been started again: the document and everything not saved in it is gone. session_state shows the fresh one; make the part again or doc_open what was saved. If the same call does this again, it is the call — try another way.` } })
         process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result: method === 'tools/call' ? { content: [{ type: 'text', text }], isError: true } : {} }) + '\n')
@@ -308,7 +378,7 @@ function headless(exe, args, e) {
       pending.clear()
       const now = Date.now()
       restarts = restarts.filter((t) => now - t < 60000)
-      restarts.push(now)
+      if (!planned) restarts.push(now)
       if (restarts.length > 3) {
         log('FreeCAD died more than three times in a minute: giving up')
         process.exit(1)
@@ -317,14 +387,22 @@ function headless(exe, args, e) {
       // The fresh process is told the session has begun.
       send(JSON.stringify({ jsonrpc: '2.0', id: '__restart', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }))
       send(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))
+      if (planned) process.stdout.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n')
     })
   }
   start()
   readline.createInterface({ input: process.stdin }).on('line', (line) => {
+    let msg = null
     try {
-      const msg = JSON.parse(line)
-      if (msg.id !== undefined && msg.method) pending.set(msg.id, msg.method)
+      msg = JSON.parse(line)
     } catch {}
+    if (msg && msg.method === 'tools/call' && msg.params && msg.params.name === UPDATE_TOOL.name) {
+      selfUpdate(msg.id)
+      return
+    }
+    if (msg && msg.id !== undefined && msg.method) pending.set(msg.id, msg.method)
+    if (msg && msg.method === 'tools/list') listing.add(msg.id)
+    if (msg && msg.method === 'initialize') initing.add(msg.id)
     send(line)
   }).on('close', () => {
     ending = true
