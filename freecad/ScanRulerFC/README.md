@@ -16,7 +16,7 @@ Everything is in millimetres.
 
 ## What is ported
 
-- **scan, elements, align, dimensions** (3D Measure): `scan_open`, `scan_info`, `scan_nearest`, `scan_query`, `scan_segment`; `element_fit` (plane, sphere, cylinder, cone, torus, circle, point; ScanRuler's patch → LMedS → region growing → clipped Gaussian fit), `element_fit_marked`, `element_construct` (28 methods), `element_list`, `element_rename`, `element_remove`, `element_set_visible`; `align_auto` (read off the scan), `align_datum` (3-2-1), `align_symmetry`, `align_clear`, `scan_scale`; `dimension_add` (sizes and GD&T), `dimension_set_limit`, `dimension_set_basic`, `dimension_remove`, `report_get`, `export_csv`.
+- **scan, elements, align, dimensions** (3D Measure): `scan_open`, `scan_info`, `scan_nearest`, `scan_query`, `scan_segment`, `scan_qa` (the check before modelling), `scan_fit_surface` (plane, bilinear or quadric with curvature), `scan_draft` (draft against a pull), `scan_pattern` (rotational repeats), `scan_heightmap` (heights along an axis, with levels); `element_fit` (plane, sphere, cylinder, cone, torus, circle, point; ScanRuler's patch → LMedS → region growing → clipped Gaussian fit), `element_fit_marked`, `element_construct` (28 methods), `element_list`, `element_rename`, `element_remove`, `element_set_visible`; `align_auto` (read off the scan), `align_datum` (3-2-1), `align_symmetry`, `align_clear`, `scan_scale`; `dimension_add` (sizes and GD&T), `dimension_set_limit`, `dimension_set_basic`, `dimension_remove`, `report_get`, `export_csv`.
 - **deviation** — `deviation_open_reference` (STEP, IGES, BREP tessellated
   finely; STL, PLY, OBJ, OFF, 3MF; or a solid in the document),
   `deviation_align` (auto, points, local: ScanRuler's prealign, Horn's

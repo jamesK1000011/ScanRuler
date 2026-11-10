@@ -16,6 +16,7 @@ GROUP = "scan"
 SURFACE_LIMIT = 20000
 DRAFT_LIMIT = 400_000
 PATTERN_HEIGHTS, PATTERN_HEIGHTS_MAX, PATTERN_COUNT = 6, 12, 60
+HEIGHT_CELLS, HEIGHT_SIDE, HEIGHT_CELLS_FINE, HEIGHT_SIDE_FINE, HEIGHT_LEVELS = 1600, 40, 25_600, 160, 12
 INFO = "The 3D scan measured (ScanRuler, ported): open it and read what it holds."
 
 
@@ -274,6 +275,82 @@ def tools(session):
             out.append(row)
         return {"axis": {**({"name": name} if name else {}), "origin": M.js(origin, 6), "dir": M.js(d, 6), "zeroDir": M.js(zero, 6)}, "heights": out}
 
+    def scan_heightmap(a):
+        import os
+
+        import numpy as np
+
+        from . import heightmap_core as HM
+        from .dev_surface import NominalSurface
+
+        st = S.state(session)
+        scan = M.require_scan(st)
+        look = a.get("axis", "-z")
+        k = "xyz".index(look[1])
+        sign = 1 if look[0] == "+" else -1
+        V = scan.V
+        lo, hi = V.min(0), V.max(0)
+        if a.get("box"):
+            b = a["box"]
+            if any(b["min"][i] > b["max"][i] for i in range(3)):
+                raise ToolError("invalid_input", "The box's min lies past its max.")
+            lo, hi = np.maximum(lo, b["min"]), np.minimum(hi, b["max"])
+        want_levels = a.get("levels", False)
+        show_grid = a.get("grid", not want_levels)
+        g = HM.grid_over(lo, hi, k, a.get("cell"), HEIGHT_SIDE if show_grid else HEIGHT_SIDE_FINE, HEIGHT_CELLS if show_grid else HEIGHT_CELLS_FINE)
+        surf = getattr(scan, "_surface", None)
+        if surf is None or surf[0] != scan.version:
+            surf = (scan.version, NominalSurface(V, scan.F))
+            scan._surface = surf
+        h = HM.heights(surf[1], lo, hi, k, sign, g)
+        fin = np.isfinite(h)
+        names = "xyz"
+        out = {"axis": look, "along": names[k], "across": [names[g["ua"]], names[g["va"]]], "of": "height", "cell": g["cell"],
+               **({"note": f"cell widened to {g['cell']} mm to keep the cells few"} if g["widened"] else {}),
+               "origin": [round(g["u0"], 3), round(g["v0"], 3)], "cols": g["cols"], "rows": g["rows"], "hit": int(fin.sum()), "valued": int(fin.sum()),
+               "min": round(float(h[fin].min()), 3) if fin.any() else None, "max": round(float(h[fin].max()), 3) if fin.any() else None}
+        if show_grid:
+            out["grid"] = [[None if not np.isfinite(x) else round(float(x), 2) for x in h[r * g["cols"]:(r + 1) * g["cols"]]] for r in range(g["rows"])]
+        if want_levels:
+            slope = a.get("slopeDeg", HM.LEVEL_SLOPE_DEG)
+            steep = HM.sloped_cells(h, g["cols"], g["rows"], g["cell"], slope)
+            counted = h.copy()
+            counted[steep] = np.nan
+            noise = HM.cell_noise(counted, g["cols"], g["rows"])
+            found = HM.levels(counted, g, a.get("gap") or max(3 * noise, HM.LEVEL_GAP_MIN), h)
+            out.update(slopeDeg=slope, sloped=int(steep.sum()), noise=round(noise, 4), gap=round(found["gap"], 4))
+
+            def plane_out(p):
+                su, sv = p["slope"]
+                origin = np.zeros(3)
+                origin[g["ua"]], origin[g["va"]], origin[k] = p["at"]
+                n = np.zeros(3)
+                n[k], n[g["ua"]], n[g["va"]] = 1.0, -su, -sv
+                n = -sign * n / np.linalg.norm(n)
+                return {"origin": M.js(origin, 3), "normal": M.js(n, 5)}
+
+            out["levels"] = [{"height": round(l["height"], 3), "sigma": round(l["sigma"], 4), "range": [round(x, 3) for x in l["range"]], "cells": l["cells"],
+                              "area": round(l["area"], 2), "sharePct": round(100 * l["share"], 1), "box": {"min": M.js(l["box"]["min"], 3), "max": M.js(l["box"]["max"], 3)},
+                              **({"plane": plane_out(l["plane"])} if l["share"] >= 0.05 else {})} for l in found["levels"][:HEIGHT_LEVELS]]
+            if len(found["levels"]) > HEIGHT_LEVELS:
+                out["moreLevels"] = len(found["levels"]) - HEIGHT_LEVELS
+            out["unassigned"] = found["unassigned"]
+        if a.get("picture"):
+            from agentlink import render as R
+
+            img = np.zeros((g["rows"], g["cols"], 3)) + R.BG
+            if fin.any():
+                cols_ = R.colours_for(h[fin], float(h[fin].min()), float(h[fin].max()))
+                img.reshape(-1, 3)[fin] = cols_
+            img = img[::-1]
+            scale = max(1, int(600 // max(g["cols"], g["rows"])))
+            img = np.repeat(np.repeat(img, scale, 0), scale, 1)
+            path = a.get("path") or os.path.join(session.out_dir, f"{os.path.splitext(scan.name)[0]}-heightmap-{look.replace('+', 'p').replace('-', 'm')}.png")
+            with open(path, "wb") as f:
+                f.write(R.png(img))
+            out["picture"] = {"path": path, "note": "jet: low blue to high red; up in the picture is +" + names[g["va"]]}
+        return out
+
     def scan_info(a):
         st = S.state(session)
         if st["scan"] is None:
@@ -356,5 +433,6 @@ def tools(session):
         Tool("scan_qa", "One call before modelling, to know what the scan will and will not give. Returns rims (the open edges of its holes: count, total length, the longest few with rim number, centre, size and circle where one fits), noise (the median scatter of small plane fits, mm; 0 on a CAD tessellation, with measured: the bends between facets), tessellation where the mesh is an STL exported from CAD (cad, sparse, densifyTo), thickness through the part along axis — given, the alignment's z, or the way most of it faces — (p5, p50, p95; the main faces' tiltDeg, run and faces { topDeg, bottomDeg }) and notes, what looks wrong, plainly. Trap: a scanned skin with no rims, or only pinholes, is a wrap bridging the holes it did not see through. Changes nothing.", obj({"axis": one_of([enum(["x", "y", "z"], "A world axis."), vec3("A direction, any length.")], "The thickness axis.")}), guarded(scan_qa)),
         Tool("scan_draft", "The scan's walls that run near a pull direction — the sides a mould opens along — gathered into patches, each with draftDeg, the angle it leans off the pull: positive where the wall faces partly along the pull, negative where it faces back (a back draft, an undercut); with sigmaDeg, spreadDeg, centroid, box, area (mm²), count, facing, turnDeg and round for a boss's or hole's round side. Needs pull; box, nearDeg (10), patches (12), minArea (1 mm²) and split (a plane no patch reaches across: \"symmetry\", a plane element, \"XY\", \"YZ\", \"XZ\" or { point, normal }) narrow it. Trap: read it early on a moulded or cast part, along each direction the tools open — walls that lean half a degree to a few explain fits that miss by the lean. Changes nothing.", obj({"pull": vec3("The pull direction, any length."), "box": BOX, "nearDeg": num("Degrees off square to the pull a wall may lean and count; 10 by default.", exclusiveMinimum=0, maximum=45), "patches": integer("How many patches, the largest first; 12 by default.", minimum=1, maximum=100), "minArea": num("mm²; 1 by default.", minimum=0), "split": one_of([{"type": ["string", "integer"]}, obj({"point": vec3("A point on the plane."), "normal": vec3("Its normal.")}, ["point", "normal"])], "A plane no patch reaches across.")}, ["pull"]), guarded(scan_draft)),
         Tool("scan_pattern", "Rotational repeats about an axis — a fan's blades, a flange's holes, a wheel's spokes, a gear's teeth — counted from the scan: it is cut square to the axis at each height in at (six spread over the part by default), and each cut (between radius.min and radius.max) is turned against itself. Needs axis: a cylinder, cone, line or circle element, \"X\", \"Y\", \"Z\", or { origin, dir }. Returns per height count, pitchDeg, phaseDeg (from zeroDir), betweenDeg, score (0 to 1; under 0.5 count is 1 and tried says the best), rms, worst, instances (angleDeg, radius, offDeg, rms, worst, share — a copy out of place or worn reads off) and rings (round outlines about the axis: radius, off, towardDeg, rms). Changes nothing.", obj({"axis": one_of([{"type": ["string", "integer"]}, obj({"origin": vec3("A point on the axis."), "dir": vec3("Its direction.")}, ["origin", "dir"])], "The axis the pattern turns about."), "at": arr(num("Height along the axis, mm."), "Heights to cut at.", minItems=1), "radius": obj({"min": num("mm.", minimum=0), "max": num("mm.", exclusiveMinimum=0)}, [], "Only the outline between these radii."), "count": integer("The most copies looked for; 60 by default.", minimum=2, maximum=128), "instances": boolean("Each copy's figures; true by default.")}, ["axis"]), guarded(scan_pattern)),
+        Tool("scan_heightmap", "Where the scan is first met looking along an axis (axis, -z by default: the top surface from above), over a grid of cells: pocket floors, ledges, a step's height, a face's tilt, a pad's tiers in one call. Returns cell, origin [u0, v0], cols, rows, grid (rows of mm from the low v up, null where nothing; grid[r][c] stands at u0 + (c + ½)·cell, v0 + (r + ½)·cell), min, max, hit. levels: true gathers the heights into levels in place of the grid, largest first — the sloped cells (past slopeDeg, 10°) left out first — each holding 5 % of the map or more with its plane { origin, normal } (normal toward the viewer), which align_datum can level on. picture: true writes the map coloured as a PNG. box is in the world. Changes nothing.", obj({"axis": enum(["+x", "-x", "+y", "-y", "+z", "-z"], "The way looked: -z (the default) from above."), "box": BOX, "cell": num("mm.", exclusiveMinimum=0), "grid": boolean("The grid of numbers; the default without levels."), "levels": boolean("The heights gathered into levels."), "gap": num("levels: the least gap between two levels, mm.", exclusiveMinimum=0), "slopeDeg": num("levels: cells steeper than this are left out, degrees.", exclusiveMinimum=0, maximum=80), "picture": boolean("Write the map coloured as a PNG."), "path": {"type": "string"}}), guarded(scan_heightmap)),
         Tool("scan_info", "The scan open: file, units, vertices, triangles, box, centre, area; and how many elements and dimensions are on it. Changes nothing.", obj({}), scan_info),
     ]
