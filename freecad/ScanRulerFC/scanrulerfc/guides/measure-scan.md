@@ -8,7 +8,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 
 ## 0. Setup
 
-- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`, `wear`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
+- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`, `wear`, `catalog`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
 - **`scan_info` before acting and after**: the scan's box says where the part lies; the elements and dimensions what is measured. `session_state` is the FreeCAD document — the scan is not in it.
 - **Every answer is in millimetres**, angles in degrees.
 - **One undo step per change**, as for the document: `history_undo`, `history_checkpoint` / `history_restore`.
@@ -96,6 +96,10 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 - `wear_diff` before `wear_rebuild`: if `note` says the tolerance is under the floor, raise it — what is past a scatter-level tolerance is scatter, not wear.
 - `wear_rebuild` writes an STL; a broken-off piece does not come back — model it from the reference.
 - **Pre-warp loop:** the target as the deviation reference, a scan of its print as the scan, `deviation_align`, `wear_prewarp`. Print what it writes, scan, run again until `stop`. Starting a print is the person's call.
+
+## 7d. A standard part from its sizes
+
+- `catalog_part { dims }` names a screw, nut, washer or bearing from caliper readings (or sizes fitted on the scan): it names one only within 5% and clearly ahead of the next; otherwise it says what to measure. `catalog_links { query }` gives search pages for its CAD with each source's terms; record what comes in with `catalog_provenance`.
 
 ## 8. Report and files
 
