@@ -8,7 +8,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 
 ## 0. Setup
 
-- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
+- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
 - **`scan_info` before acting and after**: the scan's box says where the part lies; the elements and dimensions what is measured. `session_state` is the FreeCAD document — the scan is not in it.
 - **Every answer is in millimetres**, angles in degrees.
 - **One undo step per change**, as for the document: `history_undo`, `history_checkpoint` / `history_restore`.
@@ -79,6 +79,17 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 - `thickness_settings` then `thickness_measure`. `method: "ray"` shoots along the inward normal to the far wall; `"sphere"` takes the largest sphere that fits — the true wall at corners and ribs. `maxThickness` just over the thickest wall expected.
 - Read min, mean and the share under the limit. Thin readings along open rims are rays escaping, not thin walls: check a thin patch with `view_render { map: "thickness", zoom }` and a `section_cut` through it before reporting it.
 
+## 7a. Noise to plan with
+
+- `scan_noise` reads this scan's σ (the median scatter of small plane fits); `scanner { action: "use", name }` names the scanner it came from, with its usual noise. The **noise to plan with** is the larger of the two: a scan is never surer than its scanner. Nothing finer than three times it (`finestMm`) is trustworthy.
+- Scanners are the person's own data, in `scanners.json` with their files: `scanner { action: "export" }` and `"import"` move them between machines. Never invent a scanner's noise: measure it on a flat, matte part and `scanner add` that.
+
+## 7b. Threads
+
+- Fit a cylinder in the bore or on the boss (`element_fit` kind cylinder; a thread's form error is high — that is the teeth), then `scan_thread { axis: { element } }`.
+- `match` high: name it. `match` low: name it as likely. `ambiguous`: give the person `deciding[0]` — the one caliper or gauge reading that settles it — and what each size would read. `none`: worn, printed or non-standard; say so.
+- A noisy scanner ties neighbouring sizes on purpose (the tolerance follows the noise to plan with). On the model, `thread_cut` cuts metric and Unified sizes with FreeCAD's Hole.
+
 ## 8. Report and files
 
 - `report_get` — the frame, every element and dimension with value, limit and verdict. `export_csv` writes the measurements; `deviation_export` a coloured PLY, CSV, NPY or the text report; `mesh_export` the scan as it stands; `view_render { path }` the pictures, the map and its range named beside each.
@@ -98,6 +109,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 | Opposite-sign patches on opposite sides | Misalignment, not the part | `mode: "local"` on the datums, measure again |
 | `far` high | A missing or extra feature, or the part far off | Look at each far patch; check the alignment |
 | Thin readings along rims | Rays escaping at open boundaries | `method: "sphere"`; check with a section |
+| `scan_thread` ambiguous between a metric and an inch size | The scan can't resolve the pitch difference over this length | Ask for `deciding[0]`; a longer cylinder helps |
 | `section_cut` misses the scan | The offset is a coordinate on a coordinate plane | Read the box; give the coordinate |
 | `align_auto` `largestInside` | The largest face is a rib's or pocket's wall | `align_datum` on the face it mates on |
 | A batch answers stopped | Refused at a call, earlier ones rolled back | Fix that call, send the batch again |
