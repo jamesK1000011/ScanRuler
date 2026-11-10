@@ -64,6 +64,12 @@ def sheet(session):
     return ("mm" if p else "px"), unit, f["chains"] or [], None
 
 
+def FC_nice(x):
+    from .dev_field import nice_ceil
+
+    return nice_ceil(x)
+
+
 def to_doc(p, unit):
     return np.array([p[0] * unit["x"], p[1] * unit["y"]])
 
@@ -535,6 +541,86 @@ def tools(session):
         out["alignment"] = {"origin": o, "angleDeg": round(_m.degrees(f["alignment"]["angle"]), 4)}
         return out
 
+    def flat_render(a):
+        from agentlink import render as R
+
+        f = fl_state(session)
+        units, unit, chains, sec = sheet(session)
+        if sec:
+            pts = np.vstack(chains) if chains else np.zeros((1, 2))
+            lo, hi = pts.min(0), pts.max(0)
+        else:
+            img = f["image"]
+            lo, hi = np.zeros(2), np.array([img["width"] * unit["x"], img["height"] * unit["y"]])
+        if a.get("frame"):
+            lo, hi = np.maximum(lo, a["frame"]["min"]), np.minimum(hi, a["frame"]["max"])
+            if not (hi > lo).all():
+                raise ToolError("invalid_input", "frame lies off the sheet.")
+        size = int(a.get("size", 1200))
+        upp = float(max(hi - lo)) / size  # sheet units a pixel
+        W, H = max(1, int((hi[0] - lo[0]) / upp)), max(1, int((hi[1] - lo[1]) / upp))
+        show = set(a.get("show") or ["image", "edges", "elements", "grid"])
+        canvas = np.ones((H, W, 3)) * 0.97
+        if "image" in show and not sec:
+            g = f["image"]["gray"]
+            cols = np.clip(((lo[0] + (np.arange(W) + 0.5) * upp) / unit["x"]).astype(int), 0, g.shape[1] - 1)
+            rows = np.clip(((hi[1] - (np.arange(H) + 0.5) * upp) / unit["y"]).astype(int), 0, g.shape[0] - 1)
+            canvas[:] = (g[rows][:, cols] / 255.0)[..., None] * 0.85 + 0.15
+
+        def plot(P, colour, width=1):
+            P = np.asarray(P, float)
+            if len(P) < 1:
+                return
+            seg = np.concatenate([P[:-1], P[1:]], axis=1) if len(P) > 1 else np.concatenate([P, P], axis=1)
+            L = np.hypot(seg[:, 2] - seg[:, 0], seg[:, 3] - seg[:, 1])
+            k = np.maximum(1, np.ceil(L / (upp / 2)).astype(int))
+            t = np.concatenate([np.linspace(0, 1, n + 1) for n in k])
+            si = np.repeat(np.arange(len(seg)), k + 1)
+            x = seg[si, 0] + (seg[si, 2] - seg[si, 0]) * t
+            y = seg[si, 1] + (seg[si, 3] - seg[si, 1]) * t
+            c = ((x - lo[0]) / upp).astype(int)
+            r = ((hi[1] - y) / upp).astype(int)
+            for dc in range(-(width // 2), width // 2 + 1):
+                for dr in range(-(width // 2), width // 2 + 1):
+                    ok = (c + dc >= 0) & (c + dc < W) & (r + dr >= 0) & (r + dr < H)
+                    canvas[r[ok] + dr, c[ok] + dc] = colour
+
+        if "grid" in show:
+            step = FC_nice(max(hi - lo) / 8)
+            for gx in np.arange(np.ceil(lo[0] / step) * step, hi[0], step):
+                plot([[gx, lo[1]], [gx, hi[1]]], (0.8, 0.82, 0.86))
+            for gy in np.arange(np.ceil(lo[1] / step) * step, hi[1], step):
+                plot([[lo[0], gy], [hi[0], gy]], (0.8, 0.82, 0.86))
+        if "edges" in show:
+            for ch in chains:
+                plot(np.asarray(ch, float) * [unit["x"], unit["y"]], (0.07, 0.71, 0.65))
+        if "elements" in show:
+            for i, e in enumerate(f["elements"]):
+                fit = e.get("fit")
+                if not fit or not e.get("visible", True):
+                    continue
+                col = tuple(int(COLORS[i % len(COLORS)][j:j + 2], 16) / 255 for j in (1, 3, 5))
+                k = fit["kind"]
+                if k == "point":
+                    x, y = fit["at"]
+                    d = 6 * upp
+                    plot([[x - d, y], [x + d, y]], col, 3)
+                    plot([[x, y - d], [x, y + d]], col, 3)
+                elif k == "line":
+                    c0, d0, h0 = np.array(fit["center"]), np.array(fit["dir"]), fit["length"] / 2
+                    plot([c0 - d0 * h0, c0 + d0 * h0], col, 3)
+                elif k in ("circle", "arc"):
+                    st, sw = (0.0, 2 * np.pi) if k == "circle" else (fit["start"], fit["sweep"])
+                    t = st + np.linspace(0, sw, 361)
+                    plot(np.column_stack([fit["center"][0] + fit["radius"] * np.cos(t), fit["center"][1] + fit["radius"] * np.sin(t)]), col, 3)
+        path = a.get("path") or os.path.join(session.out_dir, "sheet.png")
+        with open(path, "wb") as fh:
+            fh.write(R.png(canvas))
+        return {"file": {"path": path, "name": os.path.basename(path)}, "units": units, "width": W, "height": H,
+                "map": {"left": round(float(lo[0]), 4), "top": round(float(hi[1]), 4), "unitsPerPx": round(upp, 6),
+                        "note": "pixel (column c, row r from the top) is the sheet place [left + c·unitsPerPx, top − r·unitsPerPx]"},
+                **({"grid": FC_nice(max(hi - lo) / 8)} if "grid" in show else {})}
+
     kinds = ", ".join(f"{k}: {', '.join(f'{m[0]} ({m[1]})' for m in v)}" for k, v in METHODS.items())
     return [
         Tool("flat_objects", "The separate parts on the flatbed image, parted from the background by a grey level (Otsu's unless threshold is given; dark: whether the parts are darker, read from the border by default) and numbered in reading order — what flat_profile takes by number. Returns each with area, holes, box, centroid, equivalentDiameter, feret (largest and smallest caliper widths and their directions), axisAngleDeg and, with outline: true, its outline. minArea drops specks (sheet units²). Changes nothing on the sheet.",
@@ -563,6 +649,9 @@ def tools(session):
              obj({"elements": {"type": "array", "items": ref}, "dimensions": {"type": "array", "items": ref}, "notes": {"type": "array", "items": {"type": "integer", "minimum": 1}}}), flat_remove),
         Tool("flat_set_alignment", "Put the part's zero point at origin and its X axis through xAxis (sheet places): the report and the exports then read in that frame. clear: true takes it off. Returns the 2D state.",
              obj({"origin": spot, "xAxis": spot, "clear": {"type": "boolean"}}), flat_set_alignment),
+        Tool("flat_render", "A picture of the 2D sheet as a PNG (path, or sheet.png with your files), in its own units — +X right, +Y up — with the image, the edge chains (teal), the elements in their colours and a grid; show picks the layers (image, edges, elements, grid); frame { min, max } zooms in; size the long side in pixels (1200). map says where it lies. Changes nothing.",
+             obj({"frame": obj({"min": spot, "max": spot}, ["min", "max"]), "show": {"type": "array", "items": {"type": "string", "enum": ["image", "edges", "elements", "grid"]}},
+                  "size": {"type": "integer", "minimum": 200, "maximum": 4000}, "path": {"type": "string"}}), flat_render),
         Tool("flat_report", "The 2D report as ScanRuler's Copy button gives it: the image or section, the scale it rests on, every element and dimension. Changes nothing.", obj({}), flat_report),
         Tool("flat_export", "Write the sheet at true scale: dxf (AutoCAD 2000, millimetres declared, y up; edges as LWPOLYLINE thinned to 0.01 mm, fits as LINE/CIRCLE/ARC/POINT, labels as TEXT) or svg (one unit per millimetre, y down). To path, the session's folder by default.",
              obj({"format": {"type": "string", "enum": ["dxf", "svg"]}, "path": {"type": "string", "minLength": 1}}, ["format"]), flat_export),

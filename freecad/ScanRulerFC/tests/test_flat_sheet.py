@@ -57,6 +57,10 @@ class Sheet(unittest.TestCase):
         self.assertEqual(T["flat_export"].fn({"format": "svg"})["elements"], 1)
         out = T["flat_remove"].fn({"elements": ["Edge"], "notes": [1]})
         self.assertEqual(out["invalidDimensions"], ["Gap"])
+        pic = T["flat_render"].fn({"size": 400})
+        with open(pic["file"]["path"], "rb") as fh:
+            self.assertEqual(fh.read(4), b"\x89PNG")
+        self.assertEqual(pic["width"], 400)
         T["flat_set_alignment"].fn({"clear": True})
         self.assertIn("image frame", T["flat_report"].fn({})["text"])
 
