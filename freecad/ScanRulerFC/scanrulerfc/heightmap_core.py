@@ -398,3 +398,60 @@ def sparse_words(hit, g, scan_lo, scan_hi, on_plane, along):
     tail = " A box in world coordinates goes as box: { world: { min, max } }." if on_plane else ""
     return {"hitPct": pct, "min": [r(x) for x in scan_lo], "max": [r(x) for x in scan_hi],
             "note": f"Only {pct} % of the cells met the scan. In this map's frame the scan lies at u {r(scan_lo[0])}…{r(scan_hi[0])}, v {r(scan_lo[1])}…{r(scan_hi[1])}, {third}; the grid spans u {r(g['u0'])}…{r(u1)}, v {r(g['v0'])}…{r(v1)}.{tail}"}
+
+
+# ---- which cells the scan covers, without a ray each ----
+
+
+def covered(V, F, R_, chunk=2_000_000):
+    """Which cells' rays would meet the scan within the grid's height
+    range: each triangle laid flat on the grid and the cell centres inside
+    it marked, the height there checked against the range. Many times
+    quicker than casting the rays when only hit-or-miss is wanted."""
+    g = R_["g"]
+    cols, rows, cell = g["cols"], g["rows"], g["cell"]
+    start, du, dv, ray = (np.asarray(R_[k], float) for k in ("start", "du", "dv", "ray"))
+    rel = np.asarray(V, float) - start
+    u = (rel @ du) / cell - 0.5
+    v = (rel @ dv) / cell - 0.5
+    d = rel @ ray
+    T = np.asarray(F, np.int64)
+    tu, tv, td = u[T], v[T], d[T]
+    far = R_["far"]
+    keep = (td.max(1) >= -1e-6) & (td.min(1) <= far + 1e-6)
+    c0 = np.maximum(np.ceil(tu.min(1)), 0).astype(np.int64)
+    c1 = np.minimum(np.floor(tu.max(1)), cols - 1).astype(np.int64)
+    r0 = np.maximum(np.ceil(tv.min(1)), 0).astype(np.int64)
+    r1 = np.minimum(np.floor(tv.max(1)), rows - 1).astype(np.int64)
+    keep &= (c1 >= c0) & (r1 >= r0)
+    idx = np.nonzero(keep)[0]
+    mask = np.zeros(cols * rows, bool)
+    nc, nr = (c1 - c0 + 1)[idx], (r1 - r0 + 1)[idx]
+    counts = nc * nr
+    bounds = np.concatenate([[0], np.cumsum(counts)])
+    lo = 0
+    while lo < len(idx):
+        hi = int(np.searchsorted(bounds, bounds[lo] + chunk, side="right")) - 1
+        hi = max(hi, lo + 1)
+        sel = idx[lo:hi]
+        cnt = counts[lo:hi]
+        tri = np.repeat(sel, cnt)
+        off = np.arange(cnt.sum()) - np.repeat(bounds[lo:hi] - bounds[lo], cnt)
+        w = np.repeat(nc[lo:hi], cnt)
+        cc = c0[tri] + off % w
+        rr = r0[tri] + off // w
+        a_u, a_v = tu[tri, 0], tv[tri, 0]
+        e1u, e1v = tu[tri, 1] - a_u, tv[tri, 1] - a_v
+        e2u, e2v = tu[tri, 2] - a_u, tv[tri, 2] - a_v
+        den = e1u * e2v - e1v * e2u
+        pu, pv = cc - a_u, rr - a_v
+        with np.errstate(divide="ignore", invalid="ignore"):
+            s = (pu * e2v - pv * e2u) / den
+            t = (e1u * pv - e1v * pu) / den
+        eps = 1e-9
+        ok = (np.abs(den) > 1e-12) & (s >= -eps) & (t >= -eps) & (s + t <= 1 + eps)
+        h = td[tri, 0] + s * (td[tri, 1] - td[tri, 0]) + t * (td[tri, 2] - td[tri, 0])
+        ok &= (h >= -1e-6) & (h <= far + 1e-6)
+        mask[(rr * cols + cc)[ok]] = True
+        lo = hi
+    return mask

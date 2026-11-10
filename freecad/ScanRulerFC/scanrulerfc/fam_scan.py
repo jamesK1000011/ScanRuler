@@ -16,6 +16,7 @@ GROUP = "scan"
 SURFACE_LIMIT = 20000
 DRAFT_LIMIT = 400_000
 PATTERN_HEIGHTS, PATTERN_HEIGHTS_MAX, PATTERN_COUNT = 6, 12, 60
+OUTLINE_TOLERANCE, OUTLINE_CELLS, OUTLINE_LOOPS = 0.2, 250_000, 4
 HEIGHT_CELLS, HEIGHT_SIDE, HEIGHT_CELLS_FINE, HEIGHT_SIDE_FINE, HEIGHT_LEVELS = 1600, 40, 25_600, 160, 12
 INFO = "The 3D scan measured (ScanRuler, ported): open it and read what it holds."
 
@@ -298,28 +299,26 @@ def tools(session):
             out.append(row)
         return {"axis": {**({"name": name} if name else {}), "origin": M.js(origin, 6), "dir": M.js(d, 6), "zeroDir": M.js(zero, 6)}, "heights": out}
 
-    def scan_heightmap(a):
-        import os
+    def HM_cast(surface, R_):
+        from . import heightmap_core as HM
 
+        t, faces, hits = HM.cast(surface, R_["start"] - 1e-3 * R_["ray"], R_["ray"], R_["du"], R_["dv"], R_["g"], R_["far"] + 2e-3)
+        return t - 1e-3, faces, hits
+
+    def ray_grid(a, scan, cell, side, most):
+        """The grid of rays a map is read over: along an axis, or square onto
+        a plane (its frame), over the box asked for or the whole scan."""
         import numpy as np
 
         from . import heightmap_core as HM
         from . import section_core as SC
-        from .dev_surface import NominalSurface
 
         st = S.state(session)
-        scan = M.require_scan(st)
         plane = a.get("plane")
-        of = a.get("of", "height")
-        want_levels = a.get("levels", False)
         if plane is not None and a.get("axis") is not None:
             raise ToolError("invalid_input", "Give axis, or plane — one of them.")
         if a.get("flip") and plane is None:
             raise ToolError("invalid_input", "flip turns a plane over — give plane.")
-        if a.get("smooth") is not None and of != "relief":
-            raise ToolError("invalid_input", 'smooth is the relief\'s — give of: "relief".')
-        if a.get("slopeDeg") is not None and not (want_levels and of == "height"):
-            raise ToolError("invalid_input", 'slopeDeg is for the levels of a height — give levels: true, of: "height".')
         box = a.get("box")
         if box:
             if box.get("world") and (box.get("min") or box.get("max")):
@@ -330,20 +329,6 @@ def tools(session):
             if any(bb["min"][i] > bb["max"][i] for i in range(3)):
                 raise ToolError("invalid_input", "The box's min lies past its max.")
             box = {"min": np.asarray(bb["min"], float), "max": np.asarray(bb["max"], float), "world": bool(box.get("world"))}
-        dev = None
-        if of == "deviation":
-            from . import fam_deviation as FD
-
-            d = FD.dstate(session)
-            readings = FD.map_values(d)
-            if readings is None:
-                raise ToolError("invalid_state", "There is no deviation map to read — deviation_align measures one against the reference part, deviation_set_target one against an element.")
-            if len(readings) != len(scan.V):
-                raise ToolError("internal", f"The map has {len(readings)} readings and the scan {len(scan.V)} vertices.")
-            dev = {"values": np.asarray(readings, float), "search": float(d["maxDistance"]), "source": d["source"], "range": float(d.get("range") or d["maxDistance"])}
-        show_grid = a.get("grid", not want_levels)
-        show_picture = a.get("picture", False) or a.get("grid") is False
-        side, most = (HEIGHT_SIDE, HEIGHT_CELLS) if show_grid else (HEIGHT_SIDE_FINE, HEIGHT_CELLS_FINE)
         V = np.asarray(scan.V, float)
         names = "xyz"
         frame = None
@@ -387,7 +372,7 @@ def tools(session):
                 else:
                     lo, hi = box["min"], box["max"]
             k, sign = 2, -1
-            g = HM.grid_over(lo, hi, 2, a.get("cell"), side, most)
+            g = HM.grid_over(lo, hi, 2, cell, side, most)
             start = frame["origin"] + g["u0"] * frame["u"] + g["v0"] * frame["v"] + hi[2] * frame["normal"]
             ray, du, dv, frm, far = -frame["normal"], frame["u"], frame["v"], float(hi[2]), float(hi[2] - lo[2])
             look = None
@@ -397,7 +382,7 @@ def tools(session):
             sign = 1 if look[0] == "+" else -1
             wlo, whi = V.min(0), V.max(0)
             lo, hi = (box["min"], box["max"]) if box else (wlo, whi)
-            g = HM.grid_over(lo, hi, k, a.get("cell"), side, most)
+            g = HM.grid_over(lo, hi, k, cell, side, most)
             scan_lo = np.array([wlo[g["ua"]], wlo[g["va"]], wlo[k]])
             scan_hi = np.array([whi[g["ua"]], whi[g["va"]], whi[k]])
             frm = float(lo[k] if sign > 0 else hi[k])
@@ -405,12 +390,50 @@ def tools(session):
             start[k], start[g["ua"]], start[g["va"]] = frm, g["u0"], g["v0"]
             ray, du, dv = np.eye(3)[k] * sign, np.eye(3)[g["ua"]], np.eye(3)[g["va"]]
             far = float(hi[k] - lo[k])
+        return {"frame": frame, "g": g, "k": k, "look": look, "sign": sign, "start": start, "ray": ray, "du": du, "dv": dv, "from": frm, "far": far,
+                "scanLo": scan_lo, "scanHi": scan_hi}
+
+    def scan_heightmap(a):
+        import os
+
+        import numpy as np
+
+        from . import heightmap_core as HM
+        from . import section_core as SC
+        from .dev_surface import NominalSurface
+
+        st = S.state(session)
+        scan = M.require_scan(st)
+        plane = a.get("plane")
+        of = a.get("of", "height")
+        want_levels = a.get("levels", False)
+        if a.get("smooth") is not None and of != "relief":
+            raise ToolError("invalid_input", 'smooth is the relief\'s — give of: "relief".')
+        if a.get("slopeDeg") is not None and not (want_levels and of == "height"):
+            raise ToolError("invalid_input", 'slopeDeg is for the levels of a height — give levels: true, of: "height".')
+        dev = None
+        if of == "deviation":
+            from . import fam_deviation as FD
+
+            d = FD.dstate(session)
+            readings = FD.map_values(d)
+            if readings is None:
+                raise ToolError("invalid_state", "There is no deviation map to read — deviation_align measures one against the reference part, deviation_set_target one against an element.")
+            if len(readings) != len(scan.V):
+                raise ToolError("internal", f"The map has {len(readings)} readings and the scan {len(scan.V)} vertices.")
+            dev = {"values": np.asarray(readings, float), "search": float(d["maxDistance"]), "source": d["source"], "range": float(d.get("range") or d["maxDistance"])}
+        show_grid = a.get("grid", not want_levels)
+        show_picture = a.get("picture", False) or a.get("grid") is False
+        side, most = (HEIGHT_SIDE, HEIGHT_CELLS) if show_grid else (HEIGHT_SIDE_FINE, HEIGHT_CELLS_FINE)
+        R_ = ray_grid(a, scan, a.get("cell"), side, most)
+        V = np.asarray(scan.V, float)
+        names = "xyz"
+        frame, g, k, look, sign, start, ray, du, dv, frm, far, scan_lo, scan_hi = (R_[x] for x in ("frame", "g", "k", "look", "sign", "start", "ray", "du", "dv", "from", "far", "scanLo", "scanHi"))
         surf = getattr(scan, "_surface", None)
         if surf is None or surf[0] != scan.version:
             surf = (scan.version, NominalSurface(V, scan.F))
             scan._surface = surf
-        t, faces, hits = HM.cast(surf[1], start - 1e-3 * ray, ray, du, dv, g, far + 2e-3)
-        t = t - 1e-3
+        t, faces, hits = HM_cast(surf[1], R_)
         heights = frm + sign * t
         if dev:
             W, corners = HM.corner_weights(V, np.asarray(scan.F), np.where(np.isfinite(t), faces, -1).astype(np.int64), hits)
@@ -498,6 +521,51 @@ def tools(session):
                 fh.write(R.png(img))
             up = "+v" if frame else "+" + names[g["va"]]
             out["picture"] = {"path": path, "note": f"jet: low blue to high red{' (zero in the middle)' if of != 'height' else ''}; up in the picture is {up}"}
+        return out
+
+    def scan_outline(a):
+        import numpy as np
+
+        from . import heightmap_core as HM
+        from . import outline_core as OC
+
+        st = S.state(session)
+        scan = M.require_scan(st)
+        tolerance = a.get("tolerance", OUTLINE_TOLERANCE)
+        most = a.get("loops", OUTLINE_LOOPS)
+        R_ = ray_grid(a, scan, tolerance / 2, 1, OUTLINE_CELLS)
+        g, frame = R_["g"], R_["frame"]
+        found = OC.mask_loops(HM.covered(scan.V, scan.F, R_), g, (3 * g["cell"]) ** 2)
+        tol = max(tolerance, g["cell"])
+        r3 = lambda x: round(float(x), 3)
+        pt = lambda p: [r3(p[0]), r3(p[1])]
+        names = "xyz"
+        loops = []
+        for l in found[:most]:
+            shape = OC.loop_shape(l["points"], tol, g["cell"])
+            P = l["points"]
+            row = {"hole": l["hole"], "area": round(l["area"], 1), "box": {"min": pt(P.min(0)), "max": pt(P.max(0))}}
+            if shape.get("circle"):
+                c = shape["circle"]
+                row["circle"] = {"center": pt(c["center"]), "radius": r3(c["radius"]), "rms": round(c["rms"], 4)}
+            else:
+                row["points"] = [pt(q) for q in shape["points"]]
+                if shape["rounds"]:
+                    row["rounds"] = [{"at": r["at"], "radius": r3(r["radius"]), "center": pt(r["center"])} for r in shape["rounds"]]
+                if shape["arcs"]:
+                    row["arcs"] = [{"from": r["from"], "radius": r3(r["radius"]), "center": pt(r["center"]), "mid": pt(r["mid"])} for r in shape["arcs"]]
+            row["worst"] = r3(shape["worst"])
+            if shape.get("worstAt") and shape["worst"] > tol:
+                row["worstAt"] = pt(shape["worstAt"])
+            loops.append(row)
+        out = {**({"plane": {k: (M.js(v, 6) if hasattr(v, "__len__") and not isinstance(v, str) else v) for k, v in frame.items() if v is not None and v is not False}, "across": ["u", "v"]}
+                  if frame else {"axis": R_["look"], "across": [names[g["ua"]], names[g["va"]]]}),
+               "cell": g["cell"], "tolerance": round(tol, 4)}
+        if g["widened"]:
+            out["note"] = f"cell widened to {g['cell']} mm to keep {OUTLINE_CELLS} cells at most; the outline is read to {round(tol, 3)} mm — give a box round the part looked for to read it finer"
+        out["loops"] = loops
+        if len(found) > most:
+            out["more"] = len(found) - most
         return out
 
     def scan_cloud(a):
@@ -606,6 +674,7 @@ def tools(session):
         Tool("scan_draft", "The scan's walls that run near a pull direction — the sides a mould opens along — gathered into patches, each with draftDeg, the angle it leans off the pull: positive where the wall faces partly along the pull, negative where it faces back (a back draft, an undercut); with sigmaDeg, spreadDeg, centroid, box, area (mm²), count, facing, turnDeg and round for a boss's or hole's round side. Needs pull; box, nearDeg (10), patches (12), minArea (1 mm²) and split (a plane no patch reaches across: \"symmetry\", a plane element, \"XY\", \"YZ\", \"XZ\" or { point, normal }) narrow it. Trap: read it early on a moulded or cast part, along each direction the tools open — walls that lean half a degree to a few explain fits that miss by the lean. Changes nothing.", obj({"pull": vec3("The pull direction, any length."), "box": BOX, "nearDeg": num("Degrees off square to the pull a wall may lean and count; 10 by default.", exclusiveMinimum=0, maximum=45), "patches": integer("How many patches, the largest first; 12 by default.", minimum=1, maximum=100), "minArea": num("mm²; 1 by default.", minimum=0), "split": one_of([{"type": ["string", "integer"]}, obj({"point": vec3("A point on the plane."), "normal": vec3("Its normal.")}, ["point", "normal"])], "A plane no patch reaches across.")}, ["pull"]), guarded(scan_draft)),
         Tool("scan_pattern", "Rotational repeats about an axis — a fan's blades, a flange's holes, a wheel's spokes, a gear's teeth — counted from the scan: it is cut square to the axis at each height in at (six spread over the part by default), and each cut (between radius.min and radius.max) is turned against itself. Needs axis: a cylinder, cone, line or circle element, \"X\", \"Y\", \"Z\", or { origin, dir }. Returns per height count, pitchDeg, phaseDeg (from zeroDir), betweenDeg, score (0 to 1; under 0.5 count is 1 and tried says the best), rms, worst, instances (angleDeg, radius, offDeg, rms, worst, share — a copy out of place or worn reads off) and rings (round outlines about the axis: radius, off, towardDeg, rms). Changes nothing.", obj({"axis": one_of([{"type": ["string", "integer"]}, obj({"origin": vec3("A point on the axis."), "dir": vec3("Its direction.")}, ["origin", "dir"])], "The axis the pattern turns about."), "at": arr(num("Height along the axis, mm."), "Heights to cut at.", minItems=1), "radius": obj({"min": num("mm.", minimum=0), "max": num("mm.", exclusiveMinimum=0)}, [], "Only the outline between these radii."), "count": integer("The most copies looked for; 60 by default.", minimum=2, maximum=128), "instances": boolean("Each copy's figures; true by default.")}, ["axis"]), guarded(scan_pattern)),
         Tool("scan_heightmap", "Where the scan is first met looking along an axis (axis, -z by default: the top surface from above) or square onto a plane (plane: an element, \"XY\", \"YZ\", \"XZ\", or { origin, normal, u? }), over a grid of cells: pocket floors, ledges, a step's height, a face's tilt, a pad's tiers, an icon on a key in one call. of: height (the default), deviation (the deviation map's reading where each ray lands) or relief (the height less the surface round it, for icons, grooves and lettering; smooth, mm, three cells by default). Returns cell, origin [u0, v0], cols, rows, grid (rows from the low v up, null where nothing; grid[r][c] stands at u0 + (c + ½)·cell, v0 + (r + ½)·cell), min, max, hit, valued; with plane also its frame (a cell's point is origin + u·U + v·V + height·normal). levels: true gathers the values into levels in place of the grid, largest first — of a height, the sloped cells (past slopeDeg, 10°) left out first, each level of 5 % or more with its plane { origin, normal } (normal toward the viewer), which align_datum levels on; a gentle warp that ran levels together is taken out first and said (warp { rise, bow, note }); ramps says where the slopes between tiers lie when they are many. picture: true writes the map coloured as a PNG. Trap: with plane, box is [u, v, height] in the plane's frame (or { world: { min, max } }); scanLies says where the scan lies when few cells meet it. Changes nothing.", obj({"axis": enum(["+x", "-x", "+y", "-y", "+z", "-z"], "The way looked: -z (the default) from above."), "plane": one_of([element_ref('A plane element, or "XY", "YZ", "XZ".'), obj({"origin": vec3("A point on the plane, mm."), "normal": vec3("Its normal: the side looked from."), "u": vec3("A direction for u, flattened into the plane; a sketch's by default.")}, ["origin", "normal"])], "Look square onto this plane instead of along an axis."), "flip": boolean("With plane: look from its other side."), "of": enum(["height", "deviation", "relief"], "height (the default), deviation or relief."), "smooth": num("relief: the smoothing sigma, mm; three cells by default.", exclusiveMinimum=0), "box": {"type": "object", "description": "The part looked at: min and max (with plane [u, v, height]), or world: { min, max }.", "properties": {"min": vec3("Lowest corner."), "max": vec3("Highest corner."), "world": BOX}}, "cell": num("mm.", exclusiveMinimum=0), "grid": boolean("The grid of numbers; the default without levels. false gives the picture alone."), "levels": boolean("The values gathered into levels."), "gap": num("levels: the least gap between two levels, mm.", exclusiveMinimum=0), "slopeDeg": num("levels of a height: cells steeper than this are left out, degrees; 90 keeps every one.", exclusiveMinimum=0, maximum=90), "picture": boolean("Write the map coloured as a PNG."), "path": {"type": "string"}}), guarded(scan_heightmap)),
+        Tool("scan_outline", "The scan's outline seen along an axis, or square onto a plane, read as a sketch would draw it: a flange's plan, a bezel's opening, a gasket's shape — each loop as the fewest lines and arcs that follow it within tolerance (mm, 0.2 by default), a round loop as one circle. axis, plane, flip and box as scan_heightmap takes them, u, v as it lays them. Returns loops, the largest first (4 by default): hole, area (mm²), box, points ([u, v] corners), rounds { at, radius, center }, arcs { from, radius, center, mid } (from points[from] through mid to the next point) or circle { center, radius, rms }, and worst (mm the trace strays from what is drawn, worstAt when past the tolerance). Changes nothing.", obj({"axis": enum(["+x", "-x", "+y", "-y", "+z", "-z"], "The way looked: -z (the default) from above."), "plane": one_of([element_ref('A plane element, or "XY", "YZ", "XZ".'), obj({"origin": vec3("A point on the plane, mm."), "normal": vec3("Its normal: the side looked from."), "u": vec3("A direction for u, flattened into the plane.")}, ["origin", "normal"])], "Look square onto this plane instead of along an axis."), "flip": boolean("With plane: look from its other side."), "box": {"type": "object", "description": "Only the scan inside it: min and max (with plane [u, v, height]), or world: { min, max }.", "properties": {"min": vec3("Lowest corner."), "max": vec3("Highest corner."), "world": BOX}}, "tolerance": num("How closely the sketch follows the outline, mm; 0.2 by default.", exclusiveMinimum=0), "loops": integer("How many loops, the largest first; 4 by default.", minimum=1, maximum=50)}), guarded(scan_outline)),
         Tool("scan_cloud", "The scan as a point cloud: every vertex with its outward normal, in the pose it is measured in now, as binary PLY (the default) or XYZ text (x y z nx ny nz a line). path, or with your files. Changes nothing.", obj({"format": enum(["ply", "xyz"], "ply or xyz."), "path": {"type": "string"}}), guarded(scan_cloud)),
         Tool("scan_info", "The scan open: file, units, vertices, triangles, box, centre, area; and how many elements and dimensions are on it. Changes nothing.", obj({}), scan_info),
     ]
