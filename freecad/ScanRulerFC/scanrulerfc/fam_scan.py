@@ -15,6 +15,7 @@ from .schema import BOX, NORMAL, arr, boolean, enum, guarded, integer, location,
 GROUP = "scan"
 SURFACE_LIMIT = 20000
 DRAFT_LIMIT = 400_000
+PATTERN_HEIGHTS, PATTERN_HEIGHTS_MAX, PATTERN_COUNT = 6, 12, 60
 INFO = "The 3D scan measured (ScanRuler, ported): open it and read what it holds."
 
 
@@ -212,6 +213,67 @@ def tools(session):
                           for p in r["patches"]]
         return out
 
+    def scan_pattern(a):
+        import math
+
+        import numpy as np
+
+        from . import repeat_core as RC
+        from . import section_core as SC
+        from .construct import ref_axis
+
+        st = S.state(session)
+        scan = M.require_scan(st)
+        ax = a["axis"]
+        name = None
+        if isinstance(ax, dict):
+            origin, d = np.asarray(ax["origin"], float), np.asarray(ax["dir"], float)
+        elif isinstance(ax, str) and ax.strip().lower() in ("x", "y", "z") and not any(e["name"].strip().lower() == ax.strip().lower() for e in st["elements"]):
+            origin, d = np.zeros(3), np.eye(3)["xyz".index(ax.strip().lower())]
+            name = ax.strip().upper()
+        else:
+            el = M.find_element(st, ax)
+            line = ref_axis(el["fit"]) if el.get("fit") and el["kind"] in ("cylinder", "cone", "line", "circle") else None
+            if line is None:
+                raise ToolError("invalid_input", f"{el['name']} has no axis — choose a cylinder, cone, line or circle.")
+            origin, d, name = line["origin"], line["dir"], el["name"]
+        if not np.linalg.norm(d) > 1e-9:
+            raise ToolError("invalid_input", "axis.dir: give a direction, not a zero vector.")
+        d = d / np.linalg.norm(d)
+        big = int(np.argmax(np.abs(d)))
+        if d[big] < 0:
+            d = -d
+        origin = origin - (origin @ d) * d  # the world origin's foot on the axis
+        zero = np.cross(d, np.eye(3)[int(np.argmin(np.abs(d)))])
+        zero /= np.linalg.norm(zero)
+        quarter = np.cross(d, zero)
+        heights = a.get("at")
+        if not heights:
+            h = scan.V @ d
+            lo, hi = float(h.min()), float(h.max())
+            heights = [round(lo + (i + 0.5) / PATTERN_HEIGHTS * (hi - lo), 3) for i in range(PATTERN_HEIGHTS)]
+        if len(heights) > PATTERN_HEIGHTS_MAX:
+            raise ToolError("invalid_input", f"at: {PATTERN_HEIGHTS_MAX} heights at most.")
+        rad = a.get("radius") or {}
+        out = []
+        for h in heights:
+            o = origin + h * d
+            P, off, _N = SC.slice_mesh(scan.V, scan.F, o, d, SC.EDGE_MIN_FEATURE_MM)
+            flat = SC.project_cut(P, {"origin": o, "basisU": zero, "basisV": quarter})
+            r = RC.rotational_repeat(SC.chains_of(flat, off), rad.get("min", 0.0), rad.get("max", math.inf), a.get("count", PATTERN_COUNT))
+            rings = [{"radius": round(g["radius"], 3), "off": round(g["off"], 3), "towardDeg": round(g["towardDeg"], 1), "rms": round(g["rms"], 4)} for g in r["rings"]]
+            if r["count"] == 1:
+                out.append({"at": h, "count": 1, "length": round(r["length"], 1), **({"tried": {"count": r["tried"]["count"], "score": round(r["tried"]["score"], 3)}} if r.get("tried") else {}), "rings": rings})
+                continue
+            row = {"at": h, "count": r["count"], "pitchDeg": round(r["pitchDeg"], 4), "phaseDeg": round(r["phaseDeg"], 2),
+                   "betweenDeg": round((r["phaseDeg"] + r["pitchDeg"] / 2) % 360, 2), "score": round(r["score"], 3), "rms": round(r["rms"], 4),
+                   "worst": round(r["worst"], 3), "worstInstance": r["worstInstance"], "length": round(r["length"], 1), "rings": rings}
+            if a.get("instances", True):
+                row["instances"] = [{"angleDeg": round(c["angleDeg"], 2), "offDeg": round(c["offDeg"], 3), "radius": round(c["radius"], 3), "rms": round(c["rms"], 4),
+                                     "worst": round(c["worst"], 3), "share": round(c["share"], 2)} for c in r["instances"]]
+            out.append(row)
+        return {"axis": {**({"name": name} if name else {}), "origin": M.js(origin, 6), "dir": M.js(d, 6), "zeroDir": M.js(zero, 6)}, "heights": out}
+
     def scan_info(a):
         st = S.state(session)
         if st["scan"] is None:
@@ -293,5 +355,6 @@ def tools(session):
         Tool("scan_fit_surface", "A patch of the scan measured as a surface — a sloped side, a twisted ruled face, a dome, a saddle — from vertices or a box (normal keeps those facing a way). Returns the patch's frame (origin, normal, basisU, basisV) and each model as a height over (u, v): plane (a + b·u + c·v), bilinear (+ d·u·v) and quadric (+ d·u² + e·u·v + f·v², with curvature { k1, k2, r1, r2, axis1, axis2, shape }), each with coefficients, rms and worst; model: best (the default) fits every one and names the simplest whose rms is within a tenth of the lowest. Trap: 7 points at least, at most limit (20000) spread evenly. Changes nothing.", obj({"vertices": arr(integer(minimum=0), "The scan vertices of the patch.", minItems=7), "box": BOX, "normal": NORMAL, "model": enum(["plane", "bilinear", "quadric", "best"], "Which surface; best (the default) fits each and names the simplest that holds."), "limit": integer("How many points at most; 20000 by default.", minimum=7, maximum=20000)}), guarded(scan_fit_surface)),
         Tool("scan_qa", "One call before modelling, to know what the scan will and will not give. Returns rims (the open edges of its holes: count, total length, the longest few with rim number, centre, size and circle where one fits), noise (the median scatter of small plane fits, mm; 0 on a CAD tessellation, with measured: the bends between facets), tessellation where the mesh is an STL exported from CAD (cad, sparse, densifyTo), thickness through the part along axis — given, the alignment's z, or the way most of it faces — (p5, p50, p95; the main faces' tiltDeg, run and faces { topDeg, bottomDeg }) and notes, what looks wrong, plainly. Trap: a scanned skin with no rims, or only pinholes, is a wrap bridging the holes it did not see through. Changes nothing.", obj({"axis": one_of([enum(["x", "y", "z"], "A world axis."), vec3("A direction, any length.")], "The thickness axis.")}), guarded(scan_qa)),
         Tool("scan_draft", "The scan's walls that run near a pull direction — the sides a mould opens along — gathered into patches, each with draftDeg, the angle it leans off the pull: positive where the wall faces partly along the pull, negative where it faces back (a back draft, an undercut); with sigmaDeg, spreadDeg, centroid, box, area (mm²), count, facing, turnDeg and round for a boss's or hole's round side. Needs pull; box, nearDeg (10), patches (12), minArea (1 mm²) and split (a plane no patch reaches across: \"symmetry\", a plane element, \"XY\", \"YZ\", \"XZ\" or { point, normal }) narrow it. Trap: read it early on a moulded or cast part, along each direction the tools open — walls that lean half a degree to a few explain fits that miss by the lean. Changes nothing.", obj({"pull": vec3("The pull direction, any length."), "box": BOX, "nearDeg": num("Degrees off square to the pull a wall may lean and count; 10 by default.", exclusiveMinimum=0, maximum=45), "patches": integer("How many patches, the largest first; 12 by default.", minimum=1, maximum=100), "minArea": num("mm²; 1 by default.", minimum=0), "split": one_of([{"type": ["string", "integer"]}, obj({"point": vec3("A point on the plane."), "normal": vec3("Its normal.")}, ["point", "normal"])], "A plane no patch reaches across.")}, ["pull"]), guarded(scan_draft)),
+        Tool("scan_pattern", "Rotational repeats about an axis — a fan's blades, a flange's holes, a wheel's spokes, a gear's teeth — counted from the scan: it is cut square to the axis at each height in at (six spread over the part by default), and each cut (between radius.min and radius.max) is turned against itself. Needs axis: a cylinder, cone, line or circle element, \"X\", \"Y\", \"Z\", or { origin, dir }. Returns per height count, pitchDeg, phaseDeg (from zeroDir), betweenDeg, score (0 to 1; under 0.5 count is 1 and tried says the best), rms, worst, instances (angleDeg, radius, offDeg, rms, worst, share — a copy out of place or worn reads off) and rings (round outlines about the axis: radius, off, towardDeg, rms). Changes nothing.", obj({"axis": one_of([{"type": ["string", "integer"]}, obj({"origin": vec3("A point on the axis."), "dir": vec3("Its direction.")}, ["origin", "dir"])], "The axis the pattern turns about."), "at": arr(num("Height along the axis, mm."), "Heights to cut at.", minItems=1), "radius": obj({"min": num("mm.", minimum=0), "max": num("mm.", exclusiveMinimum=0)}, [], "Only the outline between these radii."), "count": integer("The most copies looked for; 60 by default.", minimum=2, maximum=128), "instances": boolean("Each copy's figures; true by default.")}, ["axis"]), guarded(scan_pattern)),
         Tool("scan_info", "The scan open: file, units, vertices, triangles, box, centre, area; and how many elements and dimensions are on it. Changes nothing.", obj({}), scan_info),
     ]
