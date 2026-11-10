@@ -110,6 +110,30 @@ class Integration(unittest.TestCase):
         both = self.call("view_render", {"objects": [], "layers": ["scan", "reference"], "inline": False, "path": os.path.join(out, "scan_and_reference.png")})
         self.assertEqual(sorted(x["layer"] for x in both["layers"]), ["reference", "scan"])
 
+    def test_guides_and_instructions(self):
+        """The scan guides read through Agent Link's guide_read, and the
+        server says how a session goes."""
+        from agentlink.tools import Session, build_server
+
+        self.server = build_server(Session(out_dir=tempfile.mkdtemp()), lean=True)
+        idx = {g["topic"]: g for g in self.call("guide_read")["guides"]}
+        for t in ("measure-scan", "mesh-tools", "start", "view"):
+            self.assertIn(t, idx)
+        self.assertIn("6. Deviation against a reference", idx["measure-scan"]["sections"])
+        sec = self.call("guide_read", {"topic": "measure-scan", "section": "6. Deviation"})
+        self.assertIn("deviation_hotspots", sec["text"])
+        init = self.server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})["result"]
+        self.assertIn("guide_read", init["instructions"])
+        self.assertIn("headless", init["instructions"])
+        # Every tool a guide names in backticks is a tool here.
+        import re
+
+        names = set(self.server.tools)
+        for topic in ("measure-scan", "mesh-tools"):
+            text = self.call("guide_read", {"topic": topic})["text"]
+            used = {m for m in re.findall(r"`([a-z]+_[a-z_]+)", text) if m.split("_")[0] in {x.split("_")[0] for x in names}}
+            self.assertEqual(sorted(used - names), [], topic)
+
 
 if __name__ == "__main__":
     unittest.main()

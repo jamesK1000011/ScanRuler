@@ -12,3 +12,14 @@ FAMILIES = [importlib.import_module(f"{__package__}.{n}") for n in NAMES]
 from .render_layers import register  # noqa: E402
 
 register()
+
+# The scan guides beside Agent Link's own (guide_read: measure-scan,
+# mesh-tools).
+try:
+    import os as _os
+
+    from agentlink.tools import register_guides as _register_guides
+
+    _register_guides(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "guides"))
+except ImportError:  # an Agent Link without guides from add-ons
+    pass

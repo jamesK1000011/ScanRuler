@@ -97,6 +97,47 @@ jobs:
           path: bakeoff-out/freecad/
           if-no-files-found: warn
 
+  # The FreeCAD the person runs on the Mac is 1.0.x: the tests on that
+  # release as well as on the newest.
+  freecad-1-0:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v5
+      - name: The add-on's branch
+        id: ref
+        run: echo "ref=$(cat scripts/bakeoff/addon-ref 2>/dev/null || echo agent-link)" >> "$GITHUB_OUTPUT"
+      - name: The add-on, from the FreeCAD fork
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/FreeCAD
+          ref: ${{ steps.ref.outputs.ref }}
+          path: freecad-addon
+          sparse-checkout: src/Mod/AgentLink
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: fc10
+          create-args: >-
+            -c conda-forge
+            freecad=1.0.2
+            python=3.11
+            calculix
+            gmsh
+            numpy
+          cache-environment: true
+      - name: FreeCAD imports
+        run: |
+          echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC" >> "$GITHUB_ENV"
+          python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD; print('FreeCAD', FreeCAD.Version()[:3])"
+      - name: Agent Link tests
+        run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests
+      - name: ScanRuler for FreeCAD tests
+        run: python -m unittest discover -s freecad/ScanRulerFC/tests
+
   scanruler:
     needs: freecad
     if: always()
