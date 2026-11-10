@@ -289,6 +289,9 @@ class Tools(unittest.TestCase):
         self.assertLess(h, 22 + 0.45)
         fit = self.ok("section_fit", {"section": "Cutout"})
         kinds = [p["kind"] for p in fit["chains"][0]["pieces"]]
+        if kinds != ["line"] * 4:
+            got = self.ok("section_get", {"section": "Cutout", "limit": 60})
+            print("shadow chain:", json.dumps(got["chains"][0]), json.dumps(fit["chains"][0]))
         self.assertEqual(kinds, ["line"] * 4)
         sk = self.ok("section_to_sketch", {"section": "Cutout", "name": "CutoutSketch"})
         self.assertTrue(sk["wires"][0]["closed"])
