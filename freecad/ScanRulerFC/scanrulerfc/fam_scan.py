@@ -351,6 +351,29 @@ def tools(session):
             out["picture"] = {"path": path, "note": "jet: low blue to high red; up in the picture is +" + names[g["va"]]}
         return out
 
+    def scan_cloud(a):
+        st = S.state(session)
+        scan = M.require_scan(st)
+        g = scan.graph()
+        fmt = a.get("format", "ply")
+        path = a.get("path") or os.path.join(session.out_dir, f"{os.path.splitext(scan.name)[0]}-cloud.{fmt}")
+        if fmt == "xyz":
+            import numpy as np
+
+            np.savetxt(path, np.hstack([g.P, g.N]), fmt="%.5f")
+        else:
+            import numpy as np
+
+            rec = np.zeros(len(g.P), dtype=[("p", "<f4", 3), ("n", "<f4", 3)])
+            rec["p"], rec["n"] = g.P, g.N
+            head = ("ply\nformat binary_little_endian 1.0\ncomment ScanRuler for FreeCAD\n"
+                    f"element vertex {len(g.P)}\nproperty float x\nproperty float y\nproperty float z\nproperty float nx\nproperty float ny\nproperty float nz\nend_header\n")
+            with open(path, "wb") as f:
+                f.write(head.encode())
+                f.write(rec.tobytes())
+        return {"file": {"path": path, "name": os.path.basename(path), "bytes": os.path.getsize(path)}, "points": int(len(g.P)), "format": fmt,
+                "note": "Every vertex with its outward normal, mm, in the pose the scan is measured in now."}
+
     def scan_info(a):
         st = S.state(session)
         if st["scan"] is None:
@@ -434,5 +457,6 @@ def tools(session):
         Tool("scan_draft", "The scan's walls that run near a pull direction — the sides a mould opens along — gathered into patches, each with draftDeg, the angle it leans off the pull: positive where the wall faces partly along the pull, negative where it faces back (a back draft, an undercut); with sigmaDeg, spreadDeg, centroid, box, area (mm²), count, facing, turnDeg and round for a boss's or hole's round side. Needs pull; box, nearDeg (10), patches (12), minArea (1 mm²) and split (a plane no patch reaches across: \"symmetry\", a plane element, \"XY\", \"YZ\", \"XZ\" or { point, normal }) narrow it. Trap: read it early on a moulded or cast part, along each direction the tools open — walls that lean half a degree to a few explain fits that miss by the lean. Changes nothing.", obj({"pull": vec3("The pull direction, any length."), "box": BOX, "nearDeg": num("Degrees off square to the pull a wall may lean and count; 10 by default.", exclusiveMinimum=0, maximum=45), "patches": integer("How many patches, the largest first; 12 by default.", minimum=1, maximum=100), "minArea": num("mm²; 1 by default.", minimum=0), "split": one_of([{"type": ["string", "integer"]}, obj({"point": vec3("A point on the plane."), "normal": vec3("Its normal.")}, ["point", "normal"])], "A plane no patch reaches across.")}, ["pull"]), guarded(scan_draft)),
         Tool("scan_pattern", "Rotational repeats about an axis — a fan's blades, a flange's holes, a wheel's spokes, a gear's teeth — counted from the scan: it is cut square to the axis at each height in at (six spread over the part by default), and each cut (between radius.min and radius.max) is turned against itself. Needs axis: a cylinder, cone, line or circle element, \"X\", \"Y\", \"Z\", or { origin, dir }. Returns per height count, pitchDeg, phaseDeg (from zeroDir), betweenDeg, score (0 to 1; under 0.5 count is 1 and tried says the best), rms, worst, instances (angleDeg, radius, offDeg, rms, worst, share — a copy out of place or worn reads off) and rings (round outlines about the axis: radius, off, towardDeg, rms). Changes nothing.", obj({"axis": one_of([{"type": ["string", "integer"]}, obj({"origin": vec3("A point on the axis."), "dir": vec3("Its direction.")}, ["origin", "dir"])], "The axis the pattern turns about."), "at": arr(num("Height along the axis, mm."), "Heights to cut at.", minItems=1), "radius": obj({"min": num("mm.", minimum=0), "max": num("mm.", exclusiveMinimum=0)}, [], "Only the outline between these radii."), "count": integer("The most copies looked for; 60 by default.", minimum=2, maximum=128), "instances": boolean("Each copy's figures; true by default.")}, ["axis"]), guarded(scan_pattern)),
         Tool("scan_heightmap", "Where the scan is first met looking along an axis (axis, -z by default: the top surface from above), over a grid of cells: pocket floors, ledges, a step's height, a face's tilt, a pad's tiers in one call. Returns cell, origin [u0, v0], cols, rows, grid (rows of mm from the low v up, null where nothing; grid[r][c] stands at u0 + (c + ½)·cell, v0 + (r + ½)·cell), min, max, hit. levels: true gathers the heights into levels in place of the grid, largest first — the sloped cells (past slopeDeg, 10°) left out first — each holding 5 % of the map or more with its plane { origin, normal } (normal toward the viewer), which align_datum can level on. picture: true writes the map coloured as a PNG. box is in the world. Changes nothing.", obj({"axis": enum(["+x", "-x", "+y", "-y", "+z", "-z"], "The way looked: -z (the default) from above."), "box": BOX, "cell": num("mm.", exclusiveMinimum=0), "grid": boolean("The grid of numbers; the default without levels."), "levels": boolean("The heights gathered into levels."), "gap": num("levels: the least gap between two levels, mm.", exclusiveMinimum=0), "slopeDeg": num("levels: cells steeper than this are left out, degrees.", exclusiveMinimum=0, maximum=80), "picture": boolean("Write the map coloured as a PNG."), "path": {"type": "string"}}), guarded(scan_heightmap)),
+        Tool("scan_cloud", "The scan as a point cloud: every vertex with its outward normal, in the pose it is measured in now, as binary PLY (the default) or XYZ text (x y z nx ny nz a line). path, or with your files. Changes nothing.", obj({"format": enum(["ply", "xyz"], "ply or xyz."), "path": {"type": "string"}}), guarded(scan_cloud)),
         Tool("scan_info", "The scan open: file, units, vertices, triangles, box, centre, area; and how many elements and dimensions are on it. Changes nothing.", obj({}), scan_info),
     ]

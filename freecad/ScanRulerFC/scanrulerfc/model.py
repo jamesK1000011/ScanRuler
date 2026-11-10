@@ -475,6 +475,29 @@ def element_rename(st, ref, name):
     return {"element": describe_element(el)}
 
 
+def element_unlink(st, ref):
+    """Freeze a constructed element where it stands: its sources give way
+    to coordinates of its own (element.unlink)."""
+    el = find_element(st, ref)
+    src, f = el["source"], el.get("fit") or {}
+    if src.get("type") != "constructed" or not src.get("refs"):
+        raise Refusal("invalid_input", f"{el['name']} is not built from other elements — there is nothing to unlink.")
+    k = el["kind"]
+    c = [float(x) for x in f["center"]]
+    if k == "point":
+        method, params = "point-coords", c
+    elif k == "line":
+        method, params = "line-coords", [float(x) for x in f["dir"]] + c + [float(f.get("length", 0.0))]
+    elif k == "plane":
+        method, params = "plane-coords", [float(x) for x in f["normal"]] + c
+    elif k == "circle":
+        method, params = "circle-coords", [2 * float(f["radius"])] + [float(x) for x in f["normal"]] + c
+    else:
+        raise Refusal("invalid_input", f"A constructed {k} has no coordinates form to stand on: it stays linked.")
+    el["source"] = {"type": "constructed", "method": method, "refs": [], "params": params}
+    return {"element": describe_element(el)}
+
+
 def element_remove(st, ref):
     el = find_element(st, ref)
     gone = {el["id"]}
