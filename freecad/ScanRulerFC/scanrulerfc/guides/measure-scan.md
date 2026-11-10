@@ -8,7 +8,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 
 ## 0. Setup
 
-- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
+- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`, `wear`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
 - **`scan_info` before acting and after**: the scan's box says where the part lies; the elements and dimensions what is measured. `session_state` is the FreeCAD document — the scan is not in it.
 - **Every answer is in millimetres**, angles in degrees.
 - **One undo step per change**, as for the document: `history_undo`, `history_checkpoint` / `history_restore`.
@@ -89,6 +89,13 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 - Fit a cylinder in the bore or on the boss (`element_fit` kind cylinder; a thread's form error is high — that is the teeth), then `scan_thread { axis: { element } }`.
 - `match` high: name it. `match` low: name it as likely. `ambiguous`: give the person `deciding[0]` — the one caliper or gauge reading that settles it — and what each size would read. `none`: worn, printed or non-standard; say so.
 - A noisy scanner ties neighbouring sizes on purpose (the tolerance follows the noise to plan with). On the model, `thread_cut` cuts metric and Unified sizes with FreeCAD's Hole.
+
+## 7c. Wear repair and pre-warp
+
+- **What it should be:** its own other half (`align_symmetry`, then `wear_setup { reference: { source: "mirror", plane } }`) or the CAD or a twin aligned in deviation (`{ source: "deviation" }`). Tag the worn regions, and `keep` what must not move (a fit face, a feature meant to differ).
+- `wear_diff` before `wear_rebuild`: if `note` says the tolerance is under the floor, raise it — what is past a scatter-level tolerance is scatter, not wear.
+- `wear_rebuild` writes an STL; a broken-off piece does not come back — model it from the reference.
+- **Pre-warp loop:** the target as the deviation reference, a scan of its print as the scan, `deviation_align`, `wear_prewarp`. Print what it writes, scan, run again until `stop`. Starting a print is the person's call.
 
 ## 8. Report and files
 
