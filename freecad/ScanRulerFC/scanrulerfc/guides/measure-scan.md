@@ -8,7 +8,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 
 ## 0. Setup
 
-- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`, `wear`, `catalog`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
+- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`, `wear`, `catalog`, `manual`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
 - **`scan_info` before acting and after**: the scan's box says where the part lies; the elements and dimensions what is measured. `session_state` is the FreeCAD document — the scan is not in it.
 - **Every answer is in millimetres**, angles in degrees.
 - **One undo step per change**, as for the document: `history_undo`, `history_checkpoint` / `history_restore`.
@@ -100,6 +100,11 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 ## 7d. A standard part from its sizes
 
 - `catalog_part { dims }` names a screw, nut, washer or bearing from caliper readings (or sizes fitted on the scan): it names one only within 5% and clearly ahead of the next; otherwise it says what to measure. `catalog_links { query }` gives search pages for its CAD with each source's terms; record what comes in with `catalog_provenance`.
+
+## 7e. Assembly instructions
+
+- Model the parts where they sit assembled. `manual_plan { fromBodies: true, steps }`: each step places parts with the way they move in (`move`, toward their place). `manual_check` sweeps each one in against what is already there and lints the words; fix every `blockedShortBy` (another way in, or another order) before `manual_render` writes the HTML.
+- The plan is data: `manual_plan { export }` and `{ import }` move it between projects.
 
 ## 8. Report and files
 
