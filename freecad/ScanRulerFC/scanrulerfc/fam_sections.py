@@ -226,7 +226,8 @@ def shadow_section(scan, frame, tolerance, play):
     if not tolerance > 0:
         raise ToolError("invalid_input", "tolerance: mm, over 0 (0.1 by default).")
     loops, cell = SH.shadow_loops(scan.V, scan.F, frame, tolerance)
-    by = play + tolerance
+    # The simplification may cut a cell inside the traced loop: it goes back out.
+    by = play + tolerance + cell
     pts, offsets, normals, areas = [], [0], [], []
     for lp in loops:
         if abs(SH.area(lp)) < (4 * cell) ** 2:

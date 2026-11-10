@@ -8,10 +8,11 @@
 # mask (a cell is set when its centre lies inside a projected triangle; a
 # triangle seen edge-on sets nothing). Holes inside the shadow are filled,
 # and the boundary between set and unset cells is traced into closed loops
-# (counter-clockwise, outside to the right). A traced loop lies within a
-# cell's diagonal of the true silhouette; fam_sections offsets it outwards by
-# the play and the tolerance with FreeCAD's exact 2D offset, so what is kept
-# is never inside the part. Plain numpy, no FreeCAD.
+# (counter-clockwise, outside to the right), then simplified by a cell
+# (the raster's steps and the scan's noise out, the corners kept). A loop
+# lies within a cell's diagonal plus a cell of the true silhouette;
+# fam_sections offsets it outwards by the play, the tolerance and a cell
+# with FreeCAD's exact 2D offset, so what is kept is never inside the part. Plain numpy, no FreeCAD.
 
 import math
 
@@ -173,6 +174,44 @@ def _merge(loop):
     return keep
 
 
+def _rdp(P, eps):
+    """Douglas–Peucker on an open run: the points that stand more than eps
+    off the line between the kept ones."""
+    if len(P) < 3:
+        return P
+    a, b = P[0], P[-1]
+    d = b - a
+    L = math.hypot(d[0], d[1])
+    if L < 1e-12:
+        dist = np.hypot(P[:, 0] - a[0], P[:, 1] - a[1])
+    else:
+        dist = np.abs(d[0] * (P[:, 1] - a[1]) - d[1] * (P[:, 0] - a[0])) / L
+    k = int(np.argmax(dist))
+    if dist[k] <= eps:
+        return np.array([a, b])
+    left = _rdp(P[:k + 1], eps)
+    right = _rdp(P[k:], eps)
+    return np.vstack([left[:-1], right])
+
+
+def simplify(P, eps):
+    """A closed loop with the steps of the raster and the scan's noise under
+    eps taken out: Douglas–Peucker from its two farthest-apart points. A
+    point taken out lies within eps of what is kept, either side."""
+    P = np.asarray(P, dtype=float)
+    if len(P) <= 4:
+        return P
+    i = 0
+    j = int(np.argmax(np.hypot(P[:, 0] - P[0, 0], P[:, 1] - P[0, 1])))
+    i = int(np.argmax(np.hypot(P[:, 0] - P[j, 0], P[:, 1] - P[j, 1])))
+    R = np.roll(P, -i, axis=0)
+    j = (j - i) % len(P)
+    one = _rdp(np.vstack([R[:j + 1]]), eps)
+    two = _rdp(np.vstack([R[j:], R[:1]]), eps)
+    out = np.vstack([one[:-1], two[:-1]])
+    return out if len(out) >= 3 else P
+
+
 def area(P):
     x, y = P[:, 0], P[:, 1]
     return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
@@ -185,6 +224,6 @@ def shadow_loops(V, F, frame, tolerance=0.1):
     cell = cell_for(uv, tolerance)
     mask, u0, v0 = rasterise(uv, F, cell)
     mask = fill_holes(mask)
-    loops = [p for p in trace(mask, u0, v0, cell) if area(p) > 0]
+    loops = [simplify(p, cell * 1.01) for p in trace(mask, u0, v0, cell) if area(p) > 0]
     loops.sort(key=lambda p: -abs(area(p)))
     return loops, cell
