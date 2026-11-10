@@ -25,7 +25,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 
 - `scan_qa` once before modelling: open rims (holes the scan did not close, circles where they fit), noise, a CAD tessellation told from a scan, and the thickness along an axis with the main faces' trend (a taper or a merge error called out).
 - A moulded or cast part: `scan_draft { pull }` along each way the tools open, early — walls that lean half a degree to a few explain fits that miss by the lean. `split: "symmetry"` keeps a handed part's halves apart.
-- A sloped or curved patch: `scan_fit_surface { box, normal }` names the simplest of plane, bilinear and quadric, with curvature radii. The outline seen along an axis: `section_cut { kind: "shadow" }`, then `section_fit`. Tiers, pockets and ledges: `scan_heightmap { levels: true }`. Blades, spokes, a bolt circle: `scan_pattern { axis }` counts them and finds the one out of place.
+- A sloped or curved patch: `scan_fit_surface { box, normal }` names the simplest of plane, bilinear and quadric, with curvature radii. The outline seen along an axis: `section_cut { kind: "shadow" }`, then `section_fit`. Tiers, pockets and ledges: `scan_heightmap { levels: true }` (a gentle warp is taken out first and said); square onto a fitted face, `plane: <element>`; an icon or lettering on a curved face, `of: "relief"`; the deviation map laid flat, `of: "deviation"`. Blades, spokes, a bolt circle: `scan_pattern { axis }` counts them and finds the one out of place.
 
 ## 2. Datums and alignment
 
