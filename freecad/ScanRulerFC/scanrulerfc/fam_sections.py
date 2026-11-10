@@ -216,7 +216,7 @@ def cut_section(scan, frame):
 def shadow_section(scan, frame, tolerance, play):
     """A shadow's loops as a section: (points, offsets, normals, what it is),
     each traced loop offset outwards by play + tolerance with FreeCAD's
-    exact 2D offset (round outside corners) and read at a quarter of the
+    exact 2D offset (corners kept sharp) and read at a quarter of the
     tolerance."""
     import FreeCAD
     import Part
@@ -236,7 +236,9 @@ def shadow_section(scan, frame, tolerance, play):
         face = Part.Face(w)
         if abs(by) > 1e-9:
             try:
-                face = face.makeOffset2D(by, 0, False, False, False)
+                # Sharp joins, as ScanRuler keeps a corner turning more than
+                # its smoothing angle: a box's shadow is four lines.
+                face = face.makeOffset2D(by, 2, False, False, False)
             except Exception as e:
                 raise ToolError("failed", f"The shadow could not be offset {by:g} mm: {e} — a smaller play.")
         for f in (face.Faces or [face]):

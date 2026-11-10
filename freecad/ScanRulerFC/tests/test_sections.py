@@ -274,8 +274,8 @@ class Tools(unittest.TestCase):
 
     def test_box_shadow_with_play(self):
         # The box seen from above with 1 mm of play: never inside it, between
-        # the play and the play plus twice the tolerance outside; round
-        # corners from the offset; a sketch that pads.
+        # the play and the play plus twice the tolerance outside; its four
+        # sides as four lines; a sketch that pads.
         self.ok("scan_open", {"path": self.box, "discard": True})
         r = self.ok("section_cut", {"across": "XY", "kind": "shadow", "play": 1.0, "name": "Cutout"})
         print("\nshadow:", json.dumps(r))
@@ -289,8 +289,7 @@ class Tools(unittest.TestCase):
         self.assertLess(h, 22 + 0.45)
         fit = self.ok("section_fit", {"section": "Cutout"})
         kinds = [p["kind"] for p in fit["chains"][0]["pieces"]]
-        self.assertEqual(kinds.count("line"), 4, kinds)
-        self.assertEqual(kinds.count("arc"), 4, kinds)
+        self.assertEqual(kinds, ["line"] * 4)
         sk = self.ok("section_to_sketch", {"section": "Cutout", "name": "CutoutSketch"})
         self.assertTrue(sk["wires"][0]["closed"])
         self.ok("pd_pad", {"body": sk["body"], "sketch": sk["sketch"], "length": 5})
