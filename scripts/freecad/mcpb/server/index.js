@@ -165,6 +165,8 @@ async function update() {
     fs.renameSync(stage, dir)
     fs.mkdirSync(path.dirname(LAUNCHER), { recursive: true })
     fs.writeFileSync(LAUNCHER, launcher)
+    // CommonJS whatever a package.json further up says, or require fails.
+    fs.writeFileSync(path.join(path.dirname(LAUNCHER), 'package.json'), '{"type": "commonjs"}\n')
     fs.writeFileSync(stateFile, JSON.stringify({ version, at: new Date().toISOString() }))
     log(`fetched the add-ons from GitHub (${version})`)
     return { dir, version }
