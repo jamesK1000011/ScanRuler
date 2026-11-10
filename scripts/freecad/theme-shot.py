@@ -54,7 +54,13 @@ Gui.getMainWindow().resize(1440, 900)
 
 
 def grab():
+    from PySide import QtWidgets
+
     try:
+        # The Start page and its first-run welcome would hide the part.
+        for sw in Gui.getMainWindow().findChild(QtWidgets.QMdiArea).subWindowList():
+            if sw.windowTitle().startswith("Start"):
+                sw.close()
         Gui.SendMsgToActiveView("ViewFit")
         Gui.ActiveDocument.ActiveView.viewIsometric()
         Gui.Selection.addSelection(doc.Name, box.Name)
