@@ -14,6 +14,7 @@ from .schema import BOX, NORMAL, arr, boolean, enum, guarded, integer, location,
 
 GROUP = "scan"
 SURFACE_LIMIT = 20000
+DRAFT_LIMIT = 400_000
 INFO = "The 3D scan measured (ScanRuler, ported): open it and read what it holds."
 
 
@@ -154,6 +155,63 @@ def tools(session):
         out["notes"] = notes
         return out
 
+    def scan_draft(a):
+        import numpy as np
+
+        from . import draft_core as DC
+
+        st = S.state(session)
+        scan = M.require_scan(st)
+        pull = a["pull"]
+        if not np.linalg.norm(pull) > 0:
+            raise ToolError("invalid_input", "pull: give a direction, not a zero vector.")
+        g = scan.graph()
+        idx = np.arange(len(g.P))
+        if a.get("box"):
+            idx, _k, _s = M.query(scan, a["box"], None, None, len(g.P))
+            idx = np.asarray(idx, dtype=np.int64)
+        if len(idx) > DRAFT_LIMIT:
+            idx = idx[:: len(idx) // DRAFT_LIMIT + 1]
+        if len(idx) < 3:
+            raise ToolError("invalid_input", "Too few scan points lie there to read a wall off.")
+        split = None
+        sp = a.get("split")
+        if sp is not None:
+            if isinstance(sp, dict):
+                split = {"point": sp["point"], "normal": sp["normal"], "from": "the plane given"}
+            elif str(sp).strip().lower() == "symmetry":
+                el = next((e for e in reversed(st["elements"]) if e["kind"] == "plane" and e["source"].get("method") == "plane-symmetry"), None)
+                if el:
+                    split = {"point": el["fit"]["center"], "normal": el["fit"]["normal"], "from": el["name"]}
+                else:
+                    from .symmetry import accepted, find_symmetry
+
+                    r = find_symmetry(scan)
+                    if not r or not accepted(r):
+                        raise ToolError("failed", "The scan has no mirror plane that holds — give split a plane instead.")
+                    split = {"point": list(r["point"]), "normal": list(r["normal"]), "from": "the scan's mirror plane", "rms": r.get("rms")}
+            elif str(sp).upper() in ("XY", "YZ", "XZ"):
+                split = {"point": [0, 0, 0], "normal": {"XY": [0, 0, 1], "YZ": [1, 0, 0], "XZ": [0, 1, 0]}[str(sp).upper()], "from": str(sp).upper()}
+            else:
+                el = M.find_element(st, sp)
+                if el["kind"] != "plane":
+                    raise ToolError("invalid_input", f"split: {el['name']} is a {el['kind']} — a plane element, \"XY\", \"YZ\", \"XZ\", \"symmetry\" or {{ point, normal }}.")
+                split = {"point": el["fit"]["center"], "normal": el["fit"]["normal"], "from": el["name"]}
+        r = DC.draft_patches(g.P[idx], g.N[idx], pull, a.get("nearDeg", 10), a.get("patches", 12), a.get("minArea", 1.0),
+                             {"point": split["point"], "normal": split["normal"]} if split else None)
+
+        def v3(x):
+            return M.js(x, 3)
+
+        out = {"pull": v3(r["pull"]), "nearDeg": r["nearDeg"], "points": r["points"], "walls": r["walls"], "found": r["found"]}
+        if split:
+            out["split"] = {"point": v3(r["split"]["point"]), "normal": v3(r["split"]["normal"]), "from": split["from"]}
+        out["patches"] = [{"draftDeg": round(p["draftDeg"], 3), "sigmaDeg": round(p["sigmaDeg"], 3), "spreadDeg": round(p["spreadDeg"], 2), "area": round(p["area"], 1),
+                           "count": p["count"], "centroid": v3(p["centroid"]), "box": {"min": v3(p["min"]), "max": v3(p["max"])}, "facing": v3(p["facing"]),
+                           "turnDeg": round(p["turnDeg"], 1), **({"round": True} if p.get("round") else {}), **({"side": p["side"]} if p.get("side") else {})}
+                          for p in r["patches"]]
+        return out
+
     def scan_info(a):
         st = S.state(session)
         if st["scan"] is None:
@@ -234,5 +292,6 @@ def tools(session):
         Tool("scan_segment", "The scan's planar regions, found all at once: grown from the flattest places outward within maxDeg (15°) and maxRms (0.05 mm), those smaller than minArea given back. Returns found, considered, claimed and the regions, largest first, at most limit (20): id, normal, point, sigma, area (mm²), box, vertices, neighbours { id, deg }. mark: a region's id, or several, leaves their points marked for element_fit_marked { marked: true }. Changes nothing.", obj({"kind": enum(["plane"], "What to find; plane, the default and for now the only one."), "box": BOX, "minArea": num("mm²; by default a square 2 % of the scan's diagonal on a side.", minimum=0), "maxRms": num("mm; 0.05 by default.", exclusiveMinimum=0), "maxDeg": num("Degrees; 15 by default.", exclusiveMinimum=0, maximum=60), "limit": integer("How many regions are listed; 20 by default.", minimum=1, maximum=200), "mark": one_of([integer("A region's id.", minimum=1), arr(integer(minimum=1), "Several regions' ids.", minItems=1)], "Leave this region's points marked, or several regions'."), "list": boolean("With mark: the list of regions too.")}), guarded(scan_segment)),
         Tool("scan_fit_surface", "A patch of the scan measured as a surface — a sloped side, a twisted ruled face, a dome, a saddle — from vertices or a box (normal keeps those facing a way). Returns the patch's frame (origin, normal, basisU, basisV) and each model as a height over (u, v): plane (a + b·u + c·v), bilinear (+ d·u·v) and quadric (+ d·u² + e·u·v + f·v², with curvature { k1, k2, r1, r2, axis1, axis2, shape }), each with coefficients, rms and worst; model: best (the default) fits every one and names the simplest whose rms is within a tenth of the lowest. Trap: 7 points at least, at most limit (20000) spread evenly. Changes nothing.", obj({"vertices": arr(integer(minimum=0), "The scan vertices of the patch.", minItems=7), "box": BOX, "normal": NORMAL, "model": enum(["plane", "bilinear", "quadric", "best"], "Which surface; best (the default) fits each and names the simplest that holds."), "limit": integer("How many points at most; 20000 by default.", minimum=7, maximum=20000)}), guarded(scan_fit_surface)),
         Tool("scan_qa", "One call before modelling, to know what the scan will and will not give. Returns rims (the open edges of its holes: count, total length, the longest few with rim number, centre, size and circle where one fits), noise (the median scatter of small plane fits, mm; 0 on a CAD tessellation, with measured: the bends between facets), tessellation where the mesh is an STL exported from CAD (cad, sparse, densifyTo), thickness through the part along axis — given, the alignment's z, or the way most of it faces — (p5, p50, p95; the main faces' tiltDeg, run and faces { topDeg, bottomDeg }) and notes, what looks wrong, plainly. Trap: a scanned skin with no rims, or only pinholes, is a wrap bridging the holes it did not see through. Changes nothing.", obj({"axis": one_of([enum(["x", "y", "z"], "A world axis."), vec3("A direction, any length.")], "The thickness axis.")}), guarded(scan_qa)),
+        Tool("scan_draft", "The scan's walls that run near a pull direction — the sides a mould opens along — gathered into patches, each with draftDeg, the angle it leans off the pull: positive where the wall faces partly along the pull, negative where it faces back (a back draft, an undercut); with sigmaDeg, spreadDeg, centroid, box, area (mm²), count, facing, turnDeg and round for a boss's or hole's round side. Needs pull; box, nearDeg (10), patches (12), minArea (1 mm²) and split (a plane no patch reaches across: \"symmetry\", a plane element, \"XY\", \"YZ\", \"XZ\" or { point, normal }) narrow it. Trap: read it early on a moulded or cast part, along each direction the tools open — walls that lean half a degree to a few explain fits that miss by the lean. Changes nothing.", obj({"pull": vec3("The pull direction, any length."), "box": BOX, "nearDeg": num("Degrees off square to the pull a wall may lean and count; 10 by default.", exclusiveMinimum=0, maximum=45), "patches": integer("How many patches, the largest first; 12 by default.", minimum=1, maximum=100), "minArea": num("mm²; 1 by default.", minimum=0), "split": one_of([{"type": ["string", "integer"]}, obj({"point": vec3("A point on the plane."), "normal": vec3("Its normal.")}, ["point", "normal"])], "A plane no patch reaches across.")}, ["pull"]), guarded(scan_draft)),
         Tool("scan_info", "The scan open: file, units, vertices, triangles, box, centre, area; and how many elements and dimensions are on it. Changes nothing.", obj({}), scan_info),
     ]

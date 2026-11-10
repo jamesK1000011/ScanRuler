@@ -23,6 +23,10 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 - **Measure the noise floor.** `element_fit { kind: "plane" }` on the largest face that is clearly one flat surface; its form error (RMS) is σ_scan. Fit a cylinder in the best bore as well. **Nothing measured on this scan is trustworthy finer than about 3 σ_scan.** It goes in the report.
 - **Decide the tolerance** you judge against: the drawing's if the person has one, otherwise ask, otherwise a process value — machined 0.02–0.05 mm, moulded 0.05–0.1, cast, forged or printed 0.3–0.5. A tolerance under 3 σ_scan: say the scan cannot decide it, before measuring.
 
+- `scan_qa` once before modelling: open rims (holes the scan did not close, circles where they fit), noise, a CAD tessellation told from a scan, and the thickness along an axis with the main faces' trend (a taper or a merge error called out).
+- A moulded or cast part: `scan_draft { pull }` along each way the tools open, early — walls that lean half a degree to a few explain fits that miss by the lean. `split: "symmetry"` keeps a handed part's halves apart.
+- A sloped or curved patch: `scan_fit_surface { box, normal }` names the simplest of plane, bilinear and quadric, with curvature radii. The outline seen along an axis: `section_cut { kind: "shadow" }`, then `section_fit`.
+
 ## 2. Datums and alignment
 
 - **Coarse first:** `align_auto` reads a frame off the scan — the directions its faces are square to, the axis round walls run along — and stands the part on its base, long side along X. Read its `note` and `square` (how square the faces came out); `largestInside` means the largest flat face looks into the part (a rib's wall), not a face it mates on.
