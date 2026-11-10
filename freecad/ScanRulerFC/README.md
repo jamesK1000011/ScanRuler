@@ -48,6 +48,12 @@ error (an open scan reads `unsure` there instead).
   `flat_report`, `flat_export` (DXF, SVG). The sheet is an image or the
   section cut last.
 
+- **Into the document** (`scan-cad`): `element_to_document` puts the fitted
+  planes, cylinders, cones, spheres and tori into the FreeCAD document as
+  Part geometry (solids or surfaces), lines, circles and points as reference
+  edges and vertices, and can write them as STEP — ScanRuler's `files.step`,
+  where PartDesign can take them as references.
+
 ### ScanRuler's plugins
 
 - **Scanner noise** (`scan-noise`): `scan_noise` (this scan's noise, as the

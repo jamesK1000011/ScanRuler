@@ -86,6 +86,20 @@ class Measure(unittest.TestCase):
         err, o = self.call("element_fit", {"kind": "point", "at": [{"vertex": 0}, {"vertex": 1}]})
         self.assertTrue(err)
 
+    def test_elements_into_the_document(self):
+        self.open(self.shaft)
+        cyl = self.ok("element_fit", {"kind": "cylinder", "at": {"point": [8, 0, 15]}, "side": "outside"})["element"]
+        out = self.ok("element_to_document", {"elements": [cyl["id"]], "export": "elements.step"})
+        self.assertEqual(out["made"][0]["shape"], "solid")
+        self.assertTrue(os.path.isfile(out["file"]["path"]))
+        import FreeCAD
+
+        doc = FreeCAD.ActiveDocument
+        o = doc.getObject(out["made"][0]["object"])
+        self.assertAlmostEqual(o.Shape.Volume, math.pi * cyl["fit"]["radius"] ** 2 * cyl["fit"]["length"], delta=1.0)
+        out = self.ok("element_to_document", {"elements": [cyl["id"]], "style": "surfaces"})
+        self.assertEqual(out["made"][0]["shape"], "face")
+
     def test_shaft(self):
         self.open(self.shaft)
         el = self.ok("element_fit", {"kind": "cylinder", "at": {"point": [8, 0, 15]}, "side": "outside"})
