@@ -15,7 +15,7 @@ status=0
 for pack in "$addon/Studio Light/Studio Light.cfg" "$addon/Studio Dark/Studio Dark.cfg" "$stock/FreeCAD Light/FreeCAD Light.cfg"; do
   name=$(basename "$pack" .cfg)
   THEME_CFG="$pack" THEME_SHOT="$out/${name// /-}.png" \
-    timeout 180 xvfb-run -a -s "-screen 0 1600x1000x24" freecad "$here/theme-shot.py" 2>&1 | grep -E "theme-shot|Error|error" | head -20 || status=1
+    timeout 180 xvfb-run -a -s "-screen 0 1600x1000x24" freecad "$here/theme-shot.py" > "$out/${name// /-}.log" 2>&1 || status=1; tail -n 25 "$out/${name// /-}.log"
 done
 ls -la "$out"
 exit $status
