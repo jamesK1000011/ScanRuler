@@ -8,7 +8,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 
 ## 0. Setup
 
-- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`, `wear`, `catalog`, `manual`, `pack`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
+- **Groups.** The scan tools are in groups: `scan`, `elements`, `align`, `dimensions`, `sections`, `flat`, `deviation`, `thickness`, `meshtools`, `scan-noise`, `scan-thread`, `wear`, `catalog`, `manual`, `pack`, `fit-scan`. `tool_groups { enable: ["scan", "elements", "align", "dimensions"] }` lists those a measuring task needs; enable `deviation`, `thickness`, `sections` when it gets there. Any tool runs by name either way.
 - **`scan_info` before acting and after**: the scan's box says where the part lies; the elements and dimensions what is measured. `session_state` is the FreeCAD document — the scan is not in it.
 - **Every answer is in millimetres**, angles in degrees.
 - **One undo step per change**, as for the document: `history_undo`, `history_checkpoint` / `history_restore`.
@@ -110,6 +110,12 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 
 - `pack_setup { title, author, licence }`, then `pack_plan`: every part taken from others (catalog_provenance's records) is checked against the licence. A guide, not legal advice: the person confirms each upstream licence and the choice of their own.
 - `pack_write` scrubs every file (paths, user names, printer access codes and serials, e-mails, metadata) and says what it took out. The upload is the person's.
+
+## 7g. Calibrate the printer from a scan of a print
+
+- The CAD it was printed from as the reference, the scan of the print as the scan, `deviation_align`. `fit_scan_setup { up, slicer, current }` (the slicer values in use), then `fit_scan_measure`.
+- χ²/dof over 4 is a poor run: warping, a lifted corner, a bad alignment — the offsets are not to be used. `nearNoise`: finer than this scan is trusted for; confirm on a second print before changing the slicer.
+- A good run: `fit_scan_export { what: "ini" }` for the slicer, `{ what: "stl" }` for a pre-compensated model, and `fit_scan_measure { calibrate: true }` to make it the calibration every hole Agent Link sizes takes.
 
 ## 8. Report and files
 
