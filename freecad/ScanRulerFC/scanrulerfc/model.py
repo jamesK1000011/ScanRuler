@@ -663,6 +663,33 @@ def apply_rigid(st, rig, extra=None):
     return out
 
 
+def align_auto(st, a):
+    """ScanRuler's auto-align: a coordinate system read off the scan alone
+    (autoalign.py), applied — how square it came out, and a warning when the
+    largest flat face looks into the part."""
+    from . import autoalign as AA
+
+    scan = require_scan(st)
+    level = a.get("level", "settled")
+    try:
+        r = AA.auto_align(scan.graph(), level=level)
+    except ValueError as e:
+        raise Refusal("failed", str(e))
+    t = AA.tilts(r)
+    extra = {"note": AA.note(r, t, level), "method": r["method"], "base": r["base"], "planeShare": round(r["planeShare"], 3), "wallShare": round(r["wallShare"], 3), "onAxis": r["onAxis"]}
+    extra["square"] = {
+        "largest": {"axis": t["largest"]["axis"], "area": round(t["largest"]["area"]), "tiltDeg": round(t["largest"]["tiltDeg"], 3)} if t["largest"] else None,
+        "axes": [{"axis": x["axis"], "tiltDeg": round(x["tiltDeg"], 3), "area": round(x["area"]), "faces": [{"area": round(f["area"]), "tiltDeg": round(f["tiltDeg"], 3), "center": [round(v, 1) for v in f["center"]]} for f in x["faces"]]} for x in t["axes"]],
+    }
+    # Looked at in the scan's frame as it stands, before the pose moves it.
+    if t["largest"]:
+        inside = AA.faces_in(scan.V, scan.F, t["largest"], model_size(scan))
+        if inside:
+            L = t["largest"]
+            extra["largestInside"] = {"clearMm": round(inside["clear"], 1), "note": f"The largest flat face ({round(L['area'])} mm², square to {L['axis']}) faces into the part: the scan stands about {inside['clear']:.1f} mm in front of it along its outward normal — an inside wall, a rib's or a pocket's, not a face the part stands or mates on. Check the datums before modelling: align_datum on the face it mates on (a flange, a base)."}
+    return apply_rigid(st, AA.rigid(r), extra)
+
+
 def _reference(st, r):
     t = r.get("true")
     if not (isinstance(t, (int, float)) and t > 0):
@@ -1033,7 +1060,18 @@ def align_symmetry(st):
     share = plane.get("share", 1.0)
     if not (plane["rms"] <= SYM.ALIGN_SYMMETRY_MAX_RMS_MM) or share < SYM.SYMMETRY_MIN_MATCHED:
         raise Refusal("failed", f"No symmetry plane was found: the best mirror image stands {plane['rms']:.3f} mm off the scan (RMS), past {SYM.ALIGN_SYMMETRY_MAX_RMS_MM} mm, or under half the samples find their mirror image ({share:.0%}).")
-    pose = SYM.pose_on_symmetry(np.eye(3), np.zeros(3), plane)
+    # The pose to settle: the frame the part is in, or auto-align's when it
+    # has none yet — as ScanRuler's Use symmetry does.
+    axes, origin = np.eye(3), np.zeros(3)
+    if applied(scan) is None:
+        from . import autoalign as AA
+
+        try:
+            r = AA.auto_align(scan.graph())
+            axes, origin = np.array(r["axes"]), np.asarray(r["origin"])
+        except ValueError:
+            pass
+    pose = SYM.pose_on_symmetry(axes, origin, plane)
     if pose is None:
         raise Refusal("failed", "The symmetry plane has no direction.")
     rig = SYM.rigid_of_pose(pose["axes"], pose["origin"])

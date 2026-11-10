@@ -3,6 +3,7 @@
 # FreeCAD's Mesh module (a sphere) and with numpy (a box, a shaft), noise
 # added along the normals, written to STL and opened with scan_open.
 import json
+import math
 import os
 import sys
 import tempfile
@@ -155,6 +156,31 @@ class Measure(unittest.TestCase):
         self.assertGreaterEqual(len(gone["removed"]), 3)
         err, o = self.call("align_clear")
         self.assertTrue(err)
+
+    def test_auto_align(self):
+        """A box scanned askew comes back standing on its largest face,
+        square, long side along X — and the pictures show it."""
+        P, F = synth.box(size=(40, 30, 20), sigma=0.01)
+        a, b = math.radians(23), math.radians(-37)
+        Rz = np.array([[math.cos(a), -math.sin(a), 0], [math.sin(a), math.cos(a), 0], [0, 0, 1]])
+        Rx = np.array([[1, 0, 0], [0, math.cos(b), -math.sin(b)], [0, math.sin(b), math.cos(b)]])
+        path = os.path.join(self.dir, "askew.stl")
+        synth.stl(path, P @ (Rx @ Rz).T + [5, 9, -3], F)
+        self.open(path)
+        keep = os.environ.get("AGENTLINK_RENDERS")
+        if keep:
+            self.ok("view_render", {"objects": [], "views": "all", "inline": False, "path": os.path.join(keep, "askew_before.png")})
+        r = self.ok("align_auto")
+        print("\nalign_auto:", json.dumps({k: r[k] for k in ("note", "method", "base", "square")})[:800])
+        self.assertEqual(r["method"], "planes")
+        self.assertEqual(r["base"], "face")
+        self.assertLess(r["square"]["largest"]["tiltDeg"], 0.05)
+        box = self.ok("scan_info")["scan"]["box"]
+        self.assertEqual([round(v) for v in box["size"]], [40, 30, 20])
+        self.assertAlmostEqual(box["min"][2], 0, delta=0.1)
+        if keep:
+            self.ok("view_render", {"objects": [], "views": "all", "inline": False, "path": os.path.join(keep, "askew_after.png")})
+        self.ok("align_clear")
 
 
 if __name__ == "__main__":
