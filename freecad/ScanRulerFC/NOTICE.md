@@ -5,7 +5,9 @@ ScanRuler for FreeCAD is a port of **ScanRuler by CNC Kitchen** (Stefan
 Hermann), the browser app for measuring 3D scans against CAD:
 https://github.com/CNCKitchen/ScanRuler. Its measuring, fitting,
 alignment, deviation, wall-thickness, section, mesh-cleaning and 2D
-measuring were designed and written there. Here they are translated from
+measuring, and its plugins ported here (scanner noise, thread match, wear
+repair, print fit, parts catalog, assembly manual, library pack), were
+designed and written there. Here they are translated from
 TypeScript to Python on top of FreeCAD.
 
 ScanRuler is licensed under the GNU Affero General Public License,

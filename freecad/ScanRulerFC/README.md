@@ -28,9 +28,9 @@ Everything is in millimetres.
 
 The maths is numpy only (`dev_*.py`, `wall_thickness.py`): nearest points
 and rays go through a two-level tree of triangle leaves, every query of a
-pass at once. Not ported yet: the deviation map read on the reference
-(`on: "reference"`), and closing a scan's holes with the reference before
-the volume error (an open scan reads `unsure` there instead).
+pass at once. The deviation map is also read on the reference (`on: "reference"`). Not
+ported yet: closing a scan's holes with the reference before the volume
+error (an open scan reads `unsure` there instead).
 - **Sections** (`sections` group): `section_cut`, `section_get`,
   `section_list`, `section_remove`, `section_fit` (ScanRuler's
   `reverse_section_fit`: lines and arcs with residuals) and
@@ -47,3 +47,41 @@ the volume error (an open scan reads `unsure` there instead).
   `flat_detect_edges`, `flat_edges`, `flat_fit`, `flat_dimension_add`,
   `flat_report`, `flat_export` (DXF, SVG). The sheet is an image or the
   section cut last.
+
+### ScanRuler's plugins
+
+- **Scanner noise** (`scan-noise`): `scan_noise` (this scan's noise, as the
+  scan check reads it), `scanner` (your scanners in `scanners.json`, exported
+  and imported whole). The noise to plan with — the larger of the scanner's
+  usual and this scan's — is what the thread, wear and print-fit tools read.
+- **Thread match** (`scan-thread`): `scan_thread` names a thread from a
+  fitted bore or boss — ISO metric, UNC, UNF, UNEF, NPT, G/R pipe, Tr, ACME
+  and the 45° print form — or says which sizes tie and the one hand
+  measurement that settles them.
+- **Wear repair** (`wear`): `wear_setup`, `wear_diff`, `wear_rebuild`
+  (against the mirrored other half or the aligned reference),
+  `wear_prewarp` (a model moved against a print of it, with the stop rule).
+- **Print fit from a scan** (`fit-scan`): `fit_scan_setup`,
+  `fit_scan_features`, `fit_scan_measure` (scale, contour and hole offsets,
+  elephant foot; can become Agent Link's fit calibration),
+  `fit_scan_export` (Bambu Studio, OrcaSlicer, PrusaSlicer keys, or your own
+  key map; a pre-compensated STL).
+- **Parts catalog** (`catalog`): `catalog_part` (a screw, nut, washer or
+  bearing from measured sizes), `catalog_links`, `catalog_provenance`. The
+  library searches and downloads stay in scanruler-mcp.
+- **Assembly manual** (`manual`): `manual_plan`, `manual_check` (each
+  part's way in swept against the parts there; the words linted),
+  `manual_render` (one HTML page with a picture per step). The line-art
+  sheets and themes wait for a GUI.
+- **Library pack** (`pack`): `pack_setup`, `pack_plan` (upstream licences
+  checked), `pack_write` (a zip, every file scrubbed of personal details).
+- **More model formats**: glTF/GLB, Collada, VRML 2 and 3DS open as the scan
+  or the reference through Agent Link's readers. FBX does not: export it as
+  glTF.
+
+Not ported, because FreeCAD or Agent Link already does it: generation,
+FEA, CAM, mass, materials, fits and hardware, slicing and printer hand-off,
+part review, setups, BumpMesh texturing (`texture_prepare`,
+`texture_check`). Not ported yet: patent kit (TechDraw does most of it),
+and the electronics pages (KiCad's own tools and KiCad StepUp cover the
+board).
