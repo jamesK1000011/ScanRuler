@@ -40,11 +40,13 @@ def obj(props, required=()):
 def fl_state(session):
     st = S.state(session)
     f = st.setdefault("flatState", {"subject": None, "image": None, "pxPerMm": None, "calSource": "none", "chains": None, "sensitivity": 0.5, "elements": [], "dimensions": [], "nextEl": 1, "nextDim": 1})
+    f.setdefault("notes", [])
+    f.setdefault("alignment", None)
     want = st.get("flatSubject")
     if want and want != f["subject"]:
         # A section put on the sheet (section_cut): its cut is the sheet's
         # edges, in millimetres.
-        f.update({"subject": dict(want), "elements": [], "dimensions": [], "nextEl": 1, "nextDim": 1, "chains": None})
+        f.update({"subject": dict(want), "elements": [], "dimensions": [], "nextEl": 1, "nextDim": 1, "chains": None, "notes": [], "alignment": None})
     return f
 
 
@@ -128,8 +130,10 @@ def report_input(session):
     f = fl_state(session)
     units, _unit, _c, sec = sheet(session)
     r = {"imageName": f["image"]["name"] if f["image"] else "", "imageWidth": f["image"]["width"] if f["image"] else 0, "imageHeight": f["image"]["height"] if f["image"] else 0,
-         "calSource": "section" if sec else f["calSource"], "pxPerMm": f["pxPerMm"], "unit": units, "elements": f["elements"],
-         "dimensions": [{"title": d["title"], "value": d["value"]} for d in evaluated(f, units)]}
+         "calSource": "section" if sec else f["calSource"], "pxPerMm": f["pxPerMm"], "unit": units,
+         "elements": [{**e, "fit": FC.aligned_fit(e["fit"], f["alignment"])} if e.get("fit") else e for e in f["elements"]],
+         "dimensions": [{"title": d["title"], "value": d["value"]} for d in evaluated(f, units)],
+         "notes": [n for n in f["notes"] if n.get("visible", True)], "alignment": f["alignment"]}
     if sec:
         r["section"] = {"name": sec["name"], "scanName": S.scan_of(session).name, "cut": f"across {sec['across']}, offset {round(sec['offset'], 3)} mm"}
     return r
@@ -325,9 +329,22 @@ def tools(session):
         else:
             img = f["image"]
             bounds = {"min": [0.0, 0.0], "max": [img["width"] * unit["x"], img["height"] * unit["y"]]}
+        al = f["alignment"]
+        notes = [{"text": n["text"], "at": n["at"]} for n in f["notes"] if n.get("visible", True)]
+        if al:
+            # Everything read in the aligned frame: chains moved and turned,
+            # fits likewise, the bounds the turned sheet's.
+            c_, s_ = math.cos(-al["angle"]), math.sin(-al["angle"])
+            R = np.array([[c_, -s_], [s_, c_]])
+            o = np.array(al["origin"], float)
+            chains = [((np.asarray(ch, float) * [unit["x"], unit["y"]] - o) @ R.T) / [unit["x"], unit["y"]] for ch in chains]
+            corners = (np.array([[bounds["min"][0], bounds["min"][1]], [bounds["max"][0], bounds["min"][1]], [bounds["max"][0], bounds["max"][1]], [bounds["min"][0], bounds["max"][1]]]) - o) @ R.T
+            bounds = {"min": corners.min(0).tolist(), "max": corners.max(0).tolist()}
+            notes = [{"text": n["text"], "at": ((np.array(n["at"]) - o) @ R.T).tolist()} for n in notes]
+        shown = [e for e in f["elements"] if e.get("visible", True) and e.get("fit")]
         drawing = {"bounds": bounds, "chains": chains, "chainUnit": unit, "unit": units, "title": FC.title_line(r), "scaleNote": FC.scale_line(r),
-                   "elements": [{"fit": e["fit"], "color": COLORS[i % len(COLORS)], "name": e["name"], "value": FC.format_primary(e["fit"], units)} for i, e in enumerate(f["elements"])],
-                   "edgeTolerance": FC.DXF_EDGE_TOLERANCE["mm" if units == "mm" else "px"], "origin": None}
+                   "elements": [{"fit": FC.aligned_fit(e["fit"], al), "color": COLORS[i % len(COLORS)], "name": e["name"], "value": FC.format_primary(e["fit"], units)} for i, e in enumerate(shown)],
+                   "notes": notes, "edgeTolerance": FC.DXF_EDGE_TOLERANCE["mm" if units == "mm" else "px"], "origin": None}
         text = FC.build_dxf(drawing) if fmt == "dxf" else FC.build_svg(drawing)
         stem = os.path.splitext(f["image"]["name"])[0] if not sec and f["image"] else (sec["name"].replace(" ", "-") if sec else "sheet")
         path = a.get("path") or os.path.join(session.out_dir, f"{stem}.{fmt}")
@@ -431,6 +448,93 @@ def tools(session):
         return {"units": units, "about": about_out, "prominence": round(r["prominence"], 4), "sides": [side(sd) for sd in r["sides"]],
                 "note": "Radial: radius against angle about the centre; axial: distance from the axis, [0] left of its direction, [1] right."}
 
+    def flat_note_add(a):
+        f = fl_state(session)
+        sheet(session)
+        if not a["text"].strip():
+            raise ToolError("invalid_input", "text: write something.")
+        nid = max([n["id"] for n in f["notes"]] + [0]) + 1
+        f["notes"].append({"id": nid, "text": a["text"], "at": [float(x) for x in a["at"]], "visible": True})
+        return {"note": f["notes"][-1]}
+
+    def flat_edit(a):
+        f = fl_state(session)
+        sheet(session)
+        if a.get("note") is not None:
+            n = next((x for x in f["notes"] if x["id"] == a["note"]), None)
+            if not n:
+                raise ToolError("not_found", f"There is no note {a['note']}.")
+            if a.get("text") is not None:
+                n["text"] = a["text"]
+            if a.get("at") is not None:
+                n["at"] = [float(x) for x in a["at"]]
+            if a.get("visible") is not None:
+                n["visible"] = a["visible"]
+            return {"note": n}
+        if a.get("element") is not None:
+            e = element_named(f, a["element"])
+            target = e
+        elif a.get("dimension") is not None:
+            ref = a["dimension"]
+            hits = [d for d in f["dimensions"] if d["id"] == ref or (isinstance(ref, str) and d["name"].strip().lower() == ref.strip().lower())]
+            if not hits:
+                raise ToolError("not_found", f"There is no 2D dimension {ref!r}.")
+            target = hits[0]
+        else:
+            raise ToolError("invalid_input", "Give element, dimension or note.")
+        if a.get("name") is not None:
+            if not a["name"].strip():
+                raise ToolError("invalid_input", "name: give a name.")
+            target["name"] = a["name"]
+        if a.get("visible") is not None:
+            target["visible"] = a["visible"]
+        return describe_flat(session)
+
+    def flat_remove(a):
+        f = fl_state(session)
+        sheet(session)
+        gone_el = {element_named(f, r)["id"] for r in a.get("elements") or []}
+        gone_dim = set()
+        for ref in a.get("dimensions") or []:
+            hits = [d["id"] for d in f["dimensions"] if d["id"] == ref or (isinstance(ref, str) and d["name"].strip().lower() == ref.strip().lower())]
+            if not hits:
+                raise ToolError("not_found", f"There is no 2D dimension {ref!r}.")
+            gone_dim.update(hits)
+        gone_notes = set(a.get("notes") or [])
+        missing = gone_notes - {n["id"] for n in f["notes"]}
+        if missing:
+            raise ToolError("not_found", f"There is no note {sorted(missing)[0]}.")
+        f["elements"] = [e for e in f["elements"] if e["id"] not in gone_el]
+        f["dimensions"] = [d for d in f["dimensions"] if d["id"] not in gone_dim]
+        f["notes"] = [n for n in f["notes"] if n["id"] not in gone_notes]
+        orphans = [e["name"] for e in f["elements"] if set(e.get("refs") or []) & gone_el]
+        invalid = [d["name"] for d in f["dimensions"] if set(d["refs"]) & gone_el]
+        out = describe_flat(session)
+        out["removed"] = {"elements": len(gone_el), "dimensions": len(gone_dim), "notes": len(gone_notes)}
+        if orphans:
+            out["lostSource"] = orphans
+        if invalid:
+            out["invalidDimensions"] = invalid
+        return out
+
+    def flat_set_alignment(a):
+        import math as _m
+
+        f = fl_state(session)
+        sheet(session)
+        if a.get("clear"):
+            f["alignment"] = None
+            return describe_flat(session)
+        if a.get("origin") is None or a.get("xAxis") is None:
+            raise ToolError("invalid_input", "Give origin and xAxis, or clear: true.")
+        o, x = [float(v) for v in a["origin"]], [float(v) for v in a["xAxis"]]
+        if _m.hypot(x[0] - o[0], x[1] - o[1]) < 1e-9:
+            raise ToolError("invalid_input", "xAxis must lie away from origin.")
+        f["alignment"] = {"origin": o, "angle": _m.atan2(x[1] - o[1], x[0] - o[0])}
+        out = describe_flat(session)
+        out["alignment"] = {"origin": o, "angleDeg": round(_m.degrees(f["alignment"]["angle"]), 4)}
+        return out
+
     kinds = ", ".join(f"{k}: {', '.join(f'{m[0]} ({m[1]})' for m in v)}" for k, v in METHODS.items())
     return [
         Tool("flat_objects", "The separate parts on the flatbed image, parted from the background by a grey level (Otsu's unless threshold is given; dark: whether the parts are darker, read from the border by default) and numbered in reading order — what flat_profile takes by number. Returns each with area, holes, box, centroid, equivalentDiameter, feret (largest and smallest caliper widths and their directions), axisAngleDeg and, with outline: true, its outline. minArea drops specks (sheet units²). Changes nothing on the sheet.",
@@ -451,6 +555,14 @@ def tools(session):
                   "box": obj({"min": spot, "max": spot}, ["min", "max"]), "refs": {"type": "array", "items": ref}, "name": {"type": "string", "minLength": 1}, "snap": {"type": "boolean"}, "reach": {"type": "number", "exclusiveMinimum": 0}}, ["kind"]), flat_fit),
         Tool("flat_dimension_add", "Measure between two 2D elements: flat-dist-point-point, flat-dist-point-line, flat-dist-line-line (near-parallel only), flat-angle-line-line. Points, circles and arcs count as their centre, lines as lines. Without type, the first that takes the two in the order given. Returns the dimensions and the report.",
              obj({"refs": {"type": "array", "items": ref, "minItems": 2, "maxItems": 2}, "type": {"type": "string", "enum": [t["id"] for t in FC.DIMENSION_TYPES]}, "name": {"type": "string", "minLength": 1}}, ["refs"]), flat_dimension_add),
+        Tool("flat_note_add", "Write a text note on the 2D sheet: one line; at is its lower-left corner, sheet units. Listed in the report and written into the SVG and DXF exports. Returns the note with its id.",
+             obj({"text": {"type": "string", "minLength": 1}, "at": spot}, ["text", "at"]), flat_note_add),
+        Tool("flat_edit", "Change one thing on the 2D sheet: an element or a dimension (by id or name) takes a new name; a note (by id) new text or a new place (at); any of them visible: false to leave it out of the exports. Returns the 2D state.",
+             obj({"element": ref, "dimension": ref, "note": {"type": "integer", "minimum": 1}, "name": {"type": "string"}, "text": {"type": "string"}, "at": spot, "visible": {"type": "boolean"}}), flat_edit),
+        Tool("flat_remove", "Remove elements, dimensions and notes from the 2D sheet, each by id or name (a note by id). An element built on a removed one stays and says it has lost its source (lostSource), a dimension on one turns invalid (invalidDimensions). Returns what is left.",
+             obj({"elements": {"type": "array", "items": ref}, "dimensions": {"type": "array", "items": ref}, "notes": {"type": "array", "items": {"type": "integer", "minimum": 1}}}), flat_remove),
+        Tool("flat_set_alignment", "Put the part's zero point at origin and its X axis through xAxis (sheet places): the report and the exports then read in that frame. clear: true takes it off. Returns the 2D state.",
+             obj({"origin": spot, "xAxis": spot, "clear": {"type": "boolean"}}), flat_set_alignment),
         Tool("flat_report", "The 2D report as ScanRuler's Copy button gives it: the image or section, the scale it rests on, every element and dimension. Changes nothing.", obj({}), flat_report),
         Tool("flat_export", "Write the sheet at true scale: dxf (AutoCAD 2000, millimetres declared, y up; edges as LWPOLYLINE thinned to 0.01 mm, fits as LINE/CIRCLE/ARC/POINT, labels as TEXT) or svg (one unit per millimetre, y down). To path, the session's folder by default.",
              obj({"format": {"type": "string", "enum": ["dxf", "svg"]}, "path": {"type": "string", "minLength": 1}}, ["format"]), flat_export),

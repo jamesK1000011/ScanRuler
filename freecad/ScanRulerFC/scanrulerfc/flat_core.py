@@ -565,6 +565,29 @@ def evaluate_dimension(typ, fits, unit="mm"):
 
 # ---- how a fit reads (summary.ts) and the report (report.ts) -----------------------------
 
+def aligned_fit(fit, al):
+    """A fit read in an aligned frame: the sheet place p becomes
+    R(−angle)·(p − origin), directions turn, arcs start turned."""
+    if not al:
+        return fit
+    c, sn = math.cos(-al["angle"]), math.sin(-al["angle"])
+    ox, oy = al["origin"]
+
+    def place(p):
+        x, y = p[0] - ox, p[1] - oy
+        return [c * x - sn * y, sn * x + c * y]
+
+    out = dict(fit)
+    for key in ("center", "at"):
+        if key in out:
+            out[key] = place(out[key])
+    if "dir" in out:
+        out["dir"] = [c * out["dir"][0] - sn * out["dir"][1], sn * out["dir"][0] + c * out["dir"][1]]
+    if "start" in out:
+        out["start"] = out["start"] - al["angle"]
+    return out
+
+
 def format_primary(fit, unit):
     k = fit["kind"]
     if k == "point":
@@ -608,7 +631,11 @@ def title_line(r):
 
 def build_report(r):
     lines = [title_line(r), scale_line(r)]
-    lines.append("Coordinates: section frame, origin at the cutting plane’s centre, y up" if r.get("section") else "Coordinates: image frame, origin bottom-left, y up")
+    al = r.get("alignment")
+    if al:
+        lines.append(f"Coordinates: aligned — origin at {length_text(al['origin'][0], r['unit'], 3, True)}, {length_text(al['origin'][1], r['unit'])} of the sheet, X axis at {math.degrees(al['angle']):.3f}°, y up")
+    else:
+        lines.append("Coordinates: section frame, origin at the cutting plane’s centre, y up" if r.get("section") else "Coordinates: image frame, origin bottom-left, y up")
     if r["elements"]:
         lines += ["", "Elements"]
         for el in r["elements"]:
@@ -626,6 +653,8 @@ def build_report(r):
                 continue
             extras = " — ".join(x for x in [v.get("detail"), v.get("warning") and f"⚠ {v['warning']}"] if x)
             lines.append(f"  {d['title']} — {v['label']}: {v['value']}{f' ({extras})' if extras else ''}")
+    if r.get("notes"):
+        lines += ["", "Notes"] + [f"  {n['text']}" for n in r["notes"]]
     return "\n".join(lines)
 
 
@@ -816,6 +845,8 @@ def build_dxf(r):
         lx, ly = at(label_spot(el["fit"], diag))
         text([lx, ly + 1.2 * text_h], el["name"], rgb)
         text([lx, ly], el["value"], rgb)
+    for note in r.get("notes") or []:
+        text(at(note["at"]), note["text"], _true_color("#808080"))
 
     def layer(name, aci, rgb):
         return [_g(0, "LAYER"), _g(5, handle()), _g(330, "2"), _g(100, "AcDbSymbolTableRecord"), _g(100, "AcDbLayerTableRecord"), _g(2, name), _g(70, 0), _g(62, aci), *([] if rgb is None else [_g(420, rgb)]), _g(6, "CONTINUOUS")]
@@ -920,6 +951,9 @@ def build_svg(r):
     for el in r["elements"]:
         lx, ly = at(label_spot(el["fit"], diag))
         out.append(f'    <text x="{n(lx)}" y="{n(ly)}" fill="{_esc(el["color"])}"><tspan x="{n(lx)}" dy="-1.2em">{_esc(el["name"])}</tspan><tspan x="{n(lx)}" dy="1.2em">{_esc(el["value"])}</tspan></text>')
+    for note in r.get("notes") or []:
+        nx, ny = at(note["at"])
+        out.append(f'    <text x="{n(nx)}" y="{n(ny)}" fill="#333333">{_esc(note["text"])}</text>')
     out.append("  </g>")
     out.append("</svg>")
     return "\n".join(out) + "\n"
