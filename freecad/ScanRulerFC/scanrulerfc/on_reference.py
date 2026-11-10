@@ -20,14 +20,16 @@ import numpy as np
 
 DEFAULT_FACING_DEG = 60.0
 MIN_SPACING, MAX_SPACING = 0.25, 2.0
-MAX_SAMPLES = 120_000
+MAX_SAMPLES = 200_000
 
 
 def wanted_spacing(tolerance, area):
     """Twice the tolerance, within a quarter and two millimetres, opened
     as far as keeps the readings under MAX_SAMPLES."""
     s = min(MAX_SPACING, max(MIN_SPACING, 2.0 * float(tolerance)))
-    need = math.sqrt(2.0 * float(area) / MAX_SAMPLES) if area > 0 else s
+    # Halving a triangle until no edge is over s leaves pieces with edges
+    # between s/2 and s: about s²/8 of area each, not s²/2.
+    need = math.sqrt(8.0 * float(area) / MAX_SAMPLES) if area > 0 else s
     return max(s, need)
 
 
@@ -125,9 +127,11 @@ def summary(values, area, centres, tolerance):
         within = seen & (np.abs(np.nan_to_num(v)) <= tolerance)
         out["withinTolerancePct"] = round(100 * float(a[within].sum()) / total, 1)
         k = int(np.nanargmax(v))
-        out["mostOutside"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the reference stands outside the scan: material the part lacks here"}
+        if v[k] > 0:
+            out["mostOutside"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the reference stands outside the scan: material the part lacks here"}
         k = int(np.nanargmin(v))
-        out["mostInside"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the reference lies inside the scan: material the part has over the model"}
+        if v[k] < 0:
+            out["mostInside"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the reference lies inside the scan: material the part has over the model"}
     if (~seen).any():
         # The largest unscanned stretch's middle, by area-weighted reading.
         miss = np.nonzero(~seen)[0]

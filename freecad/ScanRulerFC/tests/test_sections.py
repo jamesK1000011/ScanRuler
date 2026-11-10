@@ -37,6 +37,48 @@ def chains(cut):
     return [P[off[i]:off[i + 1]] for i in range(len(off) - 1)]
 
 
+def grid_plate(keep, size=(20, 10), step=0.5):
+    """A flat plate of small triangles on z 0, the cells keep(cx, cy) says."""
+    xs = np.arange(0, size[0] + 1e-9, step)
+    ys = np.arange(0, size[1] + 1e-9, step)
+    V = np.array([(x, y, 0.0) for x in xs for y in ys])
+    at = lambda i, j: i * len(ys) + j  # noqa: E731
+    F = []
+    for i in range(len(xs) - 1):
+        for j in range(len(ys) - 1):
+            if keep(xs[i] + step / 2, ys[j] + step / 2):
+                a, b, c, d = at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)
+                F += [(a, b, c), (a, c, d)]
+    return V, np.array(F)
+
+
+class Shadow(unittest.TestCase):
+    """The shadow's loops (ScanRuler's core/section/shadow.ts), numpy only."""
+
+    FRAME = {"origin": [0, 0, 0], "normal": [0, 0, 1], "basisU": [1, 0, 0], "basisV": [0, 1, 0]}
+
+    def test_l_plate_hole_filled(self):
+        from scanrulerfc import shadow_core as SH
+
+        # An L, 20 x 10 less its 10 x 5 corner, with a 2 x 2 hole: the
+        # shadow is the L's outline alone, the hole filled.
+        V, F = grid_plate(lambda x, y: not (x > 10 and y > 5) and not (2 < x < 4 and 2 < y < 4))
+        loops, cell = SH.shadow_loops(V, F, self.FRAME, 0.1)
+        self.assertEqual(len(loops), 1)
+        self.assertAlmostEqual(SH.area(loops[0]), 150, delta=150 * 0.01)
+        self.assertEqual(len(loops[0]), 6)
+
+    def test_two_islands_and_edge_on(self):
+        from scanrulerfc import shadow_core as SH
+
+        V, F = grid_plate(lambda x, y: x < 5 or x > 15)
+        loops, _ = SH.shadow_loops(V, F, self.FRAME, 0.1)
+        self.assertEqual(len(loops), 2)
+        # Seen edge on (along y), a flat plate casts no shadow.
+        side = {"origin": [0, 0, 0], "normal": [0, 1, 0], "basisU": [1, 0, 0], "basisV": [0, 0, 1]}
+        self.assertEqual(SH.shadow_loops(V, F, side, 0.1)[0], [])
+
+
 class Slice(unittest.TestCase):
     """ScanRuler's tests/section.test.ts, sliceMesh."""
 
@@ -229,6 +271,29 @@ class Tools(unittest.TestCase):
         self.ok("pd_pad", {"body": sk["body"], "sketch": sk["sketch"], "length": 5})
         body = next(o for o in self.session.doc.Objects if o.Label == sk["body"])
         self.assertAlmostEqual(body.Shape.Volume, math.pi * 64 * 5, delta=math.pi * 64 * 5 * 0.02)
+
+    def test_box_shadow_with_play(self):
+        # The box seen from above with 1 mm of play: never inside it, between
+        # the play and the play plus twice the tolerance outside; round
+        # corners from the offset; a sketch that pads.
+        self.ok("scan_open", {"path": self.box, "discard": True})
+        r = self.ok("section_cut", {"across": "XY", "kind": "shadow", "play": 1.0, "name": "Cutout"})
+        print("\nshadow:", json.dumps(r))
+        self.assertEqual(r["section"]["chains"], 1)
+        self.assertEqual(r["section"]["kind"], "shadow")
+        b = self.ok("section_get", {"section": "Cutout"})["chains"][0]["bounds"]
+        w, h = b["max"][0] - b["min"][0], b["max"][1] - b["min"][1]
+        self.assertGreater(w, 42 - 0.05)
+        self.assertLess(w, 42 + 0.45)
+        self.assertGreater(h, 22 - 0.05)
+        self.assertLess(h, 22 + 0.45)
+        fit = self.ok("section_fit", {"section": "Cutout"})
+        kinds = [p["kind"] for p in fit["chains"][0]["pieces"]]
+        self.assertEqual(kinds.count("line"), 4, kinds)
+        self.assertEqual(kinds.count("arc"), 4, kinds)
+        sk = self.ok("section_to_sketch", {"section": "Cutout", "name": "CutoutSketch"})
+        self.assertTrue(sk["wires"][0]["closed"])
+        self.ok("pd_pad", {"body": sk["body"], "sketch": sk["sketch"], "length": 5})
 
     def test_refusals(self):
         self.ok("scan_open", {"path": self.box, "discard": True})

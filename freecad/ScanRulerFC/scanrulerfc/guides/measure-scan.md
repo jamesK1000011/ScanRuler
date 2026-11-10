@@ -52,6 +52,7 @@ A scan is a cloud of noisy samples of a surface. Every number you give rests on 
 ## 5. Sections, the 2D sheet and back to CAD
 
 - `section_cut { across: "XY" | "YZ" | "ZX", offset }` — the offset is then the coordinate — or across an element with a direction. `section_get` returns the polylines in the section's own [u, v]; `space: "world"` gives [x, y, z].
+- `section_cut { across, kind: "shadow", play }` — not a cut: the whole scan seen along the plane's normal, its outer outline (holes and indentations filled), never inside the part. `play` mm all round for a slip fit (negative for a press fit), to `tolerance` (0.1). The outline for a foam cutout, a gridfinity insert, a tool holder: `section_to_sketch`, then pad it or pocket it into a block.
 - **Slice pockets, bosses and holes at several heights**: the change from slice to slice reveals draft, tilt and rounds.
 - **To CAD:** `section_fit` reads a section as lines and arcs with their residuals; `section_to_sketch` writes it as a Sketcher sketch in a PartDesign body, ready for `pd_pad` — the scan turned into a parametric part in FreeCAD. Check the sketch is closed before padding.
 - **The 2D sheet** measures a section or a flatbed image of a flat part: `flat_open_image`, `flat_calibrate` against a known length (until then the scale is only the file's), `flat_detect_edges` (sensitivity 0–1), `flat_edges`, `flat_fit`, `flat_dimension_add`, `flat_report`, `flat_export`.

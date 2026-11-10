@@ -80,6 +80,7 @@ def describe_section(sec):
         "offset": r4(sec["offset"]),
         "plane": SC.frame_out(sec["frame"]),
         "chains": len(sec["offsets"]) - 1,
+        **({"kind": "shadow", "play": sec.get("play"), "tolerance": sec.get("tolerance")} if sec.get("kind") == "shadow" else {}),
     }
 
 
@@ -212,6 +213,53 @@ def cut_section(scan, frame):
     return SC.slice_mesh(scan.V, scan.F, frame["origin"], frame["normal"], SC.EDGE_MIN_FEATURE_MM)
 
 
+def shadow_section(scan, frame, tolerance, play):
+    """A shadow's loops as a section: (points, offsets, normals, what it is),
+    each traced loop offset outwards by play + tolerance with FreeCAD's
+    exact 2D offset (round outside corners) and read at a quarter of the
+    tolerance."""
+    import FreeCAD
+    import Part
+
+    from . import shadow_core as SH
+
+    if not tolerance > 0:
+        raise ToolError("invalid_input", "tolerance: mm, over 0 (0.1 by default).")
+    loops, cell = SH.shadow_loops(scan.V, scan.F, frame, tolerance)
+    by = play + tolerance
+    pts, offsets, normals, areas = [], [0], [], []
+    for lp in loops:
+        if abs(SH.area(lp)) < (4 * cell) ** 2:
+            continue  # a speck of a few cells
+        w = Part.makePolygon([FreeCAD.Vector(float(u), float(v), 0) for u, v in lp] + [FreeCAD.Vector(float(lp[0][0]), float(lp[0][1]), 0)])
+        face = Part.Face(w)
+        if abs(by) > 1e-9:
+            try:
+                face = face.makeOffset2D(by, 0, False, False, False)
+            except Exception as e:
+                raise ToolError("failed", f"The shadow could not be offset {by:g} mm: {e} — a smaller play.")
+        for f in (face.Faces or [face]):
+            outer = f.OuterWire
+            q = outer.discretize(Deflection=tolerance / 4)
+            uv = np.array([(p.x, p.y) for p in q], dtype=float)
+            if SH.area(uv) < 0:
+                uv = uv[::-1]
+            if not np.allclose(uv[0], uv[-1]):
+                uv = np.vstack([uv, uv[:1]])
+            # Outward: right of a counter-clockwise run.
+            t = np.gradient(uv, axis=0)
+            nrm = np.stack([t[:, 1], -t[:, 0]], axis=1)
+            nrm /= np.maximum(np.linalg.norm(nrm, axis=1), 1e-12)[:, None]
+            o, bu, bv = (np.asarray(frame[k], dtype=float) for k in ("origin", "basisU", "basisV"))
+            pts.append(o + uv[:, :1] * bu + uv[:, 1:] * bv)
+            normals.append(nrm[:, :1] * bu + nrm[:, 1:] * bv)
+            offsets.append(offsets[-1] + len(uv))
+            areas.append(round(float(f.Area), 2))
+    if not pts:
+        return np.zeros((0, 3)), np.array([0]), np.zeros((0, 3)), {"play": play, "tolerance": tolerance, "cell": cell, "areas": []}
+    return np.vstack(pts), np.array(offsets), np.vstack(normals), {"play": play, "tolerance": tolerance, "cell": round(cell, 4), "areas": areas}
+
+
 def flat_chains(sec):
     flat = SC.project_cut(sec["points"], sec["frame"])
     return SC.chains_of(flat, sec["offsets"])
@@ -314,22 +362,31 @@ def brief(p):
 def tools(session):
     def section_cut(a):
         scan = S.scan_of(session)
-        if a.get("kind", "cut") == "shadow":
-            raise ToolError("invalid_input", "kind \"shadow\" is not ported to ScanRuler for FreeCAD yet — cut sections only.")
+        kind = a.get("kind", "cut")
         frame, off, across = plane_of(session, scan, a["across"], a.get("offset"))
         if frame is None:
             raise ToolError("invalid_input", "That cannot be cut across.")
-        pts, offsets, normals = cut_section(scan, frame)
+        extra = {}
+        if kind == "shadow":
+            pts, offsets, normals, extra = shadow_section(scan, frame, float(a.get("tolerance", 0.1)), float(a.get("play", 0.0)))
+            if len(offsets) <= 1:
+                raise ToolError("failed", "The scan casts no shadow on that plane — it is seen edge on.")
+        else:
+            pts, offsets, normals = cut_section(scan, frame)
         if len(offsets) <= 1:
             raise ToolError("failed", "The plane misses the scan — there is nothing to cut there.")
         ss = sec_state(session)
         sid = ss["next"]
         ss["next"] += 1
-        sec = {"id": sid, "name": a.get("name") or f"Section {sid}", "kind": "cut", "across": across, "offset": off, "frame": frame, "points": pts, "offsets": offsets, "normals": normals}
+        sec = {"id": sid, "name": a.get("name") or (f"Shadow {sid}" if kind == "shadow" else f"Section {sid}"), "kind": kind, "across": across, "offset": off, "frame": frame, "points": pts, "offsets": offsets, "normals": normals, **extra}
         ss["sections"].append(sec)
         # What Create does: the new section goes on the 2D sheet.
         S.state(session)["flatSubject"] = {"kind": "section", "id": sid}
-        return {"section": describe_section(sec)}
+        out = {"section": describe_section(sec)}
+        if kind == "shadow":
+            out["shadow"] = {k: extra[k] for k in ("play", "tolerance", "cell", "areas")}
+            out["note"] = "The whole scan seen along the plane's normal, its outer boundary: holes and indentations filled, never inside the part — between the play and the play plus twice the tolerance outside it. section_to_sketch makes it a sketch to pad into a cutout or pocket."
+        return out
 
     def section_list(a):
         return {"sections": [describe_section(s) for s in sec_state(session)["sections"]]}
@@ -476,8 +533,8 @@ def tools(session):
         "maxChains": {"type": "integer", "minimum": 1},
     }
     return [
-        Tool("section_cut", "Cut the scan with a plane and keep the cut as a section, put on the 2D sheet. across: an element with a direction (plane, cylinder, cone, line, circle) by id or name; \"XY\", \"YZ\" or \"XZ\" through the part's centre; { axis, angleDeg }, a plane through an axis turned angleDeg about it — a half section of a turned part; or { origin, normal }. offset slides the plane along its normal, mm (a coordinate plane: the coordinate itself). Returns the section: its plane and chain count.",
-             obj({"across": across, "offset": {"type": "number"}, "name": {"type": "string", "minLength": 1}, "kind": {"type": "string", "enum": ["cut", "shadow"]}}, ["across"]), section_cut),
+        Tool("section_cut", "Cut the scan with a plane and keep the cut as a section, put on the 2D sheet. across: an element with a direction (plane, cylinder, cone, line, circle) by id or name; \"XY\", \"YZ\" or \"XZ\" through the part's centre; { axis, angleDeg }, a plane through an axis turned angleDeg about it — a half section of a turned part; or { origin, normal }. offset slides the plane along its normal, mm (a coordinate plane: the coordinate itself). kind \"shadow\": not a cut but the whole scan seen along the plane's normal, its outer boundary — holes filled, never inside the part, play mm more round it (negative: a press fit) to tolerance mm (0.1) — the outline for a foam cutout, a bin insert or a holder; then section_to_sketch. Returns the section: its plane and chain count.",
+             obj({"across": across, "offset": {"type": "number"}, "name": {"type": "string", "minLength": 1}, "kind": {"type": "string", "enum": ["cut", "shadow"]}, "play": {"type": "number"}, "tolerance": {"type": "number", "exclusiveMinimum": 0}}, ["across"]), section_cut),
         Tool("section_get", "A section's cut as polylines: each chain's points in order — [u, v] mm on the sheet, or with space \"world\" or \"both\" [x, y, z] — with the plane (origin, normal, basisU, basisV) and per chain closed, length, points, bounds. At most limit points over all chains (4000 by default, 50000 at most); past it every k-th point is kept and step says k. Changes nothing.",
              obj({"section": section_ref, "chains": filters["chains"], "space": {"type": "string", "enum": ["sheet", "world", "both"]}, "limit": {"type": "integer", "minimum": 2, "maximum": GET_MAX}}, ["section"]), section_get),
         Tool("section_list", "The sections kept: id, name, plane, chains. Changes nothing.", obj({}), section_list),
