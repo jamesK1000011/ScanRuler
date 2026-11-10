@@ -72,6 +72,8 @@ jobs:
         run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests -v
       - name: ScanRuler for FreeCAD tests
         run: python -m unittest discover -s freecad/ScanRulerFC/tests -v
+      - name: The Claude extension's launcher, against a fake FreeCAD
+        run: node scripts/freecad/mcpb/test/launcher.test.mjs
       - name: The pictures, in the log
         if: always()
         # The artifact store is out of reach from where the pictures are

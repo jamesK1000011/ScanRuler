@@ -120,6 +120,17 @@ async function getFile(url) {
 /** The cached add-ons brought up to the branches' heads. Returns the folder
  *  holding AgentLink and ScanRulerFC, and its version, or null. */
 async function update() {
+  // A folder holding AgentLink and ScanRuler for FreeCAD stands in for
+  // GitHub: an install from a checkout, offline, or under test.
+  const from = process.env.AGENTLINK_UPDATE_FROM && expand(process.env.AGENTLINK_UPDATE_FROM)
+  if (from) {
+    if (!fs.existsSync(path.join(from, 'AgentLink'))) throw new Error(`${from} holds no AgentLink folder`)
+    let v = 'local'
+    try {
+      v = 'local+' + fs.readFileSync(path.join(from, 'VERSION'), 'utf8').trim()
+    } catch {}
+    return { dir: from, version: v }
+  }
   const stateFile = path.join(CACHE, 'state.json')
   let state = {}
   try {
