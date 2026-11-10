@@ -474,8 +474,9 @@ def tools(session):
     def export(a):
         scan = S.scan_of(session)
         d = dstate(session)
-        if a.get("side", "scan") != "scan":
-            raise ToolError("invalid_input", "side: \"reference\" (readings on the reference) is not in this port — the readings per scan vertex are.")
+        side = a.get("side", "scan")
+        if side == "reference":
+            return export_reference(a, scan, d)
         values = map_values(d)
         if values is None:
             raise ToolError("invalid_state", "There is no deviation map to export — deviation_align measures one against the reference part, deviation_set_target one against an element.")
@@ -523,6 +524,33 @@ def tools(session):
             "file": path,
             **out,
         }
+
+    def export_reference(a, scan, d):
+        # The map read on the reference: a reading per small piece of it, at
+        # the piece's middle (on_reference), the same formats.
+        got = reference_reading(session)
+        values, P = got["values"], got["centres"]
+        fmt = a.get("format", "ply")
+        search, tol = d["maxDistance"], d["tolerance"]
+        what = "the reference by its distance to the scan, a reading per small piece of it (positive: the reference outside the scan)"
+        stem = os.path.splitext(scan.name)[0] or "scan"
+        path = a.get("path") or os.path.join(session.out_dir, f"{stem}-deviation-reference.{'txt' if fmt == 'report' else fmt}")
+        if not os.path.isabs(path):
+            path = os.path.join(session.out_dir, path)
+        if fmt == "ply":
+            data = ply_bytes(P, values, search, what, map_colours(values, d["range"], search, d["bands"]))
+        elif fmt == "csv":
+            data = csv_bytes(P, values)
+        elif fmt == "npy":
+            data = npy_bytes(P, values)
+        else:
+            raise ToolError("invalid_input", "format on the reference: ply, csv or npy (the report is the scan's).")
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+        summ = on_reference.summary(values, got["area"], P, tol)
+        return {"side": "reference", "format": fmt, "readings": int(len(values)), "spacing": r3(got["spacing"]), "coveredPct": summ["coveredPct"],
+                "withinTolerancePct": summ.get("withinTolerancePct", 0), "tolerance": tol, "searchDistance": search, "file": path}
 
     def volume(a):
         d = require_reference(session)
@@ -621,7 +649,7 @@ def tools(session):
         ),
         Tool(
             "deviation_export",
-            "The deviation map as a file: format ply (the default: binary, a vertex per scan vertex with x, y, z, deviation, measured and the map's jet colour), csv (x,y,z,d), npy (N × 4 float32) or report (ScanRuler's plain-text report, also in the answer). path, else in the session's folder. Returns the file with readings, measured, withinTolerance, withinTolerancePct, tolerance and searchDistance. Trap: the distance is NaN where there is no reading, and a reading past the search distance is kept as it is. Changes nothing.",
+            "The deviation map as a file — side scan (the default) or reference (the map read on the reference, a reading per small piece of it; ply, csv or npy): format ply (the default: binary, a vertex per scan vertex with x, y, z, deviation, measured and the map's jet colour), csv (x,y,z,d), npy (N × 4 float32) or report (ScanRuler's plain-text report, also in the answer). path, else in the session's folder. Returns the file with readings, measured, withinTolerance, withinTolerancePct, tolerance and searchDistance. Trap: the distance is NaN where there is no reading, and a reading past the search distance is kept as it is. Changes nothing.",
             obj({"side": {"type": "string", "enum": ["scan", "reference"]}, "format": {"type": "string", "enum": ["ply", "csv", "npy", "report"]}, "path": {"type": "string"}}),
             export,
         ),
