@@ -85,6 +85,8 @@ jobs:
         timeout-minutes: 10
         run: bash scripts/freecad/theme-shots.sh freecad-addon/src/Mod/AgentLink "$AGENTLINK_RENDERS/theme"
       - name: Agent Link tests
+        # a hung test stops here, not at the job's 40 minutes
+        timeout-minutes: 15
         run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests -v
       - name: ScanRuler for FreeCAD tests
         run: python -m unittest discover -s freecad/ScanRulerFC/tests -v
@@ -156,6 +158,8 @@ jobs:
           echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC" >> "$GITHUB_ENV"
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD; print('FreeCAD', FreeCAD.Version()[:3])"
       - name: Agent Link tests
+        # a hung test stops here, not at the job's 40 minutes
+        timeout-minutes: 15
         run: python -m unittest discover -s freecad-addon/src/Mod/AgentLink/tests
       - name: ScanRuler for FreeCAD tests
         run: python -m unittest discover -s freecad/ScanRulerFC/tests
