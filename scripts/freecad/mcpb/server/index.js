@@ -117,6 +117,34 @@ async function getFile(url) {
   return Buffer.from(await r.arrayBuffer())
 }
 
+/** A branch's head commit from git's own ref list (smart HTTP), which is
+ *  not held to the GitHub API's 60 calls an hour; the API if that fails. */
+async function headSha(repo, branch) {
+  try {
+    const text = (await getFile(`https://github.com/${OWNER}/${repo}.git/info/refs?service=git-upload-pack`)).toString('utf8')
+    const m = text.match(new RegExp(`([0-9a-f]{40}) refs/heads/${branch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\n|\0|$)`))
+    if (m) return m[1]
+  } catch (e) {
+    log(`ref list for ${repo} failed (${e.message}); asking the API`)
+  }
+  return (await getJson(`https://api.github.com/repos/${OWNER}/${repo}/commits/${branch}`)).sha
+}
+
+/** The add-on's files at a commit: its FILES list (one path a line), read
+ *  as a plain file; the API's tree for a commit from before there was one. */
+async function addonFiles(s, sha) {
+  try {
+    const text = (await getFile(`https://raw.githubusercontent.com/${OWNER}/${s.repo}/${sha}/${s.folder}/FILES`)).toString('utf8')
+    const files = text.split('\n').map((x) => x.trim()).filter((x) => x && !x.startsWith('#'))
+    if (files.length) return files
+  } catch {}
+  const [parent, name] = [s.folder.slice(0, s.folder.lastIndexOf('/')), s.folder.slice(s.folder.lastIndexOf('/') + 1)]
+  const listing = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/contents/${parent}?ref=${sha}`)
+  const sub = listing.find((x) => x.name === name && x.type === 'dir')
+  const tree = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/git/trees/${sub.sha}?recursive=1`)
+  return tree.tree.filter((x) => x.type === 'blob').map((x) => x.path)
+}
+
 /** The cached add-ons brought up to the branches' heads. Returns the folder
  *  holding AgentLink and ScanRulerFC, and its version, or null. */
 /** A fetched launcher must parse before it is kept: as Node loads a file,
@@ -151,18 +179,14 @@ async function update() {
   try {
     state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
   } catch {}
-  const shas = await Promise.all(SOURCES.map((s) => getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/commits/${s.branch}`).then((c) => c.sha)))
+  const shas = await Promise.all(SOURCES.map((s) => headSha(s.repo, s.branch)))
   const version = 'github+' + shas.map((x) => x.slice(0, 7)).join('+')
   const dir = path.join(CACHE, 'addons')
   if (state.version === version && fs.existsSync(path.join(dir, 'AgentLink'))) return { dir, version }
   const stage = fs.mkdtempSync(path.join(CACHE, 'stage-'))
   try {
     for (const [i, s] of SOURCES.entries()) {
-      const [parent, name] = [s.folder.slice(0, s.folder.lastIndexOf('/')), s.folder.slice(s.folder.lastIndexOf('/') + 1)]
-      const listing = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/contents/${parent}?ref=${shas[i]}`)
-      const sub = listing.find((x) => x.name === name && x.type === 'dir')
-      const tree = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/git/trees/${sub.sha}?recursive=1`)
-      const files = tree.tree.filter((x) => x.type === 'blob' && !/(^|\/)(__pycache__|tests)\//.test(x.path))
+      const files = (await addonFiles(s, shas[i])).filter((p) => !/(^|\/)(__pycache__|tests)\//.test(p)).map((p) => ({ path: p }))
       for (let k = 0; k < files.length; k += 8) {
         await Promise.all(files.slice(k, k + 8).map(async (f) => {
           const data = await getFile(`https://raw.githubusercontent.com/${OWNER}/${s.repo}/${shas[i]}/${s.folder}/${f.path}`)
