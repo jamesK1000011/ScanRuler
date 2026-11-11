@@ -133,11 +133,20 @@ async function headSha(repo, branch) {
 /** The add-on's files at a commit: its FILES list (one path a line), read
  *  as a plain file; the API's tree for a commit from before there was one. */
 async function addonFiles(s, sha) {
-  try {
-    const text = (await getFile(`https://raw.githubusercontent.com/${OWNER}/${s.repo}/${sha}/${s.folder}/FILES`)).toString('utf8')
-    const files = text.split('\n').map((x) => x.trim()).filter((x) => x && !x.startsWith('#'))
-    if (files.length) return files
-  } catch {}
+  // Two plain-file routes, each tried twice, before the API (60 calls an hour).
+  const urls = [
+    `https://raw.githubusercontent.com/${OWNER}/${s.repo}/${sha}/${s.folder}/FILES`,
+    `https://github.com/${OWNER}/${s.repo}/raw/${sha}/${s.folder}/FILES`,
+  ]
+  for (const url of [...urls, ...urls]) {
+    try {
+      const text = (await getFile(url)).toString('utf8')
+      const files = text.split('\n').map((x) => x.trim()).filter((x) => x && !x.startsWith('#'))
+      if (files.length) return files
+    } catch (e) {
+      log(`FILES for ${s.repo} from ${url} failed (${e.message})`)
+    }
+  }
   const [parent, name] = [s.folder.slice(0, s.folder.lastIndexOf('/')), s.folder.slice(s.folder.lastIndexOf('/') + 1)]
   const listing = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/contents/${parent}?ref=${sha}`)
   const sub = listing.find((x) => x.name === name && x.type === 'dir')
