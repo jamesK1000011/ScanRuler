@@ -7,9 +7,20 @@
 # summary page. Nothing here needs the Mac.
 name: FreeCAD bake-off
 
+# Kept small on purpose (GitHub's minutes are free, not ours to waste): a
+# push runs only when it touches the FreeCAD port, these scripts or this
+# file. The add-on lives in the other fork, so a run for an Agent Link
+# change is asked for by pinning its commit in scripts/bakeoff/addon-ref.
+# The browser bake-off (the scanruler job) runs only on request: "[bakeoff]"
+# in the commit message, or Run workflow.
 on:
   push:
     branches: [freecad-spike, 'freecad-spike-*']
+    paths:
+      - 'freecad/**'
+      - 'scripts/freecad/**'
+      - 'scripts/bakeoff/**'
+      - '.github/workflows/freecad-bakeoff.yml'
   workflow_dispatch:
 
 permissions:
@@ -151,7 +162,7 @@ jobs:
 
   scanruler:
     needs: freecad
-    if: always()
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[bakeoff]')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
