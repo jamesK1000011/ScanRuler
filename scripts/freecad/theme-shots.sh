@@ -17,5 +17,7 @@ for pack in "$addon/Studio Light/Studio Light.cfg" "$addon/Studio Dark/Studio Da
   THEME_CFG="$pack" THEME_SHOT="$out/${name// /-}.png" \
     timeout 180 xvfb-run -a -s "-screen 0 1600x1000x24" freecad "$here/theme-shot.py" > "$out/${name// /-}.log" 2>&1 || status=1; tail -n 25 "$out/${name// /-}.log"
 done
+# The Agent Link panel's tabs worked as a person would, pictured.
+PANEL_SHOTS="$out" timeout 240 xvfb-run -a -s "-screen 0 1600x1000x24" freecad "$here/panel-shot.py" > "$out/panel.log" 2>&1 || status=1; tail -n 40 "$out/panel.log"
 ls -la "$out"
 exit $status
