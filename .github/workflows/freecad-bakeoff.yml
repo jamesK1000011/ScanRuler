@@ -87,7 +87,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          name=$(gh api repos/OrcaSlicer/OrcaSlicer/releases/latest -q '[.assets[].name | select(endswith(".AppImage"))] | (map(select(test("2404"))) + .)[0]')
+          name=$(gh api repos/OrcaSlicer/OrcaSlicer/releases/latest -q '[.assets[].name | select(endswith(".AppImage"))] | map(select(test("aarch64") | not)) | (map(select(test("2404"))) + .)[0]')
           echo "asset: $name"
           gh release download --repo OrcaSlicer/OrcaSlicer --pattern "$name" --dir "$RUNNER_TEMP/orca"
           cd "$RUNNER_TEMP/orca" && chmod +x "$name" && "./$name" --appimage-extract > /dev/null
