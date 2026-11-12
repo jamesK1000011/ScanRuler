@@ -2,15 +2,24 @@
 # Agent Link's tools, every group listed, written out for the coverage audit:
 # name, group, whether it changes the model, description; and the live
 # echo's own map from tools to the FreeCAD commands that do the same job.
-import json
+
+# FreeCAD first: its start clears names already imported into __main__.
 import os
 import sys
 
 if os.environ.get("FREECAD_LIB"):
     sys.path.append(os.environ["FREECAD_LIB"])
+import FreeCAD  # noqa: E402,F401
+
+import glob  # noqa: E402,F401
+import json  # noqa: E402
+import os  # noqa: E402,F811
+import subprocess  # noqa: E402,F401
+import sys  # noqa: E402,F811
+import tempfile  # noqa: E402
+import zipfile  # noqa: E402,F401
 from agentlink import echo  # noqa: E402
 from agentlink.tools import Session, build_server  # noqa: E402
-import tempfile  # noqa: E402  (after FreeCAD: its start clears names in __main__)
 
 server = build_server(Session(out_dir=tempfile.mkdtemp()), lean=False)
 tools = [{"name": t.name, "group": t.group, "changes": bool(t.changes), "description": t.description} for t in server.tools.values()]

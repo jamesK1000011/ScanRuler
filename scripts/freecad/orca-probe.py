@@ -4,18 +4,24 @@
 # by Agent Link), and everything it hands back — result.json and the sliced
 # 3MF's own files (plate info, warnings, settings). A report for designing
 # the two-way FreeCAD <-> OrcaSlicer loop; never a failure.
-import glob
-import json
+
+# FreeCAD first: its start clears names already imported into __main__.
 import os
-import subprocess
 import sys
 
 if os.environ.get("FREECAD_LIB"):
     sys.path.append(os.environ["FREECAD_LIB"])
+import FreeCAD  # noqa: E402,F401
+
+import glob  # noqa: E402,F401
+import json  # noqa: E402
+import os  # noqa: E402,F811
+import subprocess  # noqa: E402,F401
+import sys  # noqa: E402,F811
+import tempfile  # noqa: E402
+import zipfile  # noqa: E402,F401
 from agentlink import slicer_presets as sp  # noqa: E402
 from agentlink import slicers  # noqa: E402
-import tempfile  # noqa: E402  (after FreeCAD: its start clears names in __main__)
-import zipfile  # noqa: E402
 
 exe = slicers.find("orcaslicer")
 print("orca:", exe)
@@ -27,6 +33,17 @@ print("=== HELP\n" + (h.stdout or h.stderr)[-12000:])
 print("env presets:", os.environ.get("AGENTLINK_ORCA_PRESETS"), "roots:", sp.roots("orcaslicer"))
 for r in sp.roots("orcaslicer"):
     print("json files under", r, len(glob.glob(os.path.join(r, "**", "*.json"), recursive=True)))
+for r in sp.roots("orcaslicer"):
+    n = sum(len([f for f in fs if f.endswith(".json")]) for _d, _s, fs in os.walk(r, followlinks=True))
+    print("json files (following links):", n)
+    for v in sorted(os.listdir(r))[:6] + [x for x in os.listdir(r) if x.startswith("BBL")]:
+        p = os.path.join(r, v)
+        kind = "link->" + os.readlink(p) if os.path.islink(p) else ("dir" if os.path.isdir(p) else f"file {os.path.getsize(p)}")
+        print("  ", v, kind, (sorted(os.listdir(p))[:5] if os.path.isdir(p) else ""))
+    bbl = os.path.join(r, "BBL")
+    if os.path.isdir(bbl):
+        for d, _s, fs in list(os.walk(bbl, followlinks=True))[:4]:
+            print("   walk", d, len(fs), fs[:3])
 idx = sp.scan("orcaslicer")
 print("presets:", {k: len(v) for k, v in idx.items()})
 pick = {}
@@ -47,7 +64,6 @@ for k, n in pick.items():
     paths[k] = p
     print(k, n, "keys", len(flat))
 
-import FreeCAD  # noqa: E402,F401
 import Mesh  # noqa: E402
 import Part  # noqa: E402
 
