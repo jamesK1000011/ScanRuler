@@ -101,3 +101,20 @@ if gc:
     print("=== gcode header\n" + "\n".join(l for l in head[:400] if l.startswith(";") and ("=" in l or ":" in l))[:5000])
     tail = [l for l in head[-600:] if l.startswith(";")]
     print("=== gcode tail\n" + "\n".join(tail[-120:])[:5000])
+
+# Back again: the project read (threemf.read), then sliced as it stands.
+from agentlink import threemf  # noqa: E402
+
+if os.path.isfile(tm):
+    idx2 = {}
+
+    def resolve(slicer, kind, name):
+        if slicer not in idx2:
+            idx2[slicer] = sp.scan(slicer)
+        return sp.resolve(idx2[slicer], kind, name)
+
+    back = threemf.read(tm, resolve)
+    print("=== READ BACK\n" + json.dumps({k: v for k, v in back.items() if k != "statistics"}, indent=1)[:4000])
+    print("=== STATISTICS\n" + json.dumps(back.get("statistics"), indent=1)[:3000])
+    exe2, found = slicers.slice_project("orcaslicer", tm, os.path.join(work, "again"), export=os.path.join(work, "again.3mf"))
+    print("=== RESLICED", found, slicers.read_gcode(found[0]), json.dumps(slicers.LAST)[:1500])
