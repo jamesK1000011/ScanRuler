@@ -14,11 +14,14 @@ from .wall_thickness import DEFAULT_CONE_ANGLE_DEG, DEFAULT_NORMAL_DEVIATION_DEG
 BY = "ScanRuler wall thickness (ScanRulerFC)"
 
 
-def read(shape, spacing=1.5, reach=12.0, cap=1200, cone_rays=8):
+def read(shape, spacing=1.5, reach=12.0, cap=2500, cone_rays=8):
     import MeshPart
 
     if not shape.Solids:
         return None
+    # Even triangles, about cap of them: every one read, so the readings lie
+    # evenly and a thin place's readings join into one run.
+    spacing = max(spacing, math.sqrt(2.3 * shape.Area / cap))
     m = MeshPart.meshFromShape(Shape=shape, MaxLength=spacing)
     m.harmonizeNormals()
     if m.Volume < 0:
@@ -45,10 +48,8 @@ def read(shape, spacing=1.5, reach=12.0, cap=1200, cone_rays=8):
             near[i:i + 512] = d < skip
         ok &= ~near
     idx = np.nonzero(ok)[0]
-    if len(idx) > cap:
-        # By area, so a big face is read as often as its share.
-        rng = np.random.default_rng(0)
-        idx = rng.choice(idx, cap, replace=False, p=area[idx] / area[idx].sum())
+    if len(idx) > 2 * cap:
+        idx = idx[:: int(math.ceil(len(idx) / (2 * cap)))]
     if not len(idx):
         return None
     diag = float(np.linalg.norm(V.max(0) - V.min(0)))
@@ -56,7 +57,7 @@ def read(shape, spacing=1.5, reach=12.0, cap=1200, cone_rays=8):
                           max_normal_deviation=math.radians(DEFAULT_NORMAL_DEVIATION_DEG), max_thickness=reach, epsilon=max(1e-6, diag * 1e-5))
     # How far apart the readings land: thin_runs joins a thin place's
     # readings by it, so a lip thin all the way round is one run.
-    step = max(spacing, math.sqrt(float(area[ok].sum()) / 2 / len(idx)))
+    step = spacing
     got = np.isfinite(t)
     if not got.any():
         return None
