@@ -12,7 +12,14 @@ import sys
 cmds_path, tools_path, map_path, out_path = sys.argv[1:5]
 C = json.load(open(cmds_path))
 T = json.load(open(tools_path))
-M = json.load(open(map_path))
+# map_path: a JSON file, or a folder of them (map/<workbench>.json) — the
+# judgements made by reading each command against the tools.
+import glob as _glob
+import os as _os
+
+M = {}
+for f in ([map_path] if map_path.endswith(".json") else sorted(_glob.glob(_os.path.join(map_path, "*.json")))):
+    M.update(json.load(open(f)))
 
 FAMILY = {
     "PartDesign": ["pd_", "feature_", "sketch_new", "hw_"], "Sketcher": ["sketch_"], "Part": ["part_", "model_", "cut", "measure"],
@@ -65,7 +72,7 @@ for cmd, info in sorted(C["commands"].items()):
         else:
             desc = [t["name"] for t in fam if len(cw & set(words(t["description"])) - {"part", "body", "sketch", "face", "edge"}) >= 2]
             status, by = ("described", desc[:3]) if desc else ("gap", [])
-    rows.append({"cmd": cmd, "owner": own, "text": text, "status": status, "by": by})
+    rows.append({"cmd": cmd, "owner": own, "text": text, "status": status, "by": by, "judged": cmd in M})
 
 by_owner = {}
 for r in rows:
@@ -87,6 +94,8 @@ print(f"FreeCAD {C['freecad']}: {len(rows)} commands, {len(tools)} tools")
 print(f"{'owner':14} {'cmds':>5} {'tool':>5} {'named':>5} {'descr':>5} {'win':>5} {'none':>5} {'gap':>5} {'head%':>6}")
 for k, v in sorted(by_owner.items(), key=lambda kv: -kv[1]["total"]):
     print(f"{k:14} {v['total']:5} {v['tool']:5} {v['named']:5} {v['described']:5} {v['window']:5} {v['none']:5} {v['gap']:5} {str(pct(v)):>6}")
+unjudged = [r["cmd"] for r in rows if not r["judged"]]
+print(f"judged by reading: {len(rows) - len(unjudged)} of {len(rows)}" + (f"; not yet (matched on words): {', '.join(unjudged[:40])}" if unjudged else ""))
 print(f"{'ALL':14} {allv['total']:5} {allv['tool']:5} {allv['named']:5} {allv['described']:5} {allv['window']:5} {allv['none']:5} {allv['gap']:5} {str(pct(allv)):>6}")
 # Every command, one line, for reading from the log (the artifact store is
 # out of reach where the audit is read).
