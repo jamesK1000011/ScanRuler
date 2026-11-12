@@ -43,6 +43,10 @@ error (an open scan reads `unsure` there instead).
   `Mesh.decimate`, measured as ScanRuler measures it), `mesh_apply_reduced`,
   `mesh_discard`, `mesh_use_edited`, `mesh_discard_edited`, `mesh_undo`,
   `mesh_export`, `mesh_parts`. Edits go on a copy until `mesh_use_edited`.
+  These are ScanRuler's scan-grade edits; Agent Link's `meshobj_*` tools are
+  FreeCAD's own mesh operations on document meshes. The two meet in the
+  document: `mesh_export { to: "document" }` puts the edited scan there, and
+  `scan_open { object }` takes a document mesh in to measure.
 - **2D measure** (`flat` group): `flat_open_image`, `flat_calibrate`,
   `flat_detect_edges`, `flat_edges`, `flat_fit`, `flat_dimension_add`,
   `flat_report`, `flat_export` (DXF, SVG). The sheet is an image or the

@@ -320,8 +320,19 @@ def tools(session):
             V, F = ms["reduced"]["V"], ms["reduced"]["F"]
         else:
             raise ToolError("invalid_input", "part: edited or reduced — the trimmed piece is not ported.")
-        fmt = a.get("format", "stl")
         scan = S.scan_of(session)
+        if a.get("to") == "document":
+            if session.doc is None:
+                raise ToolError("invalid_state", "No document open: doc_new first.")
+            m = Mesh.Mesh()
+            m.addFacets([[tuple(V[i]) for i in t] for t in F.tolist()])
+            o = session.doc.addObject("Mesh::Feature", "Mesh")
+            o.Label = session.unique(f"{os.path.splitext(scan.name)[0]} {part}")
+            o.Mesh = m
+            session.doc.recompute()
+            session.snapshot("mesh_export")
+            return {"object": o.Label, "triangles": int(len(F)), "status": f"{part} mesh put in the document: Agent Link's meshobj tools, slicing and export work on it."}
+        fmt = a.get("format", "stl")
         path = a.get("path") or os.path.join(session.out_dir, f"{os.path.splitext(scan.name)[0]}-{part}.{fmt}")
         if not path.lower().endswith("." + fmt):
             path += "." + fmt
@@ -365,8 +376,8 @@ def tools(session):
         Tool("mesh_use_edited", "Take the edited copy into use: it becomes the scan every tool measures, the sections cut again on it. mesh_undo goes back to the scan before.", obj({}), mesh_use_edited),
         Tool("mesh_discard_edited", "Throw the edited copy and its edits away: the tools work on the scan in use again. mesh_undo brings them back.", obj({}), mesh_discard_edited),
         Tool("mesh_undo", "Take the last mesh edit back (an edit, use_edited, discard_edited or apply_reduced) — the arrays before it are kept.", obj({}), mesh_undo),
-        Tool("mesh_export", "Write the edited copy or the reduced mesh as a binary STL in millimetres (or format 3mf) to path (the session's folder by default). Returns the file.",
-             obj({"part": {"type": "string", "enum": ["edited", "reduced", "piece"]}, "format": {"type": "string", "enum": ["stl", "3mf"]}, "path": {"type": "string", "minLength": 1}}, ["part"]), mesh_export),
+        Tool("mesh_export", "Write the edited copy or the reduced mesh as a binary STL in millimetres (or format 3mf) to path (the session's folder by default), or to: \"document\" as a mesh object in the document. Returns the file or the object.",
+             obj({"part": {"type": "string", "enum": ["edited", "reduced", "piece"]}, "to": {"type": "string", "enum": ["file", "document"]}, "format": {"type": "string", "enum": ["stl", "3mf"]}, "path": {"type": "string", "minLength": 1}}, ["part"]), mesh_export),
     ]
 
 

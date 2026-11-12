@@ -4,6 +4,8 @@
 
 The `meshtools` group cleans a scan up, edits it and reduces it to a light mesh for CAD. Every edit goes onto an **edited copy**, made by the first edit; every other tool keeps measuring the scan until `mesh_use_edited` takes the copy into use. `mesh_undo` takes the last mesh edit back. The reduced mesh is made **beside** the mesh, as a preview, not an edit.
 
+**With the document.** `mesh_export { part, to: "document" }` puts the edited copy or the reduced mesh in the FreeCAD document as a mesh object, where Agent Link's `meshobj_*` tools (Evaluate & Repair, booleans, sections, unwrap), slicing and export work on it. `scan_open { object }` takes a document mesh back in to measure.
+
 Coordinates are mm in the frame the part is measured in now, after any alignment: align first (`align_auto`, `align_datum`) when it should land in CAD on its datums.
 
 ## The workflow

@@ -24,15 +24,27 @@ INFO = "The 3D scan measured (ScanRuler, ported): open it and read what it holds
 
 
 def tools(session):
+    def document_mesh(ref):
+        d = session.doc
+        ms = [o for o in (d.Objects if d else []) if o.TypeId == "Mesh::Feature"]
+        o = next((x for x in ms if ref in (x.Label, x.Name)), None)
+        if o is None:
+            raise ToolError("not_found", f"object {ref!r}: the document's meshes are {', '.join(x.Label for x in ms) or 'none'}.")
+        return o
+
     def scan_open(a):
-        path = a.get("path")
-        if not path or not os.path.isfile(path):
-            raise ToolError("not_found", f"path {path!r}: no such file — give the scan's path on this computer.")
+        path, ref = a.get("path"), a.get("object")
+        if ref is None and (not path or not os.path.isfile(path)):
+            raise ToolError("not_found", f"path {path!r}: no such file — give the scan's path on this computer, or object: a mesh in the document.")
         st = S.state(session)
         if st["scan"] is not None and (st["elements"] or st["dimensions"]) and not a.get("discard"):
             raise ToolError("invalid_state", f"{st['scan'].name} is open with {len(st['elements'])} elements and {len(st['dimensions'])} dimensions: discard: true replaces it.")
         try:
-            scan = S.load(path, a.get("units", "mm"), given="units" in a)
+            if ref is not None:
+                o = document_mesh(ref)
+                scan = S.from_mesh(o.Mesh.copy(), o.Label)
+            else:
+                scan = S.load(path, a.get("units", "mm"), given="units" in a)
         except ValueError as e:
             raise ToolError("invalid_input", str(e))
         st.update(S.fresh())
@@ -665,7 +677,7 @@ def tools(session):
         return out
 
     return [
-        Tool("scan_open", "Open a 3D scan (STL, PLY, OBJ, OFF, 3MF; glTF/GLB, Collada, VRML, 3DS in the units their format says) to measure, in place of the one open: units mm (default), cm, m or in. A scan with elements or dimensions on it is kept unless discard: true.", obj({"path": {"type": "string"}, "units": {"type": "string", "enum": list(S.UNITS)}, "discard": {"type": "boolean"}}, ["path"]), scan_open),
+        Tool("scan_open", "Open a 3D scan (STL, PLY, OBJ, OFF, 3MF; glTF/GLB, Collada, VRML, 3DS in the units their format says) to measure, in place of the one open: units mm (default), cm, m or in — or object: a mesh in the document (one Agent Link's meshobj tools cleaned, say), in millimetres. A scan with elements or dimensions on it is kept unless discard: true.", obj({"path": {"type": "string"}, "object": {"type": "string"}, "units": {"type": "string", "enum": list(S.UNITS)}, "discard": {"type": "boolean"}}), scan_open),
         Tool("scan_nearest", "Where a place lands on the scan: the vertex (a point snaps to the nearest), its coordinates and outward normal, a triangle it is a corner of, and how far it lies from the point asked about. Use it to check a point lies on the surface before fitting there. Changes nothing.", obj({"at": location("The place on the scan.")}, ["at"]), guarded(scan_nearest)),
         Tool("scan_query", "The scan's vertices inside a box, or within a radius of a point (near), with their outward normals — the points on a face; normal keeps only those facing a direction. Returns matched, the vertex numbers, points and normals (mm, current frame), the box round them, centroid and mean normal; fields: count, ids or all (the default) says how much. Trap: at most limit come back (1000 by default, 20000 at most), every k-th spread evenly, step saying k — mark: true marks every matching vertex, not the thinned list, for element_fit_marked { marked: true }. Changes nothing on the part.", obj({"box": BOX, "near": obj({"at": vec3("The centre, mm."), "radius": num("mm.", exclusiveMinimum=0)}, ["at", "radius"], "A ball about a point, in place of box."), "normal": NORMAL, "limit": integer("How many vertices at most; 1000 by default, 20000 at most.", minimum=1, maximum=20000), "mark": boolean("Leave every matching vertex marked, for element_fit_marked { marked: true }."), "fields": enum(["count", "ids", "all"], "count: the numbers alone (the default with mark); ids: with the vertices; all: with points and normals (the default).")}), guarded(scan_query)),
         Tool("scan_segment", "The scan's planar regions, found all at once: grown from the flattest places outward within maxDeg (15°) and maxRms (0.05 mm), those smaller than minArea given back. Returns found, considered, claimed and the regions, largest first, at most limit (20): id, normal, point, sigma, area (mm²), box, vertices, neighbours { id, deg }. mark: a region's id, or several, leaves their points marked for element_fit_marked { marked: true }. Changes nothing.", obj({"kind": enum(["plane"], "What to find; plane, the default and for now the only one."), "box": BOX, "minArea": num("mm²; by default a square 2 % of the scan's diagonal on a side.", minimum=0), "maxRms": num("mm; 0.05 by default.", exclusiveMinimum=0), "maxDeg": num("Degrees; 15 by default.", exclusiveMinimum=0, maximum=60), "limit": integer("How many regions are listed; 20 by default.", minimum=1, maximum=200), "mark": one_of([integer("A region's id.", minimum=1), arr(integer(minimum=1), "Several regions' ids.", minItems=1)], "Leave this region's points marked, or several regions'."), "list": boolean("With mark: the list of regions too.")}), guarded(scan_segment)),

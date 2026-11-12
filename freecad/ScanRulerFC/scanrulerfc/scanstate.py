@@ -125,3 +125,13 @@ def load(path, units="mm", given=True):
     if len(F) == 0:
         raise ValueError(f"{os.path.basename(path)}: no triangles read.")
     return Scan(os.path.basename(path), V, F, units, path)
+
+
+def from_mesh(m, name):
+    """A scan from a FreeCAD mesh already in millimetres — a document's mesh object."""
+    pts, tris = m.Topology
+    V = np.array([[p.x, p.y, p.z] for p in pts], dtype=float)
+    F = np.array(tris, dtype=np.int64)
+    if len(F) == 0:
+        raise ValueError(f"{name}: the mesh has no triangles.")
+    return Scan(name, V, F, "mm", None)

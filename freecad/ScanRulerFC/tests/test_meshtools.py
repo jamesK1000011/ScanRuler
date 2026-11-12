@@ -221,6 +221,23 @@ class Tools(unittest.TestCase):
         err, o = self.call("mesh_export", {"part": "edited"})
         self.assertTrue(err)
 
+    def test_round_trip_through_the_document(self):
+        # Agent Link's meshobj tools and these share the document's meshes.
+        if self.session.doc is None:
+            self.ok("doc_new", {"name": "MeshTrip"})
+        self.ok("scan_open", {"path": self.stl, "discard": True})
+        n = self.ok("scan_info")["scan"]["triangles"]
+        self.ok("mesh_remove_islands")
+        put = self.ok("mesh_export", {"part": "edited", "to": "document"})
+        self.assertLess(put["triangles"], n)
+        info = self.ok("meshobj_info", {"mesh": put["object"]})
+        self.assertEqual(info["facets"], put["triangles"])
+        self.ok("mesh_discard_edited")
+        back = self.ok("scan_open", {"object": put["object"], "discard": True})
+        self.assertEqual(back["opened"]["triangles"], put["triangles"])
+        err, out = self.call("scan_open", {"object": "No such mesh", "discard": True})
+        self.assertTrue(err)
+
 
 if __name__ == "__main__":
     unittest.main()
