@@ -37,12 +37,42 @@ def menu_commands():
     return seen
 
 
+def dump(data):
+    for c in sorted(Gui.listCommands()):
+        info = {}
+        try:
+            info = dict(Gui.Command.get(c).getInfo())
+        except Exception:
+            pass
+        data["commands"][c] = {k: info.get(k) for k in ("menuText", "toolTip", "whatsThis", "statusTip", "shortcut") if info.get(k)}
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1, sort_keys=True)
+
+
+def close_dialogs():
+    """A workbench that greets with a modal dialog would hold the run: shut."""
+    from PySide import QtGui
+
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        QtWidgets = QtGui
+    w = QtWidgets.QApplication.activeModalWidget()
+    if w is not None:
+        print(f"audit: closing a dialog: {w.windowTitle()!r}", flush=True)
+        w.reject() if hasattr(w, "reject") else w.close()
+
+
 def run():
     data = {"freecad": ".".join(FreeCAD.Version()[:3]), "workbenches": {}, "commands": {}}
+    watchdog = QtCore.QTimer()
+    watchdog.timeout.connect(close_dialogs)
+    watchdog.start(1500)
     for name in sorted(Gui.listWorkbenches()):
         if name in ("NoneWorkbench",):
             continue
         rec = {}
+        print(f"audit: workbench {name}", flush=True)
         try:
             Gui.activateWorkbench(name)
             Gui.updateGui()
@@ -57,15 +87,8 @@ def run():
         except Exception as e:
             rec["error"] = str(e)[:300]
         data["workbenches"][name] = rec
-    for c in sorted(Gui.listCommands()):
-        info = {}
-        try:
-            info = dict(Gui.Command.get(c).getInfo())
-        except Exception:
-            pass
-        data["commands"][c] = {k: info.get(k) for k in ("menuText", "toolTip", "whatsThis", "statusTip", "shortcut") if info.get(k)}
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=1, sort_keys=True)
+        dump(data)  # what there is so far, should a later one hang
+    dump(data)
     print(f"audit: {len(data['commands'])} commands, {len(data['workbenches'])} workbenches -> {out_path}", flush=True)
 
 

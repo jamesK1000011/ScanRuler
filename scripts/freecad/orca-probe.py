@@ -44,6 +44,7 @@ for r in sp.roots("orcaslicer"):
     if os.path.isdir(bbl):
         for d, _s, fs in list(os.walk(bbl, followlinks=True))[:4]:
             print("   walk", d, len(fs), fs[:3])
+print("fetch:", sp.fetch_orca(["BBL"], exe=exe))
 idx = sp.scan("orcaslicer")
 print("presets:", {k: len(v) for k, v in idx.items()})
 pick = {}
