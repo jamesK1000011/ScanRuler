@@ -324,7 +324,11 @@ async function main() {
     }
   }
 
-  const sock = await windowLink()
+  // With a FreeCAD Python to hand, the server runs headless and sends each
+  // tool call to the window when its link is on (agentlink/supervise.py),
+  // so closing or restarting the window never ends the session. Relaying
+  // straight to the window is left for a FreeCAD without one.
+  const sock = fc.py || fc.cmd ? null : await windowLink()
   if (sock) {
     log(`relaying to the FreeCAD window on port ${PORT}`)
     process.stdin.pipe(sock)
@@ -356,6 +360,17 @@ const UPDATE_TOOL = {
   inputSchema: { type: 'object', properties: {} },
 }
 
+/** The window (if its link is on) quits and opens again on the new add-ons:
+ *  its documents saved and reopened by app_restart; nothing if it is closed. */
+function restartWindow() {
+  const s = net.connect(PORT, '127.0.0.1')
+  s.on('error', () => {})
+  s.on('connect', () => {
+    s.write(JSON.stringify({ jsonrpc: '2.0', id: '__update', method: 'tools/call', params: { name: 'app_restart', arguments: {} } }) + '\n')
+    setTimeout(() => s.destroy(), 5000)
+  })
+}
+
 function headless(exe, args, e, inst = {}) {
   const pending = new Map()
   const listing = new Set()
@@ -381,6 +396,7 @@ function headless(exe, args, e, inst = {}) {
       }
       updating = true
       child.kill()
+      restartWindow()
       reply(id, { before, after: version, restarted: true, note: 'FreeCAD started again on the new add-ons: the document is fresh (session_state). New tools are listed.' })
     } catch (err) {
       reply(id, { error: { code: 'unavailable', message: `No update: ${err.message}. The add-ons in place keep serving.` } }, true)
