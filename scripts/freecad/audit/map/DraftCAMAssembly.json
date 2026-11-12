@@ -51,6 +51,7 @@
 "CAM_DressupRampEntry": "cam_dressup",
 "CAM_DressupTag": "cam_dressup",
 "CAM_DressupTools": "none",
+"CAM_DressupZCorrect": "cam_dressup",
 "CAM_Drilling": "cam_op",
 "CAM_DrillingTools": "none",
 "CAM_Engrave": "cam_op",
