@@ -88,3 +88,7 @@ print(f"{'owner':14} {'cmds':>5} {'tool':>5} {'named':>5} {'descr':>5} {'win':>5
 for k, v in sorted(by_owner.items(), key=lambda kv: -kv[1]["total"]):
     print(f"{k:14} {v['total']:5} {v['tool']:5} {v['named']:5} {v['described']:5} {v['window']:5} {v['none']:5} {v['gap']:5} {str(pct(v)):>6}")
 print(f"{'ALL':14} {allv['total']:5} {allv['tool']:5} {allv['named']:5} {allv['described']:5} {allv['window']:5} {allv['none']:5} {allv['gap']:5} {str(pct(allv)):>6}")
+# Every command, one line, for reading from the log (the artifact store is
+# out of reach where the audit is read).
+for r in rows:
+    print("ROW\t" + "\t".join([r["cmd"], r["owner"], r["status"], ",".join(r["by"]), r["text"].replace("&", "")]))
