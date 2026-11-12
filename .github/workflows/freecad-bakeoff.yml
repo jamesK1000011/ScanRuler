@@ -98,6 +98,17 @@ jobs:
         continue-on-error: true
         timeout-minutes: 10
         run: bash scripts/freecad/theme-shots.sh freecad-addon/src/Mod/AgentLink "$AGENTLINK_RENDERS/theme"
+      - name: Coverage audit
+        # Every FreeCAD command against Agent Link's tools (scripts/freecad/audit):
+        # a report, never a failure.
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          a=bakeoff-out/freecad/audit; mkdir -p $a
+          AUDIT_OUT=$PWD/$a/commands.json timeout 300 xvfb-run -a -s "-screen 0 1600x1000x24" freecad scripts/freecad/audit/commands.py > $a/gui.log 2>&1 || true
+          tail -n 5 $a/gui.log
+          python scripts/freecad/audit/tools.py $a/tools.json
+          python scripts/freecad/audit/coverage.py $a/commands.json $a/tools.json scripts/freecad/audit/map.json $a/coverage.json
       - name: Agent Link tests
         # a hung test stops here, not at the job's 40 minutes
         timeout-minutes: 15
