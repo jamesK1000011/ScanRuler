@@ -9,13 +9,13 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
-import zipfile
 
 if os.environ.get("FREECAD_LIB"):
     sys.path.append(os.environ["FREECAD_LIB"])
 from agentlink import slicer_presets as sp  # noqa: E402
 from agentlink import slicers  # noqa: E402
+import tempfile  # noqa: E402  (after FreeCAD: its start clears names in __main__)
+import zipfile  # noqa: E402
 
 exe = slicers.find("orcaslicer")
 print("orca:", exe)
@@ -24,6 +24,9 @@ if not exe:
 h = subprocess.run([exe, "--help"], capture_output=True, text=True, timeout=120)
 print("=== HELP\n" + (h.stdout or h.stderr)[-12000:])
 
+print("env presets:", os.environ.get("AGENTLINK_ORCA_PRESETS"), "roots:", sp.roots("orcaslicer"))
+for r in sp.roots("orcaslicer"):
+    print("json files under", r, len(glob.glob(os.path.join(r, "**", "*.json"), recursive=True)))
 idx = sp.scan("orcaslicer")
 print("presets:", {k: len(v) for k, v in idx.items()})
 pick = {}
@@ -54,7 +57,7 @@ m = Mesh.Mesh(shape.tessellate(0.05))
 m.write(stl)
 out = os.path.join(work, "out")
 os.makedirs(out)
-args = [exe, "--slice", "0", "--load-settings", f"{paths['machine']};{paths['process']}", "--load-filaments", paths["filament"],
+args = [exe, "--slice", "0", "--export-statistics", "--load-settings", f"{paths['machine']};{paths['process']}", "--load-filaments", paths["filament"],
         "--outputdir", out, "--export-3mf", "out.3mf", "--export-slicedata", os.path.join(out, "slicedata"), stl]
 r = subprocess.run(args, capture_output=True, text=True, timeout=600, cwd=out)
 print("=== RUN", r.returncode)

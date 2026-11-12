@@ -5,12 +5,12 @@
 import json
 import os
 import sys
-import tempfile
 
 if os.environ.get("FREECAD_LIB"):
     sys.path.append(os.environ["FREECAD_LIB"])
 from agentlink import echo  # noqa: E402
 from agentlink.tools import Session, build_server  # noqa: E402
+import tempfile  # noqa: E402  (after FreeCAD: its start clears names in __main__)
 
 server = build_server(Session(out_dir=tempfile.mkdtemp()), lean=False)
 tools = [{"name": t.name, "group": t.group, "changes": bool(t.changes), "description": t.description} for t in server.tools.values()]
