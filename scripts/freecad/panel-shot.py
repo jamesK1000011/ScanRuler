@@ -87,7 +87,16 @@ def run():
         assert p.man_file, p.man_msg.text()
         print("manual:", p.man_msg.text(), flush=True)
 
-    for title, fn in (("Setups", setups), ("Materials", materials), ("Fits", fits), ("Manual", manual)):
+    def review():
+        p.fill_bodies()
+        p.review_pick.setCurrentText("Base")
+        p.review()
+        assert p.verdict.text() and not p.verdict.text().startswith("Could not"), p.verdict.text()
+        assert p.findings.topLevelItemCount() > 0
+        p._finding_picked(p.findings.topLevelItem(0), 0)
+        print("review:", p.verdict.text(), "|", p.findings.topLevelItemCount(), "findings |", p.figures.text()[:120], flush=True)
+
+    for title, fn in (("Review", review), ("Setups", setups), ("Materials", materials), ("Fits", fits), ("Manual", manual)):
         tabs.setCurrentIndex(titles.index(title))
         step(fn)
         Gui.updateGui()
