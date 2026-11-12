@@ -361,13 +361,20 @@ const UPDATE_TOOL = {
 }
 
 /** The window (if its link is on) quits and opens again on the new add-ons:
- *  its documents saved and reopened by app_restart; nothing if it is closed. */
+ *  its documents saved and reopened by app_restart; nothing if it is closed.
+ *  Resolves once the window has answered (its restart mark written, so calls
+ *  from here on wait for it) — true — or false when no window answered. */
 function restartWindow() {
-  const s = net.connect(PORT, '127.0.0.1')
-  s.on('error', () => {})
-  s.on('connect', () => {
-    s.write(JSON.stringify({ jsonrpc: '2.0', id: '__update', method: 'tools/call', params: { name: 'app_restart', arguments: {} } }) + '\n')
-    setTimeout(() => s.destroy(), 5000)
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (v) => { if (!done) { done = true; resolve(v) } }
+    const s = net.connect(PORT, '127.0.0.1')
+    s.on('error', () => finish(false))
+    s.on('connect', () => {
+      s.write(JSON.stringify({ jsonrpc: '2.0', id: '__update', method: 'tools/call', params: { name: 'app_restart', arguments: {} } }) + '\n')
+      s.once('data', () => { finish(true); s.destroy() })
+      setTimeout(() => { finish(true); s.destroy() }, 5000)
+    })
   })
 }
 
@@ -395,9 +402,11 @@ function headless(exe, args, e, inst = {}) {
         return
       }
       updating = true
+      const windowed = await restartWindow()
       child.kill()
-      restartWindow()
-      reply(id, { before, after: version, restarted: true, note: 'FreeCAD started again on the new add-ons: the document is fresh (session_state). New tools are listed.' })
+      reply(id, { before, after: version, restarted: true, note: windowed
+        ? 'FreeCAD started again on the new add-ons: the window reopens its documents (calls wait for it, up to 90 s), the one in front back in front. New tools are listed.'
+        : 'FreeCAD started again on the new add-ons: the document is fresh (session_state). New tools are listed.' })
     } catch (err) {
       reply(id, { error: { code: 'unavailable', message: `No update: ${err.message}. The add-ons in place keep serving.` } }, true)
     }
