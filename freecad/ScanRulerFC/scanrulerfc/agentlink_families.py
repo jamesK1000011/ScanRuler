@@ -13,6 +13,12 @@ from .render_layers import register  # noqa: E402
 
 register()
 
+# ScanRuler's wall thickness in Agent Link's printability check (dfm_check,
+# part_review), where this Agent Link takes wall readers.
+from .dfm_wall import register as _register_wall  # noqa: E402
+
+_register_wall()
+
 # The scan guides beside Agent Link's own (guide_read: measure-scan,
 # mesh-tools).
 try:

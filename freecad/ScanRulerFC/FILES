@@ -21,6 +21,7 @@ scanrulerfc/dev_map.py
 scanrulerfc/dev_rigid.py
 scanrulerfc/dev_surface.py
 scanrulerfc/dev_volume.py
+scanrulerfc/dfm_wall.py
 scanrulerfc/dimensions.py
 scanrulerfc/draft_core.py
 scanrulerfc/fam_align.py
@@ -80,6 +81,7 @@ tests/test_catalog.py
 tests/test_cloud_unlink.py
 tests/test_deviation.py
 tests/test_deviation_maths.py
+tests/test_dfm_wall.py
 tests/test_draft_scan.py
 tests/test_files.py
 tests/test_fit_surface.py
