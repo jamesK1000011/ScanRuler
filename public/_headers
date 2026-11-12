@@ -26,6 +26,23 @@
 /assets/meshWorker-*
   ! Content-Security-Policy
   Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'
+# The fork's plugin workers that load occt-wasm (assembly, circuit, fits,
+# generate, hidden lines), as reWorker.
+/assets/asmWorker-*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'
+/assets/circuitWorker-*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'
+/assets/fitsWorker-*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'
+/assets/genWorker-*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'
+/assets/hlrWorker-*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'
 /assets/reWorker-*
   ! Content-Security-Policy
   Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'
