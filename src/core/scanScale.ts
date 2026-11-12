@@ -17,6 +17,7 @@
 
 import type { Rigid } from './deviation/rigid'
 import type { Extension } from './elements/extend'
+import { scaleGuide } from './fit/guide'
 import type { SectionFrame } from './section/frame'
 import type { ElementSource, FitData, Vec3 } from './types'
 
@@ -110,6 +111,7 @@ export function scaleFit(fit: FitData, s: number): FitData {
     ...(fit.formError !== undefined ? { formError: fit.formError * s } : {}),
     ...(fit.residualMin !== undefined ? { residualMin: fit.residualMin * s } : {}),
     ...(fit.residualMax !== undefined ? { residualMax: fit.residualMax * s } : {}),
+    ...(fit.zoneWidth !== undefined ? { zoneWidth: fit.zoneWidth * s } : {}),
   }
   const center = scalePoint(fit.center, s)
   switch (fit.kind) {
@@ -142,6 +144,7 @@ export function scaleFit(fit: FitData, s: number): FitData {
  *  lengths its construction holds of its own. Vertex numbers and references
  *  to other elements are as they were. */
 export function scaleSource(source: ElementSource, s: number): ElementSource {
+  if (source.type === 'fitted') return source.guide ? { ...source, guide: scaleGuide(source.guide, s) } : source
   if (source.type !== 'constructed') return source
   const p = source.params
   const times = (from: number, to: number): number[] => p.map((v, i) => (i >= from && i < to ? v * s : v))

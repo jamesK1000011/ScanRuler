@@ -1525,10 +1525,11 @@ export function createMcpServer({
     if (listDiff()?.any) server.sendToolListChanged().catch(() => {})
   }
   // A client told the list changed may not list it again — Claude Desktop
-  // runs two copies of the server, and the chat's may keep the list it got
-  // at its start: the status says so, with what was added, taken away and
-  // changed, and which page the list came from — the names once for each
-  // difference, counted in every answer after it.
+  // keeps the list it got when it started this server, for as long as the
+  // app runs, so a new chat gets the same one and only quitting the app
+  // lists the tools afresh: the status says so, with what was added, taken
+  // away and changed, and which page the list came from — the names once for
+  // each difference, counted in every answer after it.
   let staleNamed = null
   function staleTools() {
     const diff = listDiff()
@@ -1549,8 +1550,8 @@ export function createMcpServer({
         note: lean
           ? `The client did not list the tools again after they changed — a group enabled, or the page’s — so some are not among those this chat was given: scanruler_batch runs any of them by name, and scanruler_tools { names } gives their definitions. ${FULL_WAY_BACK}`
           : named
-          ? 'The tools this chat was given are not the ones the ScanRuler page offers now — it changed since they were listed, and the client did not list them again. A tool or field missing from them may be there now: start a new chat to get the current tools; meanwhile scanruler_batch runs any of the page’s tools by name, and a changed tool takes what the page’s command takes now.'
-          : 'Still stale, as an earlier answer named them: scanruler_batch runs any of the page’s tools by name.',
+            ? 'The tools this chat was given are not the ones the ScanRuler page offers now — it changed since they were listed, and the client did not list them again. A tool or field missing from them may be there now. A new chat does not help, as the client keeps the list for as long as it runs: quit the AI app completely and open it again to get the current tools (in Claude Desktop, Quit from its tray or menu-bar icon, not just closing the window). Meanwhile scanruler_batch runs any of the page’s tools by name, and a changed tool takes what the page’s command takes now.'
+            : 'Still stale, as an earlier answer named them: scanruler_batch runs any of the page’s tools by name, and quitting the AI app completely and opening it again lists the current ones.',
       },
     }
   }

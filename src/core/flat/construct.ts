@@ -13,6 +13,7 @@ import {
   fitLinePoints,
   fitLineRegion,
   flatPoint,
+  withFlatCircleZone,
 } from './fit'
 import { flatRefLine, flatRefPoint, type FlatRefRole } from './refs'
 import { fitSplinePoints } from './spline'
@@ -174,6 +175,9 @@ export const FLAT_METHODS: readonly FlatMethod[] = [
 export interface SplinePickOptions {
   tangents?: readonly (Vec2 | null)[]
   closed?: boolean
+  /** An image pixel's size in the points' units — the region fits' floor
+   *  on what counts as scatter. 1 (the points in pixels) by default. */
+  pixel?: number
 }
 
 export function flatMethodsForKind(kind: FlatElementKind): FlatMethod[] {
@@ -234,8 +238,9 @@ export function collectsEdgePoints(m: FlatMethod): boolean {
   return m.mode === 'seed' || m.mode === 'edge'
 }
 
-/** Fit a pick-mode method from its collected points. `spline` is read by the
- *  spline method alone. */
+/** Fit a pick-mode method from its collected points. `spline`'s tangents
+ *  and closing are read by the spline method alone, its pixel by the
+ *  region fits. */
 export function evaluateFlatPicks(
   methodId: string,
   points: readonly Vec2[],
@@ -259,15 +264,15 @@ export function evaluateFlatPicks(
       return fitLinePoints(points)
     case 'flat-circle-pick':
     case 'flat-circle-seed':
-      return fitCirclePoints(points)
+      return withFlatCircleZone(fitCirclePoints(points), points)
     case 'flat-arc-pick':
-      return fitArcPoints(points)
+      return withFlatCircleZone(fitArcPoints(points), points)
     case 'flat-line-edge':
-      return fitLineRegion(points)
+      return fitLineRegion(points, spline.pixel)
     case 'flat-circle-edge':
-      return fitCircleRegion(points)
+      return fitCircleRegion(points, spline.pixel)
     case 'flat-arc-edge':
-      return fitArcRegion(points)
+      return fitArcRegion(points, spline.pixel)
     default:
       throw new Error(`"${methodId}" is not a pick method.`)
   }

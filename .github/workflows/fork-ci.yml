@@ -42,3 +42,5 @@ jobs:
       - run: npm run build
       - name: The material cards are loaded, not linked
         run: node scripts/check-loaded-assets.mjs dist
+      - name: Each worker gets the Content-Security-Policy its code needs
+        run: node scripts/check-csp.mjs

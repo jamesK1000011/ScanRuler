@@ -98,8 +98,10 @@ export function deviationWorkspace({
 
   /** An STL is asked about first — what units it is in — unless `units` is
    *  given: a file the instrument wrote itself, in millimetres like
-   *  everything it holds. A question dismissed leaves the file unopened. */
-  const openNominal = async (file: File, units?: MeshUnits, options: ReferenceOptions = {}): Promise<void> => {
+   *  everything it holds. A question dismissed leaves the file unopened, as
+   *  does `shouldStart` saying no, asked at the head of the import queue —
+   *  see scanImport's openScan. */
+  const openNominal = async (file: File, units?: MeshUnits, options: ReferenceOptions = {}, shouldStart?: () => boolean): Promise<void> => {
     // A format a plugin reads (app/modelFormats) is opened by it, as the
     // reference; it says its own units.
     const plugin = modelFormatOf(file.name)
@@ -142,7 +144,7 @@ export function deviationWorkspace({
         prepared.view.dispose()
         await client.discardImport([prepared.id])
       }
-    })
+    }, shouldStart)
   }
 
   const runDeviation = async () => {

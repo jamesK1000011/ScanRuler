@@ -19,6 +19,8 @@
 // apart, never called an error. A cell within the tolerance of the scan's
 // surface is the scan's noise, not an error, whatever the answers.
 
+import * as THREE from 'three'
+import { MeshBVH } from 'three-mesh-bvh'
 import type { Vec3 } from '../types'
 import { rigidApply, rigidInvert, type Rigid } from './rigid'
 import { emptyHit, NominalSurface } from './surface'
@@ -229,7 +231,12 @@ export function volumeDeviation(o: VolumeDeviationOptions): VolumeDeviation {
   t = performance.now()
   progress('Preparing the surfaces…', 0.01)
   const scanSurface = o.scanSurface ?? new NominalSurface(o.scan.positions, o.scan.indices)
-  const refSurface = new NominalSurface(o.reference.positions, o.reference.indices)
+  // The reference is only asked which of its triangles is nearest a
+  // region's deepest point. A tree of its own order (indirect) answers in
+  // the reference's own triangle numbers, with no normals or edge tables
+  // beside it: on a reference of millions of triangles a full
+  // NominalSurface, and a table mapping its order back, cost as much again.
+  const refTree = referenceTree(o.reference.positions, o.reference.indices)
   timings.surface = performance.now() - t
 
   // The grid.
@@ -647,7 +654,8 @@ export function volumeDeviation(o: VolumeDeviationOptions): VolumeDeviation {
   // What each region says.
   t = performance.now()
   progress('Measuring the regions…', 0.96)
-  const original = originalTriangles(o.reference.indices, refSurface)
+  const nearest = { point: new THREE.Vector3(), distance: 0, faceIndex: -1 }
+  const probe = new THREE.Vector3()
   const patchHit = emptyHit()
   // The regions' surfaces, for drawing: each region's cells' outer faces.
   const shells = o.meshes ? [new Shell(), new Shell(), new Shell()] : null
@@ -700,7 +708,7 @@ export function volumeDeviation(o: VolumeDeviationOptions): VolumeDeviation {
     for (const c of cells) kind[c] = kd | VISITED
     const di = deepest % nx, dj = ((deepest / nx) | 0) % ny, dk = (deepest / nxy) | 0
     const deep: Vec3 = [ox + (di + 0.5) * h, oy + (dj + 0.5) * h, oz + (dk + 0.5) * h]
-    refSurface.closest(deep[0], deep[1], deep[2], hit)
+    const onReference = refTree.closestPointToPoint(probe.set(deep[0], deep[1], deep[2]), nearest)
     const faces = Math.min(modelFaces, otherFaces) || Math.max(modelFaces, otherFaces)
     const volume = cells.length * cellVolume
     regions.push({
@@ -712,7 +720,7 @@ export function volumeDeviation(o: VolumeDeviationOptions): VolumeDeviation {
       box: { min: bmin.map((v) => v - h / 2) as Vec3, max: bmax.map((v) => v + h / 2) as Vec3 },
       centroid: [sx / cells.length, sy / cells.length, sz / cells.length],
       deepest: deep,
-      referenceTriangle: hit.faceIndex >= 0 ? original[hit.faceIndex] : -1,
+      referenceTriangle: onReference ? onReference.faceIndex : -1,
       evidence: bounded > 0 ? real / bounded : 1,
       confidence: conf / cells.length,
     })
@@ -1334,14 +1342,13 @@ function dilateInto(from: Uint8Array, into: Uint8Array, cx: number, cy: number, 
   }
 }
 
-/** For each triangle of a surface's tree order, its index in the mesh it
- *  was built from: the tree reorders its triangles, and reports them so. */
-function originalTriangles(indices: Uint32Array, surface: NominalSurface): Int32Array {
-  const key = (a: number, b: number, c: number) => `${a},${b},${c}`
-  const at = new Map<string, number>()
-  for (let t = 0; t < indices.length / 3; t++) at.set(key(indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]), t)
-  const out = new Int32Array(surface.triangleCount)
-  const s = surface.index
-  for (let f = 0; f < surface.triangleCount; f++) out[f] = at.get(key(s[f * 3], s[f * 3 + 1], s[f * 3 + 2])) ?? -1
-  return out
+/** A bounding-volume tree over the reference that keeps its triangles in
+ *  their own order — `indirect` sorts a list of them instead of the index —
+ *  so the faces it reports are the reference's own. */
+function referenceTree(positions: Float32Array, indices: Uint32Array): MeshBVH {
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1))
+  // The option is in the library but not in its type declarations.
+  return new MeshBVH(geometry, { indirect: true } as ConstructorParameters<typeof MeshBVH>[1])
 }

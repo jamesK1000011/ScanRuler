@@ -7,12 +7,15 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+This fork's own changes, on top of ScanRuler 0.11.2.
+
 - **Generate: Gridfinity bins and baseplates without sliver faces**
   (2026-11-09). The stacking lip's and the pockets' cutters overshot by
   0.01 mm with their inset held flat, leaving a 0.01 mm ledge round the
   rim and the top of the hollow that `reverse.body.check` reported as
   slivers, so a fresh bin reviewed as "fix". They now run on along their
   45° slopes; the lip ends in a clean edge.
+
 - **Review: a waived wall no longer fails the spec's least wall**
   (2026-11-09). With the thinnest wall waived (`dfm.waive` — a stacking
   lip, a wall thin on purpose), `part.review` judged `minWall` by it all
@@ -21,6 +24,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   than the check looked for. A sharp edge's finding is marked (`edge`) and
   reads as its length ("sharp edge: about 226 mm long"), not as a
   thickness against the limit.
+
 - **Make › Check follows the setup shown** (2026-11-09). With a print
   setup picked and no scan open, Check checks the setup's part with what
   the setup sets, where it said "Open a scan" and stayed greyed out; the
@@ -37,6 +41,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   at one as info naming it ("pocket for E1: 6x2 magnet, filled at the
   pause"); `part.review` does not count it. Other cavities are reported as
   before.
+
 - **Agents: lean tool list by default** (2026-11-09). The agent helper
   (`scanruler-mcp`) now lists lean unless told otherwise: the session,
   guide, history, project and view tools and its own, the rest in groups
@@ -48,6 +53,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   lists every tool from the start, as before; in lean, the status
   (`server.toolsNote`), `scanruler_tools` and a call to a tool that is not
   there name it.
+
 - **Scanner noise, one figure, used where scans are read** (2026-11-09).
   The 3D Measure section once called Scanner, and its scanner profiles,
   are now **Scanner noise** and *scanners* — 2D Measure's scanner profiles,
@@ -68,6 +74,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   from a scan scattering well above its scanner; Thread widens its diameter
   tolerance to it, so sizes a noisy scanner can't tell apart come back
   tied. The `scanner.*` commands and saved projects are unchanged.
+
 - **FreeCAD's material cards: loaded, not linked** (2026-11-09). The
   material library's 131 FreeCAD cards (100 LGPL-2.0-or-later, 31 CC BY
   3.0) are no longer built into the app: they are one data file,
@@ -84,6 +91,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   where the cards are and points to FreeCAD's material resources;
   CONTRIBUTING.md records the exemption, and CI checks that no card is in
   the build's scripts.
+
 - **Materials and setups, followed through** (2026-11-09). Mass and
   Strength list each body's own material — printed or solid — and the old
   material list is now for a body with none (*If none set*). A printability
@@ -102,6 +110,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   is in the build, with or without the Materials plugin. Hardware weighs
   steel nuts and bearings and brass inserts at the library's densities (7.9
   and 8.47 g/cm³, from 7.85 and 8.5).
+
 - **Cut and mill setups: parts cut from sheet and machined** (2026-11-09).
   Two new kinds of setup on the Make tab, each with a page of its own.
   **Cut** — laser, waterjet, plasma, or a router cutting through: a part
@@ -128,6 +137,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   (holes and outlines moved a kerf unless the path is compensated) and a
   mill setup's IT grade, which it refused before. All commands run
   headless.
+
 - **Make › Order: a circuit board ordered from a board house** (2026-11-09).
   A new kind of setup, **PCB order** (`type: "pcb"`), holds a board from
   Electronics — KiCad or tscircuit, brought in as a body — and its order:
@@ -177,6 +187,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   wall of every part, however made: `dfm.wall` reads a body's least wall
   alone, for a part not printed. Other kinds of setup (cut, mill, a board
   ordered) plug in through `registerSetupType`.
+
 - **Fewer tabs in the top bar** (2026-11-09). Workspaces that do one job
   now share a tab, as pages: **Parts** holds Catalog and Generate (a part
   got without modelling it — found, or generated to size); **Fits** gains
@@ -190,6 +201,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   on their page; the new tab's id `parts` opens its last page. Tab titles no
   longer assume a printer: Fits, Calibrate from a scan, Wear and BumpMesh
   say what they do for any part.
+
 - **A material for each part** (2026-11-08). What a part is made of is now
   the part's own, as in FreeCAD and Fusion, whatever makes it: a printed
   bracket, a laser-cut acrylic plate, a machined aluminium shaft, a bought
@@ -210,6 +222,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   material is weighed and solved as before, and the answer says what was
   assumed. Part review names the material a part was weighed in; Fits
   takes its moduli from the shared printing figures.
+
 - **A lighter start for agents** (2026-11-09). The MCP server's tool list
   and the Reverse engineer's guides cost an agent less before it does any
   work. `--tools lean` (`SCANRULER_MCP_TOOLS=lean`) lists the session,
@@ -231,6 +244,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   guide's published guides wait for their moment. A guide too long for one
   read keeps room for the note naming what it left out.
   `scripts/mcp-tool-sizes.mjs` measures the tool list per mode.
+
 - **The design and build workspaces run headless** (2026-11-08). With
   `scanruler-mcp --headless` (or `--engine`), the app runs inside the
   agent's server with no page, and most of the design and build commands
@@ -248,6 +262,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `target: "body"`, `fit.measure` to `fit.calibrate { readings }`.
   `scanruler_write`, `_files` and `_read` are there headless too, in the
   server's output folder, so an answer too long to carry can be read back.
+
 - **One answer to "is this part done?"** (2026-11-08). A new plugin,
   Part review, adds `part.review`: on a Reverse Engineer body it runs the
   checks the build has — `reverse.body.check`, `reverse.body.clearance`
@@ -266,6 +281,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `dfm.check { body }` checks a body without changing the settings'
   target. The new **review** guide tells an agent to end each change with
   a review.
+
 - **What a change did, without describing the part again** (2026-11-08).
   `history.diff` answers what changed in the modelled part since a
   checkpoint or since the last change that changed it: per body the stamp,
@@ -282,6 +298,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `encased`, and says so where the Hardware workspace isn't in the build.
   `hw.record` takes what is in a pocket (`kind` and `size`, or `grams`, with
   `at` and `axis`) for its mass.
+
 - **Strength counts encased parts in the own weight** (2026-11-08). A
   steel magnet or nut sealed in a pocket is a void in the FEA mesh, so its
   weight was left out of the own-weight load. `fea.solve` now adds each
@@ -290,6 +307,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `gravity.mass` includes them (`gravity.embedded` for theirs). A part whose
   weight isn't known is named in the note; an agent server too old to take
   them says so.
+
 - **Mass counts encased parts** (2026-11-08). A magnet, nut, bearing or
   insert encased by the Hardware workspace was left out of the part's mass,
   balance point and inertia. Each now carries its own mass (the table's
@@ -300,6 +318,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   Mass panel shows them, `mass.calibrate` takes them off the grams weighed,
   and a reading goes stale when they change. A pocket whose part's weight
   isn't known is named, not counted silently.
+
 - **Printability reads the walls of a body** (2026-11-08). The thin-wall
   rule used to run on a scan only, so a body's walls — the skin round an
   insert or over a magnet pocket — were never checked. On a body or the
@@ -325,6 +344,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   a bridge of its length. With *A body* chosen, Print › Check has a Body
   list of the solid bodies shown, so one can be picked when there are
   several.
+
 - **Printability checks a body as it is now** (2026-11-08). Print › Check
   and `dfm.check` can check a Reverse engineer body directly (target `body`,
   with `body` by name or id; the one solid body shown by default; the
@@ -335,10 +355,12 @@ saves carry the same number as `appVersion`. How a release is cut is in
   (`stale` in the answer, a warning in the panel and the report).
   `reverse.export.stl` and the bodies in the session state carry each
   body's stamp.
+
 - **Printability: a part not on the stage** (2026-11-08). `dfm.check` on a
   part that is open but not drawn now answers `invalid_state` (or `busy`
   while it is still opening), not `unavailable`, which is kept for a session
   with no viewport.
+
 - **No slicer changes from a poor fit** (2026-11-08). Calibrate from a
   scan's guide says a run that fits poorly (over 4: warping, a lifted
   corner, a poor alignment) should not be turned into offsets; now it
@@ -346,6 +368,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   profile refuse such a run and say what to do — look at the outliers and
   the deviation map, fix the cause, measure again — and the panel's
   Slicer changes, Export .ini and Compensated STL are greyed out for it.
+
 - **Hardware, Generate and Boards size to the printer** (2026-11-08). With
   the printer calibrated in Fits, Hardware's hole allowances (screws, nuts,
   inserts, pilots, magnets, bearings), Generate's new hole allowance
@@ -356,6 +379,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   you set yourself is kept as set. Each answer says which calibration it
   used ("printer fits from 2026-11-08 (MK4, PETG)"); *Printer fits* in the
   Hardware and Generate panels, or `printerFit: false`, turns it off.
+
 - **One printer calibration for every workspace** (2026-11-08). The
   printer's fit calibration from Fits (a test coupon, values entered, or a
   scanned print on Calibrate from a scan) now reaches Hardware, Generate
@@ -369,6 +393,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `printerFit`, dated, with the printer and material it was measured on.
   `fit.calibrate { from: "print-fit" }` refuses a scanned print that fits
   poorly.
+
 - **Checks that no longer pass by saying nothing** (2026-11-08).
   - **Electronics › tscircuit**: a build whose circuit.json holds errors
     (DRC, routing, placement, source) now fails — `ok` is false, the
@@ -387,12 +412,14 @@ saves carry the same number as `appVersion`. How a release is cut is in
   - Three bare failures now say the likely cause and what to do next: a
     KiCad import with no STEP back, a tscircuit board that made no solids,
     and a STEP import that did not take.
+
 - **Scanner in 3D Measure** (2026-11-08). The 3D Measure panel has a
   Scanner section: choose this project's scanner profile or the noise
   measured from the scan, Measure noise on the open scan, Save as profile,
   add a profile by hand (name, noise, point spacing, note) and remove one.
   Profiles stay in this browser; the choice is kept with the project. The
   section runs the same `scanner.*` commands.
+
 - **Thread in 3D Measure** (2026-11-08). The 3D Measure panel has a
   Thread section: pick a cylinder fitted in a threaded bore or on a boss and
   Identify names it against ISO metric, UNC, UNF, UNEF, NPT, G/R pipe,
@@ -403,6 +430,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   standard); the families tried and the pitch floor are under Families and
   settings. The section runs the same `thread.*` commands. Plugins add such
   sections with `registerPanelSection` (`src/plugins/api.ts`).
+
 - **Wear repair gets a panel** (2026-11-08). Until now only an agent could
   repair a worn part or pre-warp a print; the new Wear repair tab (Model,
   after Mesh Tools) runs the same `wear.*` commands: choose the reference
@@ -651,6 +679,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   The agent can upload, watch, pause and stop. It cannot start a print:
   `printer_start` asks you in a dialog on your Mac, or on a one-time page
   in your browser, and only your Start sends the command.
+
 - **Parts catalog** (2026-11-07, new plugin `catalog`, scanruler-mcp extras).
   `catalog.match` names a standard screw, nut, washer or bearing from the
   dimensions measured on it, using an offline table of nominal sizes.
@@ -677,6 +706,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   the edges and never touching regions you keep. `wear.prewarp` moves a model
   against the error a print of it shows, so the next print comes out true. It
   runs as a loop that says when to stop.
+
 - **Assembly manual** (2026-11-07, new plugin `assembly-manual`).
   Step-by-step build instructions from parts modelled in their places. You
   list the parts, with designations and sources for the bill of materials,
@@ -688,6 +718,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   style: ASD-STE100 habits by default, plain English, or your own style
   file. The manual saves as self-contained HTML, PDF or a zip. Nothing is
   sent anywhere.
+
 - **Patent kit** (2026-11-07, new plugin `patent-kit`). A starting draft to
   take to a patent attorney, from the bodies in Reverse Engineer. It makes
   black-and-white line drawings with hidden lines removed by OCCT: named
@@ -698,6 +729,7 @@ saves carry the same number as `appVersion`. How a release is cut is in
   in every paragraph. `patent.check` reads the 1.84 checklist and
   `patent.save` writes a zip of SVG, PDF, Markdown and CSV. It makes no
   network request: the drawings and text stay on this computer.
+
 - **Library pack** (2026-11-07, new plugin `library-pack`). A finished part
   bundled for sharing. The pack holds STL, 3MF and STEP, renders, files you
   add (a sliced 3MF with its profile), the assembly manual, a README, a
@@ -708,12 +740,14 @@ saves carry the same number as `appVersion`. How a release is cut is in
   home-folder paths and the user name, access codes, API keys, printer
   serials and addresses, e-mail addresses and picture EXIF. It builds a zip
   on this computer; you upload it yourself.
+
 - **Scanner profiles** (2026-11-07, new plugin `scanner-profiles`).
   `scanner.noise` reads how noisy a scan is off the scan itself: flat
   ground only, robust, and corrected for the neighbours' noise. Profiles
   you keep (name, noise, spacing, note) are available in every project,
   and the one a project uses is kept with it. Other plugins plan
   thresholds from the session's `scanner` noise.
+
 - **Screenshot for the agent** (2026-11-07, new plugin `snapshot`). A
   camera button at the bottom right of every workspace captures the tab
   as you see it, through the browser's own screen capture, after you pick
@@ -721,6 +755,215 @@ saves carry the same number as `appVersion`. How a release is cut is in
   `snapshot_latest` and cannot take one itself. Shots stay in the tab's
   memory until you close it; Save PNG and Copy are there too.
 
+## 0.11.2 — 2026-11-11
+
+- **Curvature comb** (2026-11-11, issue 64). Where does a fillet start, and
+  is it an arc at all? A checkbox under the edges in 2D Measure, and under
+  the sections in 3D Measure, draws a curvature comb along every edge: a
+  section's cut, an image's detected edges, a shadow's outline, and every
+  arc, circle and spline fitted on the sheet — on the sheet, and standing
+  in each section's plane on the part, the area under the teeth filled
+  faintly. The teeth are sized to the edge's own rounds, not to the
+  section's length, with a slider to scale them. A true arc's teeth are all
+  one length; a blend that is no arc grows and shrinks them. Scanned edges are
+  read smoothed over a length you set (2 mm by default), with the arc's
+  shrinkage taken back so a round reads its true radius; fitted curves are
+  exact. On the sheet the radius under the cursor is read off, convex or
+  concave, and an agent reads the comb in numbers with `flat.curvature`.
+  Off by default. Thanks to shdwx-dev.
+- **The other workspaces say when Mesh Tools has an edited copy waiting**
+  (2026-11-10, issue 128). An edit in Mesh Tools works on a copy of the
+  scan, and the other workspaces go on measuring the scan as it was; only
+  Mesh Tools said so. Now 3D Measure, Deviation, Thickness and Reverse
+  engineer say it on their stage too, with the number of edits, Show to go
+  to the copy and Use for analysis to take it into use from there. The
+  note can be put away, and comes back after the next edit. Thanks to
+  ImagineerNL.
+- **Right-click menus on list rows** (2026-11-10, pull request 131). A
+  right click on an element, dimension or tolerance row opens a menu with
+  Edit, Hide or Show in viewport and Delete, and on a dimension or
+  tolerance Copy reading too. A pinned reading's offers Copy reading, Copy
+  position and Remove pin. The Reverse engineer's feature rows keep the
+  menu they had. The browser's own right-click menu is no longer offered
+  elsewhere in the app, as it already was not over the viewport, but it
+  stays in text fields and over selected text. Thanks to Jozkah.
+- **Dropdowns in the app's own look** (2026-11-10, pull request 130). In
+  Chrome and Edge, a dropdown's list opens in the panel's colours, with the
+  option under the pointer in the accent colour, the chosen one in bold and
+  groups headed in small capitals, as the reference pickers already were:
+  in the panel, the dialogs, the Reverse engineer and Mesh Tools alike.
+  Escape closes the open list and leaves the box under it as it was. Other
+  browsers keep their own list. Thanks to Jozkah.
+- **Densify keeps a large mesh closed** (2026-11-10, pull request 120).
+  Densify told a long edge's middle by a key that is not exact past vertex
+  2,097,152, so on a mesh with more vertices two edges could share one
+  middle: a vertex off its edge and a crack where the triangles on it no
+  longer met. It keys edges the way the open-edge check and the volume
+  error have since 0.9.8. Thanks to kevbart for finding it.
+- **The agent's stale-tools note says what brings the current tools**
+  (2026-11-10, issue 134, scanruler-mcp 0.6.4). When the page was
+  updated while the AI app ran, `scanruler_status` told the agent to start
+  a new chat for the current tools. In Claude Desktop that never helps: the
+  app keeps one server for as long as it runs and does not list the tools
+  again. The note now says to quit the app completely and open it again,
+  and that `scanruler_batch` meanwhile runs any of the page's tools by name;
+  the connector's README says so too. Thanks to MarekO321.
+
+## 0.11.1 — 2026-11-09
+
+- **Mesh Tools' booleans, Hollow and Trim to scan work on scanruler.com
+  again** (2026-11-09, issues 123 and 126). Since the Content-Security-Policy
+  of 0.9.10, the hosted app refused them with "call to Function() blocked by
+  CSP": the mesh boolean they run on builds part of itself from strings,
+  and only the Reverse engineer's workers were allowed that. The mesh
+  worker is now too, in the hosted app and in the Docker image, and every
+  build is checked for a worker that needs it and is not allowed it.
+  Thanks to SphaeroX and jarmosaari for reporting it.
+- **A fit told what surface it is after opens again with the project**
+  (2026-11-09, issue 125). An element fitted with side, radius, axis or
+  within (element.fit) kept only its seeds, so on opening the project its
+  surface was grown from the seeds alone. A small bore beside a large curved
+  face was not found, and project.load answered "failed" for a project that
+  had opened. The guide is now part of the element and the project file,
+  moves and scales with the part, and every re-fit uses it again. And an
+  element whose surface is not found again no longer fails the open: its
+  saved fit stands, the status line names it, and project.load answers with
+  the session and a warning. Projects saved before keep opening as they did,
+  with no guide. Thanks to raxarot for the careful report.
+
+## 0.11.0 — 2026-11-09
+
+- **A 2D note stays where it was placed** (2026-11-09, pull request 70).
+  Once the Reverse engineer had loaded, a text note on the 2D sheet was
+  drawn 34 px right of and 17 px above the point clicked, and a long one
+  was cut short: the Reverse engineer's note pins shared the 2D note's
+  style. The pins now have their own. Thanks to Greg-J for finding it.
+- **A DXF with a line break in a name or note opens** (2026-11-09, issue
+  34). A note, element name or title holding a line break, as an agent or
+  a project can give one, was written into the DXF as it was, and CAD read
+  the rest of the file as nonsense. The break is now a space, as the sheet
+  and the SVG show it.
+- **STEP export of a torus alone, and a plain-ASCII STEP** (2026-11-09,
+  issue 34). Measured elements that were only tori were filed in the STEP
+  as curves rather than surfaces. And the file's product description held a
+  dash outside ASCII, which a strict reader can refuse; it is a plain
+  hyphen now.
+- **A project from a newer ScanRuler says so** (2026-11-09, issue 34).
+  Projects are saved in version 2 of the file format now, so 0.10.2 and
+  older turn them away with "saved by a newer version, please reload"
+  instead of opening them with the newest constructions failed and
+  everything built on them. From here on, a project holding an element
+  kind, a way of making an element or a dimension type the open build does
+  not know is turned away the same way, naming it, while a project that
+  uses none of them still opens. Projects saved before open as they did.
+- **The agent link says why it is still waiting** (2026-11-09, issue 100).
+  The chip said "listening" whatever held it up. When the browser takes
+  more than three seconds to let the page reach the agent's server, which
+  is most often its question whether the site may reach apps on this
+  computer, Settings → Agents and the chip's tip now say so and how to
+  allow it. When nothing answers on the port, they say so, with how to
+  start the connector and the `--serve` page for Safari. Thanks to Leafy1.
+- **scanruler-mcp fixes** (2026-11-09, issue 34, scanruler-mcp 0.6.3).
+  - The self-update ran npm from the system's temporary folder, where on a
+    computer shared with others someone could leave a scanruler-mcp that
+    would then run as you. It runs from a folder of its own in the
+    server's settings folder now.
+  - A second copy of the server, finding the port taken, waited for ever
+    for an answer from what held it. It gives up after five seconds and
+    says the port is taken, and only a scanruler-mcp turning it away
+    counts as a refusal.
+
+## 0.10.2 — 2026-11-09
+
+- **A project with an oddly named file opens again** (2026-11-09, pull
+  request 121). A scan, reference or image whose name had no extension, or
+  one with a character such as "é" in it, went into the project under a
+  name the project then refused: it saved, and would not open. Such a file
+  is now saved under a name that opens, and a save refuses rather than
+  write one that would not. Thanks to Jozkah.
+- **A damaged 2D sheet in a project is refused on open** (2026-11-09, pull
+  request 121). A project whose 2D sheet had a malformed alignment, mirror,
+  count or note was taken in and crashed when the sheet was drawn. It is
+  now refused, naming what is wrong. Thanks to Jozkah.
+- **Binary STL files that begin with "solid" open** (2026-11-09, pull
+  request 122). A binary STL whose exporter wrote "solid" at the start of
+  its header and left extra bytes at the end was taken for a text STL and
+  opened empty. Thanks to Jozkah.
+- **Tracking lines from a line's start, and from more points** (2026-11-09,
+  issue 107). A line drawn from one centre to where it stood level with it
+  and upright with another got only one dashed tracking line: the sketch
+  kept the last two points passed over, and passing a circle's quadrant on
+  the way pushed a wanted one out. It now keeps six, and the start of the
+  line in hand is always tracked. Thanks to SphaeroX.
+
+## 0.10.1 — 2026-11-09
+
+- **Form tolerances read the narrowest zone** (2026-11-09, pull request
+  116). Flatness, cylindricity, sphericity and circularity were read as the
+  spread of the points about the best fit, which is never narrower than the
+  tolerance zone and can be a good deal wider, so a good part could fail.
+  They now read the minimum zone: the narrowest pair of parallel planes,
+  concentric spheres, coaxial cylinders or concentric circles that holds the
+  points the fit kept. The detail gives the spread about the best fit
+  beside it. Thanks to Jozkah.
+- **An alignment follows the plane it reads** (2026-11-09, pull request
+  117). An element aligned to a constructed plane made after it read the
+  plane before the plane was worked out again, and kept its old direction.
+  Elements are now settled after what they rest on. Thanks to Jozkah.
+- **A section on a part's bottom face cuts** (2026-11-09, pull request 117).
+  A section plane laid on the bottom face, square to the walls, gave an
+  empty cut, while the same plane on the top face gave the outline. Both
+  now cut. Thanks to Jozkah.
+- **Mesh Tools edits only a marking made on its copy** (2026-11-09, pull
+  request 118). A mesh command given the marked region while another
+  workspace was on screen took the marking off the scan and applied it to
+  the edited copy, changing other parts of the copy. It now refuses and asks
+  to mark again with Mesh Tools on screen. Thanks to Jozkah.
+- **XYZ export of very large scans** (2026-11-09, pull request 119).
+  Exporting a scan of about ten million points or more as an XYZ point
+  cloud failed; it is now written in pieces. Thanks to Jozkah.
+- **A lighter volume error on large references** (2026-11-09, pull request
+  119). Naming the reference triangle under each region built a full
+  measuring surface over the reference and a table back to its order; a
+  lean search tree in the reference's own order now does it, in less time
+  and memory. Thanks to Jozkah.
+- **A tube at any angle reads as open** (2026-11-09, pull request 117).
+  0.10.0 stopped a scan shaped like a tube open at both ends being taken
+  for closed, but one lying close to a diagonal of the axes still was. Each
+  opening is now measured on its own, whichever way it faces. Thanks to
+  Jozkah.
+
+## 0.10.0 — 2026-11-09
+
+- **The rest of the second code review's bugs** (2026-11-09, issue 34),
+  most of them in the Reverse engineer. Thanks to Jozkah for finding them.
+  - **Measurements and files:** a scan shaped like a tube open at both ends
+    is no longer taken for closed and given a volume centroid; the volume
+    error no longer fails on a reference past 16.7 million triangles.
+  - **2D Measure:** a construction can be built from an element made after
+    it; an edge fit on a calibrated sheet no longer keeps strays a third of
+    a millimetre off the edge; edge detection needs less than half the
+    memory, so very large scans open.
+  - **Viewer:** the brush no longer marks surface the section view has cut
+    away; the deviation map on the reference and the volume regions are cut
+    with the reference, and the view can turn about them.
+  - **Reverse engineer, sketches and parameters:** sketch ends a hair apart
+    always meet, so their region closes; Enter in a picture's Scale field
+    uses the length just typed; a sketch drawn a degree or two turned is
+    offered parallel and perpendicular, not only level and upright; an
+    expression no longer misreads names like `constructor`, and a decimal
+    comma says that the decimal point is a dot.
+  - **Reverse engineer, building:** which piece of a split or trim lies on
+    the scan is judged by area again; a combine is checked the same way on
+    every computer, however fast; Move face's edit lets go of the
+    expression of what it moved, so the next change does not move it back;
+    a datum alignment carries every face and edge the features name, so
+    rounds, shells and drafts still find theirs; a crash inside the CAD
+    kernel stops everything still running on it.
+  - **Reverse engineer, patch networks:** a closed network with a
+    T-junction closes into a solid; the ties next to a corner hold the
+    same spacing as the rest; patch actions wait for the build that
+    numbers the patches.
 - **More ways to construct points, lines and planes** (2026-11-08, issues
   45 and 46). Under Create element, 3D Measure now also builds:
   - points: the centre of a sphere, circle or torus; where three planes
@@ -751,18 +994,20 @@ saves carry the same number as `appVersion`. How a release is cut is in
   move of a two-finger gesture only set where it started, so a pan or pinch
   lost that move's travel and lagged the hand. It now starts where the
   fingers land.
-- **Opening a scan asks before it replaces your measurements**
-  (2026-11-08). A new scan clears the elements, dimensions and sections
-  measured on the one in place, and opening one from the panel, by drag and
-  drop, as the sample or from a link did so without a word. It now asks
-  first when there is something to lose. The idea came from Greg-J's pull
-  request 23.
+- **Opening a scan, a reference or an image asks before it replaces your
+  work** (2026-11-08). A new scan clears the elements, dimensions and
+  sections measured on the one in place; a new reference the best-fit
+  alignment to the old one and the pins on its map; a new image what was
+  measured on the image sheet. Opening one from the panel, by drag and drop,
+  as the sample or from a link did so without a word. It now asks first when
+  there is something to lose. The idea came from Greg-J's pull request 23.
 - **Keys stay with an open dialog** (2026-11-08, issue 34). With Settings,
   the imprint or another dialog open, Enter, a middle click and the view
   keys still acted on the workspace behind it: Enter could press "Align
   automatically" behind Settings. The units question no longer opens the
   file on Enter with Cancel focused, and Escape stops a running best fit
-  from the Reverse engineer as it does elsewhere. Thanks to Jozkah.
+  from the Reverse engineer as it does elsewhere. Thanks to Jozkah, and to
+  Greg-J for the units question (pull request 22).
 - **Smooth zoom on a trackpad** (2026-11-08, issue 34). Each scroll event
   zoomed a full step, so a trackpad jumped, and a sideways swipe zoomed out.
   The zoom now follows how far you scroll, one mouse notch as before, and a
@@ -837,7 +1082,8 @@ saves carry the same number as `appVersion`. How a release is cut is in
   mirrored sheet. Thanks to Jozkah.
 - **STL files that write zero as −0 weld whole** (2026-11-08, issue 34).
   −0.0 and 0.0 were taken for different corners, which left a crack along
-  every plane through zero. Thanks to Jozkah.
+  every plane through zero. Thanks to Jozkah, and to Greg-J, whose pull
+  request 22 found it as well.
 
 ## 0.9.10 — 2026-11-08
 

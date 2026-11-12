@@ -5,6 +5,8 @@
 // throughout, tuples and typed arrays, so a fit made in the worker crosses
 // to the main thread as it is.
 
+import type { FitGuide } from './fit/guide'
+
 export type Vec3 = [number, number, number]
 
 /** Output of a file parser. STL produces a triangle soup (9 floats per
@@ -153,6 +155,12 @@ export interface FitBase {
    *  caliper-style distance range are read from. Absent with `formError`. */
   residualMin?: number
   residualMax?: number
+  /** The minimum-zone width of the used points (see fit/minZone), for a fit
+   *  that keeps no points to read it from later: a circle through picked
+   *  points, or one lifted off a section's sheet. Absent where the points are
+   *  kept — a fitted surface's are read off the scan — and where there are
+   *  no residuals. */
+  zoneWidth?: number
 }
 
 /** A reference point: picked on the scan surface or constructed. */
@@ -270,8 +278,12 @@ export type ElementSource =
    *  search entirely — an element has one or the other, never both.
    *  `settings` is the method and outlier cut-off the fit was made with: a
    *  property of this element, not of the session, because a clean bore and
-   *  a noisy cast face want different cut-offs on the same part. */
-  | { type: 'fitted'; seeds: number[]; selection?: Uint32Array; settings: FitSettings }
+   *  a noisy cast face want different cut-offs on the same part. `guide`
+   *  is what a fit from seeds was told about the surface it is after
+   *  (element.fit's side, radius, axis, within), in the current frame: a
+   *  small bore beside a large curved face may grow onto the wrong surface
+   *  from its seeds alone, so the guide is part of the recipe too. */
+  | { type: 'fitted'; seeds: number[]; selection?: Uint32Array; settings: FitSettings; guide?: FitGuide }
   | { type: 'picked' }
   /** `selection` is the surface a construction that searches the scan — a
    *  centroid, a symmetry plane — was confined to by hand, kept so the
