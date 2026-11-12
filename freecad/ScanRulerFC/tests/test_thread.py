@@ -166,6 +166,11 @@ class Tools(unittest.TestCase):
         self.assertEqual(o["verdict"], "match", o)
         self.assertEqual(o["best"]["designation"], "M6×1")
         self.assertIn("scanNoise", o)
+        # The same reading through Agent Link's one identify path.
+        err, o2 = call("thread_identify", {"scan": {"axis": {"origin": [0, 0, 6], "direction": [0, 0, 1], "radius": 2.75}}})
+        self.assertFalse(err, o2)
+        self.assertEqual((o2["from"], o2["best"]["designation"]), ("scan", "M6×1"))
+        self.assertIn("M6x1", o2["next"])
 
 
 if __name__ == "__main__":

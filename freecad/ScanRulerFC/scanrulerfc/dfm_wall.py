@@ -54,14 +54,17 @@ def read(shape, spacing=1.5, reach=12.0, cap=1200, cone_rays=8):
     diag = float(np.linalg.norm(V.max(0) - V.min(0)))
     t = compute_thickness(NominalSurface(V, F), centre[idx], N[idx], cone_rays=cone_rays, cone_angle=math.radians(DEFAULT_CONE_ANGLE_DEG),
                           max_normal_deviation=math.radians(DEFAULT_NORMAL_DEVIATION_DEG), max_thickness=reach, epsilon=max(1e-6, diag * 1e-5))
+    # How far apart the readings land: thin_runs joins a thin place's
+    # readings by it, so a lip thin all the way round is one run.
+    step = max(spacing, math.sqrt(float(area[ok].sum()) / 2 / len(idx)))
     got = np.isfinite(t)
     if not got.any():
         return None
-    readings = [(float(t[k]), [round(float(x), 3) for x in centre[i]], spacing) for k, i in enumerate(idx) if got[k]]
+    readings = [(float(t[k]), [round(float(x), 3) for x in centre[i]], step) for k, i in enumerate(idx) if got[k]]
     normals = [tuple(float(x) for x in N[i]) for k, i in enumerate(idx) if got[k]]
     j = int(np.nanargmin(t))
     return {"least": round(float(t[j]), 3), "at": [round(float(x), 3) for x in centre[idx[j]]], "samples": int(len(idx)), "read": len(readings),
-            "readings": readings, "normals": normals, "spacing": spacing, "by": BY}
+            "readings": readings, "normals": normals, "spacing": step, "by": BY}
 
 
 def register():

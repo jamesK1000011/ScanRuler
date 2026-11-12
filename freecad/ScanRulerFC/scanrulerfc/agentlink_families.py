@@ -19,6 +19,11 @@ from .dfm_wall import register as _register_wall  # noqa: E402
 
 _register_wall()
 
+# A scanned thread named through Agent Link's thread_identify { scan }.
+from .fam_thread import register as _register_thread  # noqa: E402
+
+_register_thread()
+
 # The scan guides beside Agent Link's own (guide_read: measure-scan,
 # mesh-tools).
 try:

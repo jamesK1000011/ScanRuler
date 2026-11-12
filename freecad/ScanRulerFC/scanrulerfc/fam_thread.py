@@ -156,3 +156,19 @@ def tools(session):
                   "pitchFloor": {"type": "number", "minimum": 0.002, "maximum": 0.05}, "detail": {"enum": ["brief", "full"]}}, ["axis"]),
              scan_thread),
     ]
+
+
+def read_for_agent_link(session, args):
+    """scan_thread for Agent Link's thread_identify { scan }."""
+    t = next(x for x in tools(session) if x.name == "scan_thread")
+    return t.fn(args)
+
+
+def register():
+    try:
+        from agentlink.families import thread
+    except ImportError:
+        return
+    hook = getattr(thread, "SCAN_READERS", None)
+    if hook is not None and read_for_agent_link not in hook:
+        hook.append(read_for_agent_link)
