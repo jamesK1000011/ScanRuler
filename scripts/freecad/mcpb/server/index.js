@@ -372,7 +372,20 @@ function restartWindow() {
     s.on('error', () => finish(false))
     s.on('connect', () => {
       s.write(JSON.stringify({ jsonrpc: '2.0', id: '__update', method: 'tools/call', params: { name: 'app_restart', arguments: {} } }) + '\n')
-      s.once('data', () => { finish(true); s.destroy() })
+      let buf = ''
+      s.on('data', (d) => {
+        buf += d.toString('utf8')
+        if (!buf.includes('\n')) return
+        // Refused (a document never saved): the window keeps running the
+        // old add-ons, and says why.
+        let why = null
+        try {
+          const r = JSON.parse(buf.split('\n')[0]).result || {}
+          if (r.isError) why = JSON.parse(r.content[0].text).error.message
+        } catch {}
+        finish(why ? { refused: why } : true)
+        s.destroy()
+      })
       setTimeout(() => { finish(true); s.destroy() }, 5000)
     })
   })
@@ -404,9 +417,11 @@ function headless(exe, args, e, inst = {}) {
       updating = true
       const windowed = await restartWindow()
       child.kill()
-      reply(id, { before, after: version, restarted: true, note: windowed
-        ? 'FreeCAD started again on the new add-ons: the window reopens its documents (calls wait for it, up to 90 s), the one in front back in front. New tools are listed.'
-        : 'FreeCAD started again on the new add-ons: the document is fresh (session_state). New tools are listed.' })
+      reply(id, { before, after: version, restarted: true, note: windowed && windowed.refused
+        ? `The hidden FreeCAD runs the new add-ons, but the window did not restart and keeps the old ones: ${windowed.refused} Then app_restart.`
+        : windowed
+          ? 'FreeCAD started again on the new add-ons: the window reopens its documents (calls wait for it, up to 90 s), the one in front back in front. New tools are listed.'
+          : 'FreeCAD started again on the new add-ons: the document is fresh (session_state). New tools are listed.' })
     } catch (err) {
       reply(id, { error: { code: 'unavailable', message: `No update: ${err.message}. The add-ons in place keep serving.` } }, true)
     }
