@@ -179,5 +179,6 @@
 "Draft_Upgrade": "draft_modify",
 "Draft_Wire": "draft_shape",
 "Draft_WireToBSpline": "draft_modify",
-"Draft_WorkingPlaneProxy": "draft_plane"
+"Draft_WorkingPlaneProxy": "draft_plane",
+"CAM_PathShapeTC": "cam_path"
 }

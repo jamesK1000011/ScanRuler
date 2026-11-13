@@ -144,5 +144,7 @@
 "IFC_MakeProject": "bim_building",
 "IFC_Save": "ifc_save",
 "IFC_SaveAs": "ifc_save",
-"IFC_UpdateIOS": "none"
+"IFC_UpdateIOS": "none",
+"Arch_Structure": "bim_structure",
+"BIM_TogglePanels": "window"
 }

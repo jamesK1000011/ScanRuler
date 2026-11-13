@@ -101,5 +101,10 @@
 "FEM_SolverRun": "fea_solve",
 "FEM_SolverControl": "window",
 "FEM_SolverMystran": "fem_add",
-"FEM_SolverZ88": "fem_add"
+"FEM_SolverZ88": "fem_add",
+"FEM_ConstraintElectrostaticPotential": "fem_add",
+"FEM_PostVisualization": "fea_chart",
+"FEM_PostVisualizationHistogram": "fea_chart",
+"FEM_PostVisualizationLineplot": "fea_chart",
+"FEM_PostVisualizationTable": "fea_chart"
 }

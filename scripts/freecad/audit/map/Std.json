@@ -206,5 +206,17 @@
 "Std_WhatsThis": "none",
 "Std_Windows": "window",
 "Std_WindowsMenu": "window",
-"Std_Workbench": "workbench"
+"Std_Workbench": "workbench",
+"Std_MacroStartDebug": "window",
+"Std_MacroStepInto": "window",
+"Std_MacroStepOver": "window",
+"Std_MacroStopDebug": "window",
+"Std_ToggleBreakpoint": "window",
+"Std_ViewIvStereoInterleavedColumns": "window",
+"Std_ViewIvStereoInterleavedRows": "window",
+"Std_ViewIvStereoOff": "window",
+"Std_ViewIvStereoQuadBuff": "window",
+"Std_ViewIvStereoRedGreen": "window",
+"Std_ViewVR": "window",
+"Std_AddonMgr": "gap"
 }
