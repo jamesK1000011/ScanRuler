@@ -1,5 +1,4 @@
 test_unattended
-test_std_more.StdMore.test_10_resorted_from_the_window
-test_tools
+test_supervise_unattended
+test_window_route
 test_mcp_contract
-test_batch_rollback
