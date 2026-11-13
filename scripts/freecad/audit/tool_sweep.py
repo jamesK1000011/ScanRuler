@@ -61,7 +61,8 @@ FILL = {"body": "Plate", "bodies": ["Plate"], "object": "Plate", "objects": ["Pl
 
 rows = []
 for name, t in sorted(srv.tools.items()):
-    if t.changes or name in SKIP:
+    # doc_* tools switch or save the document: the rest would run on another
+    if t.changes or name in SKIP or (name.startswith("doc_") and name != "doc_info"):
         continue
     req = (t.schema or {}).get("required", []) or []
     if any(r not in FILL for r in req):
