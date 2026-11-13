@@ -61,8 +61,22 @@ function findApp() {
       for (const n of fs.readdirSync(r)) if (/^FreeCAD.*\.app$/i.test(n)) candidates.push(path.join(r, n))
     } catch {}
   }
-  // The plain name first, then the newest-looking.
-  candidates.sort((a, b) => (path.basename(a) === 'FreeCAD.app' ? -1 : path.basename(b) === 'FreeCAD.app' ? 1 : b.localeCompare(a)))
+  // The newest release by its own version (an older one is often kept
+  // beside it as "FreeCAD 1.0.2.app"); the plain name breaks a tie.
+  const ver = (app) => {
+    try {
+      const m = /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/.exec(fs.readFileSync(path.join(app, 'Contents', 'Info.plist'), 'utf8'))
+      return m ? m[1].split(/[^0-9]+/).filter(Boolean).map(Number) : []
+    } catch { return [] }
+  }
+  const cmpVer = (x, y) => {
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) - (x[i] || 0)
+    return 0
+  }
+  const found = candidates.slice(given ? 1 : 0)
+  found.sort((a, b) => cmpVer(ver(a), ver(b)) || (path.basename(a) === 'FreeCAD.app' ? -1 : path.basename(b) === 'FreeCAD.app' ? 1 : b.localeCompare(a)))
+  if (given) found.unshift(candidates[0])
+  candidates.splice(0, candidates.length, ...found)
   for (const app of candidates) {
     const bin = path.join(app, 'Contents', 'Resources', 'bin')
     const lib = path.join(app, 'Contents', 'Resources', 'lib')
