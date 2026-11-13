@@ -33,7 +33,9 @@ out = tempfile.mkdtemp()
 foot = Part.makeBox(40, 30, 5)
 wall = Part.makeBox(5, 30, 25)
 truth = foot.fuse(wall).removeSplitter().cut(Part.makeCylinder(3.2, 5, FreeCAD.Vector(25, 15, 0)))
-m = Mesh.Mesh(truth.tessellate(0.02))
+import MeshPart  # noqa: E402
+
+m = MeshPart.meshFromShape(Shape=truth, MaxLength=0.8)
 pts, tris = m.Topology
 rng = np.random.default_rng(7)
 V = np.array([[p.x, p.y, p.z] for p in pts]) + rng.normal(0, 0.02, (len(pts), 3))
@@ -101,7 +103,7 @@ def rebuild():
     sec = need("section_cut", {"across": "XZ", "name": "Profile"})["section"]
     need("section_fit", {"section": sec["id"]})
     sk = need("section_to_sketch", {"section": sec["id"], "name": "Profile sketch"})
-    need("pd_pad", {"body": sk["body"], "sketch": sk["sketch"], "length": 30, "midplane": True})
+    need("pd_pad", {"body": sk["body"], "sketch": sk["sketch"], "length": 30, "sides": "symmetric"})
     state["body"] = sk["body"]
     vol = next(o for o in session.doc.Objects if o.Label == sk["body"]).Shape.Volume
     return f"body {sk['body']}: {vol:.0f} mm³ (truth before the hole {foot.fuse(wall).Volume:.0f})"
