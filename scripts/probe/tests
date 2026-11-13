@@ -1,4 +1,4 @@
 test_unattended
-test_supervise_unattended
-test_window_route
+test_doc
 test_mcp_contract
+test_std_more
