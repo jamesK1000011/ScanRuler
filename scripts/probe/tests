@@ -1,4 +1,3 @@
+test_keep
 test_unattended
-test_mcp_contract
-test_std_more.StdMore.test_10_resorted_from_the_window
-test_techdraw_gaps
+test_window_route
