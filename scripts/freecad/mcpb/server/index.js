@@ -374,7 +374,7 @@ async function main() {
 // is a local setting (~/AgentLink/companions.json, a list like the default);
 // a clone with work of its own is left as it is and said.
 const COMPANIONS_DEFAULT = [
-  { name: 'bumpmesh', dir: '~/src/bumpmesh', url: `https://github.com/${OWNER}/stlTexturizer.git`, branch: 'agent-link', process: 'bumpmesh/mcp/' },
+  { name: 'bumpmesh', dir: '~/src/bumpmesh', url: `https://github.com/${OWNER}/stlTexturizer.git`, branch: 'agent-link', process: 'mcp/' },
 ]
 
 function companions() {
@@ -410,10 +410,22 @@ function updateCompanions() {
       if (!m.ok) throw new Error(`left as it is — it has work of its own (${m.err.split('\n').pop()})`)
       const after = git(c.dir, ['rev-parse', '--short', 'HEAD']).out
       Object.assign(row, { from: before, to: after })
-      if (after !== before && c.process) {
-        // Its running copy stopped: Claude starts it again on the new code.
-        spawnSync('pkill', ['-f', path.join(c.dir, c.process)], { timeout: 10000 })
-        row.restarted = true
+      // Restarted on each commit once: kept in a small state file, so a
+      // restart that missed (an older launcher's) is made up next time.
+      const stateFile = path.join(os.homedir(), 'AgentLink', '.companions.json')
+      let state = {}
+      try {
+        state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+      } catch {}
+      if (c.process && (after !== before || state[c.name] !== after)) {
+        // Its running copies stopped: Claude starts it again on the new code.
+        const k = spawnSync('pkill', ['-f', path.join(c.dir, c.process)], { timeout: 10000 })
+        row.restarted = k.status === 0
+        if (k.status !== 0) row.note = 'no running copy found to restart'
+        state[c.name] = after
+        try {
+          fs.writeFileSync(stateFile, JSON.stringify(state))
+        } catch {}
       }
     } catch (e) {
       row.error = String(e.message || e)
