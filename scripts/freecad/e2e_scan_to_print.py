@@ -160,5 +160,6 @@ step("slice", slice_it)
 tot = server.meter.session_totals()
 passed = sum(r["ok"] for r in results)
 print(f"E2E summary\t{passed}/{len(results)} steps\t{round(time.time() - t0, 1)}s\t{tot['calls']} calls\t~{tot['tokens']} tokens in calls\t~{tot['toolList']['tokens']} tokens tool list ({tot['toolList']['tools']} tools)", flush=True)
-for b in tot["byTool"][:8]:
-    print(f"E2E tool\t{b['tool']}\t{b['calls']} calls\t~{b['tokens']} tokens", flush=True)
+print("E2E tool\ttool\tcalls\ttokens\tanswer chars\targument chars\tlargest answer\tpicture tokens\tms", flush=True)
+for b in tot["byTool"]:
+    print(f"E2E tool\t{b['tool']}\t{b['calls']}\t~{b['tokens']}\t{b.get('outChars', '')}\t{b.get('inChars', '')}\t{b.get('maxOut', '')}\t{b['imageTokens']}\t{b['ms']}", flush=True)
