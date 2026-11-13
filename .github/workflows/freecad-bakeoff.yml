@@ -109,8 +109,11 @@ jobs:
           xvfb-run -a python scripts/freecad/orca-probe.py
       - name: Coverage audit
         # Every FreeCAD command against Agent Link's tools (scripts/freecad/audit):
-        # a report, never a failure.
+        # a report, never a failure. The tool list's token cost too; exact
+        # where the repository has an ANTHROPIC_API_KEY secret.
         continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         timeout-minutes: 10
         run: |
           a=bakeoff-out/freecad/audit; mkdir -p $a
@@ -118,6 +121,7 @@ jobs:
           grep -E '^audit|Traceback|Error' $a/gui.log | tail -n 60
           python scripts/freecad/audit/audit_tools.py $a/tools.json
           python scripts/freecad/audit/audit_coverage.py $a/commands.json $a/tools.json scripts/freecad/audit/map $a/coverage.json
+          python scripts/freecad/audit/tool_budget.py || echo "BUDGET failed"
       - name: Agent Link tests
         # a hung test stops here, not at the job's 40 minutes
         timeout-minutes: 15
