@@ -37,6 +37,17 @@ class DfmWall(unittest.TestCase):
         w = dfm_wall.read(part)
         self.assertLess(w["least"], 0.7)
 
+    def test_boss_with_pilot_reads_no_false_wall(self):
+        # A screw boss whose top face has a small pilot hole: Mefisto meshed
+        # that face open, and the rays read 0.05 mm walls that aren't there.
+        from scanrulerfc import dfm_wall
+
+        part = Part.makeBox(40, 40, 30).cut(Part.makeBox(36, 36, 29, FreeCAD.Vector(2, 2, 2)))
+        part = part.fuse(Part.makeCylinder(3.5, 28, FreeCAD.Vector(4.5, 4.5, 2))).removeSplitter()
+        part = part.cut(Part.makeCylinder(1.35, 11, FreeCAD.Vector(4.5, 4.5, 19.5)))
+        w = dfm_wall.read(part)
+        self.assertGreater(w["least"], 1.5, w["at"])
+
     def test_registered_in_the_check(self):
         import scanrulerfc.agentlink_families  # noqa: F401
         from agentlink import printability
