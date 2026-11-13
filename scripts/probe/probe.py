@@ -21,8 +21,8 @@ print("edges", len(v.getVisibleEdges()), "rotation", getattr(v, "Rotation", None
 tag = v.makeCosmeticLine(V(-30, -10, 0), V(30, 10, 0)); print("made", tag, flush=True)
 ce = v.getCosmeticEdge(tag); print("got", flush=True)
 print("format", ce.Format, flush=True)
-fm = list(ce.Format); fm[0], fm[1] = 4, 0.18
-ce.Format = tuple(fm); print("format set", flush=True)
+fm = dict(ce.Format, style=4, weight=0.18)
+ce.Format = fm; print("format set", flush=True)
 s.doc.recompute(); print("recomputed", len(v.getVisibleEdges()), flush=True)
 v.removeCosmeticEdge(tag); print("removed", flush=True)
 s.doc.recompute(); print("recomputed 2", flush=True)
