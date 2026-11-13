@@ -122,6 +122,7 @@ jobs:
           python scripts/freecad/audit/audit_tools.py $a/tools.json
           python scripts/freecad/audit/audit_coverage.py $a/commands.json $a/tools.json scripts/freecad/audit/map $a/coverage.json
           python scripts/freecad/audit/tool_budget.py || echo "BUDGET failed"
+          timeout 600 python scripts/freecad/e2e_scan_to_print.py || echo "E2E failed"
       - name: Agent Link tests
         # a hung test stops here, not at the job's 40 minutes
         timeout-minutes: 15
