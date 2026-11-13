@@ -11,6 +11,7 @@ scanrulerfc/autoalign.py
 scanrulerfc/catalog_core.py
 scanrulerfc/chainsegment.py
 scanrulerfc/construct.py
+scanrulerfc/curvature.py
 scanrulerfc/data/keymaps/bambustudio.json
 scanrulerfc/data/keymaps/orcaslicer.json
 scanrulerfc/data/keymaps/prusaslicer.json
@@ -54,6 +55,7 @@ scanrulerfc/linalg.py
 scanrulerfc/manual_core.py
 scanrulerfc/mesh_core.py
 scanrulerfc/meshgraph.py
+scanrulerfc/min_zone.py
 scanrulerfc/model.py
 scanrulerfc/noise_core.py
 scanrulerfc/on_reference.py
@@ -107,5 +109,6 @@ tests/test_sections.py
 tests/test_thickness.py
 tests/test_thickness_maths.py
 tests/test_thread.py
+tests/test_upstream_011.py
 tests/test_volume_maths.py
 tests/test_wear.py

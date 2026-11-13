@@ -15,6 +15,7 @@ import math
 
 import numpy as np
 
+from .min_zone import minimum_zone
 from . import alignment as A
 from . import construct as C
 from . import dimensions as D
@@ -156,6 +157,8 @@ def describe_element(el, full=True):
             s["markedPoints"] = len(src["selection"])
         else:
             s["seeds"] = list(src["seeds"])
+        if src.get("guide"):
+            s["guide"] = src["guide"]
     elif src["type"] == "picked":
         s = {"type": "picked"}
     else:
@@ -292,6 +295,9 @@ def element_fit(st, a):
     if kind == "circle":
         try:
             fit = circle_from_points([s["point"] for s in spots])
+            _z = minimum_zone([s["point"] for s in spots], {"kind": "circle", "center": fit["center"], "normal": fit["normal"]})
+            if _z:
+                fit["zoneWidth"] = _z["width"]
         except FitError as e:
             raise Refusal("failed", str(e))
         el = _add(st, "circle", fit, {"type": "picked", "points": [s["point"] for s in spots]}, None, a.get("name"))
@@ -310,7 +316,7 @@ def element_fit(st, a):
     fit, region = _fit_out(fit)
     if a.get("assumed") is not None and kind not in ("sphere", "cylinder"):
         raise Refusal("invalid_input", f"A {kind} has no diameter to assume.")
-    el = _add(st, kind, fit, {"type": "fitted", "seeds": seeds, "settings": settings}, region, a.get("name"))
+    el = _add(st, kind, fit, {"type": "fitted", "seeds": seeds, "settings": settings, **({"guide": guide} if guide else {})}, region, a.get("name"))
     _finish(el, a.get("assumed"))
     seed_rows, warning = _seeds_answer(spots, kind, region, fit)
     out = {"element": describe_element(el), "seeds": js(seed_rows), "region": _region_answer(scan, region)}
@@ -563,6 +569,24 @@ def transform_all(st, rig):
             _move_params(e["source"], rig)
         if e["source"].get("points"):
             e["source"]["points"] = A.apply(rig, e["source"]["points"]).tolist()
+        if e["source"].get("guide"):
+            e["source"]["guide"] = _move_guide(e["source"]["guide"], rig)
+
+
+def _move_guide(g, rig):
+    """A fit's guide carried with the part, as its fit is: the axis turns,
+    the box becomes the box round its turned corners (never smaller, so it
+    holds what it held); side and radius stay (ScanRuler 0.11.1)."""
+    R = np.asarray(rig[0], dtype=float)
+    out = dict(g)
+    if g.get("axis") is not None:
+        out["axis"] = (R @ np.asarray(g["axis"], dtype=float)).tolist()
+    if g.get("within"):
+        lo, hi = np.asarray(g["within"]["min"], float), np.asarray(g["within"]["max"], float)
+        corners = np.array([[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])])
+        moved = A.apply(rig, corners)
+        out["within"] = {"min": moved.min(0).tolist(), "max": moved.max(0).tolist()}
+    return out
 
 
 def scale_all(st, s):
@@ -573,6 +597,12 @@ def scale_all(st, s):
             e["fit"] = A.scale_fit(e["fit"], s)
         if e["source"]["type"] == "constructed":
             e["source"]["params"] = A.scale_params(e["source"]["method"], e["source"]["params"], s)
+        g = e["source"].get("guide")
+        if g:
+            if g.get("radius"):
+                g["radius"] = {k: v * s for k, v in g["radius"].items() if v is not None}
+            if g.get("within"):
+                g["within"] = {k: [x * s for x in v] for k, v in g["within"].items()}
 
 
 def applied(scan):

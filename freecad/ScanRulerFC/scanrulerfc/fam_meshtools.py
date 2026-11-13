@@ -109,6 +109,13 @@ def region_vertices(session, region):
     V, F, which = working(session)
     if region == "marked":
         raise ToolError("invalid_input", "\"marked\" is the person's marking on screen, which FreeCAD has none of here — name the region with a box, a sphere or vertices.")
+    if which == "edited copy" and isinstance(region, dict) and region.get("vertices") is not None:
+        scan = S.scan_of(session)
+        if len(V) != len(scan.V) or len(F) != len(scan.F):
+            # Numbers read off the scan (scan_segment, an element's region)
+            # name other points on a copy whose vertices have moved on: it
+            # would change other parts of the copy (ScanRuler 0.10.1).
+            raise ToolError("invalid_input", "region.vertices: the edited copy's vertices are numbered differently from the scan's now — name the region with a box or a sphere, or take vertex numbers off the copy (mesh_inspect).")
     try:
         vs = M.select_vertices(V, F, region)
     except M.MeshError as e:

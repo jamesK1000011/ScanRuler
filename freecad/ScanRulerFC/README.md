@@ -49,8 +49,16 @@ error (an open scan reads `unsure` there instead).
   `scan_open { object }` takes a document mesh in to measure.
 - **2D measure** (`flat` group): `flat_open_image`, `flat_calibrate`,
   `flat_detect_edges`, `flat_edges`, `flat_fit`, `flat_dimension_add`,
-  `flat_report`, `flat_export` (DXF, SVG). The sheet is an image or the
-  section cut last.
+  `flat_report`, `flat_export` (DXF, SVG), `flat_curvature` (the curvature
+  comb read as straight, arc and transition stretches; `comb: true` draws it,
+  on the part in the section's plane). The sheet is an image or the section
+  cut last.
+
+Up to date with ScanRuler 0.11.2 where it bears on measuring: form
+tolerances read the minimum zone (`min_zone.py`), a section laid on a bottom
+face cuts, DXF text stays on one line, a fit's guide moves and scales with
+the part, and Mesh Tools refuses the scan's vertex numbers on a copy that has
+moved on.
 
 - **Into the document** (`scan-cad`): `element_to_document` puts the fitted
   planes, cylinders, cones, spheres and tori into the FreeCAD document as

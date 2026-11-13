@@ -280,6 +280,19 @@ def _circle_res(P, rand):
     return np.hypot(P[:, 0] - f[0], P[:, 1] - f[1]) - f[2]
 
 
+def with_circle_zone(fit, points):
+    """The fit with its circularity as the minimum zone of the points it was
+    fitted through, for an element on the sheet: what a form tolerance on it,
+    lifted into the part, reads (ScanRuler 0.10.1)."""
+    from .min_zone import minimum_zone
+
+    P = np.asarray(points, dtype=float)
+    z = minimum_zone(np.c_[P[:, :2], np.zeros(len(P))], {"kind": "circle", "center": [fit["center"][0], fit["center"][1], 0.0], "normal": [0.0, 0.0, 1.0]})
+    if z:
+        fit = dict(fit, zoneWidth=z["width"])
+    return fit
+
+
 def fit_circle_region(points):
     P = np.asarray(points, dtype=float)
     if len(P) < 12:
@@ -287,7 +300,7 @@ def fit_circle_region(points):
     keep = _consensus(P, lambda r: _circle_res(P, r))
     if keep.sum() < 12:
         raise FitError("The region caught too few edge points for a circle.")
-    return fit_circle(P[keep])
+    return with_circle_zone(fit_circle(P[keep]), P[keep])
 
 
 def fit_arc_region(points):
@@ -297,7 +310,7 @@ def fit_arc_region(points):
     keep = _consensus(P, lambda r: _circle_res(P, r))
     if keep.sum() < 12:
         raise FitError("The region caught too few edge points for an arc.")
-    return fit_arc(P[keep])
+    return with_circle_zone(fit_arc(P[keep]), P[keep])
 
 
 # ---- thinning (simplify.ts) ---------------------------------------------------------------

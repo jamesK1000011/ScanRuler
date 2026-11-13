@@ -250,7 +250,7 @@ def combine_references(refs):
     return {"factor": factor, "references": weighed, "spread": max([0.0] + [abs(r["off"]) for r in weighed])}
 
 
-LENGTH_KEYS = ("radius", "length", "radius1", "radius2", "majorRadius", "minorRadius", "extentU", "extentV", "sigma", "formError", "residualMin", "residualMax")
+LENGTH_KEYS = ("radius", "length", "radius1", "radius2", "majorRadius", "minorRadius", "extentU", "extentV", "sigma", "formError", "residualMin", "residualMax", "zoneWidth")
 
 
 def scale_fit(fit, s):

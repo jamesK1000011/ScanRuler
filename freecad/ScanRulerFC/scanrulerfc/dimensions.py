@@ -365,13 +365,51 @@ def _weak_arc(fit, what):
     return None
 
 
-def _form(label, fit):
+def _zone_shape(fit):
+    if fit["kind"] == "plane":
+        return {"kind": "plane", "center": fit["center"], "normal": fit["normal"]}
+    if fit["kind"] == "sphere":
+        return {"kind": "sphere", "center": fit["center"]}
+    if fit["kind"] == "cylinder":
+        return {"kind": "cylinder", "center": fit["center"], "axis": fit["axis"]}
+    if fit["kind"] == "circle":
+        return {"kind": "circle", "center": fit["center"], "normal": fit["normal"]}
+    return None
+
+
+# Minimum zones found, per fit and the number of points: dimensions are
+# read again on every change, and a fit's points change only with the fit.
+_ZONES = {}
+
+
+def _zone_width(fit, surface):
+    key = (id(fit), len(surface))
+    if key not in _ZONES:
+        from .min_zone import minimum_zone
+
+        shape = _zone_shape(fit)
+        z = minimum_zone(surface, shape) if shape else None
+        if len(_ZONES) > 512:
+            _ZONES.clear()
+        _ZONES[key] = z["width"] if z else None
+    return _ZONES[key]
+
+
+def _form(label, fit, surface=None):
+    """The minimum zone of the points the fit rests on (min_zone); else the
+    zone the fit took when it was made (a circle through picks), else the
+    least-squares peak to peak, which only bounds it from above."""
     if fit is None:
         return _invalid(label, "A reference is missing.")
     if fit["kind"] != FORM_KIND[label]:
         return _invalid(label, f"{label} is a property of a {FORM_KIND[label]}.")
     if fit.get("formError") is None:
         return _invalid(label, "The element carries no form error: it was constructed, not measured on the scan.")
+    from_surface = _zone_width(fit, surface) if surface is not None and len(surface) >= 4 else None
+    width = from_surface if from_surface is not None else fit.get("zoneWidth")
+    if width is not None:
+        pts = len(surface) if from_surface is not None else fit.get("usedPoints", 0)
+        return {"label": label, "value": mm(width), "raw": width, "detail": f"Minimum zone · {pts:,} points · {mm(fit['formError'])} peak to peak about the best fit"}
     return {"label": label, "value": mm(fit["formError"]), "raw": fit["formError"], "detail": f"Peak to peak about the best fit · {fit['usedPoints']:,} points"}
 
 
@@ -444,13 +482,13 @@ def _coaxiality(fits):
 def evaluate_tolerance(type_id, fits, basic=None, surfaces=None):
     f0 = fits[0] if fits else None
     if type_id == "form-flatness":
-        return _form("Flatness", f0)
+        return _form("Flatness", f0, surfaces[0] if surfaces else None)
     if type_id == "form-cylindricity":
-        return _form("Cylindricity", f0)
+        return _form("Cylindricity", f0, surfaces[0] if surfaces else None)
     if type_id == "form-circularity":
-        return _form("Circularity", f0)
+        return _form("Circularity", f0, surfaces[0] if surfaces else None)
     if type_id == "form-sphericity":
-        return _form("Sphericity", f0)
+        return _form("Sphericity", f0, surfaces[0] if surfaces else None)
     if type_id == "orient-parallelism":
         return _orientation("Parallelism", 0, fits, surfaces)
     if type_id == "orient-perpendicularity":

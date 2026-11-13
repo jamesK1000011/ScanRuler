@@ -695,7 +695,10 @@ def dxf_text(s):
     out = ""
     import re
 
-    for ch in re.sub(r"\s*·\s*", ", ", s):
+    # A line break or other control character becomes a space: a value is one
+    # line of the file, and a break would be read as the next group code
+    # (ScanRuler 0.11.0).
+    for ch in re.sub(r"\s*·\s*", ", ", re.sub(r"\s*[\x00-\x1f\x7f]+\s*", " ", s)):
         c = ord(ch)
         out += ch if c < 127 else TEXT_SPELLINGS.get(ch, "\\U+%04X" % c)
     return out

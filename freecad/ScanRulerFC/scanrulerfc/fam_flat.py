@@ -19,7 +19,7 @@ from agentlink.protocol import Tool, ToolError
 from . import flat_core as FC
 from . import scanstate as S
 from .fam_sections import find_section, flat_chains, sec_state
-from .geom2d import FitError, fit_arc, fit_arc_region, fit_circle, fit_circle_region, fit_line, fit_line_region, flat_point
+from .geom2d import FitError, fit_arc, fit_arc_region, fit_circle, fit_circle_region, fit_line, fit_line_region, flat_point, with_circle_zone
 
 GROUP = "flat"
 INFO = "The 2D sheet (ScanRuler, ported): a flatbed image or a section — calibrate, detect edges, fit lines and circles, dimension, report, DXF/SVG."
@@ -291,6 +291,8 @@ def tools(session):
                         picks.append({"at": rounded(p.tolist())})
                 placed = np.array(placed)
                 fit = flat_point(placed[0]) if kind == "point" else {"line": fit_line, "circle": fit_circle, "arc": fit_arc}[kind](placed)
+                if kind in ("circle", "arc"):
+                    fit = with_circle_zone(fit, placed)
         except FitError as e:
             raise ToolError("failed", str(e))
         eid = f["nextEl"]
@@ -622,6 +624,98 @@ def tools(session):
                 **({"grid": FC_nice(max(hi - lo) / 8)} if "grid" in show else {})}
 
     kinds = ", ".join(f"{k}: {', '.join(f'{m[0]} ({m[1]})' for m in v)}" for k, v in METHODS.items())
+    def flat_curvature(a):
+        """How an edge bends, as the curvature comb draws it (ScanRuler 0.11.2)."""
+        from . import curvature as K
+        from . import section_core as SC
+
+        f = fl_state(session)
+        units, scale, chains, sec = sheet(session)
+        ids, ref = a.get("chains"), a.get("element")
+        if (ids is None) == (ref is None):
+            raise ToolError("invalid_input", "Name chains or an element — one of them.")
+        sb, tol, step = a.get("straightBelow"), a.get("tolerance", 0.1), a.get("step")
+
+        def told(run, min_length):
+            n = len(run["kappa"])
+            spacing = (run["at"][-1] - run["at"][0]) / (n - 1) if n > 1 else 1.0
+            out = {"closed": bool(run["closed"]), "from": round(float(run["at"][0]), 4) if n else 0, "to": round(float(run["at"][-1]), 4) if n else 0}
+            if not run["exact"]:
+                out["scatter"] = round(K.scatter(run, min_length / max(spacing, 1e-9)), 6)
+            out["stretches"] = [{k: (round(v, 4) if isinstance(v, float) else ([round(x, 4) for x in v] if isinstance(v, list) else v)) for k, v in st.items()}
+                                for st in K.stretches(run, min_length, sb, tol)]
+            if step:
+                smp, nxt = [], run["at"][0] if n else 0
+                for i in range(n):
+                    if run["at"][i] + 1e-9 < nxt or len(smp) >= 2000:
+                        continue
+                    nxt = run["at"][i] + step
+                    smp.append({"at": round(float(run["at"][i]), 4), "spot": [round(float(x), 4) for x in run["points"][i]], "curvature": round(float(run["kappa"][i]), 6)})
+                out["samples"] = smp
+            return out
+
+        runs, frame = [], sec["frame"] if sec is not None else None
+        if ref is not None:
+            el = element_named(f, ref)
+            if not el.get("fit"):
+                raise ToolError("invalid_state", f"{el['name']} has no fit yet.")
+            run = K.fit_run(el["fit"], 0.05)
+            if run is None:
+                raise ToolError("invalid_input", f"{el['name']} is a {el['kind']}: only an arc or a circle bends.")
+            runs.append(("element", el["name"], run))
+            out = {"element": el["name"], "kind": el["kind"], "unit": units, **told(run, 0.5)}
+        else:
+            w = float(a.get("window", K.WINDOW_DEFAULT))
+            bad = [i for i in ids if not 0 <= i < len(chains)]
+            if bad:
+                raise ToolError("invalid_input", f"chains {bad}: the sheet has 0 to {len(chains) - 1} (flat_edges lists them).")
+            # A section's cut knows which side its material is on.
+            nrm = None
+            if sec is not None and sec.get("normals") is not None and len(sec["normals"]) == len(sec["points"]):
+                flatn = SC.project_normals(sec["normals"], sec["frame"])
+                nrm = SC.chains_of(flatn, sec["offsets"])
+            items = []
+            for i in ids:
+                run = K.chain_run(chains[i], w, (scale["x"], scale["y"]), nrm[i] if nrm is not None else None)
+                if run is None:
+                    items.append({"chain": i, "tooShort": f"Chain {i} is too short to read: an open chain loses one window at each end."})
+                    continue
+                runs.append(("chain", i, run))
+                items.append({"chain": i, **told(run, w)})
+            out = {"unit": units, "window": w, "items": items}
+        if a.get("comb") and runs:
+            # The comb drawn into the document: on the section's plane on the
+            # part, or on the sheet's XY plane for an image.
+            import FreeCAD
+            import Part
+
+            if session.doc is None:
+                raise ToolError("invalid_state", "No document to draw the comb in: doc_new first.")
+            allp = np.vstack([r[2]["points"] for r in runs])
+            diag = float(np.hypot(*(allp.max(0) - allp.min(0))))
+            per, cap = K.reach([r[2] for r in runs], diag, float(a.get("scale", 1.0)))
+            spacing = float(a.get("spacing", max(diag / 150, 0.2)))
+            lift = (lambda uv: FreeCAD.Vector(*SC.lift(frame, uv))) if frame is not None else (lambda uv: FreeCAD.Vector(float(uv[0]), float(uv[1]), 0.0))
+            edges, teeth_n = [], 0
+            for _, _, run in runs:
+                teeth, env = K.comb(run, spacing, per, cap)
+                for p, q in teeth:
+                    if np.hypot(*(q - p)) > 1e-6:
+                        edges.append(Part.makeLine(lift(p), lift(q)))
+                        teeth_n += 1
+                if len(env) >= 2:
+                    edges.append(Part.makePolygon([lift(p) for p in env]))
+            o = session.doc.addObject("Part::Feature", "Comb")
+            o.Shape = Part.Compound(edges)
+            o.Label = session.unique(a.get("name") or "Curvature comb", o)
+            vo = getattr(o, "ViewObject", None)
+            if vo is not None:
+                vo.LineColor = (0.9, 0.35, 0.1)
+            session.doc.recompute()
+            out["comb"] = {"object": o.Label, "teeth": teeth_n, "mmPerCurvature": round(per, 4), "cap": round(cap, 4), "spacing": round(spacing, 4)}
+        return out
+
+
     return [
         Tool("flat_objects", "The separate parts on the flatbed image, parted from the background by a grey level (Otsu's unless threshold is given; dark: whether the parts are darker, read from the border by default) and numbered in reading order — what flat_profile takes by number. Returns each with area, holes, box, centroid, equivalentDiameter, feret (largest and smallest caliper widths and their directions), axisAngleDeg and, with outline: true, its outline. minArea drops specks (sheet units²). Changes nothing on the sheet.",
              obj({"threshold": {"type": "integer", "minimum": 0, "maximum": 255}, "dark": {"type": "boolean"}, "minArea": {"type": "number", "minimum": 0}, "minHoleArea": {"type": "number", "minimum": 0},
@@ -635,6 +729,9 @@ def tools(session):
         Tool("flat_calibrate", "Set the image's scale against a known length: distance takes two places a known distance apart, diameter three or more on a circle of known diameter; mm is that length; places in the sheet's units as they are now. The edges are found again (their chain numbers change).",
              obj({"mode": {"type": "string", "enum": ["distance", "diameter"]}, "points": {"type": "array", "items": spot, "minItems": 2}, "mm": {"type": "number", "exclusiveMinimum": 0}}, ["mode", "points", "mm"]), flat_calibrate),
         Tool("flat_detect_edges", "Find the image's edges again at a sensitivity from 0 (only the strongest) to 1 (every faint one): subpixel Canny chains, gaps bridged, chains under a millimetre and texture dropped. Returns how many chains.", obj({"sensitivity": {"type": "number", "minimum": 0, "maximum": 1}}), flat_detect_edges),
+        Tool("flat_curvature", "How an edge bends, as ScanRuler's curvature comb draws it: along detected edges or a section's cut (chains, by number as flat_edges lists them) or a fitted arc or circle (element), told as stretches in order — straight, arc (radius from its middle reading, least and most; on a section convex, a round, or concave, a fillet's hollow) or the transition between; from/to are the arc length along it. A chain is read smoothed over window (2 by default), which leaves one window off each end of an open chain and turns a sudden change into a ramp about a window long, the change in its middle — a fillet's tangent point is the middle of the transition before it; a transition much longer than the window is a blend that is no arc. straightBelow (1/unit) is straight; tolerance how far an arc's readings may stray (0.1); step adds readings that far apart. comb: true also draws the comb into the document (on the section's plane on the part), scale and spacing to size it.",
+             obj({"chains": {"type": "array", "items": {"type": "integer", "minimum": 0}}, "element": {"type": ["integer", "string"]}, "window": {"type": "number", "minimum": 0.2, "maximum": 20}, "straightBelow": {"type": "number", "exclusiveMinimum": 0},
+                  "tolerance": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}, "step": {"type": "number", "exclusiveMinimum": 0}, "comb": {"type": "boolean"}, "scale": {"type": "number", "exclusiveMinimum": 0}, "spacing": {"type": "number", "exclusiveMinimum": 0}, "name": {"type": "string"}}), flat_curvature),
         Tool("flat_edges", "The sheet's edge chains, longest first: chain number, points, length and bounds in the sheet's units, closed. Changes nothing.", obj({"limit": {"type": "integer", "minimum": 1}}), flat_edges),
         Tool("flat_fit", f"Make a 2D element — kind point, line, circle or arc, by a method of that kind: {kinds}. A pick method takes points (snapped to the nearest edge within reach unless snap: false; picks says where each landed); an edge method chains (whole) and/or box (sheet units), strays voted out; a construct method refs, other 2D elements. Seed methods are not ported.",
              obj({"kind": {"type": "string", "enum": list(METHODS)}, "method": {"type": "string"}, "points": {"type": "array", "items": spot, "minItems": 1}, "chains": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 1},

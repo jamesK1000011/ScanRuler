@@ -71,6 +71,13 @@ def slice_mesh(V, F, origin, normal, min_length=0.0):
 
     segs = []
     seg_tri = []
+    in_plane = set()  # mesh edges lying in the plane that already gave a segment
+
+    def edge_of(a, b, c):
+        i, j = (b, c) if dist[a] != 0 else (c, a) if dist[b] != 0 else (a, b)
+        return (i * nv + j if i < j else j * nv + i), i, j
+
+    zeros_of = (dist[F] == 0).sum(axis=1)
     for t in tris.tolist():
         a, b, c = F[t]
         pa, pb, pc = pos[a], pos[b], pos[c]
@@ -90,6 +97,23 @@ def slice_mesh(V, F, origin, normal, min_length=0.0):
             else:
                 q = r
         if p < 0 or q < 0 or p == q:
+            continue
+        segs.append((p, q))
+        seg_tri.append(t)
+        if zeros_of[t] == 2:
+            in_plane.add(edge_of(a, b, c)[0])
+    # An edge lying in the plane is cut by a triangle on its negative side,
+    # zero counting as positive. Where the mesh has nothing on that side — a
+    # plane laid on the part's bottom face, square to its walls — the edge is
+    # taken once from a triangle above (ScanRuler 0.10.1).
+    for t in np.nonzero(zeros_of == 2)[0].tolist():
+        a, b, c = F[t]
+        key, i, j = edge_of(a, b, c)
+        if key in in_plane:
+            continue
+        in_plane.add(key)
+        p, q = on_vertex(i), on_vertex(j)
+        if p == q:
             continue
         segs.append((p, q))
         seg_tri.append(t)
