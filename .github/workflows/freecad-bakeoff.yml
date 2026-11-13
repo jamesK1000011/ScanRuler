@@ -201,6 +201,20 @@ jobs:
           echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
           echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC" >> "$GITHUB_ENV"
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD; print('FreeCAD', FreeCAD.Version()[:3])"
+      - name: Coverage audit on this release
+        # 1.1 is what the Mac runs next: its own command list against the
+        # tools, and the scan-to-print run on it. A report, never a failure.
+        if: matrix.series == '1.1'
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          sudo apt-get install -y -qq --no-install-recommends xvfb libopengl0 libegl1 libgl1 > /dev/null || true
+          a=audit-1.1; mkdir -p $a
+          AUDIT_OUT=$PWD/$a/commands.json timeout 300 xvfb-run -a -s "-screen 0 1600x1000x24" freecad scripts/freecad/audit/audit_commands.py > $a/gui.log 2>&1 || true
+          grep -E '^audit|Traceback|Error' $a/gui.log | tail -n 30
+          python scripts/freecad/audit/audit_tools.py $a/tools.json
+          python scripts/freecad/audit/audit_coverage.py $a/commands.json $a/tools.json scripts/freecad/audit/map $a/coverage.json | grep -v '^ROW' ; python scripts/freecad/audit/audit_coverage.py $a/commands.json $a/tools.json scripts/freecad/audit/map $a/coverage.json | grep -P '^ROW\t[^\t]*\t[^\t]*\tgap' | head -40
+          timeout 600 python scripts/freecad/e2e_scan_to_print.py || echo "E2E failed"
       - name: Agent Link tests
         # a hung test stops here, not at the job's 40 minutes
         timeout-minutes: 15
