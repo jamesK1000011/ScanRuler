@@ -12,9 +12,14 @@ pg = d.addObject("TechDraw::DrawPage", "Page"); t = d.addObject("TechDraw::DrawS
 v = d.addObject("TechDraw::DrawViewPart", "View"); pg.addView(v); v.Source = [b]; v.Direction = V(0, 0, 1)
 d.recompute()
 import time
-for _ in range(40):
+for _ in range(100):
     if v.getVisibleEdges(): break
-    time.sleep(0.1); d.recompute()
+    time.sleep(0.2); d.recompute()
+try:
+    from PySide import QtCore
+    print('qt', flush=True)
+except Exception as e:
+    print('no qt', e, flush=True)
 print("edges", len(v.getVisibleEdges()), flush=True)
 tag = v.makeCosmeticLine(V(-30, -10, 0), V(30, 10, 0)); print("made", tag, flush=True)
 ce = v.getCosmeticEdge(tag); print("got", flush=True)
