@@ -58,4 +58,4 @@ jobs:
           export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC
           cd freecad-addon/src/Mod/AgentLink/tests
           ids=$(grep -v '^#' $GITHUB_WORKSPACE/scripts/probe/tests 2>/dev/null | xargs)
-          [ -n "$ids" ] && timeout 900 python -m unittest -v $ids || true
+          [ -n "$ids" ] && timeout 900 python -X faulthandler -m unittest -v $ids || true
