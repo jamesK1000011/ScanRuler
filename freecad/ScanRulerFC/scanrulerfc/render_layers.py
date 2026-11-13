@@ -58,7 +58,7 @@ def deviation_map(session, a):
     side = "against the element " + str(d["target"]["ref"]) if d["source"] == "element" and d["target"] else "against the reference"
     return {"layers": [{"name": "scan", "V": sc.V, "F": sc.F, "values": v, "creases": False}], "unit": "mm", "cmap": "jet", "worst": "abs",
             "range": [-rng, rng], "label": "DEVIATION",
-            "note": f"The scan {side}: red stands proud of it, blue below; grey past the max distance ({d['maxDistance']:g} mm) or unread. deviation_settings sets range and max distance."}
+            "note": f"The scan {side}: red (positive) stands proud of it — excess material —, blue (negative) below — material missing; grey past the max distance ({d['maxDistance']:g} mm) or unread. deviation_settings sets range and max distance."}
 
 
 def deviation_reference_map(session, a):
@@ -73,7 +73,7 @@ def deviation_reference_map(session, a):
     rng = max(float(d["range"] or 0), float(d["tolerance"] or 0), 1e-3)
     return {"layers": [{"name": "reference", "V": V, "F": F, "values": v, "creases": True}], "unit": "mm", "cmap": "jet", "worst": "abs",
             "range": [-rng, rng], "label": "ON THE REFERENCE",
-            "note": f"The reference read against the scan: red where it stands outside the scan (the part lacks material), blue inside; grey where no scan lies under it within {d['maxDistance']:g} mm — unscanned, or missing."}
+            "note": f"The reference read against the scan, signed as the scan's own map: red where the scan stands outside it (excess material), blue where the scan lies inside it (the part lacks material); grey where no scan lies under it within {d['maxDistance']:g} mm — unscanned, or missing."}
 
 
 def thickness_map(session, a):
@@ -97,8 +97,15 @@ def register():
         from agentlink import render
     except ImportError:  # an Agent Link without pictures
         return
-    render.register_layer("scan", scan_layer, "The open scan (grey).")
-    render.register_layer("reference", reference_layer, "The deviation reference part (blue) — drawn when asked for by name, as it lies on the scan.")
-    render.register_map("deviation", deviation_map, "The scan's deviation from the reference (ScanRuler), ±range.")
-    render.register_map("deviation-reference", deviation_reference_map, "The deviation read on the reference (ScanRuler's map on the reference): what the part lacks or has over the model, and what was not scanned.")
-    render.register_map("thickness", thickness_map, "The scan's wall thickness (ScanRuler), red thin.")
+    # An older Agent Link may have pictures but not these hooks: register
+    # what it takes and leave the rest.
+    layer = getattr(render, "register_layer", None)
+    add_map = getattr(render, "register_map", None)
+    if layer is not None:
+        layer("scan", scan_layer, "The open scan (grey).")
+        layer("reference", reference_layer, "The deviation reference part (blue) — drawn when asked for by name, as it lies on the scan.")
+    if add_map is None:
+        return
+    add_map("deviation", deviation_map, "The scan's deviation from the reference (ScanRuler), ±range: positive (red) excess material, negative (blue) material missing.")
+    add_map("deviation-reference", deviation_reference_map, "The deviation read on the reference (ScanRuler's map on the reference), signed as the scan's map — positive (red) excess material, negative (blue) material missing — and what was not scanned (grey).")
+    add_map("thickness", thickness_map, "The scan's wall thickness (ScanRuler), red thin.")

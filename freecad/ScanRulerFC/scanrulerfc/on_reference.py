@@ -8,7 +8,8 @@
 #
 # The reference is cut into small triangles about `spacing` across; each
 # one's middle is a reading: the signed distance along the reference's
-# normal to the scan, positive where the reference stands outside it, taken
+# normal to the scan, positive where the scan stands outside the reference
+# (excess material on the part: the sign of the map on the scan), taken
 # only off scan surface that faces the way the reference does (within
 # `facing_deg`; the far skin of a thin wall is not the near one's evidence)
 # and lies square under the point (a ray along the normal meets it). With
@@ -60,8 +61,9 @@ def cut(V, F, spacing):
 
 
 def read(centres, normals, SV, SF, reach, facing_deg=DEFAULT_FACING_DEG, group=64, chunk_cells=4_000_000):
-    """Signed mm per reading (positive: the reference outside the scan), NaN
-    where no scan surface facing its way lies under it within reach."""
+    """Signed mm per reading (positive: the scan outside the reference,
+    excess material — as on the scan's own map), NaN where no scan surface
+    facing its way lies under it within reach."""
     SV = np.asarray(SV, dtype=float)
     SF = np.asarray(SF, dtype=np.int64)
     T = SV[SF]
@@ -105,10 +107,12 @@ def read(centres, normals, SV, SF, reach, facing_deg=DEFAULT_FACING_DEG, group=6
                 v = f * (q * d).sum(-1)
                 t = f * (e2[None] * q).sum(-1)
                 m = ok & facing & (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9) & (t >= 0) & (t <= reach)
-                # Along the normal (+): the scan stands outside, the
-                # reference inside it: negative. Against it: positive.
+                # Along the normal (+): the scan stands outside the
+                # reference, excess material: positive. Against it: the
+                # reference stands outside the scan, material missing:
+                # negative.
                 tt = np.where(m, t, np.inf).min(1)
-                signed = np.where(np.isfinite(tt), -sign * tt, np.inf)
+                signed = np.where(np.isfinite(tt), sign * tt, np.inf)
                 closer = np.abs(signed) < np.abs(best)
                 best = np.where(closer, signed, best)
             out[r] = np.where(np.isfinite(best), best, np.nan)
@@ -128,10 +132,10 @@ def summary(values, area, centres, tolerance):
         out["withinTolerancePct"] = round(100 * float(a[within].sum()) / total, 1)
         k = int(np.nanargmax(v))
         if v[k] > 0:
-            out["mostOutside"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the reference stands outside the scan: material the part lacks here"}
+            out["mostExcess"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the scan stands outside the reference: material the part has over the model"}
         k = int(np.nanargmin(v))
         if v[k] < 0:
-            out["mostInside"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the reference lies inside the scan: material the part has over the model"}
+            out["mostMissing"] = {"mm": round(float(v[k]), 3), "at": [round(float(x), 2) for x in centres[k]], "note": "the scan lies inside the reference: material the part lacks here"}
     if (~seen).any():
         # The largest unscanned stretch's middle, by area-weighted reading.
         miss = np.nonzero(~seen)[0]

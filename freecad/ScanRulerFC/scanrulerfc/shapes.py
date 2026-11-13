@@ -381,6 +381,9 @@ def fit_circle2d(pu0, pv0):
     return cu + mu, cv + mv, r
 
 
+CIRCLE_SURE_POINTS = 6
+
+
 def circle_from_points(points):
     """The best-fit circle through picked points: TLS plane, 2D circle in it.
     Raises FitError on degenerate input."""
@@ -406,11 +409,11 @@ def circle_from_points(points):
     if normal[2] < 0 or (normal[2] == 0 and (normal[1] < 0 or (normal[1] == 0 and normal[0] < 0))):
         normal = -normal
     er = np.hypot(pu - cu, pv - cv) - r
-    return {
+    out = {
         "kind": "circle",
-        "center": list(m + cu * u + cv * v),
-        "normal": list(normal),
-        "radius": r,
+        "center": [float(x) for x in m + cu * u + cv * v],
+        "normal": [float(x) for x in normal],
+        "radius": float(r),
         "sigma": float(math.sqrt(np.mean(er * er + ph * ph))),
         "usedPoints": n,
         "regionSize": n,
@@ -418,6 +421,13 @@ def circle_from_points(points):
         "residualMin": float(er.min()),
         "residualMax": float(er.max()),
     }
+    if n == 3:
+        # Three points: the circle passes through each exactly, so a zero
+        # scatter says nothing about the form — there is none to read.
+        out.update(sigma=None, formError=None, residualMin=None, residualMax=None)
+    if n < CIRCLE_SURE_POINTS:
+        out["warning"] = f"A circle through {n} points: {'they define it exactly, so it has no form error or scatter to read' if n == 3 else 'too few to judge its form'} — pick {CIRCLE_SURE_POINTS} or more places round it for a sigma and form error worth reading."
+    return out
 
 
 # ---- cylinder ---------------------------------------------------------------

@@ -179,14 +179,17 @@ def _setting(v):
 
 
 def _stat_lines(stats):
-    pct = (stats["withinTolerance"] / stats["measured"]) * 100 if stats["measured"] else 0
+    # Within tolerance over every scan point: a point with no reading is not
+    # a point shown to be in tolerance.
+    pct = (stats["withinTolerance"] / stats["total"]) * 100 if stats["total"] else 0
+    of_measured = (stats["withinTolerance"] / stats["measured"]) * 100 if stats["measured"] else 0
     return [
         f"  min             {_signed(stats['min'])}",
         f"  max             {_signed(stats['max'])}",
         f"  mean            {_signed(stats['mean'])}",
         f"  RMS             {_len(stats['rms'])}",
         f"  sigma           {_len(stats['sigma'])}",
-        f"  within ±{_setting(stats['tolerance'])}   {pct:.1f} %",
+        f"  within ±{_setting(stats['tolerance'])}   {pct:.1f} % of all scan points ({of_measured:.1f} % of those measured)",
         f"  matched         {stats['measured']} of {stats['total']} scan points",
     ]
 
@@ -201,13 +204,17 @@ def deviation_report(scan_name, nominal_name, align, stats, rng, max_distance, f
             f"  fit RMS         {_len(align['rms'])} over {align['matched']} of {align['sampled']} sampled points",
             f"  passes          {align['iterations']}{'  (a second starting pose fitted almost as well)' if align.get('ambiguous') else ''}",
         ]
+        if align.get("converged") is False:
+            lines.append("  NOTE: the fit had not settled when the passes ran out — treat the pose with care")
+        if align.get("matchedShare") is not None and align["matchedShare"] < 0.5:
+            lines.append(f"  NOTE: only {align['matchedShare'] * 100:.0f} % of the sampled points found the reference — check it is the same part")
     if align["source"] == "local":
         lines += [f"  marked surface  {align.get('selected', 0)} scan points, hand-marked", f"  search limit    {_setting(align.get('searchDistance', 0))}"]
         if align.get("underconstrained"):
             lines.append("  NOTE: the marked surface faces one way — the fit is free to slide along it")
     if align["source"] == "points" and align.get("selected") is not None:
         lines.append(f"  fitted on       {align['selected']} scan points, selected by hand")
-    lines += ["", "Deviation, scan to reference surface, signed outwards:", "  positive = outside the reference, negative = inside it"]
+    lines += ["", "Deviation, scan to reference surface, signed outwards:", "  positive = outside the reference (excess material), negative = inside it (material missing)"]
     lines += _stat_lines(stats)
     lines += [
         "",

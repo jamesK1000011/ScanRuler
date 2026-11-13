@@ -103,6 +103,9 @@ tests/test_on_reference.py
 tests/test_outline.py
 tests/test_pack.py
 tests/test_qa.py
+tests/test_redteam_boundary.py
+tests/test_redteam_deviation.py
+tests/test_redteam_fits.py
 tests/test_repeat.py
 tests/test_scan.py
 tests/test_sections.py

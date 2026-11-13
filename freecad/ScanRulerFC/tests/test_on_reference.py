@@ -21,8 +21,8 @@ def square(x0, x1, y0, y1, z, up=True):
 class OnReference(unittest.TestCase):
     def test_half_scanned_face(self):
         # The reference's top, 10 x 10 at z 0; the scan covers its left half,
-        # 0.2 mm low: there the reference stands 0.2 outside it, and the
-        # right half is unscanned.
+        # 0.2 mm low: there the part lacks 0.2 mm (negative, as the map on
+        # the scan signs it), and the right half is unscanned.
         RV, RF = square(0, 10, 0, 10, 0)
         SV, SF = square(-1, 5, -1, 11, -0.2)
         c, n, P, a = R.cut(RV, RF, 0.5)
@@ -30,12 +30,13 @@ class OnReference(unittest.TestCase):
         self.assertTrue(np.allclose(n, [0, 0, 1]))
         v = R.read(c, n, SV, SF, reach=3.0)
         left, right = c[:, 0] < 4.9, c[:, 0] > 5.1
-        self.assertTrue(np.allclose(v[left], 0.2))
+        self.assertTrue(np.allclose(v[left], -0.2))
         self.assertTrue(np.isnan(v[right]).all())
         s = R.summary(v, a, c, 0.1)
         self.assertAlmostEqual(s["coveredPct"], 50, delta=3)
         self.assertEqual(s["withinTolerancePct"], 0.0)
-        self.assertAlmostEqual(s["mostOutside"]["mm"], 0.2, places=6)
+        self.assertAlmostEqual(s["mostMissing"]["mm"], -0.2, places=6)
+        self.assertNotIn("mostExcess", s)
         self.assertGreater(s["unscanned"]["near"][0], 5)
 
     def test_the_far_skin_is_no_evidence(self):
@@ -46,13 +47,14 @@ class OnReference(unittest.TestCase):
         c, n, _, _ = R.cut(RV, RF, 1.0)
         self.assertTrue(np.isnan(R.read(c, n, SV, SF, reach=3.0)).all())
         # Facing taken off: the nearest, whatever it faces.
-        self.assertTrue(np.allclose(R.read(c, n, SV, SF, reach=3.0, facing_deg=None), 0.5))
+        self.assertTrue(np.allclose(R.read(c, n, SV, SF, reach=3.0, facing_deg=None), -0.5))
 
-    def test_scan_outside_reads_negative(self):
+    def test_scan_outside_reads_positive(self):
+        # Excess material reads positive, as on the scan's own map.
         RV, RF = square(0, 10, 0, 10, 0)
         SV, SF = square(-1, 11, -1, 11, 0.3)
         c, n, _, _ = R.cut(RV, RF, 1.0)
-        self.assertTrue(np.allclose(R.read(c, n, SV, SF, reach=3.0), -0.3))
+        self.assertTrue(np.allclose(R.read(c, n, SV, SF, reach=3.0), 0.3))
         self.assertTrue(np.isnan(R.read(c, n, SV, SF, reach=0.2)).all())
 
     def test_spacing(self):

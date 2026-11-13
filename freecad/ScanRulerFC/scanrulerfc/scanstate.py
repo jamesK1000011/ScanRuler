@@ -9,6 +9,39 @@ import numpy as np
 
 KEY = "scanruler"
 UNITS = {"mm": 1.0, "cm": 10.0, "m": 1000.0, "in": 25.4}
+# A scan's diagonal outside these, in millimetres, is most likely read in the
+# wrong units (scan_open warns); past LARGE_TRIANGLES the tools grow slow
+# (scan_open suggests mesh_reduce).
+PLAUSIBLE_DIAG_MM = (1.0, 5000.0)
+LARGE_TRIANGLES = 2_000_000
+
+
+def finite_faces(verts, faces):
+    """The vertices and faces with every non-finite vertex (NaN or infinity)
+    taken out, the faces on one dropped and the rest renumbered:
+    (V, F, faces dropped, vertices dropped)."""
+    V = np.asarray(verts, dtype=float).reshape(-1, 3)
+    F = np.asarray(faces, dtype=np.int64).reshape(-1, 3)
+    bad = ~np.isfinite(V).all(axis=1)
+    if not bad.any():
+        return V, F, 0, 0
+    keep = ~bad[F].any(axis=1) if len(F) else np.zeros(0, dtype=bool)
+    new = np.cumsum(~bad) - 1
+    return V[~bad].copy(), new[F[keep]], int((~keep).sum()), int(bad.sum())
+
+
+def points_array(pts):
+    """FreeCAD vectors (or any 3-sequences) as an N x 3 float array, without
+    a Python loop where numpy can read them directly."""
+    if len(pts) == 0:
+        return np.zeros((0, 3))
+    try:
+        A = np.asarray(pts, dtype=float)
+        if A.ndim == 2 and A.shape[1] == 3:
+            return A
+    except (TypeError, ValueError):
+        pass
+    return np.array([[p.x, p.y, p.z] for p in pts], dtype=float)
 
 
 class Scan:
@@ -16,8 +49,15 @@ class Scan:
         self.name = name
         self.path = path
         self.units = units
-        self.V = np.asarray(verts, dtype=float)
-        self.F = np.asarray(faces, dtype=np.int64)
+        # Faces on a NaN or infinite vertex are dropped: every fit, search
+        # and best fit downstream would otherwise read NaN or fail in the
+        # linear algebra. With none left the scan is refused.
+        V, F, dropped, bad = finite_faces(verts, faces)
+        if bad and len(F) == 0:
+            raise ValueError(f"{name}: every triangle touches a vertex that is not a number (NaN or infinite) — the file is damaged.")
+        self.V = V
+        self.F = F
+        self.dropped = {"faces": dropped, "vertices": bad} if bad else None
         self._normals = None
         self._areas = None
         # The scan as read, the factor it was scaled by and the alignment
@@ -74,6 +114,22 @@ class Scan:
             "area": round(float(self.face_areas().sum()), 2),
         }
 
+    def warnings(self):
+        """What looks wrong with the scan as opened: a size that suggests the
+        wrong units, a mesh large enough to slow every tool, damaged vertices."""
+        out = []
+        diag = float(np.linalg.norm(self.V.max(axis=0) - self.V.min(axis=0))) if len(self.V) else 0.0
+        lo, hi = PLAUSIBLE_DIAG_MM
+        if diag < lo:
+            out.append(f"The scan is only {diag:.4g} mm across (read as {self.units}) — a part this small is unlikely: if the file is in metres, centimetres or inches, open it again with units (m, cm or in).")
+        elif diag > hi:
+            out.append(f"The scan is {diag / 1000:.4g} m across (read as {self.units}) — a part this large is unlikely: if the file is not in {self.units}, open it again with the right units (mm, cm, m or in).")
+        if len(self.F) > LARGE_TRIANGLES:
+            out.append(f"The scan has {len(self.F):,} triangles: fits, maps and best fits will be slow. mesh_reduce brings it down to a working size first.")
+        if self.dropped:
+            out.append(f"{self.dropped['vertices']} vertices were not numbers (NaN or infinite): they and the {self.dropped['faces']} triangles on them were dropped.")
+        return out
+
 
 def fresh():
     return {"scan": None, "elements": [], "dimensions": [], "next": 1, "dimNext": 1, "counters": {}, "marked": None, "scaled": None}
@@ -120,7 +176,7 @@ def load(path, units="mm", given=True):
         return Scan(os.path.basename(path), V, F, units if given else "mm", path)
     m = Mesh.Mesh(path)
     pts, tris = m.Topology
-    V = np.array([[p.x, p.y, p.z] for p in pts], dtype=float) * UNITS[units]
+    V = points_array(pts) * UNITS[units]
     F = np.array(tris, dtype=np.int64)
     if len(F) == 0:
         raise ValueError(f"{os.path.basename(path)}: no triangles read.")
@@ -130,7 +186,7 @@ def load(path, units="mm", given=True):
 def from_mesh(m, name):
     """A scan from a FreeCAD mesh already in millimetres — a document's mesh object."""
     pts, tris = m.Topology
-    V = np.array([[p.x, p.y, p.z] for p in pts], dtype=float)
+    V = points_array(pts)
     F = np.array(tris, dtype=np.int64)
     if len(F) == 0:
         raise ValueError(f"{name}: the mesh has no triangles.")

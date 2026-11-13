@@ -228,7 +228,28 @@ def _fine(surface, given, start, source, ambiguous, progress=None, orient=True):
         raise AlignError(
             "No scan point found reference surface facing its way, so the scan was left where it was. Check that the scan and the reference are the same part, or pick a few point pairs to start from."
         )
-    return {"transform": r["transform"], "source": source, "rms": r["rms"], "meanDistance": r["meanDistance"], "iterations": r["iterations"], "matched": r["matched"], "sampled": r["sampled"], "ambiguous": ambiguous}
+    return {"transform": r["transform"], "source": source, "rms": r["rms"], "meanDistance": r["meanDistance"], "iterations": r["iterations"], "matched": r["matched"], "sampled": r["sampled"], "ambiguous": ambiguous, **_quality(r)}
+
+
+MIN_MATCHED_SHARE = 0.5
+
+
+def _quality(r):
+    """Whether ICP settled and the share of the samples that drove the
+    final pose: plain bool and float."""
+    share = float(r["matched"]) / r["sampled"] if r["sampled"] else 0.0
+    return {"converged": bool(r["converged"]), "matchedShare": share}
+
+
+def quality_warnings(res):
+    """What an agent must hear about a best fit before trusting its map."""
+    out = []
+    share = res.get("matchedShare")
+    if share is not None and share < MIN_MATCHED_SHARE:
+        out.append(f"Only {share * 100:.0f} % of the sampled scan points found the reference within reach when the fit ended (under {MIN_MATCHED_SHARE * 100:.0f} %): the pose rests on a minority of the scan. Check the scan and the reference are the same part in the same units, or start from point pairs (mode points).")
+    if res.get("converged") is False:
+        out.append(f"The best fit had not settled after {res.get('iterations')} passes: the pose is the best one seen, not a converged one. Run deviation_align again, or start from point pairs (mode points).")
+    return out
 
 
 def auto_align(surface, positions, normals, coarse_samples=4000, fine_samples=25_000, progress=None):
@@ -334,6 +355,7 @@ def align_local(surface, positions, normals, vertices, start, max_distance, fine
         "matched": r["matched"],
         "sampled": r["sampled"],
         "ambiguous": False,
+        **_quality(r),
         "selected": int(len(vertices)),
         "searchDistance": max_distance,
         "underconstrained": _normal_spread(samples["normals"]) < FLAT_SELECTION,

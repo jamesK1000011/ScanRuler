@@ -377,17 +377,28 @@ def _zone_shape(fit):
     return None
 
 
-# Minimum zones found, per fit and the number of points: dimensions are
-# read again on every change, and a fit's points change only with the fit.
+# Minimum zones found, keyed on what they are worked out from — the zone's
+# shape and the points' bytes — never on the fit's identity: a freed fit's
+# id is reused by the next dict, which would inherit its zone.
 _ZONES = {}
 
 
+def _zone_key(shape, surface):
+    import hashlib
+
+    P = np.ascontiguousarray(np.asarray(surface, dtype=float))
+    h = hashlib.blake2b(P.tobytes(), digest_size=16)
+    h.update(repr(P.shape).encode())
+    h.update(repr(sorted((k, np.asarray(v, dtype=float).round(12).tolist() if not isinstance(v, str) else v) for k, v in (shape or {}).items())).encode())
+    return h.hexdigest()
+
+
 def _zone_width(fit, surface):
-    key = (id(fit), len(surface))
+    shape = _zone_shape(fit)
+    key = _zone_key(shape, surface)
     if key not in _ZONES:
         from .min_zone import minimum_zone
 
-        shape = _zone_shape(fit)
         z = minimum_zone(surface, shape) if shape else None
         if len(_ZONES) > 512:
             _ZONES.clear()
@@ -404,6 +415,8 @@ def _form(label, fit, surface=None):
     if fit["kind"] != FORM_KIND[label]:
         return _invalid(label, f"{label} is a property of a {FORM_KIND[label]}.")
     if fit.get("formError") is None:
+        if fit.get("kind") == "circle" and fit.get("usedPoints") == 3:
+            return _invalid(label, "Three points define the circle exactly: there is no form error to read. Pick six or more places round it.")
         return _invalid(label, "The element carries no form error: it was constructed, not measured on the scan.")
     from_surface = _zone_width(fit, surface) if surface is not None and len(surface) >= 4 else None
     width = from_surface if from_surface is not None else fit.get("zoneWidth")

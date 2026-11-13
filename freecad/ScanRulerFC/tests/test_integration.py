@@ -108,8 +108,9 @@ class Integration(unittest.TestCase):
         on = self.call("deviation_hotspots", {"on": "reference"})
         print("on the reference:", json.dumps(on))
         self.assertGreater(on["coveredPct"], 95)
-        self.assertAlmostEqual(on["mostInside"]["mm"], -0.5, delta=0.1)
-        self.assertLess(math.hypot(on["mostInside"]["at"][0] - 28, on["mostInside"]["at"][1] - 15), 4.5)
+        # Signed as the map on the scan: excess material reads positive.
+        self.assertAlmostEqual(on["mostExcess"]["mm"], 0.5, delta=0.1)
+        self.assertLess(math.hypot(on["mostExcess"]["at"][0] - 28, on["mostExcess"]["at"][1] - 15), 4.5)
         ex = self.call("deviation_export", {"side": "reference", "format": "csv"})
         self.assertEqual(ex["side"], "reference")
         self.assertGreater(os.path.getsize(ex["file"]), 1000)

@@ -16,7 +16,7 @@ from agentlink.protocol import Tool, ToolError
 from . import dev_rigid as R
 from . import on_reference
 from . import scanstate as S
-from .dev_align import AlignError, align_from_pairs, align_local, auto_align
+from .dev_align import AlignError, align_from_pairs, align_local, auto_align, quality_warnings
 from .dev_field import field_percentiles
 from .dev_hotspots import FEATURE_DEPTH, FEATURE_MIN_AREA, FEATURE_MIN_SPACINGS, hotspots
 from .dev_map import (
@@ -49,6 +49,12 @@ MESH = (".stl", ".ply", ".obj", ".3mf", ".off")
 HOTSPOT_PATCHES = 8
 HOTSPOT_VERTICES = 12
 FEATURES_NOTE = "each feature patch is material missing or misplaced: model it or name it"
+# Scan and reference sizes further apart than this are not one part in one
+# unit; the factors a wrong unit gives, to name the likely one.
+SIZE_RATIO_LIMIT = 2.0
+UNIT_FACTORS = ((10.0, "centimetres read as millimetres, or the other way round"), (25.4, "inches read as millimetres, or the other way round"), (1000.0, "metres read as millimetres, or the other way round"))
+MEASURED_SHARE_WARN = 0.8
+SIGN_WORDS = "Sign: positive where the scan stands outside the reference (excess material on the part), negative inside it (material missing)."
 
 
 def obj(props, required=()):
@@ -70,6 +76,7 @@ def dstate(session):
             "reference": None,
             "align": None,
             "scan": None,  # the scan the alignment and map belong to
+            "version": None,  # its pose (Scan.version) when they were made
             "values": None,
             "source": "reference",
             "target": None,
@@ -82,9 +89,14 @@ def dstate(session):
             "facingDeg": DEFAULT_MAP_FACING_DEG,
         }
     d = st[KEY]
-    # A scan opened since the alignment: the fit and the map were of the old one.
-    if d["scan"] is not None and d["scan"] is not st["scan"]:
-        d.update(align=None, scan=None, values=None, source="reference", target=None)
+    # A scan opened since the alignment: the fit and the map were of the old
+    # one. The same scan moved since (align_clear, align_datum, align_auto,
+    # align_symmetry, scan_scale): the alignment no longer holds and the map
+    # was of the part where it stood — both go.
+    moved = d.get("version") is not None and getattr(st["scan"], "version", None) != d["version"]
+    if d["scan"] is not None and (d["scan"] is not st["scan"] or moved):
+        d.update(align=None, scan=None, version=None, values=None, source="reference", target=None)
+        d.pop("onReference", None)
     return d
 
 
@@ -100,7 +112,7 @@ def tessellate(shape, diag=None):
     lin = max(0.002, min(0.01, diag * 5e-5))
     m = MeshPart.meshFromShape(Shape=shape, LinearDeflection=lin, AngularDeflection=0.08, Relative=False)
     pts, tris = m.Topology
-    return np.array([[p.x, p.y, p.z] for p in pts], dtype=float), np.array(tris, dtype=np.int64)
+    return S.points_array(pts), np.array(tris, dtype=np.int64)
 
 
 def read_reference(session, a):
@@ -140,7 +152,7 @@ def read_reference(session, a):
 
             m = Mesh.Mesh(path)
             pts, tris = m.Topology
-            V = np.array([[p.x, p.y, p.z] for p in pts], dtype=float) * S.UNITS[units]
+            V = S.points_array(pts) * S.UNITS[units]
             F = np.array(tris, dtype=np.int64)
             kind = "mesh"
         elif S.more_formats() and ext.lstrip(".") in S.more_formats().FORMATS:
@@ -211,7 +223,10 @@ def figures(d):
     out["sigma"] = round(s["sigma"], 4)
     out["rms"] = round(s["rms"], 4)
     out["mean"] = round(s["mean"], 4)
-    out["withinTolerancePct"] = round(100 * s["withinTolerance"] / s["measured"], 1) if s["measured"] else 0
+    # Over every scan point: an unmeasured point is not one shown in tolerance.
+    out["withinTolerancePct"] = round(100 * s["withinTolerance"] / s["total"], 1) if s["total"] else 0
+    out["withinToleranceOfMeasuredPct"] = round(100 * s["withinTolerance"] / s["measured"], 1) if s["measured"] else 0
+    out["measuredPct"] = round(100 * s["measured"] / s["total"], 1) if s["total"] else 0
     out["percentiles"] = {k: (r3(x) if math.isfinite(x) else None) for k, x in zip(("p5", "p25", "p50", "p75", "p95"), p)}
     return out
 
@@ -229,6 +244,8 @@ def describe(d):
             "matched": a["matched"],
             "sampled": a["sampled"],
             "iterations": a["iterations"],
+            **({"converged": a["converged"]} if "converged" in a else {}),
+            **({"matchedShare": round(a["matchedShare"], 3)} if "matchedShare" in a else {}),
             **({"ambiguous": True} if a.get("ambiguous") else {}),
             **({"pairRms": round(a["pairRms"], 4)} if "pairRms" in a else {}),
             **({"underconstrained": True} if a.get("underconstrained") else {}),
@@ -237,6 +254,7 @@ def describe(d):
         if a
         else None,
         "map": "ready" if map_values(d) is not None else "none",
+        "sign": SIGN_WORDS if d["source"] == "reference" else "Sign: positive on the element's material side past its surface (too much material), negative short of it (too little).",
         "stats": figures(d),
         "target": {"element": d["target"]["ref"], "side": "outward" if d["target"]["side"] == 1 else "inward", "facingDeg": d["target"]["facingDeg"]} if d["target"] else None,
         "settings": {
@@ -256,6 +274,37 @@ def scan_diag(scan):
     return float(np.linalg.norm(scan.V.max(axis=0) - scan.V.min(axis=0)))
 
 
+def size_mismatch(scan_d, ref_d):
+    """None when the scan and the reference are about one size; else the
+    refusal, naming the unit mix-up the ratio looks like."""
+    if not (scan_d > 0 and ref_d > 0):
+        return None
+    ratio = max(scan_d, ref_d) / min(scan_d, ref_d)
+    if ratio <= SIZE_RATIO_LIMIT:
+        return None
+    bigger = "scan" if scan_d > ref_d else "reference"
+    factor, why = min(UNIT_FACTORS, key=lambda f: abs(math.log(ratio / f[0])))
+    likely = f" That is close to ×{factor:g}: most likely {why}." if abs(math.log(ratio / factor)) < math.log(1.35) else ""
+    return (f"The scan is {scan_d:.4g} mm across and the reference {ref_d:.4g} mm — the {bigger} is {ratio:.3g}× the other, so they are not one part in one unit "
+            f"(a rigid best fit cannot scale, and would report a near-perfect fit of the small one on a patch of the big one).{likely} "
+            f"Open the scan again with units (scan_open units: mm, cm, m or in), or the reference with units, or scan_scale the scan. "
+            f"If the scan is truly a small piece of a larger reference, pass allowSizeMismatch: true.")
+
+
+def map_warnings(d):
+    """What the map's figures need said beside them."""
+    v = map_values(d)
+    if v is None:
+        return []
+    s = deviation_stats(v, d["maxDistance"], d["tolerance"])
+    if not s["total"]:
+        return []
+    share = s["measured"] / s["total"]
+    if share < MEASURED_SHARE_WARN:
+        return [f"Only {share * 100:.0f} % of the scan's points have a reading within the search distance ({d['maxDistance']:g} mm); withinTolerancePct counts every point, so the rest count against it. A low share means the scan and the reference differ widely (wrong part, wrong units, a poor fit) or the search distance is too short (deviation_settings maxDistance)."]
+    return []
+
+
 def measure_map(d, scan):
     """The map against the reference under the alignment in hand: the scan
     has been moved onto the reference, so in its own frame."""
@@ -263,8 +312,11 @@ def measure_map(d, scan):
     facing = d["facingDeg"]
     v = compute_deviation(ref, scan.V, R.identity(), vertex_normals(scan.V, scan.F), None if facing is None else math.radians(facing))
     d["values"] = v
+    d.pop("onReference", None)
     if d["maxDistanceAuto"]:
-        d["maxDistance"] = default_max_distance(scan_diag(scan))
+        # From the reference, the nominal part: a scan in the wrong units
+        # would otherwise set a search distance in its own wrong scale.
+        d["maxDistance"] = default_max_distance(float(d["reference"]["surface"].bbox_diagonal))
     if d["rangeAuto"]:
         d["range"] = suggest_range(v, d["maxDistance"])
 
@@ -325,6 +377,14 @@ def tools(session):
         scan = S.scan_of(session)
         mode = a.get("mode", "auto")
         surface = d["reference"]["surface"]
+        if not np.isfinite(scan.V).all():
+            raise ToolError("invalid_input", "The scan has vertices that are not numbers (NaN or infinite): open it again — scan_open drops them and the triangles on them.")
+        if not np.isfinite(np.asarray(d["reference"]["V"], dtype=float)).all():
+            raise ToolError("invalid_input", "The reference has vertices that are not numbers (NaN or infinite): repair it and open it again.")
+        if not a.get("allowSizeMismatch"):
+            no = size_mismatch(scan_diag(scan), float(surface.bbox_diagonal))
+            if no:
+                raise ToolError("invalid_input", no)
         N = vertex_normals(scan.V, scan.F)
         try:
             if mode == "points":
@@ -348,21 +408,31 @@ def tools(session):
                 raise ToolError("invalid_input", "mode: auto, points or local.")
         except AlignError as e:
             raise ToolError("failed", str(e))
+        except (np.linalg.LinAlgError, FloatingPointError, ValueError) as e:
+            raise ToolError("failed", f"The best fit could not be solved ({e}): the scan or the reference is degenerate here — check both are whole, finite meshes of the same part, or start from point pairs (mode points).")
         m = res["transform"]
         bake(scan, m, S.state(session))
         prev = d["align"]["total"] if (mode == "local" and d["align"]) else R.identity()
         res["total"] = R.compose(m, prev) if mode == "local" else m
-        d.update(align=res, scan=scan, source="reference", target=None)
+        d.update(align=res, scan=scan, version=getattr(scan, "version", None), source="reference", target=None)
         measure_map(d, scan)
-        return {"deviation": describe(d), "moved": "The scan's vertices were moved onto the reference by transform: every place on the scan now reads in the reference's frame."}
+        out = {"deviation": describe(d), "moved": "The scan's vertices were moved onto the reference by transform: every place on the scan now reads in the reference's frame. Moving the part again (align_*, scan_scale) drops this alignment and its map."}
+        warn = quality_warnings(res) + map_warnings(d)
+        if warn:
+            out["warnings"] = warn
+        return out
 
     def measure(a):
         d = require_reference(session)
         if not d["align"]:
-            raise ToolError("invalid_state", "The scan is not aligned to the reference — run deviation_align first.")
+            raise ToolError("invalid_state", "The scan is not aligned to the reference — never aligned, or moved since (align_clear, align_datum, align_auto, align_symmetry and scan_scale drop the alignment and its map): run deviation_align.")
         d["source"] = "reference"
         measure_map(d, S.scan_of(session))
-        return {"deviation": describe(d)}
+        out = {"deviation": describe(d)}
+        warn = map_warnings(d)
+        if warn:
+            out["warnings"] = warn
+        return out
 
     def set_target(a):
         scan = S.scan_of(session)
@@ -439,7 +509,7 @@ def tools(session):
             got = reference_reading(session)
             return {"on": "reference", "tolerance": d["tolerance"], "searchDistance": d["maxDistance"], "spacing": r3(got["spacing"]), "readings": int(len(got["values"])),
                     **on_reference.summary(got["values"], got["area"], got["centres"], a.get("tolerance", d["tolerance"])),
-                    "note": "Read on the reference: positive where the reference stands outside the scan (the part lacks material there), negative inside; unscanned where no scan surface facing its way lies under it within the search distance. view_render { map: \"deviation-reference\" } shows it."}
+                    "note": "Read on the reference, signed as the map on the scan is: positive where the scan stands outside the reference (excess material on the part), negative where the scan lies inside it (the part lacks material there); unscanned where no scan surface facing its way lies under it within the search distance. view_render { map: \"deviation-reference\" } shows it."}
         values = map_values(d)
         if values is None:
             raise ToolError("invalid_state", "There is no deviation map to read — deviation_align measures one against the reference part, deviation_set_target one against an element.")
@@ -521,7 +591,9 @@ def tools(session):
             "readings": int(len(values)),
             "measured": measured,
             "withinTolerance": within,
-            "withinTolerancePct": round(100 * within / measured, 1) if measured else 0,
+            "withinTolerancePct": round(100 * within / len(values), 1) if len(values) else 0,
+            "withinToleranceOfMeasuredPct": round(100 * within / measured, 1) if measured else 0,
+            "measuredPct": round(100 * measured / len(values), 1) if len(values) else 0,
             "tolerance": tol,
             "searchDistance": search,
             "file": path,
@@ -535,7 +607,7 @@ def tools(session):
         values, P = got["values"], got["centres"]
         fmt = a.get("format", "ply")
         search, tol = d["maxDistance"], d["tolerance"]
-        what = "the reference by its distance to the scan, a reading per small piece of it (positive: the reference outside the scan)"
+        what = "the reference by its distance to the scan, a reading per small piece of it (positive: the scan outside the reference, excess material; negative: material missing)"
         stem = os.path.splitext(scan.name)[0] or "scan"
         path = a.get("path") or os.path.join(session.out_dir, f"{stem}-deviation-reference.{'txt' if fmt == 'report' else fmt}")
         if not os.path.isabs(path):
@@ -559,7 +631,7 @@ def tools(session):
         d = require_reference(session)
         scan = S.scan_of(session)
         if not d["align"]:
-            raise ToolError("invalid_state", "The scan is not aligned to the reference — run deviation_align first.")
+            raise ToolError("invalid_state", "The scan is not aligned to the reference — never aligned, or moved since (align_clear, align_datum, align_auto, align_symmetry and scan_scale drop the alignment and its map): run deviation_align.")
         within = a.get("within")
         if within and not all(within["min"][k] < within["max"][k] for k in range(3)):
             raise ToolError("invalid_input", "within: min must lie below max on every axis.")
@@ -587,20 +659,21 @@ def tools(session):
         ),
         Tool(
             "deviation_align",
-            "Rigid best fit (no scale) of the scan onto the reference part, then the deviation map under it. mode auto (the default) finds the pose on its own; points starts from three or more pairs of corresponding points (scan and reference, mm) then refines; local refines the fit in hand on a marked surface only (vertices), within searchDistance mm. The scan's vertices are moved onto the reference. Returns the alignment (RMS, points matched, transform) and the map's statistics.",
+            "Rigid best fit (no scale) of the scan onto the reference part, then the deviation map under it. mode auto (the default) finds the pose on its own; points starts from three or more pairs of corresponding points (scan and reference, mm) then refines; local refines the fit in hand on a marked surface only (vertices), within searchDistance mm. The scan's vertices are moved onto the reference. Refuses (invalid_input) when the scan and the reference differ in size by more than 2× — a unit mix-up (×10, ×25.4, ×1000, named when the ratio is near one) that a rigid fit would otherwise report as a near-perfect match of the small part on a patch of the big one; allowSizeMismatch: true fits anyway, for a scan that truly is a small piece of a larger reference. Refuses a scan with non-finite vertices. Returns the alignment (RMS, points matched, matchedShare — the share of the sampled scan points that drove the final pose —, converged, transform), the map's statistics (withinTolerancePct over every scan point, measured or not; withinToleranceOfMeasuredPct; measuredPct) and warnings: read them — a matchedShare under 50 %, a fit that did not converge, or under 80 % of the points measured each mean the map is not to be trusted as it stands. Sign: positive where the scan stands outside the reference (excess material), negative inside it (material missing). The auto search distance is 2 % of the reference's diagonal. Moving the part afterwards (align_clear, align_datum, align_auto, align_symmetry, scan_scale) drops this alignment and its map.",
             obj(
                 {
                     "mode": {"type": "string", "enum": ["auto", "points", "local"]},
                     "pairs": {"type": "array", "minItems": 3, "items": obj({"scan": vec3("On the scan, mm."), "reference": vec3("The same point on the reference, mm.")}, ["scan", "reference"])},
                     "vertices": {"type": "array", "minItems": 3, "items": {"type": "integer", "minimum": 0}},
                     "searchDistance": {"type": "number", "exclusiveMinimum": 0},
+                    "allowSizeMismatch": {"type": "boolean", "description": "Fit even when the scan and the reference differ in size by more than 2× — only for a scan that truly is a small piece of a larger reference, never to get past a unit mix-up."},
                 }
             ),
             align,
         ),
         Tool(
             "deviation_measure",
-            "Measure the deviation map again under the alignment in hand — after a change of facing limit, say. deviation_align measures it already. Returns the map's statistics (min, max, mean, RMS, sigma, percentiles, share within the tolerance, points matched).",
+            "Measure the deviation map again under the alignment in hand — after a change of facing limit, say. deviation_align measures it already. Refuses (invalid_state) when there is no alignment, including when the part was moved since it was made (align_clear, align_datum, align_auto, align_symmetry, scan_scale drop it): run deviation_align again. Returns the map's statistics (min, max, mean, RMS, sigma, percentiles; withinTolerancePct over every scan point, withinToleranceOfMeasuredPct, measuredPct, points matched) and warnings when under 80 % of the points have a reading. Sign: positive where the scan stands outside the reference (excess material), negative inside it (material missing).",
             obj({}),
             measure,
         ),
@@ -625,7 +698,7 @@ def tools(session):
         ),
         Tool(
             "deviation_hotspots",
-            f"The deviation map read as patches: the vertices past the tolerance gathered into connected regions, the largest and farthest first. Needs a map (deviation_align or deviation_set_target). Returns each patch's centroid, box, area, count, mean, extreme, depth, volume, kind, side, the extreme's point and vertex, a few vertices; features, found, over and unmeasured. {patch_words}. Trap: read far every time — the vertices past the search distance: far.inside is scan deep inside the reference (a hole, pocket or slot the model lacks), far.outside scan standing off it. Changes nothing.",
+            f"The deviation map read as patches: the vertices past the tolerance gathered into connected regions, the largest and farthest first. Needs a map (deviation_align or deviation_set_target). Returns each patch's centroid, box, area, count, mean, extreme, depth, volume, kind, side, the extreme's point and vertex, a few vertices; features, found, over and unmeasured. {patch_words}. Trap: read far every time — the vertices past the search distance: far.inside is scan deep inside the reference (a hole, pocket or slot the model lacks), far.outside scan standing off it. Sign: a patch's mean and extreme are positive (side outside) where the scan stands outside the reference — excess material — and negative (side inside) where material is missing. on: reference reads the map on the reference instead (coveredPct, withinTolerancePct over the reference's area, mostExcess, mostMissing, unscanned), signed the same way. Changes nothing.",
             obj(
                 {
                     "tolerance": {"type": "number", "exclusiveMinimum": 0},
@@ -652,7 +725,7 @@ def tools(session):
         ),
         Tool(
             "deviation_export",
-            "The deviation map as a file — side scan (the default) or reference (the map read on the reference, a reading per small piece of it; ply, csv or npy): format ply (the default: binary, a vertex per scan vertex with x, y, z, deviation, measured and the map's jet colour), csv (x,y,z,d), npy (N × 4 float32) or report (ScanRuler's plain-text report, also in the answer). path, else in the session's folder. Returns the file with readings, measured, withinTolerance, withinTolerancePct, tolerance and searchDistance. Trap: the distance is NaN where there is no reading, and a reading past the search distance is kept as it is. Changes nothing.",
+            "The deviation map as a file — side scan (the default) or reference (the map read on the reference, a reading per small piece of it; ply, csv or npy): format ply (the default: binary, a vertex per scan vertex with x, y, z, deviation, measured and the map's jet colour), csv (x,y,z,d), npy (N × 4 float32) or report (ScanRuler's plain-text report, also in the answer). path, else in the session's folder. Returns the file with readings, measured, measuredPct, withinTolerance, withinTolerancePct (over every reading, measured or not), withinToleranceOfMeasuredPct, tolerance and searchDistance. Sign, both sides: positive where the scan stands outside the reference (excess material), negative inside it (material missing). Trap: the distance is NaN where there is no reading, and a reading past the search distance is kept as it is. Changes nothing.",
             obj({"side": {"type": "string", "enum": ["scan", "reference"]}, "format": {"type": "string", "enum": ["ply", "csv", "npy", "report"]}, "path": {"type": "string"}}),
             export,
         ),

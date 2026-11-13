@@ -210,7 +210,7 @@ def _seeds_answer(spots, kind, region, fit):
     out = [r for r in read if not r["in"]]
     if not out:
         return seeds, None
-    sigma = fit.get("sigma", 0)
+    sigma = fit.get("sigma") or 0
 
     def elsewhere(r):
         return r["off"] is not None and (abs(r["off"]["offMm"]) > SEED_OFF_SIGMA * sigma + 0.01 or r["off"]["deg"] > SEED_OFF_DEG)
@@ -295,14 +295,19 @@ def element_fit(st, a):
     if kind == "circle":
         try:
             fit = circle_from_points([s["point"] for s in spots])
-            _z = minimum_zone([s["point"] for s in spots], {"kind": "circle", "center": fit["center"], "normal": fit["normal"]})
+            # Three points: the circle runs through each, so no zone either.
+            _z = minimum_zone([s["point"] for s in spots], {"kind": "circle", "center": fit["center"], "normal": fit["normal"]}) if len(spots) > 3 else None
             if _z:
                 fit["zoneWidth"] = _z["width"]
         except FitError as e:
             raise Refusal("failed", str(e))
+        few = fit.pop("warning", None)
         el = _add(st, "circle", fit, {"type": "picked", "points": [s["point"] for s in spots]}, None, a.get("name"))
         _finish(el, a.get("assumed"))
-        return {"element": describe_element(el), "seeds": [{"vertex": s["vertex"], "point": s["point"], "distance": s["distance"]} for s in spots]}
+        out = {"element": describe_element(el), "seeds": [{"vertex": s["vertex"], "point": s["point"], "distance": s["distance"]} for s in spots]}
+        if few:
+            out["warning"] = few
+        return out
     seeds = []
     for s in spots:
         for v in s["triangle"]:
@@ -518,7 +523,18 @@ def element_remove(st, ref):
     dims = [{"id": d["id"], "name": d["name"]} for d in st["dimensions"] if gone & set(d["refs"])]
     st["elements"] = [e for e in st["elements"] if e["id"] not in gone]
     st["dimensions"] = [d for d in st["dimensions"] if not gone & set(d["refs"])]
-    return {"removed": removed, "dimensionsRemoved": dims}
+    out = {"removed": removed, "dimensionsRemoved": dims}
+    # A deviation map against a removed element goes with it: the map falls
+    # back to the reference part's (if any).
+    dev = st.get("deviation")
+    tgt = dev.get("target") if isinstance(dev, dict) else None
+    if tgt:
+        names = {r["name"] for r in removed} | {str(r["id"]) for r in removed}
+        if tgt.get("name") in names or str(tgt.get("ref")) in names or tgt.get("ref") in gone:
+            dev["target"] = None
+            dev["source"] = "reference"
+            out["deviationTargetCleared"] = tgt.get("name")
+    return out
 
 
 def element_set_visible(st, a):
@@ -978,7 +994,8 @@ def report_text(st):
             lines += [f"  point: {_vec(f['center'])}", f"  direction: {_vec(f['dir'])}"]
         if f.get("usedPoints", 0) > 0:
             cut = f" ({cutoff_label(s['settings']['sigma'])})" if s["type"] == "fitted" else ""
-            lines.append(f"  sigma: {ln(f['sigma'])}, used points: {f['usedPoints']} of {f['regionSize']}{cut}")
+            sig = ln(f["sigma"]) if f.get("sigma") is not None else "none (three points define it exactly)"
+            lines.append(f"  sigma: {sig}, used points: {f['usedPoints']} of {f['regionSize']}{cut}")
             if f.get("formError") is not None:
                 lines.append(f"  {_form_label(k) or 'form'} (peak-to-peak): {ln(f['formError'])}")
             if f.get("residualMin") is not None:
@@ -1037,7 +1054,7 @@ def export_csv(st, path):
         f = e.get("fit") or {}
         prim = 2 * f["radius"] if (f and D.has_diameter(f)) else None
         c = f["center"] if f.get("center") is not None else [None, None, None]
-        w.writerow(["element", e["id"], e["name"], e["kind"], "diameter" if prim is not None else "", f"{prim:.4f}" if prim is not None else "", "mm" if prim is not None else "", "", "", "", "", "", "", f"{f.get('sigma', 0):.4f}" if f.get("usedPoints") else "", f"{f['formError']:.4f}" if f.get("formError") is not None else ""] + [f"{float(x):.4f}" if x is not None else "" for x in c])
+        w.writerow(["element", e["id"], e["name"], e["kind"], "diameter" if prim is not None else "", f"{prim:.4f}" if prim is not None else "", "mm" if prim is not None else "", "", "", "", "", "", "", f"{f['sigma']:.4f}" if f.get("usedPoints") and f.get("sigma") is not None else "", f"{f['formError']:.4f}" if f.get("formError") is not None else ""] + [f"{float(x):.4f}" if x is not None else "" for x in c])
     for d in st["dimensions"]:
         r = describe_dimension(st, d)
         lim = d.get("limit") or {}

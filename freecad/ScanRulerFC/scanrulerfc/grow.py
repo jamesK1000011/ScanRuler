@@ -757,6 +757,40 @@ def fit_cylinder_from_seed(g, seeds, settings, guide=None):
     raise FitError(f"Couldn't fit a cylinder at this point.{said} Try clicking on a clearly curved part of the cylindrical surface.")
 
 
+MARKED_MIN_COVERAGE = 29  # degrees of arc, as the seeded path asks
+MARKED_MAX_SIGMA_R = 0.03  # sigma / radius, as the seeded path asks
+MARKED_PLANE_FACTOR = 1.5  # a plane within this many times the round's sigma fits as well
+
+
+def _arc_coverage(P, sel, model, residual, sigma, scale):
+    """The arc the marked points truly span round the axis: only those
+    within 2σ of the fitted surface (a floor for clean data), so the far
+    reaches of two flats meeting at an edge do not count as round."""
+    sel = np.asarray(sel, dtype=np.int64)
+    band = max(2.0 * sigma, 1e-6 * max(scale, 1.0))
+    near = sel[np.abs(residual(model, P[sel])) <= band]
+    if len(near) < 3:
+        return 0.0
+    return S.axial_extents(P, near, model)[0]
+
+
+def _judge_marked(g, sel, kind, radius, sigma, coverage, radius_far=None):
+    """The seeded path's checks (scale, scatter, arc) and a plane compared,
+    for a round fitted to marked points: None, or why it is refused."""
+    noun = "cylinder" if kind == "cylinder" else "cone"
+    far = radius if radius_far is None else radius_far
+    if far > 0.8 * g.bbox_diag:
+        return f"Couldn't fit a {noun} to the marked surface: radius {radius:.4g} mm is out of scale with the part ({g.bbox_diag:.4g} mm across) — a flat, not a round. Fit a plane, or mark a surface that curves."
+    pl = S.fit_plane_clipped(g.P, sel, 3)
+    if pl is not None and pl["sigma"] <= MARKED_PLANE_FACTOR * sigma + 1e-9 * max(g.bbox_diag, 1.0):
+        return f"Couldn't fit a {noun} to the marked surface: a plane fits it as well or better (σ {pl['sigma']:.4g} mm against the {noun}'s {sigma:.4g} mm) — it is flat, or curves too little to tell from flat. Fit a plane, or mark more of the way round."
+    if sigma > MARKED_MAX_SIGMA_R * radius:
+        return f"Couldn't fit a {noun} to the marked surface: σ {sigma:.4g} mm is {100 * sigma / radius:.1f} % of the radius {radius:.4g} mm (over {100 * MARKED_MAX_SIGMA_R:.0f} %) — the points are not on one round: two flats meeting at a sharp edge, or more than one surface marked. Mark only the round."
+    if not coverage >= MARKED_MIN_COVERAGE:
+        return f"Couldn't fit a {noun} to the marked surface: the points on it span only {coverage:.1f}° of arc (at least {MARKED_MIN_COVERAGE}° needed) — too little of the round to pin it. Mark more of the way round."
+    return None
+
+
 def fit_cylinder_on_selection(g, sel, settings):
     require_selection(sel, "cylindrical surface")
     axis = S.axis_from_normals(g.N, sel)
@@ -772,6 +806,12 @@ def fit_cylinder_on_selection(g, sel, settings):
     res = _cyl_result(g.P, fin, sel, sel)
     if not res:
         raise FitError("Couldn't measure the length of the marked surface.")
+    c = fin["cylinder"]
+    res["coverage"] = float(_arc_coverage(g.P, fin["used"], c, S.cylinder_residual, fin["sigma"], c["r"]))
+    no = _judge_marked(g, sel, "cylinder", float(c["r"]), float(fin["sigma"]), res["coverage"])
+    if no:
+        raise FitError(no)
+    res["radius"] = float(res["radius"])
     return res
 
 
@@ -875,6 +915,10 @@ def fit_cone_on_selection(g, sel, settings):
     rep = _cone_report(g.P, sel, fin["cone"])
     if not rep:
         raise FitError("Couldn't measure the extent of the marked surface.")
+    rep["coverage"] = float(_arc_coverage(g.P, fin["used"], fin["cone"], S.cone_residual, fin["sigma"], rep["radius"]))
+    no = _judge_marked(g, sel, "cone", float(rep["radius"]), float(fin["sigma"]), rep["coverage"], float(max(rep["radius1"], rep["radius2"])))
+    if no:
+        raise FitError(no)
     return _cone_out(rep, fin, sel)
 
 
