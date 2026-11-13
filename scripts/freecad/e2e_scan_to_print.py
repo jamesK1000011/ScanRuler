@@ -89,7 +89,7 @@ def open_scan():
 
 
 def measure_hole():
-    o = need("element_fit", {"kind": "cylinder", "at": {"point": [25 + 3.2, 15, 2.5]}, "side": "inside", "name": "Bolt hole"})
+    o = need("element_fit", {"kind": "cylinder", "at": {"point": [25 + 3.2, 15, 2.5]}, "radius": {"min": 2.5, "max": 4.5}, "name": "Bolt hole"})
     el = o["element"]
     f = el.get("fit") or el
     d = el.get("diameter") or (2 * f["radius"] if f.get("radius") else None)
@@ -100,7 +100,8 @@ def measure_hole():
 
 
 def rebuild():
-    sec = need("section_cut", {"across": "XZ", "name": "Profile"})["section"]
+    # Across the part clear of the bolt hole.
+    sec = need("section_cut", {"across": {"origin": [0, 5, 0], "normal": [0, 1, 0]}, "name": "Profile"})["section"]
     need("section_fit", {"section": sec["id"]})
     sk = need("section_to_sketch", {"section": sec["id"], "name": "Profile sketch"})
     need("pd_pad", {"body": sk["body"], "sketch": sk["sketch"], "length": 30, "sides": "symmetric"})
