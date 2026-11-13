@@ -1,112 +1,52 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Diagnostics for the open red-team items, round 2.
-import os, sys, traceback, inspect
+# Diagnostics, round 3: ways to close a gap between faces in FreeCAD 1.1.
+import os, sys, traceback
 sys.path.append(os.environ["FREECAD_LIB"])
 import FreeCAD, Part
 print("FreeCAD", FreeCAD.Version()[:4])
 V = FreeCAD.Vector
 
-def sect(t):
-    print("\n=====", t)
-
-def gapped():
+def gapped(d=0.05):
     box = Part.makeBox(10, 10, 10)
     faces = [f.copy() for f in box.Faces]
-    faces[0].translate(V(-0.05, 0, 0))
+    faces[0].translate(V(-d, 0, 0))
     return faces
 
-sect("sewing 2")
-try:
-    print("Part names:", [n for n in dir(Part) if n[0].isupper() or n.startswith("make")])
-    if hasattr(Part, "ShapeFix"):
-        print("ShapeFix:", dir(Part.ShapeFix))
-    if hasattr(Part, "ShapeUpgrade"):
-        print("ShapeUpgrade:", dir(Part.ShapeUpgrade))
-    for kw in ({"tolerance": 0.1},):
-        c = Part.makeCompound(gapped())
-        try:
-            c.sewShape(**kw); print("kw", kw, c.ShapeType, [s.isClosed() for s in c.Shells])
-        except Exception as e:
-            print("kw failed", e)
-    c = Part.makeCompound(gapped())
-    r = c.sewShape(0.1); print("return value", type(r), getattr(r, "ShapeType", None), "self now", c.ShapeType)
-    # Part.Shape() then sew
-    s0 = Part.Shape(Part.makeCompound(gapped())); s0.sewShape(0.1); print("Part.Shape sew", s0.ShapeType, [s.isClosed() for s in s0.Shells])
-    # a bigger tolerance
-    for t in (0.06, 0.5, 1.0):
-        c = Part.makeCompound(gapped()); c.sewShape(t); print("tol", t, c.ShapeType, [s.isClosed() for s in c.Shells])
-    # mesh route as a control
-    import Mesh, MeshPart
-    print("TopoShape sewShape src? ", Part.TopoShape.sewShape.__doc__ if hasattr(Part, "TopoShape") else "")
-except Exception:
-    traceback.print_exc()
-
-sect("ShapeFix shell / sewing classes")
-try:
-    sf = Part.ShapeFix
-    for n in dir(sf):
-        if not n.startswith("_"):
-            o = getattr(sf, n)
-            print(" ", n, [m for m in dir(o) if not m.startswith("_")][:40])
-except Exception:
-    traceback.print_exc()
-
-sect("UtilsAssembly")
-try:
-    import UtilsAssembly
-    for n in ("getJointDistance", "getJointXYAngle", "getGlobalPlacement"):
-        print(inspect.getsource(getattr(UtilsAssembly, n)))
-except Exception:
-    traceback.print_exc()
-
-sect("techdraw cosmetic")
-try:
-    import TechDraw
-    d = FreeCAD.newDocument("T")
-    b = d.addObject("Part::Box", "Box"); b.Length, b.Width, b.Height = 60, 40, 8
-    pg = d.addObject("TechDraw::DrawPage", "Page"); t = d.addObject("TechDraw::DrawSVGTemplate", "Tpl"); pg.Template = t
-    v = d.addObject("TechDraw::DrawViewPart", "View"); pg.addView(v); v.Source = [b]; v.Direction = V(0, 0, 1); v.Scale = 2
-    d.recompute()
-    import time
-    for _ in range(40):
-        if v.getVisibleEdges(): break
-        time.sleep(0.1); d.recompute()
-    es = v.getVisibleEdges()
-    print("edges", len(es), [[tuple(round(c, 2) for c in p.Point) for p in e.Vertexes] for e in es])
-    print("view methods", [m for m in dir(v) if "osmetic" in m or "enter" in m or "anonical" in m or "Vertex" in m])
-    print("TechDraw fns", [n for n in dir(TechDraw) if not n.startswith("_")])
-    p, q = es[0].Vertexes[0].Point, es[0].Vertexes[-1].Point
-    for fn, args in (("makeCosmeticLine", (p, q)), ("makeCosmeticLine3D", (V(0, 0, 8), V(60, 40, 8)))):
-        try:
-            tag = getattr(v, fn)(*args); d.recompute()
-            ce = v.getCosmeticEdge(tag)
-            print(fn, "tag", tag, [m for m in dir(ce) if not m.startswith("_")])
-            for attr in ("Start", "End", "Center", "Radius", "Format", "Tag"):
-                if hasattr(ce, attr):
-                    print("   ", attr, getattr(ce, attr))
-        except Exception as e:
-            print(fn, "failed", e)
+def report(name, sh):
     try:
-        tag = v.makeCosmeticCircle(V(0, 0, 0), 5); d.recompute(); print("circle ok", tag, v.getCosmeticEdge(tag).Center)
+        shells = sh.Shells
+        print(name, sh.ShapeType, "faces", len(sh.Faces), "shells", [(len(s.Faces), s.isClosed()) for s in shells], "valid", sh.isValid())
+        if shells and shells[0].isClosed():
+            so = Part.makeSolid(shells[0]); print("   solid vol", round(abs(so.Volume), 3), so.isValid())
     except Exception as e:
-        print("circle failed", e)
-    try:
-        print(v.makeCosmeticLine.__doc__)
-        print(v.makeCenterLine.__doc__)
-        n = [f"Edge{i}" for i, e in enumerate(es) if abs(e.Vertexes[0].Point.y - e.Vertexes[-1].Point.y) < 1e-6][:2]
-        tag = v.makeCenterLine(n, 2); d.recompute(); cl = v.getCenterLine(tag); print("centerline", tag, [m for m in dir(cl) if not m.startswith("_")])
-    except Exception as e:
-        print("centerline failed", e)
-    es2 = v.getVisibleEdges(); print("edges after", len(es2))
-    for e in es2[len(es):]:
-        print("  new", [tuple(round(c, 2) for c in p.Point) for p in e.Vertexes])
-    if hasattr(TechDraw, "makeCanonicalPoint"):
-        print("canonical of", p, "->", TechDraw.makeCanonicalPoint(v, p))
-except Exception:
-    traceback.print_exc()
+        print(name, "report failed", e)
 
-sect("dimension")
-try:
-    dm = d.addObject("TechDraw::DrawViewDimension", "Dim"); print("dim props", dm.PropertiesList)
-except Exception:
-    traceback.print_exc()
+for d in (0.05, 0.2):
+    print("\n== gap", d, "tolerance 0.1")
+    f = gapped(d)
+    for name, fn in (
+        ("multiFuse fuzzy", lambda: f[0].multiFuse(f[1:], 0.1)),
+        ("generalFuse fuzzy", lambda: f[0].generalFuse(f[1:], 0.1)[0]),
+        ("compound fuse fuzzy", lambda: Part.makeCompound(f[:1]).fuse(Part.makeCompound(f[1:]), 0.1)),
+    ):
+        try:
+            r = fn()
+            report(name, r)
+            try:
+                sh = Part.Shell(r.Faces); report("  -> Part.Shell", sh)
+            except Exception as e:
+                print("  -> Part.Shell failed", e)
+            try:
+                sh = Part.makeShell(r.Faces); report("  -> makeShell", sh)
+            except Exception as e:
+                print("  -> makeShell failed", e)
+        except Exception as e:
+            print(name, "failed", e)
+    try:
+        sf = Part.ShapeFix.Shape(Part.makeCompound(f)); sf.Precision = 0.1; sf.MaxTolerance = 0.1; sf.perform(); report("ShapeFix.Shape", sf.shape())
+    except Exception as e:
+        print("ShapeFix.Shape failed", e)
+    try:
+        sh = Part.Shape(); sh.makeShapeFromMesh(*Part.makeCompound(f).tessellate(0.01), 0.1); report("makeShapeFromMesh", sh)
+    except Exception as e:
+        print("makeShapeFromMesh failed", e)
