@@ -54,6 +54,22 @@ const rows = [
   ['Verdict, lip waived', fc?.verdict ?? '—', sr?.verdict ?? '—'],
 ]
 
+const sj = (r, f) => {
+  const j = r?.scanJobs
+  if (!j) return '—'
+  if (j.failed || j.skipped) return j.failed ?? j.skipped
+  return f(j)
+}
+const scanRows = [
+  ['Calls for the scan jobs', fc?.scanTotals?.calls ?? '—', sr?.scanTotals?.calls ?? '—'],
+  ['Refused', fc?.scanTotals?.refused ?? '—', sr?.scanTotals?.refused ?? '—'],
+  ['Time in calls', fc?.scanTotals ? `${n(fc.scanTotals.ms / 1000)} s` : '—', sr?.scanTotals ? `${n(sr.scanTotals.ms / 1000)} s` : '—'],
+  ['Answer bytes read', kb(fc?.scanTotals?.answerBytes), kb(sr?.scanTotals?.answerBytes)],
+  ['Scan check: noise read (made 0.02 mm σ)', sj(fc, (j) => `${n(j.scanCheck?.noise, 4)} mm`), sj(sr, (j) => `${n(j.scanCheck?.noise, 4)} mm`)],
+  ['Deviation map: RMS against the part as made', sj(fc, (j) => `${n(j.deviation?.rms, 4)} mm`), sj(sr, (j) => `${n(j.deviation?.rms, 4)} mm`)],
+  ['Section fit: bolt hole Ø (made 6.4)', sj(fc, (j) => `${n(j.section?.hole, 3)} mm`), sj(sr, (j) => `${n(j.section?.hole, 3)} mm`)],
+]
+
 const devRows = Object.entries(sr?.deviation ?? {}).map(([k, d]) => {
   const s = d?.stats ?? d?.statistics ?? d?.map ?? d
   const pick = (...keys) => keys.map((x) => s?.[x]).find((v) => typeof v === 'number')
@@ -69,6 +85,12 @@ const md = [
   '|---|---|---|',
   ...rows.map((r) => `| ${r.join(' | ')} |`),
   '',
+  '### Scan jobs: the same scan of an L-bracket (scan check, deviation map, section fit)',
+  '',
+  '| | FreeCAD + Agent Link | ScanRuler |',
+  '|---|---|---|',
+  ...scanRows.map((r) => `| ${r.join(' | ')} |`),
+  '',
   '### Deviation between the two bins (ScanRuler’s Deviation workspace, best-fit)',
   '',
   '| Pair | RMS, mm | max, mm | min, mm | fit RMS, mm | note |',
@@ -79,6 +101,6 @@ const md = [
 ].join('\n')
 
 writeFileSync(join(out, 'scorecard.md'), `${md}\n`)
-writeFileSync(join(out, 'scorecard.json'), JSON.stringify({ rows, deviation: sr?.deviation ?? null }, null, 1))
+writeFileSync(join(out, 'scorecard.json'), JSON.stringify({ rows, scanRows, deviation: sr?.deviation ?? null }, null, 1))
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`)
 console.log(md)

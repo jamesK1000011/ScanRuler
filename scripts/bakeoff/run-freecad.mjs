@@ -8,16 +8,24 @@
 // agent-link, src/Mod/AgentLink); the workflow checks it out into freecad-addon/.
 // The Python must import FreeCAD (conda-forge's freecad, or FREECAD_LIB set).
 
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { BRIEF } from './brief.mjs'
 import { measured, stdioClient, summary } from './measure.mjs'
+import { freecadScanJobs } from './scan-jobs.mjs'
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, python: { type: 'string' }, addon: { type: 'string' } } })
 const out = resolve(values.out ?? 'bakeoff-out/freecad')
 mkdirSync(out, { recursive: true })
 const trace = []
+// The scan jobs' fixture, for this side and ScanRuler's (it reads it from here).
+const fxDir = join(out, 'fixture')
+spawnSync(values.python ?? 'python', [resolve('scripts/bakeoff/scan_fixture.py'), fxDir], { stdio: 'inherit' })
+const fx = existsSync(join(fxDir, 'truth.json'))
+  ? { scan: join(fxDir, 'bracket-scan.stl'), step: join(fxDir, 'bracket.step'), truth: JSON.parse(readFileSync(join(fxDir, 'truth.json'), 'utf8')) }
+  : null
 const server = resolve(values.addon ?? 'freecad-addon/src/Mod/AgentLink', 'agentlink_headless.py')
 const c = await stdioClient({ command: values.python ?? 'python', args: [server, '--out', out], stderrFile: join(out, 'server.log') })
 const result = { side: 'freecad', server: c.init.serverInfo, steps: {} }
@@ -53,10 +61,18 @@ try {
   const diff = await call('history_diff', { since: 0 }, 'what the session did')
   result.steps.diff = diff.json
   result.verdict = review.json?.verdict ?? null
+  if (fx) {
+    try {
+      result.scanJobs = await freecadScanJobs(measured(c.call, trace, 'freecad-scan'), fx)
+    } catch (e) {
+      result.scanJobs = { failed: String(e?.message ?? e) }
+    }
+  }
 } finally {
   c.close()
 }
 result.totals = summary(trace, 'freecad')
+result.scanTotals = summary(trace, 'freecad-scan')
 writeFileSync(join(out, 'trace.json'), JSON.stringify(trace, null, 1))
 writeFileSync(join(out, 'result.json'), JSON.stringify(result, null, 1))
 console.log(`freecad: ${result.totals.calls} calls, ${result.totals.refused} refused, ${result.totals.ms} ms, verdict ${result.verdict}`)

@@ -17,6 +17,7 @@ import { parseArgs } from 'node:util'
 import { launchAgent, launchApp, repoFile } from '../e2e-lib.mjs'
 import { BRIEF } from './brief.mjs'
 import { measured, summary } from './measure.mjs'
+import { scanrulerScanJobs } from './scan-jobs.mjs'
 
 const { values } = parseArgs({ options: { out: { type: 'string' }, freecad: { type: 'string' } } })
 const out = resolve(values.out ?? 'bakeoff-out/scanruler')
@@ -94,11 +95,25 @@ try {
     const a = await dev('deviation_align', {}, `${p.name}: best fit`)
     result.deviation[p.name] = a.json?.deviation ?? { refused: a.text?.slice(0, 300) }
   }
+
+  // The scan jobs, on the fixture the FreeCAD side wrote.
+  const fxDir = join(fc, 'fixture')
+  if (existsSync(join(fxDir, 'truth.json'))) {
+    const fx = { scan: join(fxDir, 'bracket-scan.stl'), step: join(fxDir, 'bracket.step'), truth: JSON.parse(readFileSync(join(fxDir, 'truth.json'), 'utf8')) }
+    try {
+      result.scanJobs = await scanrulerScanJobs(measured(agent.call, trace, 'scanruler-scan'), fx)
+    } catch (e) {
+      result.scanJobs = { failed: String(e?.message ?? e) }
+    }
+  } else {
+    result.scanJobs = { skipped: 'no fixture from the FreeCAD side' }
+  }
 } finally {
   await agent.close?.()
   await browser.close().catch(() => {})
 }
 result.totals = summary(trace, 'scanruler')
+result.scanTotals = summary(trace, 'scanruler-scan')
 console.log(`deviation: ${JSON.stringify(result.deviation)}`)
 writeFileSync(join(out, 'trace.json'), JSON.stringify(trace, null, 1))
 writeFileSync(join(out, 'result.json'), JSON.stringify(result, null, 1))
