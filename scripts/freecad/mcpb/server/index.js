@@ -368,9 +368,64 @@ async function main() {
  *  died is gone; the answer says so. */
 // The launcher's own tool: the newest add-ons from GitHub, and FreeCAD
 // started again on them, without Claude starting again.
+// Companions: other local MCP servers kept as git clones beside this one
+// (BumpMesh), brought up to their branch by the same update, and their
+// running copy stopped so Claude starts it again on the new code. The list
+// is a local setting (~/AgentLink/companions.json, a list like the default);
+// a clone with work of its own is left as it is and said.
+const COMPANIONS_DEFAULT = [
+  { name: 'bumpmesh', dir: '~/src/bumpmesh', url: `https://github.com/${OWNER}/stlTexturizer.git`, branch: 'agent-link', process: 'bumpmesh/mcp/' },
+]
+
+function companions() {
+  let list = COMPANIONS_DEFAULT
+  try {
+    list = JSON.parse(fs.readFileSync(path.join(os.homedir(), 'AgentLink', 'companions.json'), 'utf8'))
+  } catch {}
+  return (Array.isArray(list) ? list : []).map((c) => ({ ...c, dir: String(c.dir || '').replace(/^~(?=$|\/)/, os.homedir()) }))
+}
+
+function git(dir, args) {
+  const r = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', timeout: 120000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
+  return { ok: r.status === 0, out: (r.stdout || '').trim(), err: (r.stderr || r.error?.message || '').trim() }
+}
+
+function updateCompanions() {
+  const out = []
+  for (const c of companions()) {
+    if (!c.dir || !fs.existsSync(path.join(c.dir, '.git'))) continue
+    const row = { name: c.name, branch: c.branch }
+    try {
+      const f = git(c.dir, ['fetch', '--quiet', c.url, c.branch])
+      if (!f.ok) throw new Error(f.err.split('\n').pop() || 'fetch failed')
+      const before = git(c.dir, ['rev-parse', '--short', 'HEAD']).out
+      if (git(c.dir, ['rev-parse', '--abbrev-ref', 'HEAD']).out !== c.branch) {
+        const sw = git(c.dir, ['switch', c.branch])
+        if (!sw.ok) {
+          const mk = git(c.dir, ['switch', '-c', c.branch, 'FETCH_HEAD'])
+          if (!mk.ok) throw new Error(`could not switch to ${c.branch}: ${(sw.err || mk.err).split('\n').pop()}`)
+        }
+      }
+      const m = git(c.dir, ['merge', '--ff-only', 'FETCH_HEAD'])
+      if (!m.ok) throw new Error(`left as it is — it has work of its own (${m.err.split('\n').pop()})`)
+      const after = git(c.dir, ['rev-parse', '--short', 'HEAD']).out
+      Object.assign(row, { from: before, to: after })
+      if (after !== before && c.process) {
+        // Its running copy stopped: Claude starts it again on the new code.
+        spawnSync('pkill', ['-f', path.join(c.dir, c.process)], { timeout: 10000 })
+        row.restarted = true
+      }
+    } catch (e) {
+      row.error = String(e.message || e)
+    }
+    out.push(row)
+  }
+  return out
+}
+
 const UPDATE_TOOL = {
   name: 'agentlink_update',
-  description: 'Fetch the newest Agent Link and ScanRuler for FreeCAD from GitHub and start FreeCAD again on them, without restarting Claude: new tools and fixes from then on. The open document is lost unless saved (doc_save first). Answers the version before and after; the tool list is sent again.',
+  description: 'Fetch the newest Agent Link and ScanRuler for FreeCAD from GitHub and start FreeCAD again on them, without restarting Claude: new tools and fixes from then on. Companion servers kept as git clones (BumpMesh) are brought up to their branch too and started again. The open document is lost unless saved (doc_save first). Answers the version before and after, and each companion\'s; the tool list is sent again.',
   inputSchema: { type: 'object', properties: {} },
 }
 
@@ -424,14 +479,15 @@ function headless(exe, args, e, inst = {}) {
       if (!got) throw new Error('GitHub gave nothing')
       if (inst.modDir) install(inst.modDir, got.dir, got.version)
       version = got.version
+      const comp = updateCompanions()
       if (got.version === before) {
-        reply(id, { before, after: version, restarted: false, note: 'Already the newest: nothing to do.' })
+        reply(id, { before, after: version, restarted: false, ...(comp.length ? { companions: comp } : {}), note: 'Already the newest: nothing to do.' })
         return
       }
       updating = true
       const windowed = await restartWindow()
       child.kill()
-      reply(id, { before, after: version, restarted: true, note: windowed && windowed.refused
+      reply(id, { before, after: version, restarted: true, ...(comp.length ? { companions: comp } : {}), note: windowed && windowed.refused
         ? `The hidden FreeCAD runs the new add-ons, but the window did not restart and keeps the old ones: ${windowed.refused} Then app_restart.`
         : windowed
           ? 'FreeCAD started again on the new add-ons: the window reopens its documents (calls wait for it, up to 90 s), the one in front back in front. New tools are listed.'
