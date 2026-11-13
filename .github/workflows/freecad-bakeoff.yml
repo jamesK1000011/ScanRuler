@@ -114,7 +114,7 @@ jobs:
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        timeout-minutes: 10
+        timeout-minutes: 22
         run: |
           a=bakeoff-out/freecad/audit; mkdir -p $a
           AUDIT_OUT=$PWD/$a/commands.json timeout 300 xvfb-run -a -s "-screen 0 1600x1000x24" freecad scripts/freecad/audit/audit_commands.py > $a/gui.log 2>&1 || true
