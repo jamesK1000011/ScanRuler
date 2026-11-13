@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# A small, targeted FreeCAD run for diagnosing one thing: only on pushes to
+# the freecad-probe branch. It runs scripts/probe/probe.py and the Agent Link
+# tests named in scripts/probe/tests (one unittest id per line) against the
+# FreeCAD series in scripts/probe/series, with the add-on at
+# scripts/probe/addon-ref. A few minutes instead of the full bake-off.
+name: FreeCAD probe
+
+on:
+  push:
+    branches: [freecad-probe]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v5
+      - id: cfg
+        run: |
+          echo "ref=$(cat scripts/probe/addon-ref 2>/dev/null || echo agent-link)" >> "$GITHUB_OUTPUT"
+          echo "series=$(cat scripts/probe/series 2>/dev/null || echo 1.1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/FreeCAD
+          ref: ${{ steps.cfg.outputs.ref }}
+          path: freecad-addon
+          sparse-checkout: src/Mod/AgentLink
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: fc${{ steps.cfg.outputs.series }}
+          create-args: >-
+            -c conda-forge
+            freecad=${{ steps.cfg.outputs.series }}
+            python=3.11
+            calculix
+            gmsh
+            numpy
+          cache-environment: true
+      - name: Probe
+        run: |
+          export FREECAD_LIB=$CONDA_PREFIX/lib
+          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC
+          [ -f scripts/probe/probe.py ] && timeout 600 python scripts/probe/probe.py || echo "probe exit $?"
+      - name: Named tests
+        run: |
+          export FREECAD_LIB=$CONDA_PREFIX/lib
+          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC
+          cd freecad-addon/src/Mod/AgentLink/tests
+          ids=$(grep -v '^#' $GITHUB_WORKSPACE/scripts/probe/tests 2>/dev/null | xargs)
+          [ -n "$ids" ] && timeout 900 python -m unittest -v $ids || true
