@@ -159,10 +159,15 @@ jobs:
           path: bakeoff-out/freecad/
           if-no-files-found: warn
 
-  # The FreeCAD the person runs on the Mac is 1.0.2: the tests on the newest
-  # 1.0 conda-forge has (it skips some point releases)
+  # The Mac moves from 1.0.2 to the 1.1 stable release: the tests run on
+  # the newest 1.0 and 1.1 conda-forge has (it skips some point releases)
   # as well as on the newest.
   freecad-1-0:
+    strategy:
+      fail-fast: false
+      matrix:
+        series: ['1.0', '1.1']
+    name: freecad-${{ matrix.series }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     defaults:
@@ -182,10 +187,10 @@ jobs:
           sparse-checkout: src/Mod/AgentLink
       - uses: mamba-org/setup-micromamba@v2
         with:
-          environment-name: fc10
+          environment-name: fc${{ matrix.series }}
           create-args: >-
             -c conda-forge
-            freecad>=1.0,<1.1
+            freecad=${{ matrix.series }}
             python=3.11
             calculix
             gmsh
