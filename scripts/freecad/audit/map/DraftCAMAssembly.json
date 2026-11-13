@@ -127,7 +127,7 @@
 "Draft_Join": "draft_modify",
 "Draft_Label": "draft_label",
 "Draft_Layer": "draft_layer",
-"Draft_LayerManager": "window",
+"Draft_LayerManager": "draft_layer",
 "Draft_Line": "draft_shape",
 "Draft_Mirror": "draft_modify",
 "Draft_Move": "draft_modify",

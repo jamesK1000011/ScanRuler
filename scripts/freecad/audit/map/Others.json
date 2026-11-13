@@ -40,7 +40,7 @@
 "Reen_Segmentation": "meshobj_segments",
 "Reen_SegmentationFromComponents": "meshobj_segments",
 "Reen_SegmentationManual": "window",
-"Reen_ViewTriangulation": "window",
+"Reen_ViewTriangulation": "points_mesh",
 "Robot_AddToolShape": "robot_tool",
 "Robot_Create": "robot_new",
 "Robot_CreateTrajectory": "robot_path",

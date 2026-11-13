@@ -42,6 +42,7 @@ for line in sys.stdin:
 `)
 fs.writeFileSync(path.join(bin, 'python3'), `#!/bin/sh
 if [ "$1" = "-c" ]; then printf '@@%s@@' ${JSON.stringify(ud)}; exit 0; fi
+case "$1" in *smoke.py) exec ${JSON.stringify(realPython)} "$1";; esac
 exec ${JSON.stringify(realPython)} ${JSON.stringify(server)}
 `, { mode: 0o755 })
 // The add-ons an update brings.
@@ -118,7 +119,20 @@ try {
   // Again: nothing new, nothing restarted.
   const again = JSON.parse((await tool('agentlink_update')).result.content[0].text)
   assert.equal(again.restarted, false)
-  console.log('launcher: serves, restarts a crash, updates without dropping the connection')
+  // An update whose smoke test fails: refused, the add-ons in place put
+  // back, nothing restarted, the broken ones kept for a look.
+  fs.writeFileSync(path.join(fresh, 'VERSION'), '3.0\n')
+  fs.writeFileSync(path.join(fresh, 'AgentLink', 'VERSION'), '3.0\n')
+  fs.mkdirSync(path.join(fresh, 'AgentLink', 'agentlink'), { recursive: true })
+  fs.writeFileSync(path.join(fresh, 'AgentLink', 'agentlink', 'smoke.py'), 'import json\nprint(json.dumps({"ok": False, "failures": ["family cut fails to load"]}))\n')
+  const bad = await tool('agentlink_update')
+  assert.equal(bad.result.isError, true)
+  assert.match(bad.result.content[0].text, /failed the smoke test/)
+  assert.equal(fs.readFileSync(path.join(ud, 'Mod', 'AgentLink', 'VERSION'), 'utf8').trim(), '2.0')
+  assert.equal((await tool('anything')).result.content[0].text, '2.0')
+  const hist = JSON.parse(fs.readFileSync(path.join(root, 'AgentLink', 'versions.json'), 'utf8')).history
+  assert.match(hist[hist.length - 1].outcome, /rolled back/)
+  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update')
 } finally {
   child.stdin.end()
   child.kill()

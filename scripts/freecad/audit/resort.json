@@ -1,0 +1,1887 @@
+{
+ "AgentLink_Panel": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "AgentLink_Shot": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "AgentLink_Start": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "AgentLink_Stop": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Arch_AxisTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Arch_MaterialTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Arch_PanelTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Arch_PipeTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Arch_SelectNonSolidMeshes": {
+  "group": "headless",
+  "tool": "bim_preflight",
+  "why": "finding non-solid meshes is a check"
+ },
+ "Arch_StructureTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Arch_ToggleSubs": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Assembly_ActivateAssembly": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Assembly_LinkSelectLinked": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Assembly_SelectJointsOfComponent": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_ArcTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_ArrayTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_AxisTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_Background": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_BooleanTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_CloneTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_Examples": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_GenericTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_Help": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_IfcManageTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_MoveView": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_Nudge_Down": {
+  "group": "headless",
+  "tool": "draft_modify",
+  "why": "moves or turns an object: draft_modify move / rotate"
+ },
+ "BIM_Nudge_Extend": {
+  "group": "headless",
+  "tool": "object_set",
+  "why": "changes a size: object_set"
+ },
+ "BIM_Nudge_Left": {
+  "group": "headless",
+  "tool": "draft_modify",
+  "why": "moves or turns an object: draft_modify move / rotate"
+ },
+ "BIM_Nudge_Right": {
+  "group": "headless",
+  "tool": "draft_modify",
+  "why": "moves or turns an object: draft_modify move / rotate"
+ },
+ "BIM_Nudge_RotateLeft": {
+  "group": "headless",
+  "tool": "draft_modify",
+  "why": "moves or turns an object: draft_modify move / rotate"
+ },
+ "BIM_Nudge_RotateRight": {
+  "group": "headless",
+  "tool": "draft_modify",
+  "why": "moves or turns an object: draft_modify move / rotate"
+ },
+ "BIM_Nudge_Shrink": {
+  "group": "headless",
+  "tool": "object_set",
+  "why": "changes a size: object_set"
+ },
+ "BIM_Nudge_Switch": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_Nudge_Up": {
+  "group": "headless",
+  "tool": "draft_modify",
+  "why": "moves or turns an object: draft_modify move / rotate"
+ },
+ "BIM_OffsetTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_ReportTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_ResetCloneColors": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_SetWPFront": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_SetWPSide": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_SetWPTop": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_Setup": {
+  "group": "headless",
+  "tool": "pref_set",
+  "why": "units and defaults are settings"
+ },
+ "BIM_SplineTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_TogglePanels": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_Tutorial": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "BIM_Views": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_WPView": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "BIM_Welcome": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "CAM_DressupTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "CAM_DrillingTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "CAM_EngraveTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "CAM_PostTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "CAM_SelectLoop": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "CAM_SimTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Draft_ArcTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Draft_ArrayTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Draft_AutoGroup": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_BezierTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Draft_Edit": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_LayerManager": {
+  "group": "headless",
+  "tool": "draft_layer",
+  "why": "layers are document objects"
+ },
+ "Draft_SelectGroup": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_SelectPlane": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_ShowSnapBar": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Slope": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Angle": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Center": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Dimensions": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Endpoint": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Extension": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Grid": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Intersection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Lock": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Midpoint": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Near": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Ortho": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Parallel": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Perpendicular": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_Special": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_Snap_WorkingPlane": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_SubelementHighlight": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_ToggleConstructionMode": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_ToggleDisplayMode": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Draft_ToggleGrid": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "FEM_ClippingPlaneAdd": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "FEM_ClippingPlaneRemoveAll": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "FEM_CompEmConstraints": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "FEM_CompEmEquations": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "FEM_CompMechEquations": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "FEM_CompSolvers": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "FEM_CreateElementsSet": {
+  "group": "headless",
+  "tool": "fem_add",
+  "why": "loads and supports name their faces and edges; a hand-picked set has no headless use"
+ },
+ "FEM_CreateNodesSet": {
+  "group": "headless",
+  "tool": "fem_add",
+  "why": "loads and supports name their faces and edges; a hand-picked set has no headless use"
+ },
+ "FEM_DefineElementsSet": {
+  "group": "headless",
+  "tool": "fem_add",
+  "why": "loads and supports name their faces and edges; a hand-picked set has no headless use"
+ },
+ "FEM_DefineNodesSet": {
+  "group": "headless",
+  "tool": "fem_add",
+  "why": "loads and supports name their faces and edges; a hand-picked set has no headless use"
+ },
+ "FEM_Examples": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "FEM_MaterialEditor": {
+  "group": "headless",
+  "tool": "fem_add",
+  "why": "a material on the analysis"
+ },
+ "FEM_MeshDisplayInfo": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "FEM_PostApplyChanges": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "FEM_PostBranchFilter": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "a stress map with section / range shows the part of the result asked for"
+ },
+ "FEM_PostCreateFunctions": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "a stress map with section / range shows the part of the result asked for"
+ },
+ "FEM_PostFilterCalculator": {
+  "group": "headless",
+  "tool": "fea_probe",
+  "why": "the numbers where asked (points, lines, faces)"
+ },
+ "FEM_PostFilterClipRegion": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "a stress map with section / range shows the part of the result asked for"
+ },
+ "FEM_PostFilterClipScalar": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "a stress map with section / range shows the part of the result asked for"
+ },
+ "FEM_PostFilterContours": {
+  "group": "headless",
+  "tool": "fea_probe",
+  "why": "the numbers where asked (points, lines, faces)"
+ },
+ "FEM_PostFilterCutFunction": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "a stress map with section / range shows the part of the result asked for"
+ },
+ "FEM_PostFilterGlyph": {
+  "group": "headless",
+  "tool": "fea_probe",
+  "why": "the numbers where asked (points, lines, faces)"
+ },
+ "FEM_PostFilterWarp": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "the deformed shape: view_render map stress with deform"
+ },
+ "FEM_ResultShow": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "FEM_SolverControl": {
+  "group": "headless",
+  "tool": "fea_native",
+  "why": "runs the solver"
+ },
+ "IFC_UpdateIOS": {
+  "group": "person",
+  "tool": null,
+  "why": "installs code: the person's typed confirm, as app_extensions"
+ },
+ "Materials_InspectAppearance": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Mesh_AddFacet": {
+  "group": "headless",
+  "tool": "meshobj_repair",
+  "why": "holes filled by size, not by click"
+ },
+ "Mesh_EvaluateFacet": {
+  "group": "headless",
+  "tool": "meshobj_edit",
+  "why": "facets and pieces by index or size"
+ },
+ "Mesh_FillInteractiveHole": {
+  "group": "headless",
+  "tool": "meshobj_repair",
+  "why": "holes filled by size, not by click"
+ },
+ "Mesh_RemoveCompByHand": {
+  "group": "headless",
+  "tool": "meshobj_edit",
+  "why": "facets and pieces by index or size"
+ },
+ "PartDesign_CompDatums": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "PartDesign_CompSketches": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "PartDesign_Migrate": {
+  "group": "person",
+  "tool": null,
+  "why": "rewrites an old file's structure in the window (C++ GUI only); run with cmd_run when the person asks"
+ },
+ "PartDesign_WizardShaftCallBack": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Part_BoxSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Part_CompCompoundTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Part_CompJoinFeatures": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Part_CompOffset": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Part_CompSplitFeatures": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Part_Datums": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Part_EdgeSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Part_FaceSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Part_PickCurveNet": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Part_RemoveSelectionGate": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Part_SectionCut": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Part_SelectFilter": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Part_ShapeInfo": {
+  "group": "headless",
+  "tool": "body_check",
+  "why": "a shape's facts"
+ },
+ "Part_VertexSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Reen_SegmentationManual": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Reen_ViewTriangulation": {
+  "group": "headless",
+  "tool": "points_mesh",
+  "why": "a structured cloud triangulated"
+ },
+ "Robot_SetDefaultOrientation": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Robot_SetDefaultValues": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_ArcOverlay": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_BSplineComb": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_BSplineDegree": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_BSplineKnotMultiplicity": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_BSplinePoleWeight": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_BSplinePolygon": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_CancelSketch": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_CompBSplineShowHideGeometryInformation": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_CompConstrainRadDia": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompConstrainTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCopy": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCreateArc": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCreateBSpline": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCreateConic": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCreateFillets": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCreateRectangles": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCreateRegularPolygon": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompCurveEdition": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompDimensionTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompExternal": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompHorVer": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompLine": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompModifyKnotMultiplicity": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompSlot": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CompToggleConstraints": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Sketcher_CopyClipboard": {
+  "group": "headless",
+  "tool": "sketch_copy",
+  "why": "geometry copied within or between sketches"
+ },
+ "Sketcher_Cut": {
+  "group": "headless",
+  "tool": "sketch_copy",
+  "why": "geometry copied within or between sketches"
+ },
+ "Sketcher_EditSketch": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_Grid": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_LeaveGroup": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_LeaveSketch": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_Paste": {
+  "group": "headless",
+  "tool": "sketch_copy",
+  "why": "geometry copied within or between sketches"
+ },
+ "Sketcher_RenderingOrder": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_SelectConstraints": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_SelectElementsAssociatedWithConstraints": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_SelectHorizontalAxis": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_SelectOrigin": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_SelectVerticalAxis": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_Snap": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_StopOperation": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_SwitchVirtualSpace": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_ViewSection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Sketcher_ViewSketch": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Start_Start": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_About": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_AboutQt": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_ActivateNextWindow": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ActivatePrevWindow": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_AlignToSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_Alignment": {
+  "group": "headless",
+  "tool": "object_align",
+  "why": "new: place an object by point pairs (best fit)"
+ },
+ "Std_AnnotationLabel": {
+  "group": "headless",
+  "tool": "draft_label",
+  "why": "a label in the model"
+ },
+ "Std_AxisCross": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_BoxElementSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_BoxSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_CascadeWindows": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ClarifySelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_CommandLine": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_Copy": {
+  "group": "headless",
+  "tool": "object_duplicate",
+  "why": "copy objects (doc_merge across files)"
+ },
+ "Std_Cut": {
+  "group": "headless",
+  "tool": "object_duplicate",
+  "why": "copy objects (doc_merge across files)"
+ },
+ "Std_DemoMode": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DependencyGraph": {
+  "group": "headless",
+  "tool": "doc_graph",
+  "why": "new: what is built from what, as text and a DOT/SVG file"
+ },
+ "Std_DevHandbook": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_DlgCustomize": {
+  "group": "person",
+  "tool": null,
+  "why": "the person's own window and session"
+ },
+ "Std_DlgMacroExecute": {
+  "group": "headless",
+  "tool": "macro_run",
+  "why": "approved macros run headless (item 2 J); macro_list lists"
+ },
+ "Std_DlgMacroExecuteDirect": {
+  "group": "headless",
+  "tool": "macro_run",
+  "why": "approved macros run headless (item 2 J); macro_list lists"
+ },
+ "Std_DlgMacroRecord": {
+  "group": "headless",
+  "tool": "macro_save",
+  "why": "a session saved as a macro (J); recording clicks stays the person's"
+ },
+ "Std_DockOverlay": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayAll": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayMouseTransparent": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayToggle": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayToggleBottom": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayToggleLeft": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayToggleRight": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayToggleTop": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayToggleTransparent": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockOverlayTransparentAll": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DockViewMenu": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_DrawStyle": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_Edit": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ExportDependencyGraph": {
+  "group": "headless",
+  "tool": "doc_graph",
+  "why": "new: what is built from what, as text and a DOT/SVG file"
+ },
+ "Std_FreeCADDonation": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_FreeCADForum": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_FreeCADUserHub": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_FreeCADWebsite": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_FreezeViews": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_HelpGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_LinkActions": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_LinkSelectActions": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_LinkSelectAllLinks": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_LinkSelectLinked": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_LinkSelectLinkedFinal": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_MDITest1": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_MDITest2": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_MDITest3": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_MacroAttachDebugger": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_MacroStartDebug": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_MacroStepInto": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_MacroStepOver": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_MacroStopDebug": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_MainFullscreen": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_OnlineHelp": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_OnlineHelpWebsite": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_OpenMacrosFolder": {
+  "group": "headless",
+  "tool": "macro_run",
+  "why": "approved macros run headless (item 2 J); macro_list lists"
+ },
+ "Std_OrthographicCamera": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_Paste": {
+  "group": "headless",
+  "tool": "object_duplicate",
+  "why": "copy objects (doc_merge across files)"
+ },
+ "Std_PerspectiveCamera": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_Print": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "a picture or PDF of the view is a file"
+ },
+ "Std_PrintPreview": {
+  "group": "headless",
+  "tool": "view_render",
+  "why": "a picture or PDF of the view is a file"
+ },
+ "Std_ProjectUtil": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_Properties": {
+  "group": "headless",
+  "tool": "object_get",
+  "why": "read and set properties (object_set)"
+ },
+ "Std_PythonHelp": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_Quit": {
+  "group": "person",
+  "tool": null,
+  "why": "the person's own window and session"
+ },
+ "Std_RecallWorkingView": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_RecentFiles": {
+  "group": "headless",
+  "tool": "doc_open",
+  "why": "changed: doc_open { recent } lists them"
+ },
+ "Std_RecentMacros": {
+  "group": "headless",
+  "tool": "macro_run",
+  "why": "approved macros run headless (item 2 J); macro_list lists"
+ },
+ "Std_ReloadStyleSheet": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ReportBug": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_RestartInSafeMode": {
+  "group": "headless",
+  "tool": "app_restart",
+  "why": "changed: app_restart { safe_mode } when an add-on breaks start-up (item 2 G)"
+ },
+ "Std_SceneInspector": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_SelBack": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_SelBoundingBox": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_SelForward": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_SendToPythonConsole": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_StoreWorkingView": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_Test1": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_Test2": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_Test3": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_Test4": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_Test5": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_Test6": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestCmdFuncs": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestConsoleOutput": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestProgress1": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestProgress2": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestProgress3": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestProgress4": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestProgress5": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestQM": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TestReloadQM": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_TextureMapping": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TileWindows": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ToggleBottomPanels": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ToggleBreakpoint": {
+  "group": "person",
+  "tool": null,
+  "why": "running arbitrary Python is the person's"
+ },
+ "Std_ToggleClipPlane": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ToggleFreeze": {
+  "group": "headless-worthy, no door",
+  "tool": null,
+  "why": "wanted headless, but FreeCAD has no Python door to freezing: object_freeze does it through the window"
+ },
+ "Std_ToggleNavigation": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ToggleSelectability": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ToggleSkipRecompute": {
+  "group": "headless",
+  "tool": "object_freeze",
+  "why": "new: skipping recompute changes the document"
+ },
+ "Std_ToggleToolBarLock": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ToggleTransparency": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ToolBarMenu": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeCollapse": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeCollapseDocument": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeDrag": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeExpand": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeMultiDocument": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreePreSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeRecordSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeSelectAllInstances": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeSingleDocument": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeSyncPlacement": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeSyncSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeSyncView": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_TreeViewActions": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_UnitsCalculator": {
+  "group": "headless",
+  "tool": "units_convert",
+  "why": "new: a quantity in other units"
+ },
+ "Std_UserEditMode": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_UserInterface": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewBoxZoom": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewCreate": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewDock": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewDockUndockFullscreen": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewExample1": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_ViewExample2": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_ViewExample3": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_ViewFitAll": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewFitSelection": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewFullscreen": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewGroup": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewHome": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewIvIssueCamPos": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewIvStereoInterleavedColumns": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewIvStereoInterleavedRows": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewIvStereoOff": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewIvStereoQuadBuff": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewIvStereoRedGreen": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewLoadImage": {
+  "group": "headless",
+  "tool": "import_file",
+  "why": "an image as an image plane in the document"
+ },
+ "Std_ViewRestoreCamera": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewRotateLeft": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewRotateRight": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewSaveCamera": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewStatusBar": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewUndock": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewVR": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewZoomIn": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_ViewZoomOut": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_WhatsThis": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Std_Windows": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Std_WindowsMenu": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "TechDraw_CenterLineGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_CommandVertexCreationGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_CompDimensionTools": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_CosmeticVertexGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExportGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionCascadeDimensionGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionChamferDimensionGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionCircleCenterLinesGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionCreateChainDimensionGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionCreateCoordDimensionGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionDrawCirclesGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionExtendShortenLineGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionIncreaseDecreaseGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionInsertPrefixGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionLinePPGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionLockUnlockView": {
+  "group": "headless",
+  "tool": "td_view_more",
+  "why": "changed: lock, page and stacking order are saved in the drawing"
+ },
+ "TechDraw_ExtensionPosChainDimensionGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtensionSelectLineAttributes": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "TechDraw_ExtensionThreadsGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ExtentGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_MoveView": {
+  "group": "headless",
+  "tool": "td_view_more",
+  "why": "changed: lock, page and stacking order are saved in the drawing"
+ },
+ "TechDraw_PrintAll": {
+  "group": "headless",
+  "tool": "td_export",
+  "why": "pages to PDF"
+ },
+ "TechDraw_RedrawPage": {
+  "group": "headless",
+  "tool": "recompute",
+  "why": "recompute the page"
+ },
+ "TechDraw_SectionGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_ShowAll": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "TechDraw_StackBottom": {
+  "group": "headless",
+  "tool": "td_view_more",
+  "why": "changed: lock, page and stacking order are saved in the drawing"
+ },
+ "TechDraw_StackDown": {
+  "group": "headless",
+  "tool": "td_view_more",
+  "why": "changed: lock, page and stacking order are saved in the drawing"
+ },
+ "TechDraw_StackGroup": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "TechDraw_StackTop": {
+  "group": "headless",
+  "tool": "td_view_more",
+  "why": "changed: lock, page and stacking order are saved in the drawing"
+ },
+ "TechDraw_StackUp": {
+  "group": "headless",
+  "tool": "td_view_more",
+  "why": "changed: lock, page and stacking order are saved in the drawing"
+ },
+ "TechDraw_ToggleFrame": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "TechDraw_ToggleGrid": {
+  "group": "view-only",
+  "tool": null,
+  "why": "camera, selection, display or a mode for clicks: a render covers it headless"
+ },
+ "Test_InsertFeature": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_Test": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestAll": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestAllText": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestBase": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestBaseText": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestCreateMenu": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestDeleteMenu": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestDoc": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestDocText": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ },
+ "Test_TestWork": {
+  "group": "n/a",
+  "tool": null,
+  "why": "help, tests or a menu group"
+ }
+}

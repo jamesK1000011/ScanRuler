@@ -435,6 +435,98 @@ function updateCompanions() {
   return out
 }
 
+// Unattended use (G): an update must not leave FreeCAD worse off with no
+// one at the Mac. The add-ons in place are kept before new ones go in; the
+// settings file is snapshotted; the new add-ons are smoke-tested headless
+// (agentlink/smoke.py: every family loads, a few core tools run) before
+// FreeCAD moves onto them; on a failure the kept ones go back and the
+// broken ones stay on disk for a look. Each update is written down in
+// ~/AgentLink/versions.json.
+const PREVIOUS = path.join(CACHE, 'previous')
+const AL_HOME = process.env.AGENTLINK_HOME ? expand(process.env.AGENTLINK_HOME) : path.join(HOME, 'AgentLink')
+
+function stampNow() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
+function keepPrevious(modDir) {
+  if (!modDir || !fs.existsSync(path.join(modDir, 'AgentLink'))) return false
+  fs.rmSync(PREVIOUS, { recursive: true, force: true })
+  fs.mkdirSync(PREVIOUS, { recursive: true })
+  for (const n of ['AgentLink', 'ScanRulerFC']) {
+    if (fs.existsSync(path.join(modDir, n))) fs.cpSync(path.join(modDir, n), path.join(PREVIOUS, n), { recursive: true })
+  }
+  return true
+}
+
+function restorePrevious(modDir, broken) {
+  const aside = path.join(CACHE, `broken-${String(broken).replace(/[^A-Za-z0-9.+_-]/g, '_')}`)
+  fs.rmSync(aside, { recursive: true, force: true })
+  fs.mkdirSync(aside, { recursive: true })
+  for (const n of ['AgentLink', 'ScanRulerFC']) {
+    const p = path.join(modDir, n)
+    if (fs.existsSync(p)) fs.renameSync(p, path.join(aside, n))
+    if (fs.existsSync(path.join(PREVIOUS, n))) fs.cpSync(path.join(PREVIOUS, n), p, { recursive: true })
+  }
+  // Two broken sets at most are kept.
+  try {
+    const old = fs.readdirSync(CACHE).filter((n) => n.startsWith('broken-')).map((n) => path.join(CACHE, n))
+      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)
+    for (const o of old.slice(2)) fs.rmSync(o, { recursive: true, force: true })
+  } catch {}
+  return aside
+}
+
+function smokeTest(exe, e, modDir) {
+  const script = path.join(modDir, 'AgentLink', 'agentlink', 'smoke.py')
+  if (!fs.existsSync(script)) return { ok: true, skipped: 'these add-ons have no smoke test' }
+  const pp = [path.join(modDir, 'AgentLink'), path.join(modDir, 'ScanRulerFC'), e.FREECAD_LIB].filter(Boolean).join(':')
+  const env2 = { ...e, PYTHONPATH: pp }
+  delete env2.AGENTLINK_SUPERVISED
+  const r = spawnSync(exe, [script], { env: env2, encoding: 'utf8', timeout: 600000 })
+  const lines = (r.stdout || '').split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{')).reverse()
+  for (const l of lines) {
+    try {
+      return JSON.parse(l)
+    } catch {}
+  }
+  return { ok: false, failures: [`no answer (${r.error ? r.error.message : 'exit ' + r.status}): ${(r.stderr || '').slice(-400)}`] }
+}
+
+function snapshotSettings(exe, e) {
+  try {
+    const code = "import FreeCAD,sys;sys.stdout.write('@@'+FreeCAD.getUserConfigDir()+'@@')"
+    const args = exe.endsWith('python3') || exe.endsWith('python') ? ['-c', `import sys;sys.path.append(${JSON.stringify(e.FREECAD_LIB || '')});${code}`] : ['-c', code]
+    const r = spawnSync(exe, args, { env: e, encoding: 'utf8', timeout: 60000 })
+    const m = /@@(.*)@@/.exec(r.stdout || '')
+    const cfg = m && path.join(m[1], 'user.cfg')
+    if (!cfg || !fs.existsSync(cfg)) return null
+    const dir = path.join(AL_HOME, 'settings')
+    fs.mkdirSync(dir, { recursive: true })
+    const dest = path.join(dir, `${stampNow()}-update.cfg`)
+    fs.copyFileSync(cfg, dest)
+    fs.appendFileSync(path.join(AL_HOME, 'settings-log.jsonl'), JSON.stringify({ t: Date.now() / 1000, tool: 'agentlink_update', name: 'before update', snapshot: dest, restart: false }) + '\n')
+    return dest
+  } catch {
+    return null
+  }
+}
+
+function recordVersions(before, after, outcome) {
+  const p = path.join(AL_HOME, 'versions.json')
+  let v = { history: [] }
+  try {
+    v = JSON.parse(fs.readFileSync(p, 'utf8'))
+  } catch {}
+  v.history = (v.history || []).concat([{ t: Date.now() / 1000, before, after, outcome }]).slice(-6)
+  try {
+    fs.mkdirSync(AL_HOME, { recursive: true })
+    fs.writeFileSync(p, JSON.stringify(v, null, 1))
+  } catch {}
+}
+
 const UPDATE_TOOL = {
   name: 'agentlink_update',
   description: 'Fetch the newest Agent Link and ScanRuler for FreeCAD from GitHub and start FreeCAD again on them, without restarting Claude: new tools and fixes from then on. Companion servers kept as git clones (BumpMesh) are brought up to their branch too and started again. The open document is lost unless saved (doc_save first). Answers the version before and after, and each companion\'s; the tool list is sent again.',
@@ -489,9 +581,23 @@ function headless(exe, args, e, inst = {}) {
       fs.mkdirSync(CACHE, { recursive: true })
       const got = await update()
       if (!got) throw new Error('GitHub gave nothing')
-      if (inst.modDir) install(inst.modDir, got.dir, got.version)
+      let snapshot = null
+      if (inst.modDir && got.version !== before) {
+        keepPrevious(inst.modDir)
+        snapshot = snapshotSettings(exe, e)
+        install(inst.modDir, got.dir, got.version)
+        const smoke = smokeTest(exe, e, inst.modDir)
+        if (!smoke.ok) {
+          const aside = restorePrevious(inst.modDir, got.version)
+          recordVersions({ addons: before }, { addons: got.version }, `smoke failed: rolled back (${(smoke.failures || []).join('; ').slice(0, 300)})`)
+          reply(id, { error: { code: 'failed', message: `The new add-ons (${got.version}) failed the smoke test, so FreeCAD stays on ${before}: ${(smoke.failures || []).join('; ').slice(0, 600)}. They are kept at ${aside} for a look; nothing was restarted.` } }, true)
+          return
+        }
+        recordVersions({ addons: before }, { addons: got.version }, smoke.skipped ? `installed (${smoke.skipped})` : 'smoke passed')
+      } else if (inst.modDir) install(inst.modDir, got.dir, got.version)
       version = got.version
       const comp = updateCompanions()
+      if (comp.some((c) => c.from && c.to && c.from !== c.to)) recordVersions({ companions: comp.map((c) => `${c.name}@${c.from}`) }, { companions: comp.map((c) => `${c.name}@${c.to}`) }, 'companions moved')
       if (got.version === before) {
         reply(id, { before, after: version, restarted: false, ...(comp.length ? { companions: comp } : {}), note: 'Already the newest: nothing to do.' })
         return
@@ -499,7 +605,7 @@ function headless(exe, args, e, inst = {}) {
       updating = true
       const windowed = await restartWindow()
       child.kill()
-      reply(id, { before, after: version, restarted: true, ...(comp.length ? { companions: comp } : {}), note: windowed && windowed.refused
+      reply(id, { before, after: version, restarted: true, ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), note: windowed && windowed.refused
         ? `The hidden FreeCAD runs the new add-ons, but the window did not restart and keeps the old ones: ${windowed.refused} Then app_restart.`
         : windowed
           ? 'FreeCAD started again on the new add-ons: the window reopens its documents (calls wait for it, up to 90 s), the one in front back in front. New tools are listed.'
