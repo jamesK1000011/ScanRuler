@@ -129,8 +129,8 @@ def hole():
 def compare():
     need("deviation_open_reference", {"body": state["final"]})
     o = need("deviation_align", {"mode": "auto"})
-    st = o.get("statistics") or o.get("map") or o
-    rms = st.get("rms") or st.get("RMS")
+    st = (o.get("deviation") or {}).get("stats") or {}
+    rms = st.get("rms")
     if rms is None or rms > 0.15:
         raise RuntimeError(f"deviation rms {rms}")
     return f"scan vs rebuilt: RMS {rms:.3f} mm"
