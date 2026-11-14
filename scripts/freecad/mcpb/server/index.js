@@ -958,9 +958,15 @@ function headless(exe, args, e, inst = {}) {
   function handover() {
     ending = true
     if (child) child.kill()
-    const next = spawn(process.execPath, [LAUNCHER], { env: { ...process.env, AGENTLINK_BUNDLE: HERE }, stdio: ['pipe', 'pipe', 'inherit'] })
+    // Claude Desktop's own Node is an Electron binary: it runs a script as
+    // Node only when told so.
+    const env4 = { ...process.env, AGENTLINK_BUNDLE: HERE, ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }
+    const next = spawn(process.execPath, [LAUNCHER], { env: env4, stdio: ['pipe', 'pipe', 'pipe'] })
     relay = next
-    log('handed over to the updated launcher', LAUNCHER)
+    const began = Date.now()
+    log('handed over to the updated launcher', LAUNCHER, process.execPath, process.versions.electron ? `(electron ${process.versions.electron})` : '')
+    readline.createInterface({ input: next.stderr }).on('line', (l) => logFile.write(`launcher! ${l}\n`))
+    next.on('error', (err) => log('the updated launcher did not start:', err.message))
     readline.createInterface({ input: next.stdout }).on('line', (line) => {
       let id
       try {
@@ -972,7 +978,12 @@ function headless(exe, args, e, inst = {}) {
       }
       process.stdout.write(line + '\n')
     })
-    next.on('exit', (code) => process.exit(code ?? 0))
+    next.on('exit', (code, sig) => {
+      // Ended: so does this one, and Claude starts the extension again on
+      // the updated launcher at the next call.
+      log(`the updated launcher ended (${code ?? sig}) after ${Math.round((Date.now() - began) / 1000)} s`)
+      process.exit(code ?? 0)
+    })
     next.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: '__handover', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }) + '\n')
     next.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n')
   }
