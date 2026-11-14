@@ -1,13 +1,16 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# What the Orca command line makes, kept to read: a box and a cylinder as
-# STL, an unsliced project from them with a system printer, process and
-# filament, the same project sliced, and its --help-fff.
-set -x
-out="$1"; orca="$AGENTLINK_ORCASLICER"; prof="$AGENTLINK_ORCA_PRESETS"
-python3 - "$out" <<'PY'
-import sys, math, struct
-out = sys.argv[1]
+# What the Orca command line makes, printed into the log to read (the
+# artifact store isn't reachable from every agent): an unsliced project from
+# two STLs with Agent Link's minimal profiles, the same project sliced, and
+# the CLI's help. Files print between ==== BEGIN <name> / ==== END markers.
+out="$1"; orca="$AGENTLINK_ORCASLICER"
+AL="$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink"
+python3 - "$out" "$AL" <<'PY'
+import sys, struct, json
+out, al = sys.argv[1], sys.argv[2]
+sys.path.insert(0, al)
+from agentlink import slicer_presets as SP
 def stl(path, tris):
     with open(path, "wb") as f:
         f.write(b"\0" * 80 + struct.pack("<I", len(tris)))
@@ -19,16 +22,23 @@ def box(x, y, z):
     return [[v[a], v[b], v[c]] for a, b, c in f]
 stl(f"{out}/box.stl", box(20, 10, 5))
 stl(f"{out}/tall.stl", box(8, 8, 20))
+for k, v in SP.minimal({}).items():
+    json.dump(v, open(f"{out}/{k}.json", "w"), indent=1)
 PY
-ls "$prof" | head -50 > "$out/vendors.txt"
-m="$prof/Custom/machine/MyKlipper 0.4 nozzle.json"; [ -f "$m" ] || m=$(ls "$prof"/Custom/machine/*0.4*.json | head -1)
-ls "$prof/Custom/machine" "$prof/Custom/process" "$prof/Custom/filament" > "$out/custom.txt" 2>&1
-p=$(ls "$prof"/Custom/process/*0.20mm*.json 2>/dev/null | head -1)
-f=$(ls "$prof"/Custom/filament/*PLA*.json 2>/dev/null | head -1)
-echo "$m | $p | $f" > "$out/picked.txt"
-xvfb-run -a "$orca" --help > "$out/help.txt" 2>&1
-xvfb-run -a "$orca" --help-fff > "$out/help-fff.txt" 2>&1
 cd "$out"
-xvfb-run -a "$orca" --load-settings "$m;$p" --load-filaments "$f;$f" --arrange 1 --export-3mf project.3mf box.stl tall.stl > export.log 2>&1; echo "export exit $?" >> export.log
-xvfb-run -a "$orca" --slice 0 --export-3mf sliced.3mf --outputdir "$out/sliced" project.3mf > slice.log 2>&1; echo "slice exit $?" >> slice.log
-ls -la "$out" "$out/sliced" > "$out/ls.txt" 2>&1
+xvfb-run -a "$orca" --help > help.txt 2>&1
+xvfb-run -a "$orca" --help-fff > help-fff.txt 2>&1
+xvfb-run -a "$orca" --load-settings "machine.json;process.json" --load-filaments "filament.json;filament.json" --arrange 1 --export-3mf project.3mf box.stl tall.stl > export.log 2>&1; echo "export exit $?" >> export.log
+mkdir -p sliced
+xvfb-run -a "$orca" --slice 0 --export-3mf sliced.3mf --outputdir "$out/sliced" "$out/project.3mf" > slice.log 2>&1; echo "slice exit $?" >> slice.log
+show() { echo "==== BEGIN $1"; cat "$2"; echo; echo "==== END $1"; }
+for f in export.log slice.log help.txt; do show "$f" "$f"; done
+show help-fff.txt help-fff.txt | head -400
+ls -la . sliced
+for z in project.3mf sliced/sliced.3mf; do
+  [ -f "$z" ] || continue
+  unzip -l "$z"
+  for n in $(unzip -Z1 "$z" | grep -v -E '\.png$|\.gcode$|\.md5$'); do
+    echo "==== BEGIN $z::$n"; unzip -p "$z" "$n" | head -c 60000; echo; echo "==== END $z::$n"
+  done
+done
