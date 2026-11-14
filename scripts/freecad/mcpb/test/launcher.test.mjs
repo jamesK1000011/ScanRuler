@@ -132,7 +132,29 @@ try {
   assert.equal((await tool('anything')).result.content[0].text, '2.0')
   const hist = JSON.parse(fs.readFileSync(path.join(root, 'AgentLink', 'versions.json'), 'utf8')).history
   assert.match(hist[hist.length - 1].outcome, /rolled back/)
-  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update')
+  // An update that brings a new add-on folder and a newer launcher: the
+  // folder installed and written down as ours, and the new launcher takes
+  // over this same connection (no restart of Claude).
+  fs.rmSync(path.join(fresh, 'AgentLink', 'agentlink'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(fresh, 'VERSION'), '4.0\n')
+  fs.writeFileSync(path.join(fresh, 'AgentLink', 'VERSION'), '4.0\n')
+  fs.mkdirSync(path.join(fresh, 'Extra'), { recursive: true })
+  fs.writeFileSync(path.join(fresh, 'Extra', 'marker'), 'x\n')
+  const newer = fs.readFileSync(path.join(here, '..', 'server', 'index.js'), 'utf8').replace("description: 'Fetch the newest", "description: 'NEWER Fetch the newest")
+  assert.ok(newer.includes('NEWER'))
+  fs.writeFileSync(path.join(fresh, 'launcher', 'index.js'), newer)
+  const hand = await tool('agentlink_update')
+  const handSaid = JSON.parse(hand.result.content[0].text)
+  assert.equal(hand.result.isError, false, JSON.stringify(handSaid))
+  assert.match(handSaid.launcher || '', /new launcher/)
+  assert.ok(fs.existsSync(path.join(ud, 'Mod', 'Extra', 'marker')), 'the new add-on folder is installed')
+  assert.ok(JSON.parse(fs.readFileSync(path.join(ud, 'Mod', 'AgentLink', '.installed-names'), 'utf8')).includes('Extra'))
+  await wait(1500)
+  list = await call('tools/list')
+  const upd = list.result.tools.find((t) => t.name === 'agentlink_update')
+  assert.match(upd.description, /^NEWER/, 'the new launcher serves')
+  assert.equal((await tool('anything')).result.content[0].text, '4.0')
+  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update, installs a new add-on, hands over to a newer launcher')
 } finally {
   child.stdin.end()
   child.kill()

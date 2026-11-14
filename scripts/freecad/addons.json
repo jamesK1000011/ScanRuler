@@ -1,0 +1,12 @@
+{
+  "about": "The add-ons the Claude extension's launcher installs into FreeCAD's Mod folder, each at the commit pinned in its file under scripts/bakeoff (bumped only once the bake-off is green). repo: a repository of jamesK1000011's; folder: the add-on's folder in it ('' for the root); dest: its folder in Mod. install_addons.py reads it too.",
+  "sources": [
+    { "repo": "AddonKit-FreeCAD", "branch": "main", "folder": "", "dest": "AddonKit", "pin": "scripts/bakeoff/addonkit-ref" },
+    { "repo": "AgentLink-FreeCAD", "branch": "main", "folder": "", "dest": "AgentLink", "pin": "scripts/bakeoff/addon-ref" },
+    { "repo": "ScanRuler-FreeCAD", "branch": "main", "folder": "", "dest": "ScanRulerFC", "pin": "scripts/bakeoff/scanrulerfc-ref" },
+    { "repo": "AgentLink-OrcaSlicer", "branch": "main", "folder": "", "dest": "OrcaLink", "pin": "scripts/bakeoff/orcalink-ref" },
+    { "repo": "Workshop-FreeCAD", "branch": "main", "folder": "Common", "dest": "WorkshopCommon", "pin": "scripts/bakeoff/workshop-ref" },
+    { "repo": "Workshop-FreeCAD", "branch": "main", "folder": "Parts", "dest": "WorkshopParts", "pin": "scripts/bakeoff/workshop-ref" },
+    { "repo": "Workshop-FreeCAD", "branch": "main", "folder": "Make", "dest": "WorkshopMake", "pin": "scripts/bakeoff/workshop-ref" }
+  ]
+}

@@ -28,6 +28,17 @@ SOURCES = [
 MOD = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")
 
 
+def _manifest():
+    # The list in force is scripts/freecad/addons.json on the channel branch;
+    # the one above is the fallback.
+    try:
+        got = json.loads(_get(f"https://raw.githubusercontent.com/{OWNER}/ScanRuler/freecad-spike/scripts/freecad/addons.json"))["sources"]
+        return [(x["repo"], x["branch"], x.get("folder", ""), x["dest"]) for x in got]
+    except Exception as e:  # noqa: BLE001
+        print(f"Agent Link install: the add-on list could not be read ({e}); the built-in one serves")
+        return SOURCES
+
+
 def _get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "agentlink-install"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -49,7 +60,7 @@ def _tree(repo, branch, folder):
 
 def install():
     os.makedirs(MOD, exist_ok=True)
-    for repo, branch, folder, dest in SOURCES:
+    for repo, branch, folder, dest in _manifest():
         files = _tree(repo, branch, folder)
         for rel in files:
             data = _get(f"https://raw.githubusercontent.com/{OWNER}/{repo}/{branch}/{folder + '/' if folder else ''}{rel}")
@@ -66,7 +77,7 @@ def selftest(out=None):
     headless, its wall mapped, and the window's own view saved."""
     import sys
 
-    sys.path[:0] = [os.path.join(MOD, d) for _, _, _, d in SOURCES]
+    sys.path[:0] = [os.path.join(MOD, d) for _, _, _, d in _manifest()]
     from agentlink.tools import Session, build_server
 
     out = out or os.path.join(FreeCAD.getUserAppDataDir(), "AgentLink-selftest")

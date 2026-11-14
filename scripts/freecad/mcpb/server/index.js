@@ -26,7 +26,7 @@ const HOME = os.homedir()
 const LAUNCHER = path.join(HOME, '.config', 'freecad-agentlink', 'launcher', 'index.js')
 // This launcher's own stamp: a cached copy older than the one installed
 // with the extension never runs in its place (no downgrade).
-const LAUNCHER_STAMP = 20261114
+const LAUNCHER_STAMP = 20261115
 const stampOf = (file) => {
   try {
     const m = /const LAUNCHER_STAMP = (\d+)/.exec(fs.readFileSync(file, 'utf8'))
@@ -35,8 +35,11 @@ const stampOf = (file) => {
     return 0
   }
 }
+// This copy's own text, as it was when it started: an update may write a
+// newer one over the file this runs from.
+const OWN_TEXT = fs.readFileSync(__filename)
 let delegated = false
-if (!process.env.AGENTLINK_BUNDLE && process.env.AGENTLINK_UPDATE !== 'false' && fs.existsSync(LAUNCHER) && stampOf(LAUNCHER) >= LAUNCHER_STAMP) {
+if (!process.env.AGENTLINK_BUNDLE && process.env.AGENTLINK_UPDATE !== 'false' && path.resolve(__filename) !== path.resolve(LAUNCHER) && fs.existsSync(LAUNCHER) && stampOf(LAUNCHER) >= LAUNCHER_STAMP) {
   process.env.AGENTLINK_BUNDLE = path.dirname(__dirname)
   try {
     require(LAUNCHER)
@@ -124,6 +127,9 @@ function userDir(fc) {
 // a fix reaches this Mac without a new extension. The bundled copy is the
 // fallback when GitHub cannot be reached.
 const OWNER = 'jamesK1000011'
+// The list below is the fallback: the list in force is
+// scripts/freecad/addons.json at the pinned channel commit (same fields),
+// so a new add-on needs no new launcher.
 const SOURCES = [
   // AddonKit for FreeCAD (14 Nov 2026): the library Agent Link and the
   // add-ons share (records, shapes, fits, data files).
@@ -147,7 +153,44 @@ const SOURCES = [
 // ScanRuler's freecad-spike (bumped only once the bake-off is green), and
 // this launcher from the same commit of ScanRuler.
 const CHANNEL = { repo: 'ScanRuler', branch: 'freecad-spike', launcher: 'scripts/freecad/mcpb/server/index.js' }
+const MANIFEST = 'scripts/freecad/addons.json'
 const NAMES = SOURCES.map((s) => s.dest)
+const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+/** A manifest's sources, each checked: a repository of OWNER's, a folder in
+ *  it, a Mod folder name, a pin file in the channel. null if any is not. */
+function checkSources(list) {
+  if (!Array.isArray(list) || !list.length) return null
+  for (const s of list) {
+    if (!s || !SAFE_NAME.test(s.repo || '') || !SAFE_NAME.test(s.dest || '') || !SAFE_NAME.test(s.branch || '')) return null
+    if (s.folder && !safeRel(s.folder)) return null
+    if (s.pin && !/^scripts\/bakeoff\/[A-Za-z0-9._-]+$/.test(s.pin)) return null
+  }
+  if (!list.some((s) => s.dest === 'AgentLink')) return null
+  return list.map((s) => ({ repo: s.repo, branch: s.branch, folder: s.folder || '', dest: s.dest, pin: s.pin }))
+}
+
+/** The add-on folders a set holds. In FreeCAD's Mod folder, those written
+ *  down at install (the person's other add-ons are not ours), else the
+ *  built-in list; in a set of our own (fetched, bundled, a folder given),
+ *  its every folder. */
+function namesIn(dir) {
+  try {
+    const listed = JSON.parse(fs.readFileSync(path.join(dir, 'AgentLink', '.installed-names'), 'utf8'))
+    if (Array.isArray(listed) && listed.every((n) => SAFE_NAME.test(n))) return listed
+  } catch {}
+  if (path.basename(dir) === 'Mod') return NAMES
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && SAFE_NAME.test(d.name) && d.name !== 'launcher').map((d) => d.name)
+  } catch {
+    return NAMES
+  }
+}
+
+/** PYTHONPATH for the add-ons in dir, FreeCAD's lib last. */
+function pythonPath(dir, lib) {
+  return [...namesIn(dir).map((n) => path.join(dir, n)), lib].filter(Boolean).join(':')
+}
 const CACHE = path.join(HOME, '.config', 'freecad-agentlink')
 
 async function getJson(url) {
@@ -275,7 +318,15 @@ async function update(check) {
   }
   fs.mkdirSync(CACHE, { recursive: true })
   const channel = await headSha(CHANNEL.repo, CHANNEL.branch)
-  const shas = await Promise.all(SOURCES.map(async (s) => {
+  let sources = SOURCES
+  try {
+    const listed = checkSources(JSON.parse((await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${MANIFEST}`)).toString('utf8')).sources)
+    if (listed) sources = listed
+    else log(`${MANIFEST} at ${channel.slice(0, 7)} is not a list this launcher takes: the built-in one serves`)
+  } catch (e) {
+    log(`no ${MANIFEST} at ${channel.slice(0, 7)} (${e.message}): the built-in list serves`)
+  }
+  const shas = await Promise.all(sources.map(async (s) => {
     if (s.pin) {
       try {
         const pinned = (await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${s.pin}`)).toString('utf8').trim()
@@ -294,7 +345,7 @@ async function update(check) {
   }
   const stage = fs.mkdtempSync(path.join(CACHE, 'stage-'))
   try {
-    for (const [i, s] of SOURCES.entries()) {
+    for (const [i, s] of sources.entries()) {
       const listed = (await addonFiles(s, shas[i])).filter((p) => !/(^|\/)(__pycache__|tests)\//.test(p))
       const bad = listed.filter((p) => !safeRel(p))
       if (bad.length) throw new Error(`${s.repo}'s FILES names paths that are not plain file names inside it: ${bad.slice(0, 3).join(', ')}`)
@@ -312,6 +363,7 @@ async function update(check) {
     const launcher = await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${CHANNEL.launcher}`)
     checkLauncher(launcher) // parses, or throws
     fs.writeFileSync(path.join(stage, '.launcher.js'), launcher)
+    fs.writeFileSync(path.join(stage, '.sources.json'), JSON.stringify(sources))
     const verdict = check ? check(stage) : { ok: true }
     if (!verdict.ok) {
       writeState({ ...readState(), bad: [...(readState().bad || []), version].slice(-10) })
@@ -358,9 +410,15 @@ function install(modDir, src = ADDONS, v = bundledVersion()) {
   try {
     have = fs.readFileSync(stamp, 'utf8').trim()
   } catch {}
-  if (have === v) return false
+  if (have === v) {
+    // An install from before the names were written down: written now.
+    const listed = path.join(modDir, 'AgentLink', '.installed-names')
+    if (!fs.existsSync(listed)) fs.writeFileSync(listed, JSON.stringify(namesIn(src).filter((n) => fs.existsSync(path.join(modDir, n)))))
+    return false
+  }
   fs.mkdirSync(modDir, { recursive: true })
-  for (const name of NAMES) {
+  const names = namesIn(src)
+  for (const name of names) {
     // A bundle from before a source was added has no copy of it.
     if (!fs.existsSync(path.join(src, name))) continue
     // Copied whole beside it, then swapped in: files removed upstream go
@@ -375,6 +433,21 @@ function install(modDir, src = ADDONS, v = bundledVersion()) {
     fs.rmSync(old, { recursive: true, force: true })
   }
   fs.writeFileSync(stamp, v + '\n')
+  // What is ours in the Mod folder, for the next update to keep and roll back.
+  const before = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(modDir, 'AgentLink', '.installed-names'), 'utf8'))
+    } catch {
+      return []
+    }
+  })()
+  fs.writeFileSync(path.join(modDir, 'AgentLink', '.installed-names'), JSON.stringify(names.filter((n) => fs.existsSync(path.join(modDir, n)))))
+  for (const gone of before.filter((n) => !names.includes(n) && SAFE_NAME.test(n) && n !== 'AgentLink')) {
+    // An add-on the new set no longer has: set aside, not deleted.
+    try {
+      fs.renameSync(path.join(modDir, gone), path.join(CACHE, `retired-${gone}-${process.pid}`))
+    } catch {}
+  }
   log(`installed the add-ons (${v}) into ${modDir}`)
   return true
 }
@@ -522,11 +595,11 @@ async function main() {
   // Python, no window.
   const base = modDir && fs.existsSync(path.join(modDir, 'AgentLink')) ? modDir : src.dir
   const script = path.join(base, 'AgentLink', 'agentlink_headless.py')
-  const pyPath = [...NAMES.map((n) => path.join(base, n)), fc.lib].join(':')
+  const pyPath = pythonPath(base, fc.lib)
   const e = env(fc, { AGENTLINK_OUT: OUT, FREECAD_LIB: fc.lib, PYTHONPATH: pyPath, PYTHONUNBUFFERED: '1' })
   const [exe, args] = fc.py ? [fc.py, [script, '--out', OUT]] : [fc.cmd, [script]]
   log('headless:', exe, args.join(' '))
-  headless(exe, args, e, { modDir, version: src.version })
+  headless(exe, args, e, { modDir, base, version: src.version })
   if (updates && !process.env.AGENTLINK_UPDATE_FROM) {
     setTimeout(() => {
       update((dir) => smokeTest(exe, e, dir))
@@ -629,7 +702,7 @@ function keepPrevious(modDir) {
   if (!modDir || !fs.existsSync(path.join(modDir, 'AgentLink'))) return false
   fs.rmSync(PREVIOUS, { recursive: true, force: true })
   fs.mkdirSync(PREVIOUS, { recursive: true })
-  for (const n of NAMES) {
+  for (const n of namesIn(modDir)) {
     if (fs.existsSync(path.join(modDir, n))) fs.cpSync(path.join(modDir, n), path.join(PREVIOUS, n), { recursive: true })
   }
   return true
@@ -639,7 +712,8 @@ function restorePrevious(modDir, broken) {
   const aside = path.join(CACHE, `broken-${String(broken).replace(/[^A-Za-z0-9.+_-]/g, '_')}`)
   fs.rmSync(aside, { recursive: true, force: true })
   fs.mkdirSync(aside, { recursive: true })
-  for (const n of NAMES) {
+  const kept = fs.existsSync(PREVIOUS) ? fs.readdirSync(PREVIOUS).filter((n) => SAFE_NAME.test(n)) : []
+  for (const n of [...new Set([...namesIn(modDir), ...kept])]) {
     const p = path.join(modDir, n)
     if (fs.existsSync(p)) fs.renameSync(p, path.join(aside, n))
     if (fs.existsSync(path.join(PREVIOUS, n))) fs.cpSync(path.join(PREVIOUS, n), p, { recursive: true })
@@ -656,7 +730,7 @@ function restorePrevious(modDir, broken) {
 function smokeTest(exe, e, modDir) {
   const script = path.join(modDir, 'AgentLink', 'agentlink', 'smoke.py')
   if (!fs.existsSync(script)) return { ok: true, skipped: 'these add-ons have no smoke test' }
-  const pp = [...NAMES.map((n) => path.join(modDir, n)), e.FREECAD_LIB].filter(Boolean).join(':')
+  const pp = pythonPath(modDir, e.FREECAD_LIB)
   const env2 = { ...e, PYTHONPATH: pp }
   delete env2.AGENTLINK_SUPERVISED
   const r = spawnSync(exe, [script], { env: env2, encoding: 'utf8', timeout: 600000 })
@@ -789,6 +863,13 @@ function headless(exe, args, e, inst = {}) {
       }
       updating = true
       const windowed = await restartWindow()
+      if (newerLauncher()) {
+        // A newer launcher came with these add-ons: it takes over this
+        // connection in place of this one, no restart of Claude.
+        reply(id, { before, after: version, restarted: true, launcher: 'updated: the new launcher serves from now on', ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), note: 'FreeCAD started again on the new add-ons, under the new launcher. New tools are listed.' })
+        handover()
+        return
+      }
       child.kill()
       reply(id, { before, after: version, restarted: true, ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), note: windowed && windowed.refused
         ? `The hidden FreeCAD runs the new add-ons, but the window did not restart and keeps the old ones: ${windowed.refused} Then app_restart.`
@@ -803,7 +884,9 @@ function headless(exe, args, e, inst = {}) {
     if (child && child.stdin.writable) child.stdin.write(line + '\n')
   }
   const start = () => {
-    child = spawn(exe, args, { env: e, cwd: OUT, stdio: ['pipe', 'pipe', 'pipe'] })
+    // The add-ons' folders as installed now: an update may have brought one.
+    const env3 = inst.base ? { ...e, PYTHONPATH: pythonPath(inst.base, e.FREECAD_LIB) } : e
+    child = spawn(exe, args, { env: env3, cwd: OUT, stdio: ['pipe', 'pipe', 'pipe'] })
     readline.createInterface({ input: child.stdout }).on('line', (line) => {
       if (!line.startsWith('{')) {
         if (line.trim()) log('freecad:', line)
@@ -841,7 +924,10 @@ function headless(exe, args, e, inst = {}) {
     readline.createInterface({ input: child.stderr }).on('line', (l) => logFile.write(`freecad! ${l}\n`))
     child.on('exit', (code, sig) => {
       log(`headless FreeCAD ended (${code ?? sig})`)
-      if (ending) process.exit(0)
+      if (ending) {
+        if (!relay) process.exit(0)
+        return
+      }
       const planned = updating
       updating = false
       const why = planned ? 'was started again on the updated add-ons' : sig ? `stopped by ${sig}` : `exited with code ${code}`
@@ -864,8 +950,37 @@ function headless(exe, args, e, inst = {}) {
       if (planned) process.stdout.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n')
     })
   }
+  // Handover: the newer launcher runs as a child of this one, which from then
+  // on only relays lines both ways. It is told the session has begun; the
+  // client is told the tool list changed.
+  let relay = null
+  function handover() {
+    ending = true
+    if (child) child.kill()
+    const next = spawn(process.execPath, [LAUNCHER], { env: { ...process.env, AGENTLINK_BUNDLE: HERE }, stdio: ['pipe', 'pipe', 'inherit'] })
+    relay = next
+    log('handed over to the updated launcher', LAUNCHER)
+    readline.createInterface({ input: next.stdout }).on('line', (line) => {
+      let id
+      try {
+        id = JSON.parse(line).id
+      } catch {}
+      if (id === '__handover') {
+        process.stdout.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n')
+        return
+      }
+      process.stdout.write(line + '\n')
+    })
+    next.on('exit', (code) => process.exit(code ?? 0))
+    next.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: '__handover', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }) + '\n')
+    next.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n')
+  }
   start()
   readline.createInterface({ input: process.stdin }).on('line', (line) => {
+    if (relay) {
+      relay.stdin.write(line + '\n')
+      return
+    }
     let msg = null
     try {
       msg = JSON.parse(line)
@@ -880,8 +995,21 @@ function headless(exe, args, e, inst = {}) {
     send(line)
   }).on('close', () => {
     ending = true
+    if (relay) relay.stdin.end()
     if (child) child.stdin.end()
   })
+}
+
+/** The launcher kept for the next start is newer than the one running (its
+ *  stamp no older, its text different). */
+function newerLauncher() {
+  try {
+    if (process.env.AGENTLINK_UPDATE === 'false' && !process.env.AGENTLINK_UPDATE_FROM) return false
+    if (stampOf(LAUNCHER) < LAUNCHER_STAMP) return false
+    return !fs.readFileSync(LAUNCHER).equals(OWN_TEXT)
+  } catch {
+    return false
+  }
 }
 
 /** No FreeCAD: still a server, so Claude shows why instead of a dead entry. */
