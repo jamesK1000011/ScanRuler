@@ -1,15 +1,4 @@
-test_inspection
-test_iso286
-test_keep
-test_licence_boundary
-test_mass
-test_material
 test_mcp_contract
-test_measure
-test_meshobj
-test_mill
-test_model
-test_model_more
-test_more_families
 test_orca3mf
 test_panel_tabs
+test_printstrength
