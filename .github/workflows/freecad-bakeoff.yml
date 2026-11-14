@@ -50,6 +50,11 @@ jobs:
           repository: jamesK1000011/FreeCAD-AgentLink
           ref: ${{ steps.ref.outputs.ref }}
           path: freecad-addon
+      - name: Agent Link for OrcaSlicer, beside it
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/OrcaSlicer-AgentLink
+          path: orcalink-addon
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc
@@ -71,6 +76,7 @@ jobs:
           # from the fork, ScanRuler for FreeCAD from this repo.
           echo "AGENTLINK_RENDERS=$GITHUB_WORKSPACE/bakeoff-out/freecad/renders" >> "$GITHUB_ENV"
           echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC" >> "$GITHUB_ENV"
+          echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
       - name: PrusaSlicer, for the slice tool
@@ -184,6 +190,11 @@ jobs:
           repository: jamesK1000011/FreeCAD-AgentLink
           ref: ${{ steps.ref.outputs.ref }}
           path: freecad-addon
+      - name: Agent Link for OrcaSlicer, beside it
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/OrcaSlicer-AgentLink
+          path: orcalink-addon
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc${{ matrix.series }}
@@ -199,6 +210,7 @@ jobs:
         run: |
           echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
           echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC" >> "$GITHUB_ENV"
+          echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD; print('FreeCAD', FreeCAD.Version()[:3])"
       - name: Coverage audit on this release
         # 1.1 is what the Mac runs next: its own command list against the

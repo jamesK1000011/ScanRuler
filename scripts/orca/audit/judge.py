@@ -8,7 +8,7 @@
 - na: not slicing (help, about, debug, SLA, bookkeeping keys, placeholders)
 - later: the printer connection and Orca's cloud (roadmap: lowest)
 
-    python3 judge.py inventory.json <AgentLink dir> [out.json]
+    python3 judge.py inventory.json <AgentLink dir>:<OrcaSlicer-AgentLink dir> [out.json]
 """
 
 import json
@@ -212,7 +212,9 @@ def agent_tools(al):
     modules it imports from the add-on} — "tool.word" counts only when the
     tool exists and its code names the word."""
     texts = {}
-    for root, _, files in os.walk(al):
+    # Agent Link and Agent Link for OrcaSlicer, given as one path or several
+    # (os.pathsep between): the orca tools live in the second.
+    for root, _, files in (w for one in str(al).split(os.pathsep) if one for w in os.walk(one)):
         for f in files:
             if f.endswith(".py"):
                 texts[os.path.join(root, f)] = open(os.path.join(root, f), encoding="utf-8", errors="replace").read()

@@ -118,7 +118,11 @@ const SOURCES = [
   // fork's agent-link branch, src/Mod/AgentLink): the add-on at its root.
   { repo: 'FreeCAD-AgentLink', branch: 'main', folder: '', dest: 'AgentLink' },
   { repo: 'ScanRuler', branch: 'freecad-spike', folder: 'freecad/ScanRulerFC', dest: 'ScanRulerFC' },
+  // Agent Link for OrcaSlicer (no FreeCAD in it): Agent Link's orca tools,
+  // found beside it in the Mod folder.
+  { repo: 'OrcaSlicer-AgentLink', branch: 'main', folder: '', dest: 'OrcaLink' },
 ]
+const NAMES = SOURCES.map((s) => s.dest)
 const CACHE = path.join(HOME, '.config', 'freecad-agentlink')
 
 async function getJson(url) {
@@ -269,8 +273,9 @@ function install(modDir, src = ADDONS, v = bundledVersion()) {
   } catch {}
   if (have === v) return false
   fs.mkdirSync(modDir, { recursive: true })
-  for (const name of ['AgentLink', 'ScanRulerFC']) {
-    fs.cpSync(path.join(src, name), path.join(modDir, name), { recursive: true, force: true })
+  for (const name of NAMES) {
+    // A bundle from before a source was added has no copy of it.
+    if (fs.existsSync(path.join(src, name))) fs.cpSync(path.join(src, name), path.join(modDir, name), { recursive: true, force: true })
   }
   fs.writeFileSync(stamp, v + '\n')
   log(`installed the add-ons (${v}) into ${modDir}`)
@@ -367,7 +372,7 @@ async function main() {
   // Python, no window.
   const base = modDir && fs.existsSync(path.join(modDir, 'AgentLink')) ? modDir : src.dir
   const script = path.join(base, 'AgentLink', 'agentlink_headless.py')
-  const pyPath = [path.join(base, 'AgentLink'), path.join(base, 'ScanRulerFC'), fc.lib].join(':')
+  const pyPath = [...NAMES.map((n) => path.join(base, n)), fc.lib].join(':')
   const e = env(fc, { AGENTLINK_OUT: OUT, FREECAD_LIB: fc.lib, PYTHONPATH: pyPath, PYTHONUNBUFFERED: '1' })
   const [exe, args] = fc.py ? [fc.py, [script, '--out', OUT]] : [fc.cmd, [script]]
   log('headless:', exe, args.join(' '))
@@ -467,7 +472,7 @@ function keepPrevious(modDir) {
   if (!modDir || !fs.existsSync(path.join(modDir, 'AgentLink'))) return false
   fs.rmSync(PREVIOUS, { recursive: true, force: true })
   fs.mkdirSync(PREVIOUS, { recursive: true })
-  for (const n of ['AgentLink', 'ScanRulerFC']) {
+  for (const n of NAMES) {
     if (fs.existsSync(path.join(modDir, n))) fs.cpSync(path.join(modDir, n), path.join(PREVIOUS, n), { recursive: true })
   }
   return true
@@ -477,7 +482,7 @@ function restorePrevious(modDir, broken) {
   const aside = path.join(CACHE, `broken-${String(broken).replace(/[^A-Za-z0-9.+_-]/g, '_')}`)
   fs.rmSync(aside, { recursive: true, force: true })
   fs.mkdirSync(aside, { recursive: true })
-  for (const n of ['AgentLink', 'ScanRulerFC']) {
+  for (const n of NAMES) {
     const p = path.join(modDir, n)
     if (fs.existsSync(p)) fs.renameSync(p, path.join(aside, n))
     if (fs.existsSync(path.join(PREVIOUS, n))) fs.cpSync(path.join(PREVIOUS, n), p, { recursive: true })
@@ -494,7 +499,7 @@ function restorePrevious(modDir, broken) {
 function smokeTest(exe, e, modDir) {
   const script = path.join(modDir, 'AgentLink', 'agentlink', 'smoke.py')
   if (!fs.existsSync(script)) return { ok: true, skipped: 'these add-ons have no smoke test' }
-  const pp = [path.join(modDir, 'AgentLink'), path.join(modDir, 'ScanRulerFC'), e.FREECAD_LIB].filter(Boolean).join(':')
+  const pp = [...NAMES.map((n) => path.join(modDir, n)), e.FREECAD_LIB].filter(Boolean).join(':')
   const env2 = { ...e, PYTHONPATH: pp }
   delete env2.AGENTLINK_SUPERVISED
   const r = spawnSync(exe, [script], { env: env2, encoding: 'utf8', timeout: 600000 })

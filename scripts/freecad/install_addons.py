@@ -19,6 +19,7 @@ SOURCES = [
     # (repo, branch, folder in the repo, folder in Mod)
     ("FreeCAD-AgentLink", "main", "", "AgentLink"),
     ("ScanRuler", "freecad-spike", "freecad/ScanRulerFC", "ScanRulerFC"),
+    ("OrcaSlicer-AgentLink", "main", "", "OrcaLink"),
 ]
 MOD = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")
 
@@ -61,7 +62,7 @@ def selftest(out=None):
     headless, its wall mapped, and the window's own view saved."""
     import sys
 
-    sys.path[:0] = [os.path.join(MOD, "AgentLink"), os.path.join(MOD, "ScanRulerFC")]
+    sys.path[:0] = [os.path.join(MOD, d) for _, _, _, d in SOURCES]
     from agentlink.tools import Session, build_server
 
     out = out or os.path.join(FreeCAD.getUserAppDataDir(), "AgentLink-selftest")
