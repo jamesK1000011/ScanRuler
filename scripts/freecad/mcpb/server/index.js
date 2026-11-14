@@ -114,7 +114,9 @@ function userDir(fc) {
 // fallback when GitHub cannot be reached.
 const OWNER = 'jamesK1000011'
 const SOURCES = [
-  { repo: 'FreeCAD', branch: 'agent-link', folder: 'src/Mod/AgentLink', dest: 'AgentLink' },
+  // Agent Link in its own repository since 14 Nov 2026 (it was the FreeCAD
+  // fork's agent-link branch, src/Mod/AgentLink): the add-on at its root.
+  { repo: 'FreeCAD-AgentLink', branch: 'main', folder: '', dest: 'AgentLink' },
   { repo: 'ScanRuler', branch: 'freecad-spike', folder: 'freecad/ScanRulerFC', dest: 'ScanRulerFC' },
 ]
 const CACHE = path.join(HOME, '.config', 'freecad-agentlink')
@@ -146,11 +148,17 @@ async function headSha(repo, branch) {
 
 /** The add-on's files at a commit: its FILES list (one path a line), read
  *  as a plain file; the API's tree for a commit from before there was one. */
+/** A path in a repository: the add-on's folder ('' for the root) and a
+ *  file in it. */
+function inRepo(folder, file) {
+  return folder ? `${folder}/${file}` : file
+}
+
 async function addonFiles(s, sha) {
   // Two plain-file routes, each tried twice, before the API (60 calls an hour).
   const urls = [
-    `https://raw.githubusercontent.com/${OWNER}/${s.repo}/${sha}/${s.folder}/FILES`,
-    `https://github.com/${OWNER}/${s.repo}/raw/${sha}/${s.folder}/FILES`,
+    `https://raw.githubusercontent.com/${OWNER}/${s.repo}/${sha}/${inRepo(s.folder, 'FILES')}`,
+    `https://github.com/${OWNER}/${s.repo}/raw/${sha}/${inRepo(s.folder, 'FILES')}`,
   ]
   for (const url of [...urls, ...urls]) {
     try {
@@ -160,6 +168,10 @@ async function addonFiles(s, sha) {
     } catch (e) {
       log(`FILES for ${s.repo} from ${url} failed (${e.message})`)
     }
+  }
+  if (!s.folder) {
+    const tree = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/git/trees/${sha}?recursive=1`)
+    return tree.tree.filter((x) => x.type === 'blob' && !x.path.startsWith('.')).map((x) => x.path)
   }
   const [parent, name] = [s.folder.slice(0, s.folder.lastIndexOf('/')), s.folder.slice(s.folder.lastIndexOf('/') + 1)]
   const listing = await getJson(`https://api.github.com/repos/${OWNER}/${s.repo}/contents/${parent}?ref=${sha}`)
@@ -212,7 +224,7 @@ async function update() {
       const files = (await addonFiles(s, shas[i])).filter((p) => !/(^|\/)(__pycache__|tests)\//.test(p)).map((p) => ({ path: p }))
       for (let k = 0; k < files.length; k += 8) {
         await Promise.all(files.slice(k, k + 8).map(async (f) => {
-          const data = await getFile(`https://raw.githubusercontent.com/${OWNER}/${s.repo}/${shas[i]}/${s.folder}/${f.path}`)
+          const data = await getFile(`https://raw.githubusercontent.com/${OWNER}/${s.repo}/${shas[i]}/${inRepo(s.folder, f.path)}`)
           const p = path.join(stage, s.dest, f.path)
           fs.mkdirSync(path.dirname(p), { recursive: true })
           fs.writeFileSync(p, data)

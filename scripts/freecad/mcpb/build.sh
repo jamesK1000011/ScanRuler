@@ -4,7 +4,7 @@
 # launcher, this manifest, and both add-ons. Usage: build.sh AGENTLINK_DIR OUT
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
-AGENTLINK=${1:?the AgentLink folder (src/Mod/AgentLink of the FreeCAD fork)}
+AGENTLINK=${1:?the AgentLink folder (a checkout of FreeCAD-AgentLink)}
 OUT=${2:-$HERE/freecad-agentlink.mcpb}
 SRFC=$HERE/../../../freecad/ScanRulerFC
 STAGE=$(mktemp -d)

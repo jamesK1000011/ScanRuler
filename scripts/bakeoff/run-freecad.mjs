@@ -4,8 +4,8 @@
 // trace.json, result.json and the bin as STEP and STL into --out.
 //
 //   node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad [--python python] [--addon <AgentLink folder>]
-// The add-on comes from the FreeCAD fork (jamesK1000011/FreeCAD, branch
-// agent-link, src/Mod/AgentLink); the workflow checks it out into freecad-addon/.
+// The add-on comes from its own repository (jamesK1000011/
+// FreeCAD-AgentLink); the workflow checks it out into freecad-addon/.
 // The Python must import FreeCAD (conda-forge's freecad, or FREECAD_LIB set).
 
 import { spawnSync } from 'node:child_process'
@@ -26,7 +26,7 @@ spawnSync(values.python ?? 'python', [resolve('scripts/bakeoff/scan_fixture.py')
 const fx = existsSync(join(fxDir, 'truth.json'))
   ? { scan: join(fxDir, 'bracket-scan.stl'), step: join(fxDir, 'bracket.step'), truth: JSON.parse(readFileSync(join(fxDir, 'truth.json'), 'utf8')) }
   : null
-const server = resolve(values.addon ?? 'freecad-addon/src/Mod/AgentLink', 'agentlink_headless.py')
+const server = resolve(values.addon ?? 'freecad-addon', 'agentlink_headless.py')
 const c = await stdioClient({ command: values.python ?? 'python', args: [server, '--out', out], stderrFile: join(out, 'server.log') })
 const result = { side: 'freecad', server: c.init.serverInfo, steps: {} }
 try {

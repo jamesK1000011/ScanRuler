@@ -27,6 +27,8 @@ def first(pat, text):
 
 def settings(src):
     text = open(f"{src}/src/libslic3r/PrintConfig.cpp", encoding="utf-8", errors="replace").read()
+    # Options left in comments (export_svg, export_obj …) are not Orca's.
+    text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
     sections = [(m.start(), m.group(0)) for m in re.finditer(r"\n(?:void\s+)?\w+ConfigDef::(\w+)\(\)", text)]
 
     def section_at(pos):

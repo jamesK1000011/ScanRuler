@@ -17,7 +17,7 @@ import FreeCAD
 OWNER = "jamesK1000011"
 SOURCES = [
     # (repo, branch, folder in the repo, folder in Mod)
-    ("FreeCAD", "agent-link", "src/Mod/AgentLink", "AgentLink"),
+    ("FreeCAD-AgentLink", "main", "", "AgentLink"),
     ("ScanRuler", "freecad-spike", "freecad/ScanRulerFC", "ScanRulerFC"),
 ]
 MOD = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")
@@ -32,6 +32,9 @@ def _get(url):
 def _tree(repo, branch, folder):
     # The folder's own tree, found from its parent: a recursive tree of the
     # whole FreeCAD repository is too big for the API to return whole.
+    if not folder:
+        t = json.loads(_get(f"https://api.github.com/repos/{OWNER}/{repo}/git/trees/{branch}?recursive=1"))
+        return [x["path"] for x in t["tree"] if x["type"] == "blob" and "__pycache__" not in x["path"] and not x["path"].startswith(".")]
     parent, name = folder.rsplit("/", 1)
     listing = json.loads(_get(f"https://api.github.com/repos/{OWNER}/{repo}/contents/{parent}?ref={branch}"))
     sha = next(x["sha"] for x in listing if x["name"] == name and x["type"] == "dir")
@@ -44,7 +47,7 @@ def install():
     for repo, branch, folder, dest in SOURCES:
         files = _tree(repo, branch, folder)
         for rel in files:
-            data = _get(f"https://raw.githubusercontent.com/{OWNER}/{repo}/{branch}/{folder}/{rel}")
+            data = _get(f"https://raw.githubusercontent.com/{OWNER}/{repo}/{branch}/{folder + '/' if folder else ''}{rel}")
             p = os.path.join(MOD, dest, rel)
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, "wb") as f:

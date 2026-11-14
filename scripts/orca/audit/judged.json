@@ -1,25 +1,25 @@
 {
  "counts": {
-  "tool": 1015,
-  "na": 222,
+  "tool": 1003,
+  "na": 212,
   "later": 4,
-  "gap": 5,
-  "view": 24
+  "view": 24,
+  "gap": 1
  },
  "coverage": [
-  1015,
-  1020
+  1003,
+  1004
  ],
  "byKind": {
   "cli": {
-   "rows": 87,
-   "tool": 59,
-   "gap": 1
+   "rows": 62,
+   "tool": 45,
+   "gap": 0
   },
   "context": {
    "rows": 49,
-   "tool": 45,
-   "gap": 1
+   "tool": 46,
+   "gap": 0
   },
   "gizmo": {
    "rows": 17,
@@ -28,8 +28,8 @@
   },
   "menu": {
    "rows": 154,
-   "tool": 113,
-   "gap": 2
+   "tool": 115,
+   "gap": 0
   },
   "placeholder": {
    "rows": 64,
@@ -47,8 +47,8 @@
    "gap": 0
   },
   "setting": {
-   "rows": 847,
-   "tool": 733,
+   "rows": 846,
+   "tool": 732,
    "gap": 0
   },
   "sidebar": {
@@ -63,10 +63,6 @@
   }
  },
  "gapsByTool": {
-  "export_svg": 1,
-  "Export as one DRC (GUI_Factories.cpp:1084)": 1,
-  "Export as DRCs (GUI_Factories.cpp:1095)": 1,
-  "export_drc": 1,
   "GLGizmoTextureDisplacement": 1
  },
  "rows": [
@@ -3677,13 +3673,6 @@
   },
   {
    "kind": "setting",
-   "name": "filament_extruder_id",
-   "group": "tool",
-   "tool": "orca_project.set",
-   "why": "project setting (orca_project set)"
-  },
-  {
-   "kind": "setting",
    "name": "filament_extruder_variant",
    "group": "tool",
    "tool": "orca_project.set",
@@ -6449,27 +6438,6 @@
   },
   {
    "kind": "cli",
-   "name": "export_obj",
-   "group": "tool",
-   "tool": "orca_slice.obj",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "export_svg",
-   "group": "gap",
-   "tool": null,
-   "why": "not built"
-  },
-  {
-   "kind": "cli",
-   "name": "export_sla",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
    "name": "export_3mf",
    "group": "tool",
    "tool": "orca_slice.3mf",
@@ -6491,13 +6459,6 @@
   },
   {
    "kind": "cli",
-   "name": "export_amf",
-   "group": "tool",
-   "tool": "orca_slice.amf",
-   "why": ""
-  },
-  {
-   "kind": "cli",
    "name": "export_stl",
    "group": "tool",
    "tool": "orca_slice.stl",
@@ -6509,20 +6470,6 @@
    "group": "tool",
    "tool": "orca_slice.stls",
    "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "export_gcode",
-   "group": "tool",
-   "tool": "orca_slice.gcode",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "gcodeviewer",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
   },
   {
    "kind": "cli",
@@ -6596,20 +6543,6 @@
   },
   {
    "kind": "cli",
-   "name": "help_fff",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
-   "name": "help_sla",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
    "name": "info",
    "group": "tool",
    "tool": "orca_slice.info",
@@ -6645,48 +6578,6 @@
   },
   {
    "kind": "cli",
-   "name": "align_xy",
-   "group": "tool",
-   "tool": "orca_project.place",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "cut",
-   "group": "tool",
-   "tool": "orca_project.cut",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "cut_grid",
-   "group": "tool",
-   "tool": "orca_project.cut_grid",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "cut_x",
-   "group": "tool",
-   "tool": "orca_project.cut",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "cut_y",
-   "group": "tool",
-   "tool": "orca_project.cut",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "center",
-   "group": "tool",
-   "tool": "orca_project.place",
-   "why": ""
-  },
-  {
-   "kind": "cli",
    "name": "arrange",
    "group": "tool",
    "tool": "orca_project.arrange",
@@ -6704,20 +6595,6 @@
    "name": "ensure_on_bed",
    "group": "tool",
    "tool": "orca_project.ensure_on_bed",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "copy",
-   "group": "tool",
-   "tool": "orca_project.instance",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "duplicate_grid",
-   "group": "tool",
-   "tool": "orca_project.grid",
    "why": ""
   },
   {
@@ -6799,41 +6676,6 @@
   },
   {
    "kind": "cli",
-   "name": "split",
-   "group": "tool",
-   "tool": "orca_project.split_objects",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "scale_to_fit",
-   "group": "tool",
-   "tool": "orca_project.scale_to_fit",
-   "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "ignore_nonexistent_config",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
-   "name": "config_compatibility",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
-   "name": "load",
-   "group": "tool",
-   "tool": "orca_project.new",
-   "why": ""
-  },
-  {
-   "kind": "cli",
    "name": "load_settings",
    "group": "tool",
    "tool": "orca_project.new",
@@ -6897,27 +6739,6 @@
   },
   {
    "kind": "cli",
-   "name": "output",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
-   "name": "single_instance",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
-   "name": "autosave",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
-  },
-  {
-   "kind": "cli",
    "name": "datadir",
    "group": "na",
    "tool": null,
@@ -6957,13 +6778,6 @@
    "group": "tool",
    "tool": "orca_slice.timelapse",
    "why": ""
-  },
-  {
-   "kind": "cli",
-   "name": "sw_renderer",
-   "group": "na",
-   "tool": null,
-   "why": "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
   },
   {
    "kind": "cli",
@@ -7724,15 +7538,15 @@
   {
    "kind": "menu",
    "name": "Export as one DRC (GUI_Factories.cpp:1084)",
-   "group": "gap",
-   "tool": null,
+   "group": "tool",
+   "tool": "orca_slice.drcs",
    "why": ""
   },
   {
    "kind": "menu",
    "name": "Export as DRCs (GUI_Factories.cpp:1095)",
-   "group": "gap",
-   "tool": null,
+   "group": "tool",
+   "tool": "orca_slice.drcs",
    "why": ""
   },
   {
@@ -8256,8 +8070,8 @@
   {
    "kind": "context",
    "name": "export_drc",
-   "group": "gap",
-   "tool": null,
+   "group": "tool",
+   "tool": "orca_slice.drc",
    "why": ""
   },
   {
