@@ -35,6 +35,10 @@ jobs:
           repository: jamesK1000011/FreeCAD-AgentLink
           ref: ${{ steps.cfg.outputs.ref }}
           path: freecad-addon
+      - uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/OrcaSlicer-AgentLink
+          path: orcalink-addon
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc${{ steps.cfg.outputs.series }}
@@ -78,12 +82,12 @@ jobs:
       - name: Probe
         run: |
           export FREECAD_LIB=$CONDA_PREFIX/lib
-          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC
+          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon
           [ -f scripts/probe/probe.py ] && timeout 600 python scripts/probe/probe.py || echo "probe exit $?"
       - name: Named tests
         run: |
           export FREECAD_LIB=$CONDA_PREFIX/lib
-          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC
+          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon
           cd freecad-addon/tests
           ids=$(grep -v '^#' $GITHUB_WORKSPACE/scripts/probe/tests 2>/dev/null | xargs)
           [ -n "$ids" ] && timeout 900 xvfb-run -a python -X faulthandler -m unittest -v $ids || true
