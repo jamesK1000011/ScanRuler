@@ -43,8 +43,31 @@ cp made/result.json export-result.json 2>/dev/null; cp made/project.3mf project.
 xvfb-run -a "$orca" --slice 0 --outputdir "$out/sliced" --export-3mf sliced.3mf "$out/project.3mf" > slice.log 2>&1; echo "slice exit $?" >> slice.log
 cp sliced/result.json slice-result.json 2>/dev/null
 show() { echo "==== BEGIN $1"; cat "$2"; echo; echo "==== END $1"; }
+tail -60 export-debug.log > export-debug-tail.log
+# Which minimal-profile shape Orca 2.5 takes: variants of machine.json.
+python3 - "$out" <<'PY2'
+import json, sys, subprocess, os
+out = sys.argv[1]
+m = json.load(open(f"{out}/machine.json"))
+variants = {
+ "user": {**m, "from": "User"},
+ "user-noinst": {k: v for k, v in {**m, "from": "User"}.items() if k != "instantiation"},
+ "inherit-generic": {**m, "from": "User", "inherits": ""},
+ "variant-keys": {**m, "printer_extruder_id": ["1"], "printer_extruder_variant": ["Direct Drive Standard"], "extruder_variant_list": ["Direct Drive Standard"]},
+}
+for name, data in variants.items():
+    d = f"{out}/var-{name}"; os.makedirs(d, exist_ok=True)
+    json.dump(data, open(f"{d}/machine.json", "w"), indent=1)
+    r = subprocess.run(["xvfb-run", "-a", os.environ["AGENTLINK_ORCASLICER"], "--slice", "0", "--debug", "4", "--logfile", f"{d}/debug.log",
+                        "--load-settings", f"{d}/machine.json;{out}/process.json", "--load-filaments", f"{out}/filament.json",
+                        "--outputdir", d, "--export-3mf", "v.3mf", f"{out}/box.stl"], cwd=d, capture_output=True, text=True, timeout=300)
+    res = open(f"{d}/result.json").read() if os.path.exists(f"{d}/result.json") else "no result"
+    print(f"==== VARIANT {name}: exit {r.returncode} {res[:300]!r} files={os.listdir(d)}")
+    tail = open(f"{d}/debug.log").read().splitlines()[-25:] if os.path.exists(f"{d}/debug.log") else []
+    print("\n".join("    " + l[-220:] for l in tail))
+PY2
 grep -i -E "error|invalid|fail|preset|load" export-debug.log | head -80 > export-debug-short.log
-for f in export.log slice.log export-result.json slice-result.json export-debug-short.log machine.json process.json filament.json; do show "$f" "$f"; done
+for f in export.log slice.log export-result.json slice-result.json export-debug-short.log export-debug-tail.log machine.json process.json filament.json; do show "$f" "$f"; done
 show help-fff.txt help-fff.txt | head -2000
 ls -la . made sliced
 for z in project.3mf sliced/sliced.3mf sliced-sw.3mf; do
