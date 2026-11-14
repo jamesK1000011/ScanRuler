@@ -28,17 +28,19 @@ PY
 cd "$out"
 xvfb-run -a "$orca" --help > help.txt 2>&1
 xvfb-run -a "$orca" --help-fff > help-fff.txt 2>&1
-xvfb-run -a "$orca" --load-settings "machine.json;process.json" --load-filaments "filament.json;filament.json" --arrange 1 --export-3mf project.3mf box.stl tall.stl > export.log 2>&1; echo "export exit $?" >> export.log
-mkdir -p sliced
-xvfb-run -a "$orca" --slice 0 --export-3mf sliced.3mf --outputdir "$out/sliced" "$out/project.3mf" > slice.log 2>&1; echo "slice exit $?" >> slice.log
+mkdir -p made sliced
+xvfb-run -a "$orca" --slice 0 --load-settings "$out/machine.json;$out/process.json" --load-filaments "$out/filament.json;$out/filament.json" --arrange 1 --outputdir "$out/made" --export-3mf project.3mf "$out/box.stl" "$out/tall.stl" > export.log 2>&1; echo "export exit $?" >> export.log
+cp made/result.json export-result.json 2>/dev/null; cp made/project.3mf project.3mf 2>/dev/null
+xvfb-run -a "$orca" --slice 0 --outputdir "$out/sliced" --export-3mf sliced.3mf "$out/project.3mf" > slice.log 2>&1; echo "slice exit $?" >> slice.log
+cp sliced/result.json slice-result.json 2>/dev/null
 show() { echo "==== BEGIN $1"; cat "$2"; echo; echo "==== END $1"; }
-for f in export.log slice.log help.txt; do show "$f" "$f"; done
-show help-fff.txt help-fff.txt | head -400
-ls -la . sliced
+for f in export.log slice.log export-result.json slice-result.json; do show "$f" "$f"; done
+show help-fff.txt help-fff.txt | head -2000
+ls -la . made sliced
 for z in project.3mf sliced/sliced.3mf; do
   [ -f "$z" ] || continue
   unzip -l "$z"
-  for n in $(unzip -Z1 "$z" | grep -v -E '\.png$|\.gcode$|\.md5$'); do
+  for n in $(unzip -Z1 "$z" | grep -v -E '\.png$|\.md5$'); do
     echo "==== BEGIN $z::$n"; unzip -p "$z" "$n" | head -c 60000; echo; echo "==== END $z::$n"
   done
 done
