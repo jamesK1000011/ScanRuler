@@ -22,22 +22,32 @@ def box(x, y, z):
     return [[v[a], v[b], v[c]] for a, b, c in f]
 stl(f"{out}/box.stl", box(20, 10, 5))
 stl(f"{out}/tall.stl", box(8, 8, 20))
-for k, v in SP.minimal({}).items():
-    json.dump(v, open(f"{out}/{k}.json", "w"), indent=1)
+from agentlink import slicers
+print(slicers.minimal_profiles({}, out))
+# The path the bake-off proves: slice_with, two bodies, kept as a project.
+import os
+os.makedirs(f"{out}/sw", exist_ok=True)
+try:
+    print("slice_with:", slicers.slice_with("orcaslicer", [f"{out}/box.stl", f"{out}/tall.stl"], f"{out}/sw/two.gcode", {}, options={"project": f"{out}/sw/sw.3mf"}))
+except Exception as e:
+    print("slice_with failed:", e)
 PY
+cp sw/sw.3mf sliced-sw.3mf 2>/dev/null
+for k in machine process filament; do cp "$out/agentlink-$k.json" "$out/$k.json"; done
 cd "$out"
 xvfb-run -a "$orca" --help > help.txt 2>&1
 xvfb-run -a "$orca" --help-fff > help-fff.txt 2>&1
 mkdir -p made sliced
-xvfb-run -a "$orca" --slice 0 --load-settings "$out/machine.json;$out/process.json" --load-filaments "$out/filament.json;$out/filament.json" --arrange 1 --outputdir "$out/made" --export-3mf project.3mf "$out/box.stl" "$out/tall.stl" > export.log 2>&1; echo "export exit $?" >> export.log
+xvfb-run -a "$orca" --slice 0 --load-settings "$out/machine.json;$out/process.json" --load-filaments "$out/filament.json;$out/filament.json" --arrange 1 --debug 4 --logfile "$out/export-debug.log" --outputdir "$out/made" --export-3mf project.3mf "$out/box.stl" "$out/tall.stl" > export.log 2>&1; echo "export exit $?" >> export.log
 cp made/result.json export-result.json 2>/dev/null; cp made/project.3mf project.3mf 2>/dev/null
 xvfb-run -a "$orca" --slice 0 --outputdir "$out/sliced" --export-3mf sliced.3mf "$out/project.3mf" > slice.log 2>&1; echo "slice exit $?" >> slice.log
 cp sliced/result.json slice-result.json 2>/dev/null
 show() { echo "==== BEGIN $1"; cat "$2"; echo; echo "==== END $1"; }
-for f in export.log slice.log export-result.json slice-result.json; do show "$f" "$f"; done
+grep -i -E "error|invalid|fail|preset|load" export-debug.log | head -80 > export-debug-short.log
+for f in export.log slice.log export-result.json slice-result.json export-debug-short.log machine.json process.json filament.json; do show "$f" "$f"; done
 show help-fff.txt help-fff.txt | head -2000
 ls -la . made sliced
-for z in project.3mf sliced/sliced.3mf; do
+for z in project.3mf sliced/sliced.3mf sliced-sw.3mf; do
   [ -f "$z" ] || continue
   unzip -l "$z"
   for n in $(unzip -Z1 "$z" | grep -v -E '\.png$|\.md5$'); do
