@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Privacy and identity check on this fork's own files and commits (anything
+# whose exact content is in upstream ScanRuler's history is upstream's).
+# See .github/privacy/README.md.
+name: Privacy check
+
+on:
+  push:
+    tags: ['*']
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  privacy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Upstream ScanRuler
+        run: git fetch --quiet --no-tags https://github.com/CNCKitchen/ScanRuler main
+      - name: Files, history and tags
+        run: python3 .github/privacy/check.py --git --upstream FETCH_HEAD .

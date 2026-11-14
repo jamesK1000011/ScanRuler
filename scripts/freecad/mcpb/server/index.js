@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-only
-// FreeCAD Agent Link as a Claude Desktop extension: the MCP server Claude
+// Agent Link for FreeCAD as a Claude Desktop extension: the MCP server Claude
 // starts. It finds FreeCAD on this Mac, puts the two add-ons bundled with it
 // (Agent Link and ScanRuler for FreeCAD) into FreeCAD's Mod folder so the
 // workbench and its Start link button are there — the newest from GitHub
@@ -125,19 +125,23 @@ function userDir(fc) {
 // fallback when GitHub cannot be reached.
 const OWNER = 'jamesK1000011'
 const SOURCES = [
+  // AddonKit for FreeCAD (14 Nov 2026): the library Agent Link and the
+  // add-ons share (records, shapes, fits, data files).
+  { repo: 'AddonKit-FreeCAD', branch: 'main', folder: '', dest: 'AddonKit', pin: 'scripts/bakeoff/addonkit-ref' },
   // Agent Link in its own repository since 14 Nov 2026 (it was the FreeCAD
   // fork's agent-link branch, src/Mod/AgentLink): the add-on at its root.
-  { repo: 'FreeCAD-AgentLink', branch: 'main', folder: '', dest: 'AgentLink', pin: 'scripts/bakeoff/addon-ref' },
+  { repo: 'AgentLink-FreeCAD', branch: 'main', folder: '', dest: 'AgentLink', pin: 'scripts/bakeoff/addon-ref' },
   // ScanRuler for FreeCAD in its own repository since 14 Nov 2026 (it was
   // ScanRuler's freecad/ScanRulerFC).
   { repo: 'ScanRuler-FreeCAD', branch: 'main', folder: '', dest: 'ScanRulerFC', pin: 'scripts/bakeoff/scanrulerfc-ref' },
   // Agent Link for OrcaSlicer (no FreeCAD in it): Agent Link's orca tools,
   // found beside it in the Mod folder.
-  { repo: 'OrcaSlicer-AgentLink', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'scripts/bakeoff/orcalink-ref' },
-  // FreeCAD Workshop (14 Nov 2026): plain FreeCAD add-ons whose tools load
-  // in Agent Link — Common (shared) and Parts (gen_make, gen_part) so far.
-  { repo: 'FreeCAD-Workshop', branch: 'main', folder: 'Common', dest: 'WorkshopCommon', pin: 'scripts/bakeoff/workshop-ref' },
-  { repo: 'FreeCAD-Workshop', branch: 'main', folder: 'Parts', dest: 'WorkshopParts', pin: 'scripts/bakeoff/workshop-ref' },
+  { repo: 'AgentLink-OrcaSlicer', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'scripts/bakeoff/orcalink-ref' },
+  // Workshop for FreeCAD (14 Nov 2026): plain FreeCAD add-ons whose tools load
+  // in Agent Link — Common (the Workshop workbench), Parts (gen_make, gen_part) and Make (fits, threads, encased parts so far).
+  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Common', dest: 'WorkshopCommon', pin: 'scripts/bakeoff/workshop-ref' },
+  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Parts', dest: 'WorkshopParts', pin: 'scripts/bakeoff/workshop-ref' },
+  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Make', dest: 'WorkshopMake', pin: 'scripts/bakeoff/workshop-ref' },
 ]
 // What is installed is what CI checked: each add-on at the commit pinned in
 // ScanRuler's freecad-spike (bumped only once the bake-off is green), and
@@ -893,7 +897,7 @@ function serveError(message) {
     if (msg.id === undefined) return
     let result
     if (msg.method === 'initialize') result = { protocolVersion: msg.params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'freecad-agentlink', version: bundledVersion() }, instructions: message }
-    else if (msg.method === 'tools/list') result = { tools: [{ name: 'freecad_status', description: 'Why FreeCAD Agent Link is not running.', inputSchema: { type: 'object', properties: {} } }] }
+    else if (msg.method === 'tools/list') result = { tools: [{ name: 'freecad_status', description: 'Why Agent Link for FreeCAD is not running.', inputSchema: { type: 'object', properties: {} } }] }
     else if (msg.method === 'tools/call') result = { content: [{ type: 'text', text: message }], isError: true }
     else result = {}
     process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }) + '\n')

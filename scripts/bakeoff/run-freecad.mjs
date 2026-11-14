@@ -5,7 +5,7 @@
 //
 //   node scripts/bakeoff/run-freecad.mjs --out bakeoff-out/freecad [--python python] [--addon <AgentLink folder>]
 // The add-on comes from its own repository (jamesK1000011/
-// FreeCAD-AgentLink); the workflow checks it out into freecad-addon/.
+// AgentLink-FreeCAD); the workflow checks it out into freecad-addon/.
 // The Python must import FreeCAD (conda-forge's freecad, or FREECAD_LIB set).
 
 import { spawnSync } from 'node:child_process'

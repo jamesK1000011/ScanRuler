@@ -1,0 +1,7 @@
+# Regular expressions matched against "<where>: <kind>: <text>". One per line.
+# Only for text that is provably not personal (licence boilerplate, test
+# placeholders). Never add a real name, path or address here.
+# The (L)GPL texts' example "James Random Hacker".
+^(.*/)?(LICENSE|COPYING|L?GPL[-\w.]*)(\.\w+)?:\d+: first name: James$
+# ScanRuler's upstream author (Stefan Hermann / CNC Kitchen): his public business addresses.
+: email: (stefan|contact)@cnckitchen\.com$

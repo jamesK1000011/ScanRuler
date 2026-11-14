@@ -8,7 +8,7 @@
 - na: not slicing (help, about, debug, SLA, bookkeeping keys, placeholders)
 - later: the printer connection and Orca's cloud (roadmap: lowest)
 
-    python3 judge.py inventory.json <AgentLink dir>:<OrcaSlicer-AgentLink dir> [out.json]
+    python3 judge.py inventory.json <AgentLink dir>:<AgentLink-OrcaSlicer dir> [out.json]
 """
 
 import json

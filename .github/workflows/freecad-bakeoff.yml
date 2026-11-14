@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # The FreeCAD spike and the bake-off, on GitHub's machines: FreeCAD from
-# conda-forge runs the Agent Link add-on (jamesK1000011/FreeCAD-AgentLink,
+# conda-forge runs the Agent Link add-on (jamesK1000011/AgentLink-FreeCAD,
 # its own repository since 14 Nov 2026) headless (its tests, then the
 # brief); ScanRuler builds and runs the same brief in headless Chrome; its
 # Deviation workspace compares the two bins; the scorecard goes to the run's
@@ -48,16 +48,17 @@ jobs:
           echo "srfc=$(cat scripts/bakeoff/scanrulerfc-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "orca=$(cat scripts/bakeoff/orcalink-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "workshop=$(cat scripts/bakeoff/workshop-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
+          echo "addonkit=$(cat scripts/bakeoff/addonkit-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
       - name: The add-on, from its repository
         uses: actions/checkout@v5
         with:
-          repository: jamesK1000011/FreeCAD-AgentLink
+          repository: jamesK1000011/AgentLink-FreeCAD
           ref: ${{ steps.ref.outputs.ref }}
           path: freecad-addon
       - name: Agent Link for OrcaSlicer, beside it
         uses: actions/checkout@v5
         with:
-          repository: jamesK1000011/OrcaSlicer-AgentLink
+          repository: jamesK1000011/AgentLink-OrcaSlicer
           ref: ${{ steps.ref.outputs.orca }}
           path: orcalink-addon
       - name: ScanRuler for FreeCAD, beside it
@@ -66,10 +67,16 @@ jobs:
           repository: jamesK1000011/ScanRuler-FreeCAD
           ref: ${{ steps.ref.outputs.srfc }}
           path: scanrulerfc-addon
-      - name: FreeCAD Workshop, beside it
+      - name: AddonKit for FreeCAD, the shared library
         uses: actions/checkout@v5
         with:
-          repository: jamesK1000011/FreeCAD-Workshop
+          repository: jamesK1000011/AddonKit-FreeCAD
+          ref: ${{ steps.ref.outputs.addonkit }}
+          path: addonkit-lib
+      - name: Workshop for FreeCAD, beside it
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/Workshop-FreeCAD
           ref: ${{ steps.ref.outputs.workshop }}
           path: workshop-addons
       - uses: mamba-org/setup-micromamba@v2
@@ -92,7 +99,7 @@ jobs:
           # Both add-ons importable, as in FreeCAD's Mod folder: Agent Link
           # from the fork, ScanRuler for FreeCAD from this repo.
           echo "AGENTLINK_RENDERS=$GITHUB_WORKSPACE/bakeoff-out/freecad/renders" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Common:$GITHUB_WORKSPACE/workshop-addons/Parts" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/addonkit-lib:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Common:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make" >> "$GITHUB_ENV"
           echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
@@ -205,16 +212,17 @@ jobs:
           echo "srfc=$(cat scripts/bakeoff/scanrulerfc-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "orca=$(cat scripts/bakeoff/orcalink-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "workshop=$(cat scripts/bakeoff/workshop-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
+          echo "addonkit=$(cat scripts/bakeoff/addonkit-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
       - name: The add-on, from its repository
         uses: actions/checkout@v5
         with:
-          repository: jamesK1000011/FreeCAD-AgentLink
+          repository: jamesK1000011/AgentLink-FreeCAD
           ref: ${{ steps.ref.outputs.ref }}
           path: freecad-addon
       - name: Agent Link for OrcaSlicer, beside it
         uses: actions/checkout@v5
         with:
-          repository: jamesK1000011/OrcaSlicer-AgentLink
+          repository: jamesK1000011/AgentLink-OrcaSlicer
           ref: ${{ steps.ref.outputs.orca }}
           path: orcalink-addon
       - name: ScanRuler for FreeCAD, beside it
@@ -223,10 +231,16 @@ jobs:
           repository: jamesK1000011/ScanRuler-FreeCAD
           ref: ${{ steps.ref.outputs.srfc }}
           path: scanrulerfc-addon
-      - name: FreeCAD Workshop, beside it
+      - name: AddonKit for FreeCAD, the shared library
         uses: actions/checkout@v5
         with:
-          repository: jamesK1000011/FreeCAD-Workshop
+          repository: jamesK1000011/AddonKit-FreeCAD
+          ref: ${{ steps.ref.outputs.addonkit }}
+          path: addonkit-lib
+      - name: Workshop for FreeCAD, beside it
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/Workshop-FreeCAD
           ref: ${{ steps.ref.outputs.workshop }}
           path: workshop-addons
       - uses: mamba-org/setup-micromamba@v2
@@ -243,7 +257,7 @@ jobs:
       - name: FreeCAD imports
         run: |
           echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Common:$GITHUB_WORKSPACE/workshop-addons/Parts" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/addonkit-lib:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Common:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make" >> "$GITHUB_ENV"
           echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD; print('FreeCAD', FreeCAD.Version()[:3])"
       - name: Coverage audit on this release
