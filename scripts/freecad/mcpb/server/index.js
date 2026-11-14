@@ -148,6 +148,7 @@ const SOURCES = [
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Common', dest: 'WorkshopCommon', pin: 'scripts/bakeoff/workshop-ref' },
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Parts', dest: 'WorkshopParts', pin: 'scripts/bakeoff/workshop-ref' },
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Make', dest: 'WorkshopMake', pin: 'scripts/bakeoff/workshop-ref' },
+  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Electronics', dest: 'WorkshopElectronics', pin: 'scripts/bakeoff/workshop-ref' },
 ]
 // What is installed is what CI checked: each add-on at the commit pinned in
 // ScanRuler's freecad-spike (bumped only once the bake-off is green), and

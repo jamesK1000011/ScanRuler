@@ -25,7 +25,7 @@ copy() { # copy SRC DEST: the files FILES lists, less tests
 copy "$AGENTLINK" AgentLink
 copy "${3:-}" ScanRulerFC
 copy "${4:-}" OrcaLink
-if [ -n "${5:-}" ]; then copy "$5/Common" WorkshopCommon; copy "$5/Parts" WorkshopParts; copy "$5/Make" WorkshopMake; fi
+if [ -n "${5:-}" ]; then copy "$5/Common" WorkshopCommon; copy "$5/Parts" WorkshopParts; copy "$5/Make" WorkshopMake; copy "$5/Electronics" WorkshopElectronics; fi
 copy "${6:-}" AddonKit
 VERSION=$(python3 -c "import json;print(json.load(open('$HERE/manifest.json'))['version'])")
 echo "$VERSION+$(git -C "$AGENTLINK" rev-parse --short HEAD)+$(git -C "$HERE" rev-parse --short HEAD)" > "$STAGE/addons/VERSION"
