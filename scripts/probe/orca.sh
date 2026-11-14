@@ -32,7 +32,7 @@ try:
 except Exception as e:
     print("slice_with failed:", e)
 PY
-cp sw/sw.3mf sliced-sw.3mf 2>/dev/null
+cp "$out/sw/sw.3mf" "$out/sliced-sw.3mf" 2>/dev/null
 for k in machine process filament; do cp "$out/agentlink-$k.json" "$out/$k.json"; done
 cd "$out"
 xvfb-run -a "$orca" --help > help.txt 2>&1
