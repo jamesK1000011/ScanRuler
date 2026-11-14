@@ -51,7 +51,15 @@ def settings(src):
         row["mode"] = first(r"def->mode\s*=\s*(\w+)", body)
         mn, mx = first(r"def->min\s*=\s*([-\w.]+)", body), first(r"def->max\s*=\s*([-\w.]+)", body)
         row["min"], row["max"] = mn, mx
-        ev = re.findall(r'def->enum_values\.push_back\(\s*"([^"]*)"', body)
+        ev = re.findall(r'def->enum_values\.(?:push_back|emplace_back)\(\s*"([^"]*)"', body)
+        if not ev:
+            m = re.search(r'def->enum_values\s*=\s*\{([^}]*)\}', body)
+            ev = re.findall(r'"([^"]*)"', m.group(1)) if m else []
+        if not ev:
+            m = re.search(r"def->enum_keys_map\s*=\s*&\s*(s_keys_map_\w+)", body)
+            if m:
+                mm = re.search(r"t_config_enum_values\s+" + m.group(1) + r"\s*=\s*\{(.*?)\};", text, re.S)
+                ev = re.findall(r'\{\s*"([^"]*)"\s*,', mm.group(1)) if mm else []
         if ev:
             row["enum"] = ev
         dv = first(r"set_default_value\(\s*new\s+\w+\s*(.{0,160}?)\)\s*;", body)

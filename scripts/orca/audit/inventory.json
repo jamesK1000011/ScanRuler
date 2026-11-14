@@ -152,6 +152,11 @@
    "mode": "comAdvanced",
    "min": null,
    "max": null,
+   "enum": [
+    "shared",
+    "toolhead_offset",
+    "per_extruder"
+   ],
    "default": "<BedExcludeVolumeMode>(BedExcludeVolumeMode::Shared)",
    "readonly": false,
    "cli_only": false,
@@ -853,6 +858,14 @@
    "mode": "comSimple",
    "min": null,
    "max": null,
+   "enum": [
+    "Cool Plate",
+    "Engineering Plate",
+    "High Temp Plate",
+    "Textured PEI Plate",
+    "Textured Cool Plate",
+    "Supertack Plate"
+   ],
    "default": "<BedType>(btPC)",
    "readonly": false,
    "cli_only": false,
@@ -1104,6 +1117,14 @@
    "mode": "comAdvanced",
    "min": null,
    "max": null,
+   "enum": [
+    "0%",
+    "10%",
+    "25%",
+    "50%",
+    "75%",
+    "95%"
+   ],
    "default": "{ (int)Overhang_threshold_bridge }",
    "readonly": false,
    "cli_only": false,
@@ -1580,6 +1601,11 @@
    "mode": "comAdvanced",
    "min": null,
    "max": null,
+   "enum": [
+    "none",
+    "partiallybridge",
+    "sacrificiallayer"
+   ],
    "default": "<CounterboreHoleBridgingOption>(chbNone)",
    "readonly": false,
    "cli_only": false,
@@ -1801,6 +1827,16 @@
    "mode": "comSimple",
    "min": null,
    "max": null,
+   "enum": [
+    "auto_brim",
+    "brim_ears",
+    "painted",
+    "outer_only",
+    "inner_only",
+    "outer_and_inner",
+    "no_brim",
+    "leading_edge_only"
+   ],
    "default": "<BrimType>(btAutoBrim)",
    "readonly": false,
    "cli_only": false,
@@ -7502,6 +7538,21 @@
    "mode": "comExpert",
    "min": null,
    "max": null,
+   "enum": [
+    "Default",
+    "MZV",
+    "ZV",
+    "ZVD",
+    "ZVDD",
+    "ZVDDD",
+    "EI",
+    "EI2",
+    "2HUMP_EI",
+    "EI3",
+    "3HUMP_EI",
+    "DAA",
+    "Disable"
+   ],
    "default": "<InputShaperType>(InputShaperType::Default)",
    "readonly": false,
    "cli_only": false,
@@ -9978,6 +10029,10 @@
    "mode": "comSimple",
    "min": null,
    "max": null,
+   "enum": [
+    "0",
+    "1"
+   ],
    "default": "<TimelapseType>(tlTraditional)",
    "readonly": false,
    "cli_only": false,
@@ -10398,6 +10453,10 @@
    "mode": "comAdvanced",
    "min": null,
    "max": null,
+   "enum": [
+    "type1",
+    "type2"
+   ],
    "default": "<WipeTowerType>(WipeTowerType::Type2)",
    "readonly": false,
    "cli_only": false,
@@ -10534,6 +10593,10 @@
    "mode": "comAdvanced",
    "min": null,
    "max": null,
+   "enum": [
+    "default",
+    "cyclic"
+   ],
    "default": "<ToolChangeOrderingType>(ToolChangeOrderingType::Default)",
    "readonly": false,
    "cli_only": false,
@@ -11264,6 +11327,12 @@
    "mode": "comDevelop",
    "min": null,
    "max": null,
+   "enum": [
+    "none",
+    "x",
+    "y",
+    "z"
+   ],
    "default": "<BeltRotationAxis>(BeltRotationAxis::X)",
    "readonly": false,
    "cli_only": false,
@@ -11315,6 +11384,17 @@
    "mode": "comExpert",
    "min": "-89.9",
    "max": "89.9",
+   "enum": [
+    "pos_x",
+    "pos_y",
+    "pos_z",
+    "neg_x",
+    "neg_y",
+    "neg_z",
+    "rev_x",
+    "rev_y",
+    "rev_z"
+   ],
    "default": "(45.)",
    "readonly": false,
    "cli_only": false,
@@ -12351,6 +12431,11 @@
    "mode": "comAdvanced",
    "min": null,
    "max": null,
+   "enum": [
+    "rectangle",
+    "cone",
+    "rib"
+   ],
    "default": "<WipeTowerWallType>(wtwRib)",
    "readonly": false,
    "cli_only": false,

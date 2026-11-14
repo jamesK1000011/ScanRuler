@@ -44,49 +44,57 @@ def judge_setting(r):
     if LATER.match(k):
         return "later", None, "printer connection"
     if k in PLATE:
-        return "tool", "orca_project", "per plate: orca_project plate { settings }"
+        return "tool", "orca_project.plate", "per plate: orca_project set { scope: plate }"
     if FILAMENTS.match(k):
-        return "tool", "orca_project", "the project's filaments: orca_project filaments"
+        return "tool", "orca_project.filament", "the project's filaments: orca_project filament"
+    if k in PAINT_KEYS:
+        return "tool", "orca_project.brim_ears", ""
     if r.get("preset") == "process":
-        return "tool", "orca_project", "process setting: project, object, part or height range (orca_project set)"
+        return "tool", "orca_project.set", "process setting: project, object, part or height range (orca_project set)"
     if r.get("preset") in ("filament", "machine"):
-        return "tool", "orca_project", f"{r['preset']} setting: orca_project set {{ scope: {r['preset']} }}"
-    return "tool", "orca_project", "project setting (orca_project set)"
+        return "tool", "orca_project.set", f"{r['preset']} setting: orca_project set (slot for a filament's)"
+    return "tool", "orca_project.set", "project setting (orca_project set)"
 
 
 # ---- the command line ---------------------------------------------------------------------
+# "tool.action": the tool, and the action (or export, or option) its source names.
 
 CLI = {
-    # what Agent Link drives
-    "slice": "slice_with", "export_3mf": "slice_with", "export_gcode": "slice_with", "load_settings": "slice_with", "load_filaments": "slice_with",
-    "orient": "slice_with", "arrange": "slice_with", "outputdir": "slice_with", "export_statistics": "slice_with", "load": "slice_with",
-    "export_stl": "orca_export", "export_stls": "orca_export", "export_obj": "orca_export", "export_settings": "orca_export", "export_slicedata": "orca_export",
-    "load_slicedata": "orca_export", "export_amf": "orca_export", "export_svg": "orca_export",
-    "info": "orca_project", "inspect_mesh": "orca_project", "inspect_paint": "orca_project", "load_custom_gcodes": "orca_project",
-    "load_filament_ids": "orca_project", "allow_multicolor_oneplate": "orca_project", "allow_rotations": "slice_with", "align_to_y_axis": "slice_with",
-    "avoid_extrusion_cali_region": "slice_with", "skip_objects": "orca_project", "clone_objects": "orca_project", "allow_mix_temp": "orca_project",
-    "uptodate": "orca_project", "uptodate_settings": "orca_project", "uptodate_filaments": "orca_project", "load_defaultfila": "slice_with",
-    "min_save": "orca_project", "allow_newer_file": "slice_read", "enable_timelapse": "orca_project", "metadata_name": "orca_project",
-    "metadata_value": "orca_project", "makerlab_name": "orca_project", "makerlab_version": "orca_project", "skip_modified_gcodes": "orca_project",
-    "load_assemble_list": "orca_project", "assemble": "orca_project",
-    # transforms: FreeCAD does them on the body (or Orca's own on a plate)
-    "align_xy": "object_set", "center": "object_set", "ensure_on_bed": "object_set", "rotate": "draft_modify", "rotate_x": "draft_modify",
-    "rotate_y": "draft_modify", "scale": "draft_modify", "scale_to_fit": "orca_project", "cut": "part_split", "cut_grid": "part_split", "cut_x": "part_split",
-    "cut_y": "part_split", "split": "part_split", "repair": "meshobj_repair", "convert_unit": "units_convert", "copy": "object_duplicate",
-    "duplicate_grid": "orca_project", "repetitions": "orca_project", "ground_largest_face": "orca_project", "ground_face_normal": "orca_project",
-    "ground_face_point": "orca_project",
+    "slice": "orca_slice", "export_3mf": "orca_slice.3mf", "export_gcode": "orca_slice.gcode", "load_settings": "orca_project.new", "load_filaments": "orca_project.new",
+    "orient": "orca_project.orient", "arrange": "orca_project.arrange", "outputdir": "orca_slice", "export_statistics": "orca_slice", "load": "orca_project.new",
+    "export_stl": "orca_slice.stl", "export_stls": "orca_slice.stls", "export_obj": "orca_slice.obj", "export_settings": "orca_slice.settings",
+    "export_slicedata": "orca_slice.slicedata", "load_slicedata": "na", "export_amf": "orca_slice.amf", "export_svg": "gap",
+    "info": "orca_slice.info", "inspect_mesh": "orca_slice.inspect_mesh", "inspect_paint": "orca_slice.inspect_paint", "load_custom_gcodes": "orca_project.gcode",
+    "load_filament_ids": "orca_slice.load_filament_ids", "allow_multicolor_oneplate": "orca_slice.allow_multicolor_oneplate",
+    "allow_rotations": "orca_project.allow_rotations", "align_to_y_axis": "orca_project.align_to_y_axis",
+    "avoid_extrusion_cali_region": "orca_project.avoid_extrusion_cali_region", "skip_objects": "orca_slice.skip_objects",
+    "clone_objects": "orca_project.clone_objects", "allow_mix_temp": "orca_slice.allow_mix_temp", "uptodate": "orca_project.uptodate",
+    "uptodate_settings": "orca_project.presets", "uptodate_filaments": "orca_project.presets", "load_defaultfila": "orca_slice.load_defaultfila", "min_save": "orca_project.min_save",
+    "allow_newer_file": "orca_project.allow_newer_file", "enable_timelapse": "orca_slice.timelapse", "skip_modified_gcodes": "orca_slice.skip_modified_gcodes",
+    "load_assemble_list": "orca_project.merge", "assemble": "orca_project.merge",
+    # transforms: FreeCAD does them on the body, Orca's own on the project
+    "align_xy": "orca_project.place", "center": "orca_project.place", "ensure_on_bed": "orca_project.ensure_on_bed", "rotate": "orca_project.place",
+    "rotate_x": "orca_project.place", "rotate_y": "orca_project.place", "scale": "orca_project.place", "scale_to_fit": "orca_project.scale_to_fit", "cut": "orca_project.cut",
+    "cut_grid": "orca_project.cut_grid", "cut_x": "orca_project.cut", "cut_y": "orca_project.cut", "split": "orca_project.split_objects", "repair": "orca_project.repair",
+    "convert_unit": "orca_project.convert_unit", "copy": "orca_project.instance", "duplicate_grid": "orca_project.grid", "repetitions": "orca_project.repetitions",
+    "ground_largest_face": "orca_project.ground_largest_face", "ground_face_normal": "orca_project.ground_face_normal", "ground_face_point": "orca_project.ground_face_point",
 }
 CLI_NA = {"help", "help_fff", "help_sla", "debug", "logfile", "datadir", "sw_renderer", "single_instance", "autosave", "pipe", "gcodeviewer",
           "export_sla", "no_check", "strict", "normative_check", "mtcpp", "mstpp", "ignore_nonexistent_config", "config_compatibility",
-          "downward_check", "downward_settings", "output"}
+          "downward_check", "downward_settings", "output", "metadata_name", "metadata_value", "makerlab_name", "makerlab_version"}
 
 
 def judge_cli(r):
     k = r["key"]
     if k in CLI_NA:
-        return "na", None, "the command line's own plumbing (help, logs, folders, checks)"
-    if k in CLI:
-        return "tool", CLI[k], ""
+        return "na", None, "the command line's own plumbing (help, logs, folders, checks, MakerWorld stamps)"
+    t = CLI.get(k)
+    if t == "na":
+        return "na", None, "a slice cache the command line reuses: slicing again does the same"
+    if t == "gap":
+        return "gap", None, "not built"
+    if t:
+        return "tool", t, ""
     return "gap", None, "not judged yet"
 
 
@@ -94,21 +102,53 @@ def judge_cli(r):
 
 MENU = [
     # files and projects
-    (r"^Load\.\.\.|^Import$|^Import ZIP Archive|^Recent files|Re&load from Disk|^Reload from disk|^Reload All|^Replace 3D file|^Replace all with 3D files", "tool", "orca_project"),
-    (r"^Export G-code|^Export all plate sliced file|^Export Generic 3MF|^Export$", "tool", "orca_export"),
-    (r"Export as (one )?(STL|DRC)s?|Export all objects as|Export &?[Tt]oolpaths as OBJ", "tool", "orca_export"),
+    (r"^Load\.\.\.|^Import$|^Recent files", "tool", "orca_project.new"),
+    (r"^Import ZIP Archive", "tool", "orca_project.file"),
+    (r"Re&load from Disk|^Reload from disk|^Reload All|^Replace 3D file|^Replace all with 3D files", "tool", "orca_project.replace"),
+    (r"^Export G-code|^Export all plate sliced file|^Export$", "tool", "orca_slice.gcode"),
+    (r"^Export Generic 3MF", "tool", "orca_slice.3mf"),
+    (r"Export as (one )?STLs?|Export all objects as", "tool", "orca_slice.stl"),
+    (r"Export as (one )?DRCs?", "gap", None),
+    (r"Export &?[Tt]oolpaths as OBJ", "tool", "gcode_read.toolpaths"),
     (r"^Export Preset Bundle|^Preset Bundle|^Import Configs|^Sync Presets|^Migrate Filament Presets", "tool", "slicer_presets"),
     (r"^&Open G-code", "tool", "gcode_read"),
     # objects
-    (r"^Add (Models|Primitive|Handy models)|^Cube$|^Cylinder$|^Sphere$|^Cone$|^Disc$|^Torus$", "tool", "orca_project"),
-    (r"^Add instance|^Remove instance|^Set number of instances|^Instances|^Fill bed with (copies|instances)|^Clone|^Duplicate Current Plate|^Set as An Individual Object|^To Objects|^To Parts|^Merge with", "tool", "orca_project"),
-    (r"^Delete$|^Delete All|^Rename|^Printable|^Hide|^Order By|^Height Range Modifier|^Modify|^Edit$|^Choose precise seam subtype", "tool", "orca_project"),
-    (r"^Arrange|^Auto orientation|^Auto Rotate|^Drop|^Center|^Align/Distribute|^Along [XYZ] Axis|^Mirror|^Transform|^Scale to build volume|^Assemble", "tool", "orca_project"),
-    (r"^Split$|^Mesh boolean|^Simplify Model|^Subdivision mesh|^Fix Model|^Fix All|^Decompose Color", "tool", "orca_project"),
-    (r"^Flush into", "tool", "orca_project"),
-    (r"^Remove the selected plate|^All Plates|^Select All Plates|^Fix All Plates", "tool", "orca_project"),
+    (r"^Add (Models|Handy models)", "tool", "orca_project.object_add"),
+    (r"^Add Primitive|^Cube$|^Cylinder$|^Sphere$|^Cone$|^Disc$|^Torus$", "tool", "orca_project.primitive"),
+    (r"^Add instance|^Remove instance|^Set number of instances|^Instances|^Clone", "tool", "orca_project.instance"),
+    (r"^Fill bed with (copies|instances)", "tool", "orca_project.fill_bed"),
+    (r"^Duplicate Current Plate", "tool", "orca_project.plate_duplicate"),
+    (r"^Set as An Individual Object|^To Objects", "tool", "orca_project.split_objects"),
+    (r"^To Parts|^Merge with", "tool", "orca_project.merge"),
+    (r"^Delete$|^Delete All", "tool", "orca_project.object_remove"),
+    (r"^Rename|^Edit$|^Modify", "tool", "orca_project.set"),
+    (r"^Printable", "tool", "orca_project.printable"),
+    (r"^Hide|^Order By", "view", None),
+    (r"^Height Range Modifier", "tool", "orca_project.range"),
+    (r"^Choose precise seam subtype", "tool", "orca_project.set"),
+    (r"^Arrange", "tool", "orca_project.arrange"),
+    (r"^Auto orientation|^Auto Rotate", "tool", "orca_project.orient"),
+    (r"^Drop|^Center|^Align/Distribute|^Along [XYZ] Axis|^Transform|^Assemble", "tool", "orca_project.place"),
+    (r"^Mirror", "tool", "orca_project.mirror"),
+    (r"^Scale to build volume", "tool", "orca_project.scale_to_fit"),
+    (r"^Split$", "tool", "orca_project.split"),
+    (r"^Mesh boolean", "tool", "orca_project.boolean"),
+    (r"^Simplify Model", "tool", "orca_project.simplify"),
+    (r"^Subdivision mesh", "tool", "orca_project.subdivide"),
+    (r"^Fix Model|^Fix All", "tool", "orca_project.fix"),
+    (r"^Decompose Color", "tool", "orca_project.decompose_color"),
+    (r"^Flush into", "tool", "orca_project.set"),
+    (r"^Remove the selected plate", "tool", "orca_project.plate_remove"),
+    (r"^All Plates|^Select All Plates|^Fix All Plates", "tool", "orca_slice"),
     # calibration
-    (r"^Temperature$|^Flow ratio|^Pressure advance|^Retraction$|^VFA$|^Max flowrate|^Cornering|^Input Shaping", "tool", "orca_calibrate"),
+    (r"^Temperature$", "tool", "orca_calibrate.temperature"),
+    (r"^Flow ratio|^Flow rate", "tool", "orca_calibrate.flow"),
+    (r"^Pressure advance", "tool", "orca_calibrate.pressure_advance"),
+    (r"^Retraction$", "tool", "orca_calibrate.retraction"),
+    (r"^VFA$", "tool", "orca_calibrate.vfa"),
+    (r"^Max flowrate", "tool", "orca_calibrate.max_flow"),
+    (r"^Cornering", "tool", "orca_calibrate.cornering"),
+    (r"^Input Shaping", "tool", "orca_calibrate.input_shaping_freq"),
     (r"^Calibration Guide", "na", None),
     # the window itself
     (r"^Select All|^Deselect All|^Show |^Use (Orthogonal|Perspective) View|^Auto Perspective|^Reset Window Layout|^Show Gridlines|^Show &|^Show all collision", "view", None),
@@ -117,43 +157,46 @@ MENU = [
     (r"^Download Models|^Upload Models", "later", None),
 ]
 CONTEXT = {
-    "add_svg": "orca_project", "add_text": "orca_project", "edit_svg": "orca_project", "edit_text": "orca_project", "align_distribute": "orca_project",
-    "auto_drop": "orca_project", "set_auto_drop": "orca_project", "center": "orca_project", "change_extruder": "orca_project", "change_filament": "orca_project",
-    "change_type": "orca_project", "clone": "orca_project", "delete": "orca_project", "drop": "orca_project", "export_drc": "orca_export",
-    "export_stl": "orca_export", "fill_bed": "orca_project", "fix_through_cgal": "orca_project", "instance_to_object": "orca_project",
-    "invalidate_cut_info": "orca_project", "layers_editing": "orca_project", "locked": "orca_project", "merge_to_multipart_object": "orca_project",
-    "merge_to_single_object": "orca_project", "modify": "orca_project", "per_object_process": "orca_project", "per_object_settings": "orca_project",
-    "plate_delete": "orca_project", "plate_name": "orca_project", "precise_seam_submenu": "orca_project", "printable": "orca_project",
-    "set_printable": "orca_project", "reload_from_disk": "orca_project", "rename": "orca_project", "replace_all_with_stl": "orca_project",
-    "replace_with_stl": "orca_project", "scale_selection_to_fit_print_volume": "orca_project", "settings": "orca_project", "simplify": "orca_project",
-    "smooth_mesh": "orca_project", "transform": "orca_project", "add_volume": "orca_project", "convert_unit": "orca_project", "flush_options": "orca_project",
-    "instance_manipulation": "orca_project", "add_generic": "orca_project", "add_handy_model": "orca_project", "more": "na", "set_visible": "view",
+    "add_svg": "orca_project.emboss", "add_text": "orca_project.emboss", "edit_svg": "orca_project.emboss", "edit_text": "orca_project.emboss",
+    "align_distribute": "orca_project.place", "auto_drop": "orca_project.place", "set_auto_drop": "orca_project.place", "center": "orca_project.place",
+    "change_extruder": "orca_project.extruder", "change_filament": "orca_project.extruder", "change_type": "orca_project.kind",
+    "clone": "orca_project.instance", "delete": "orca_project.object_remove", "drop": "orca_project.place", "export_drc": "gap",
+    "export_stl": "orca_slice.stl", "fill_bed": "orca_project.fill_bed", "fix_through_cgal": "orca_project.fix", "instance_to_object": "orca_project.instance_to_object",
+    "invalidate_cut_info": "na", "layers_editing": "orca_project.layer_heights", "locked": "orca_project.locked", "merge_to_multipart_object": "orca_project.merge",
+    "merge_to_single_object": "orca_project.merge", "modify": "orca_project.set", "per_object_process": "orca_project.set", "per_object_settings": "orca_project.set",
+    "plate_delete": "orca_project.plate_remove", "plate_name": "orca_project.plater_name", "precise_seam_submenu": "orca_project.set", "printable": "orca_project.printable",
+    "set_printable": "orca_project.printable", "reload_from_disk": "orca_project.replace", "rename": "orca_project.set", "replace_all_with_stl": "orca_project.replace",
+    "replace_with_stl": "orca_project.replace", "scale_selection_to_fit_print_volume": "orca_project.scale_to_fit", "settings": "orca_project.set", "simplify": "orca_project.simplify",
+    "smooth_mesh": "orca_project.smooth", "transform": "orca_project.place", "add_volume": "orca_project.part_add", "convert_unit": "orca_project.convert_unit",
+    "flush_options": "orca_project.flush", "instance_manipulation": "orca_project.instance", "add_generic": "orca_project.primitive",
+    "add_handy_model": "orca_project.handy", "more": "na", "set_visible": "view",
 }
-TOOLBAR = {"add": "orca_project", "addplate": "orca_project", "orient": "orca_project", "arrange": "orca_project", "more": "orca_project",
-           "fewer": "orca_project", "splitobjects": "orca_project", "splitvolumes": "orca_project", "layersediting": "orca_project", "assembly_view": "view"}
+TOOLBAR = {"add": "orca_project.object_add", "addplate": "orca_project.plate_add", "orient": "orca_project.orient", "arrange": "orca_project.arrange",
+           "more": "orca_project.instance", "fewer": "orca_project.instance", "splitobjects": "orca_project.split_objects", "splitvolumes": "orca_project.split",
+           "layersediting": "orca_project.layer_heights", "assembly_view": "view"}
 GIZMOS = {
-    "GLGizmoMove3D": "orca_project", "GLGizmoRotate3D": "orca_project", "GLGizmoScale3D": "orca_project", "GLGizmoFlatten": "orca_project",
-    "GLGizmoCut3D": "orca_project", "GLGizmoMeshBoolean": "orca_project", "GLGizmoFdmSupports": "orca_paint", "GLGizmoSeam": "orca_paint",
-    "GLGizmoFuzzySkin": "orca_paint", "GLGizmoMmuSegmentation": "orca_paint", "GLGizmoTextureDisplacement": "orca_project", "GLGizmoEmboss": "orca_project",
-    "GLGizmoSVG": "orca_project", "GLGizmoMeasure": "measure", "GLGizmoAssembly": "orca_project", "GLGizmoSimplify": "orca_project",
-    "GLGizmoBrimEars": "orca_paint",
+    "GLGizmoMove3D": "orca_project.place", "GLGizmoRotate3D": "orca_project.place", "GLGizmoScale3D": "orca_project.place", "GLGizmoFlatten": "orca_project.lay_flat",
+    "GLGizmoCut3D": "orca_project.cut", "GLGizmoMeshBoolean": "orca_project.boolean", "GLGizmoFdmSupports": "orca_paint.supports", "GLGizmoSeam": "orca_paint.seam",
+    "GLGizmoFuzzySkin": "orca_paint.fuzzy_skin", "GLGizmoMmuSegmentation": "orca_paint.color", "GLGizmoTextureDisplacement": "gap", "GLGizmoEmboss": "orca_project.emboss",
+    "GLGizmoSVG": "orca_project.emboss", "GLGizmoMeasure": "measure_keep", "GLGizmoAssembly": "view", "GLGizmoSimplify": "orca_project.simplify",
+    "GLGizmoBrimEars": "orca_project.brim_ears",
 }
 # The plate's own buttons (PartPlate) and the G-code preview (GCodeViewer).
-PLATE_BUTTONS = {"delete": "orca_project", "arrange": "orca_project", "orient": "orca_project", "lock": "orca_project", "settings": "orca_project",
-                 "rename": "orca_project", "move to front": "orca_project"}
+PLATE_BUTTONS = {"delete": "orca_project.plate_remove", "arrange": "orca_project.arrange", "orient": "orca_project.orient", "lock": "orca_project.locked",
+                 "settings": "orca_project.plate", "rename": "orca_project.plater_name", "move to front": "orca_project.plate_move"}
 PREVIEW = {
-    "layers slider (one layer, a range)": "gcode_read", "moves slider (one move)": "gcode_read", "view: feature type": "gcode_read",
-    "view: height": "gcode_read", "view: width": "gcode_read", "view: speed": "gcode_read", "view: actual speed": "gcode_read",
-    "view: fan speed": "gcode_read", "view: temperature": "gcode_read", "view: volumetric flow": "gcode_read", "view: actual flow": "gcode_read",
-    "view: layer time": "gcode_read", "view: filament / tool": "gcode_read", "view: colour print": "gcode_read", "view: acceleration": "gcode_read",
-    "statistics: time and filament per feature": "gcode_read", "statistics: per filament and colour change": "gcode_read",
-    "show travel, wipe, retract, seams": "gcode_read", "pause / colour change / custom G-code on a layer": "orca_gcode",
-    "export the toolpaths as OBJ": "orca_export", "G-code window (the lines of the move)": "gcode_read",
+    "layers slider (one layer, a range)": "gcode_read", "moves slider (one move)": "gcode_read.move", "view: feature type": "gcode_read.feature",
+    "view: height": "gcode_read.height", "view: width": "gcode_read.width", "view: speed": "gcode_read.speed", "view: actual speed": "gcode_read.actual_speed",
+    "view: fan speed": "gcode_read.fan", "view: temperature": "gcode_read.temperature", "view: volumetric flow": "gcode_read.flow", "view: actual flow": "gcode_read.actual_flow",
+    "view: layer time": "gcode_read.layer_time", "view: filament / tool": "gcode_read.tool", "view: colour print": "gcode_read.tool", "view: acceleration": "gcode_read.acceleration",
+    "statistics: time and filament per feature": "gcode_read", "statistics: per filament and colour change": "orca_slice",
+    "show travel, wipe, retract, seams": "gcode_read.seams", "pause / colour change / custom G-code on a layer": "orca_project.gcode",
+    "export the toolpaths as OBJ": "gcode_read.toolpaths", "G-code window (the lines of the move)": "gcode_read.move",
 }
 SIDEBAR = {"printer preset": "slicer_presets", "process preset": "slicer_presets", "filament presets (each slot)": "slicer_presets",
-           "add / remove a filament slot": "orca_project", "filament colour": "orca_project", "bed type": "orca_project",
-           "flushing volumes": "orca_project", "slice plate": "slice_with", "slice all": "slice_read", "print plate / send": None, "export plate sliced file": "orca_export",
-           "compare presets": "slicer_presets", "save / rename / delete a preset": "slicer_presets", "edit a preset's settings": "orca_project"}
+           "add / remove a filament slot": "orca_project.filament", "filament colour": "orca_project.filament", "bed type": "orca_project.bed_type",
+           "flushing volumes": "orca_project.flush", "slice plate": "orca_slice", "slice all": "orca_slice", "print plate / send": None, "export plate sliced file": "orca_slice.gcode",
+           "compare presets": "slicer_presets", "save / rename / delete a preset": "slicer_presets", "edit a preset's settings": "orca_project.set"}
 
 
 def judge_menu(label):
@@ -165,12 +208,34 @@ def judge_menu(label):
 
 
 def agent_tools(al):
-    names = set()
+    """{tool name: the quoted words of the file it is defined in, and the
+    modules it imports from the add-on} — "tool.word" counts only when the
+    tool exists and its code names the word."""
+    texts = {}
     for root, _, files in os.walk(al):
         for f in files:
             if f.endswith(".py"):
-                names.update(re.findall(r'Tool\(\s*"([a-z_0-9]+)"', open(os.path.join(root, f), encoding="utf-8", errors="replace").read()))
-    return names
+                texts[os.path.join(root, f)] = open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
+    words_all = {p: set(re.findall(r'"([A-Za-z_0-9.]+)"', t)) for p, t in texts.items()}
+    tools = {}
+    for p, t in texts.items():
+        for name in re.findall(r'Tool\(\s*"([a-z_0-9]+)"', t):
+            w = set(words_all[p])
+            # Words of the add-on modules this file imports (orca3mf, slicers, calibrate …).
+            for mod in re.findall(r"from \.\.? import ([a-z_0-9, ]+)|from \.\.(\w+) import", t):
+                for m in [x.split()[0] for x in (mod[0] or mod[1]).split(",") if x.strip()]:
+                    for q, ww in words_all.items():
+                        if os.path.basename(q) == f"{m}.py":
+                            w |= ww
+            tools.setdefault(name, set()).update(w)
+    return tools
+
+
+def has(tools, cap):
+    if not cap:
+        return False
+    name, _, word = cap.partition(".")
+    return name in tools and (not word or word in tools[name])
 
 
 def main(inv_path, al, out=None):
@@ -179,9 +244,11 @@ def main(inv_path, al, out=None):
     rows = []
 
     def add(kind, name, group, tool, why="", fallback=None):
-        if group == "tool" and tool not in have and fallback in have:
+        if tool == "gap":
+            group, tool = "gap", None
+        if group == "tool" and not has(have, tool) and has(have, fallback):
             tool, why = fallback, f"today through {fallback}" + (f"; {why}" if why else "")
-        if group == "tool" and tool not in have:
+        if group == "tool" and not has(have, tool):
             group = "gap"
             why = f"needs {tool} (not built yet)" + (f"; {why}" if why else "")
         rows.append({"kind": kind, "name": name, "group": group, "tool": tool, "why": why})
@@ -194,7 +261,7 @@ def main(inv_path, al, out=None):
         g, t, why = judge_setting(r)
         # Process settings already go in headless, project-wide, as
         # slice_with's overrides.
-        add("setting", r["key"], g, t, why, fallback="slice_with" if r.get("preset") == "process" else None)
+        add("setting", r["key"], g, t, why)
     for k in inv["sla"]:
         add("setting", k, "na", None, "SLA: Orca prints FFF only")
     for k in inv["placeholders"]:
@@ -210,9 +277,10 @@ def main(inv_path, al, out=None):
         add("context", c, t if t in ("na", "view") else "tool", None if t in ("na", "view") else t)
     for t in inv["toolbar"]:
         tool = TOOLBAR.get(t["name"], "gap")
-        add("toolbar", t["name"], "view" if tool == "view" else ("tool" if tool != "gap" else "gap"), None if tool in ("view", "gap") else tool)
+        add("toolbar", t["name"], "view" if tool == "view" else "tool", None if tool == "view" else tool)
     for gz in inv["gizmos"]:
-        add("gizmo", gz["name"], "tool", GIZMOS.get(gz["name"]))
+        t = GIZMOS.get(gz["name"])
+        add("gizmo", gz["name"], "view" if t == "view" else "tool", None if t == "view" else t)
     for name, tool in PLATE_BUTTONS.items():
         add("plate", name, "tool", tool)
     for name, tool in PREVIEW.items():
@@ -227,7 +295,7 @@ def main(inv_path, al, out=None):
         kr = [r for r in rows if r["kind"] == k]
         kj = [r for r in kr if r["group"] in ("tool", "gap")]
         out_rows["byKind"][k] = {"rows": len(kr), "tool": sum(1 for r in kj if r["group"] == "tool"), "gap": sum(1 for r in kj if r["group"] == "gap")}
-    gaps = Counter(r["tool"] or "unjudged" for r in rows if r["group"] == "gap")
+    gaps = Counter(r["tool"] or r["name"] for r in rows if r["group"] == "gap")
     out_rows["gapsByTool"] = dict(gaps.most_common())
     out_rows["rows"] = rows
     if out:
