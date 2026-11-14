@@ -18,7 +18,7 @@ OWNER = "jamesK1000011"
 SOURCES = [
     # (repo, branch, folder in the repo, folder in Mod)
     ("FreeCAD-AgentLink", "main", "", "AgentLink"),
-    ("ScanRuler", "freecad-spike", "freecad/ScanRulerFC", "ScanRulerFC"),
+    ("ScanRuler-FreeCAD", "main", "", "ScanRulerFC"),
     ("OrcaSlicer-AgentLink", "main", "", "OrcaLink"),
 ]
 MOD = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")

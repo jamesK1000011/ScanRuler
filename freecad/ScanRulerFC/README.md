@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # ScanRuler for FreeCAD
 
+> **Moved (14 Nov 2026):** ScanRuler for FreeCAD now lives in its own repository, https://github.com/jamesK1000011/ScanRuler-FreeCAD, with its history. This folder is a frozen copy kept for launchers that still read it; it gets no changes.
+
 ScanRuler's measuring of 3D scans, ported to FreeCAD from **ScanRuler by
 CNC Kitchen** (https://github.com/CNCKitchen/ScanRuler; see NOTICE.md).
 Licensed AGPL-3.0-only, the same as ScanRuler.

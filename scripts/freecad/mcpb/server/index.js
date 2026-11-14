@@ -24,8 +24,19 @@ const HOME = os.homedir()
 // update) runs in place of this one, told where the extension's own files
 // are. A copy that fails to load leaves this one to serve.
 const LAUNCHER = path.join(HOME, '.config', 'freecad-agentlink', 'launcher', 'index.js')
+// This launcher's own stamp: a cached copy older than the one installed
+// with the extension never runs in its place (no downgrade).
+const LAUNCHER_STAMP = 20261114
+const stampOf = (file) => {
+  try {
+    const m = /const LAUNCHER_STAMP = (\d+)/.exec(fs.readFileSync(file, 'utf8'))
+    return m ? Number(m[1]) : 0
+  } catch {
+    return 0
+  }
+}
 let delegated = false
-if (!process.env.AGENTLINK_BUNDLE && process.env.AGENTLINK_UPDATE !== 'false' && fs.existsSync(LAUNCHER)) {
+if (!process.env.AGENTLINK_BUNDLE && process.env.AGENTLINK_UPDATE !== 'false' && fs.existsSync(LAUNCHER) && stampOf(LAUNCHER) >= LAUNCHER_STAMP) {
   process.env.AGENTLINK_BUNDLE = path.dirname(__dirname)
   try {
     require(LAUNCHER)
@@ -116,12 +127,18 @@ const OWNER = 'jamesK1000011'
 const SOURCES = [
   // Agent Link in its own repository since 14 Nov 2026 (it was the FreeCAD
   // fork's agent-link branch, src/Mod/AgentLink): the add-on at its root.
-  { repo: 'FreeCAD-AgentLink', branch: 'main', folder: '', dest: 'AgentLink' },
-  { repo: 'ScanRuler', branch: 'freecad-spike', folder: 'freecad/ScanRulerFC', dest: 'ScanRulerFC' },
+  { repo: 'FreeCAD-AgentLink', branch: 'main', folder: '', dest: 'AgentLink', pin: 'scripts/bakeoff/addon-ref' },
+  // ScanRuler for FreeCAD in its own repository since 14 Nov 2026 (it was
+  // ScanRuler's freecad/ScanRulerFC).
+  { repo: 'ScanRuler-FreeCAD', branch: 'main', folder: '', dest: 'ScanRulerFC', pin: 'scripts/bakeoff/scanrulerfc-ref' },
   // Agent Link for OrcaSlicer (no FreeCAD in it): Agent Link's orca tools,
   // found beside it in the Mod folder.
-  { repo: 'OrcaSlicer-AgentLink', branch: 'main', folder: '', dest: 'OrcaLink' },
+  { repo: 'OrcaSlicer-AgentLink', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'scripts/bakeoff/orcalink-ref' },
 ]
+// What is installed is what CI checked: each add-on at the commit pinned in
+// ScanRuler's freecad-spike (bumped only once the bake-off is green), and
+// this launcher from the same commit of ScanRuler.
+const CHANNEL = { repo: 'ScanRuler', branch: 'freecad-spike', launcher: 'scripts/freecad/mcpb/server/index.js' }
 const NAMES = SOURCES.map((s) => s.dest)
 const CACHE = path.join(HOME, '.config', 'freecad-agentlink')
 
@@ -192,9 +209,45 @@ function checkLauncher(text) {
   new Function('require', 'module', 'exports', '__dirname', '__filename', text.toString('utf8').replace(/^#!.*/, ''))
 }
 
-async function update() {
-  // A folder holding AgentLink and ScanRuler for FreeCAD stands in for
-  // GitHub: an install from a checkout, offline, or under test.
+/** A file name from a FILES list that stays inside its folder and fetches
+ *  the file it names: plain characters only, no "..", no leading slash. */
+function safeRel(p) {
+  return /^[A-Za-z0-9_][A-Za-z0-9._\-/ ]*$/.test(p) && !p.split('/').some((x) => x === '..' || x === '' || x === '.') && !p.endsWith('/')
+}
+
+const verDir = (v) => path.join(CACHE, 'addons-' + String(v).replace(/[^A-Za-z0-9.+_-]/g, '_'))
+function readState() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(CACHE, 'state.json'), 'utf8'))
+  } catch {
+    return {}
+  }
+}
+function writeState(st) {
+  fs.mkdirSync(CACHE, { recursive: true })
+  const f = path.join(CACHE, 'state.json')
+  fs.writeFileSync(f + '.tmp', JSON.stringify(st))
+  fs.renameSync(f + '.tmp', f)
+}
+
+/** The add-ons to serve now, with no network: the version last fetched and
+ *  passed, else the bundled copy. */
+function cachedAddons() {
+  const st = readState()
+  if (st.current && fs.existsSync(path.join(verDir(st.current), 'AgentLink'))) return { dir: verDir(st.current), version: st.current }
+  // A cache from before versioned folders.
+  if (st.version && fs.existsSync(path.join(CACHE, 'addons', 'AgentLink'))) return { dir: path.join(CACHE, 'addons'), version: st.version }
+  return null
+}
+
+/** The pinned commits on GitHub, fetched into a folder of their own when
+ *  they are new, smoke-tested there (check(dir) → { ok, failures }), and
+ *  only then made current — with the launcher of the same channel commit.
+ *  A version that fails is remembered and never fetched again. Returns
+ *  { dir, version } of what is current afterwards. */
+async function update(check) {
+  // A folder holding the add-ons stands in for GitHub: an install from a
+  // checkout, offline, or under test.
   const from = process.env.AGENTLINK_UPDATE_FROM && expand(process.env.AGENTLINK_UPDATE_FROM)
   if (from) {
     if (!fs.existsSync(path.join(from, 'AgentLink'))) throw new Error(`${from} holds no AgentLink folder`)
@@ -202,7 +255,6 @@ async function update() {
     try {
       v = 'local+' + fs.readFileSync(path.join(from, 'VERSION'), 'utf8').trim()
     } catch {}
-    // A launcher beside them is taken too, as one from GitHub would be.
     const next = path.join(from, 'launcher', 'index.js')
     if (fs.existsSync(next)) {
       const text = fs.readFileSync(next)
@@ -213,45 +265,72 @@ async function update() {
     }
     return { dir: from, version: v }
   }
-  const stateFile = path.join(CACHE, 'state.json')
-  let state = {}
-  try {
-    state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
-  } catch {}
-  const shas = await Promise.all(SOURCES.map((s) => headSha(s.repo, s.branch)))
-  const version = 'github+' + shas.map((x) => x.slice(0, 7)).join('+')
-  const dir = path.join(CACHE, 'addons')
-  if (state.version === version && fs.existsSync(path.join(dir, 'AgentLink'))) return { dir, version }
+  fs.mkdirSync(CACHE, { recursive: true })
+  const channel = await headSha(CHANNEL.repo, CHANNEL.branch)
+  const shas = await Promise.all(SOURCES.map(async (s) => {
+    if (s.pin) {
+      try {
+        const pinned = (await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${s.pin}`)).toString('utf8').trim()
+        if (/^[0-9a-f]{40}$/.test(pinned)) return pinned
+      } catch {}
+      log(`no pin for ${s.repo} at ${channel.slice(0, 7)}: its branch head is taken`)
+    }
+    return headSha(s.repo, s.branch)
+  }))
+  const version = 'github+' + shas.map((x) => x.slice(0, 7)).join('+') + '+' + channel.slice(0, 7)
+  const st = readState()
+  if (st.current === version && fs.existsSync(path.join(verDir(version), 'AgentLink'))) return { dir: verDir(version), version }
+  if ((st.bad || []).includes(version)) {
+    log(`${version} failed its smoke test before: kept out`)
+    return cachedAddons()
+  }
   const stage = fs.mkdtempSync(path.join(CACHE, 'stage-'))
   try {
     for (const [i, s] of SOURCES.entries()) {
-      const files = (await addonFiles(s, shas[i])).filter((p) => !/(^|\/)(__pycache__|tests)\//.test(p)).map((p) => ({ path: p }))
-      for (let k = 0; k < files.length; k += 8) {
-        await Promise.all(files.slice(k, k + 8).map(async (f) => {
-          const data = await getFile(`https://raw.githubusercontent.com/${OWNER}/${s.repo}/${shas[i]}/${inRepo(s.folder, f.path)}`)
-          const p = path.join(stage, s.dest, f.path)
+      const listed = (await addonFiles(s, shas[i])).filter((p) => !/(^|\/)(__pycache__|tests)\//.test(p))
+      const bad = listed.filter((p) => !safeRel(p))
+      if (bad.length) throw new Error(`${s.repo}'s FILES names paths that are not plain file names inside it: ${bad.slice(0, 3).join(', ')}`)
+      for (let k = 0; k < listed.length; k += 8) {
+        await Promise.all(listed.slice(k, k + 8).map(async (f) => {
+          const url = `https://raw.githubusercontent.com/${OWNER}/${s.repo}/${shas[i]}/${inRepo(s.folder, f).split('/').map(encodeURIComponent).join('/')}`
+          const p = path.resolve(stage, s.dest, f)
+          if (!p.startsWith(path.resolve(stage, s.dest) + path.sep)) throw new Error(`${f}: outside ${s.dest}`)
+          const data = await getFile(url)
           fs.mkdirSync(path.dirname(p), { recursive: true })
           fs.writeFileSync(p, data)
         }))
       }
     }
-    // The launcher, from the same branch as ScanRuler for FreeCAD.
-    const sr = SOURCES.findIndex((x) => x.repo === 'ScanRuler')
-    const launcher = await getFile(`https://raw.githubusercontent.com/${OWNER}/ScanRuler/${shas[sr]}/scripts/freecad/mcpb/server/index.js`)
+    const launcher = await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${CHANNEL.launcher}`)
     checkLauncher(launcher) // parses, or throws
-    fs.rmSync(dir, { recursive: true, force: true })
-    fs.renameSync(stage, dir)
-    fs.mkdirSync(path.dirname(LAUNCHER), { recursive: true })
-    fs.writeFileSync(LAUNCHER, launcher)
-    // CommonJS whatever a package.json further up says, or require fails.
-    fs.writeFileSync(path.join(path.dirname(LAUNCHER), 'package.json'), '{"type": "commonjs"}\n')
-    fs.writeFileSync(stateFile, JSON.stringify({ version, at: new Date().toISOString() }))
-    log(`fetched the add-ons from GitHub (${version})`)
-    return { dir, version }
+    fs.writeFileSync(path.join(stage, '.launcher.js'), launcher)
+    const verdict = check ? check(stage) : { ok: true }
+    if (!verdict.ok) {
+      writeState({ ...readState(), bad: [...(readState().bad || []), version].slice(-10) })
+      throw new Error(`the add-ons at ${version} failed the smoke test, so they are not used: ${(verdict.failures || []).join('; ').slice(0, 400)}`)
+    }
+    fs.rmSync(verDir(version), { recursive: true, force: true })
+    fs.renameSync(stage, verDir(version))
   } catch (e) {
     fs.rmSync(stage, { recursive: true, force: true })
     throw e
   }
+  const text = fs.readFileSync(path.join(verDir(version), '.launcher.js'))
+  if (stampOf(path.join(verDir(version), '.launcher.js')) >= LAUNCHER_STAMP) {
+    fs.mkdirSync(path.dirname(LAUNCHER), { recursive: true })
+    fs.writeFileSync(LAUNCHER, text)
+    // CommonJS whatever a package.json further up says, or require fails.
+    fs.writeFileSync(path.join(path.dirname(LAUNCHER), 'package.json'), '{"type": "commonjs"}\n')
+  }
+  const before = readState()
+  writeState({ ...before, current: version, previous: before.current || null, version, at: new Date().toISOString() })
+  // Older versions go; the one before stays to go back to.
+  for (const n of fs.readdirSync(CACHE)) {
+    if (n.startsWith('addons-') && n !== path.basename(verDir(version)) && n !== path.basename(verDir(before.current || '-'))) fs.rmSync(path.join(CACHE, n), { recursive: true, force: true })
+  }
+  fs.rmSync(path.join(CACHE, 'addons'), { recursive: true, force: true })
+  log(`fetched the add-ons from GitHub (${version}), smoke test passed`)
+  return { dir: verDir(version), version }
 }
 
 function bundledVersion() {
@@ -275,20 +354,97 @@ function install(modDir, src = ADDONS, v = bundledVersion()) {
   fs.mkdirSync(modDir, { recursive: true })
   for (const name of NAMES) {
     // A bundle from before a source was added has no copy of it.
-    if (fs.existsSync(path.join(src, name))) fs.cpSync(path.join(src, name), path.join(modDir, name), { recursive: true, force: true })
+    if (!fs.existsSync(path.join(src, name))) continue
+    // Copied whole beside it, then swapped in: files removed upstream go
+    // too, and a copy cut short never stands in the Mod folder.
+    const dest = path.join(modDir, name)
+    const fresh = `${dest}.new-${process.pid}`
+    const old = `${dest}.old-${process.pid}`
+    fs.rmSync(fresh, { recursive: true, force: true })
+    fs.cpSync(path.join(src, name), fresh, { recursive: true })
+    if (fs.existsSync(dest)) fs.renameSync(dest, old)
+    fs.renameSync(fresh, dest)
+    fs.rmSync(old, { recursive: true, force: true })
   }
   fs.writeFileSync(stamp, v + '\n')
   log(`installed the add-ons (${v}) into ${modDir}`)
   return true
 }
 
+/** The window link's pairing (agentlink/link_token.py in Agent Link): each
+ *  side proves it knows the secret in ~/.config/freecad-agentlink/link-token
+ *  (made by the window, mode 600) without sending it, so a program that took
+ *  the port first learns nothing and cannot pass for the window. Resolves
+ *  'paired'; 'old' when nothing answered the hello in time (a window from
+ *  before pairing ignores it); 'refused' when what answered is not the
+ *  window or there is no secret here. */
+const TOKEN_FILE = process.env.AGENTLINK_TOKEN_FILE || path.join(HOME, '.config', 'freecad-agentlink', 'link-token')
+function pairWindow(s, waitMs = 2500) {
+  const crypto = require('crypto')
+  let secret = null
+  try {
+    secret = fs.readFileSync(TOKEN_FILE, 'utf8').trim() || null
+  } catch {}
+  const proof = (role, nonce) => crypto.createHmac('sha256', secret).update(`${role}:${nonce}`).digest('hex')
+  return new Promise((resolve) => {
+    let buf = ''
+    let done = false
+    const finish = (v) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      s.removeListener('data', onData)
+      s.removeListener('close', onClose)
+      resolve(v)
+    }
+    const onClose = () => finish('refused')
+    const onData = (d) => {
+      buf += d.toString('utf8')
+      const i = buf.indexOf('\n')
+      if (i < 0) return
+      let p = null
+      try {
+        const m = JSON.parse(buf.slice(0, i))
+        if (m.jsonrpc === '2.0' && m.method === 'agentlink/hello' && m.params) p = m.params
+      } catch {}
+      const want = Buffer.from(proof('window', nonce))
+      const got = Buffer.from(p && typeof p.proof === 'string' ? p.proof : '')
+      if (!p || typeof p.nonce !== 'string' || got.length !== want.length || !crypto.timingSafeEqual(got, want)) {
+        log('what answered on the window port did not prove it is the FreeCAD window: not used')
+        return finish('refused')
+      }
+      s.write(JSON.stringify({ jsonrpc: '2.0', method: 'agentlink/proof', params: { proof: proof('client', p.nonce) } }) + '\n')
+      finish('paired')
+    }
+    const timer = setTimeout(() => finish('old'), waitMs)
+    if (!secret) {
+      // A window from before pairing makes no secret: it serves as it did.
+      clearTimeout(timer)
+      return resolve('old')
+    }
+    const nonce = crypto.randomBytes(16).toString('hex')
+    s.on('data', onData)
+    s.on('close', onClose)
+    s.write(JSON.stringify({ jsonrpc: '2.0', method: 'agentlink/hello', params: { nonce } }) + '\n')
+  })
+}
+
 function windowLink() {
   return new Promise((resolve) => {
     const s = net.createConnection({ host: '127.0.0.1', port: PORT })
-    const done = (ok) => {
+    const done = async (ok) => {
       s.removeAllListeners()
-      if (!ok) s.destroy()
-      resolve(ok ? s : null)
+      s.setTimeout(0)
+      if (!ok) {
+        s.destroy()
+        return resolve(null)
+      }
+      const how = await pairWindow(s)
+      if (how === 'refused') {
+        s.destroy()
+        return resolve(null)
+      }
+      resolve(s)
     }
     s.setTimeout(700, () => done(false))
     s.once('connect', () => done(true))
@@ -316,32 +472,18 @@ async function main() {
     return
   }
   log('FreeCAD:', fc.app)
-  let src = { dir: ADDONS, version: bundledVersion() }
-  if (process.env.AGENTLINK_UPDATE !== 'false') {
+  // Served at once from what is here — the version fetched and passed last
+  // time, else the copy bundled with the extension — so Claude gets its
+  // answer without waiting on the network. The newest pinned version is
+  // fetched and smoke-tested in the background and serves from the next
+  // start (or at once, by agentlink_update).
+  const updates = process.env.AGENTLINK_UPDATE !== 'false'
+  let src = (updates && cachedAddons()) || { dir: ADDONS, version: bundledVersion() }
+  if (updates && process.env.AGENTLINK_UPDATE_FROM) {
     try {
-      fs.mkdirSync(CACHE, { recursive: true })
-      src = (await update()) || src
-      // A launcher newer than this one came with it: it serves from now,
-      // not from the next start.
-      if (!process.env.AGENTLINK_RELAUNCHED && fs.existsSync(LAUNCHER) && fs.readFileSync(LAUNCHER, 'utf8') !== fs.readFileSync(__filename, 'utf8')) {
-        process.env.AGENTLINK_RELAUNCHED = '1'
-        process.env.AGENTLINK_BUNDLE = HERE
-        try {
-          delete require.cache[require.resolve(LAUNCHER)]
-          require(LAUNCHER)
-          log('handed over to the launcher just fetched')
-          return
-        } catch (e) {
-          log('the launcher just fetched did not load; this one serves:', e.message)
-        }
-      }
+      src = await update()
     } catch (e) {
-      log('no update from GitHub, the bundled add-ons serve:', e.message)
-      const cached = path.join(CACHE, 'addons')
-      try {
-        const st = JSON.parse(fs.readFileSync(path.join(CACHE, 'state.json'), 'utf8'))
-        if (fs.existsSync(path.join(cached, 'AgentLink'))) src = { dir: cached, version: st.version }
-      } catch {}
+      log('no update from the folder given:', e.message)
     }
   }
   const ud = userDir(fc)
@@ -377,6 +519,13 @@ async function main() {
   const [exe, args] = fc.py ? [fc.py, [script, '--out', OUT]] : [fc.cmd, [script]]
   log('headless:', exe, args.join(' '))
   headless(exe, args, e, { modDir, version: src.version })
+  if (updates && !process.env.AGENTLINK_UPDATE_FROM) {
+    setTimeout(() => {
+      update((dir) => smokeTest(exe, e, dir))
+        .then((got) => got && got.version !== src.version && log(`${got.version} is ready: it serves from the next start (agentlink_update switches now)`))
+        .catch((err) => log('no update from GitHub:', err.message))
+    }, 2000)
+  }
 }
 
 /** FreeCAD's Python serving, restarted when it dies (a crash in OCC takes the
@@ -560,9 +709,17 @@ function restartWindow() {
     const finish = (v) => { if (!done) { done = true; resolve(v) } }
     const s = net.connect(PORT, '127.0.0.1')
     s.on('error', () => finish(false))
-    s.on('connect', () => {
+    s.on('connect', async () => {
+      // Paired first; a window from before pairing ('old') still restarts
+      // onto the add-ons that pair. Nothing is sent to what is not the window.
+      if ((await pairWindow(s)) === 'refused') {
+        s.destroy()
+        return finish(false)
+      }
       s.write(JSON.stringify({ jsonrpc: '2.0', id: '__update', method: 'tools/call', params: { name: 'app_restart', arguments: {} } }) + '\n')
       let buf = ''
+      // Closed with no answer: the restart was not taken.
+      s.on('close', () => finish(false))
       s.on('data', (d) => {
         buf += d.toString('utf8')
         if (!buf.includes('\n')) return
@@ -596,15 +753,18 @@ function headless(exe, args, e, inst = {}) {
     const before = version
     try {
       fs.mkdirSync(CACHE, { recursive: true })
-      const got = await update()
+      const got = await update((dir) => smokeTest(exe, e, dir))
       if (!got) throw new Error('GitHub gave nothing')
       let snapshot = null
       if (inst.modDir && got.version !== before) {
         keepPrevious(inst.modDir)
         snapshot = snapshotSettings(exe, e)
         install(inst.modDir, got.dir, got.version)
+        // Smoke-tested before it was taken; once more in place, as installed.
         const smoke = smokeTest(exe, e, inst.modDir)
         if (!smoke.ok) {
+          const st = readState()
+          writeState({ ...st, current: st.previous || null, bad: [...(st.bad || []), got.version].slice(-10) })
           const aside = restorePrevious(inst.modDir, got.version)
           recordVersions({ addons: before }, { addons: got.version }, `smoke failed: rolled back (${(smoke.failures || []).join('; ').slice(0, 300)})`)
           reply(id, { error: { code: 'failed', message: `The new add-ons (${got.version}) failed the smoke test, so FreeCAD stays on ${before}: ${(smoke.failures || []).join('; ').slice(0, 600)}. They are kept at ${aside} for a look; nothing was restarted.` } }, true)
