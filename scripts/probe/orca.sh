@@ -6,7 +6,7 @@
 # the CLI's help. Files print between ==== BEGIN <name> / ==== END markers.
 [ -n "$AGENTLINK_PROBE_ORCA_SAMPLES" ] || exit 0
 out="$1"; orca="$AGENTLINK_ORCASLICER"
-AL="$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink"
+AL="$GITHUB_WORKSPACE/freecad-addon"
 python3 - "$out" "$AL" <<'PY'
 import sys, struct, json
 out, al = sys.argv[1], sys.argv[2]

@@ -28,14 +28,13 @@ jobs:
       - uses: actions/checkout@v5
       - id: cfg
         run: |
-          echo "ref=$(cat scripts/probe/addon-ref 2>/dev/null || echo agent-link)" >> "$GITHUB_OUTPUT"
+          echo "ref=$(cat scripts/probe/addon-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "series=$(cat scripts/probe/series 2>/dev/null || echo 1.1)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v5
         with:
-          repository: jamesK1000011/FreeCAD
+          repository: jamesK1000011/FreeCAD-AgentLink
           ref: ${{ steps.cfg.outputs.ref }}
           path: freecad-addon
-          sparse-checkout: src/Mod/AgentLink
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc${{ steps.cfg.outputs.series }}
@@ -79,12 +78,12 @@ jobs:
       - name: Probe
         run: |
           export FREECAD_LIB=$CONDA_PREFIX/lib
-          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC
+          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC
           [ -f scripts/probe/probe.py ] && timeout 600 python scripts/probe/probe.py || echo "probe exit $?"
       - name: Named tests
         run: |
           export FREECAD_LIB=$CONDA_PREFIX/lib
-          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC
-          cd freecad-addon/src/Mod/AgentLink/tests
+          export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/freecad/ScanRulerFC
+          cd freecad-addon/tests
           ids=$(grep -v '^#' $GITHUB_WORKSPACE/scripts/probe/tests 2>/dev/null | xargs)
           [ -n "$ids" ] && timeout 900 xvfb-run -a python -X faulthandler -m unittest -v $ids || true
