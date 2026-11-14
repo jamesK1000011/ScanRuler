@@ -134,6 +134,10 @@ const SOURCES = [
   // Agent Link for OrcaSlicer (no FreeCAD in it): Agent Link's orca tools,
   // found beside it in the Mod folder.
   { repo: 'OrcaSlicer-AgentLink', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'scripts/bakeoff/orcalink-ref' },
+  // FreeCAD Workshop (14 Nov 2026): plain FreeCAD add-ons whose tools load
+  // in Agent Link — Common (shared) and Parts (gen_make, gen_part) so far.
+  { repo: 'FreeCAD-Workshop', branch: 'main', folder: 'Common', dest: 'WorkshopCommon', pin: 'scripts/bakeoff/workshop-ref' },
+  { repo: 'FreeCAD-Workshop', branch: 'main', folder: 'Parts', dest: 'WorkshopParts', pin: 'scripts/bakeoff/workshop-ref' },
 ]
 // What is installed is what CI checked: each add-on at the commit pinned in
 // ScanRuler's freecad-spike (bumped only once the bake-off is green), and

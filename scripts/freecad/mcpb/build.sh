@@ -4,7 +4,7 @@
 # launcher, this manifest, and the add-ons it installs — each copied from
 # its checkout by its FILES list (what git tracks, nothing else lying in
 # the folder). Usage:
-#   build.sh AGENTLINK_DIR OUT [SCANRULERFC_DIR] [ORCALINK_DIR]
+#   build.sh AGENTLINK_DIR OUT [SCANRULERFC_DIR] [ORCALINK_DIR] [WORKSHOP_DIR]
 # SCANRULERFC_DIR: a checkout of ScanRuler-FreeCAD; ORCALINK_DIR: of
 # OrcaSlicer-AgentLink. Either left out is fetched at the first update.
 set -e
@@ -25,6 +25,7 @@ copy() { # copy SRC DEST: the files FILES lists, less tests
 copy "$AGENTLINK" AgentLink
 copy "${3:-}" ScanRulerFC
 copy "${4:-}" OrcaLink
+if [ -n "${5:-}" ]; then copy "$5/Common" WorkshopCommon; copy "$5/Parts" WorkshopParts; fi
 VERSION=$(python3 -c "import json;print(json.load(open('$HERE/manifest.json'))['version'])")
 echo "$VERSION+$(git -C "$AGENTLINK" rev-parse --short HEAD)+$(git -C "$HERE" rev-parse --short HEAD)" > "$STAGE/addons/VERSION"
 rm -f "$OUT"

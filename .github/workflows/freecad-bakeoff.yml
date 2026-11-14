@@ -47,6 +47,7 @@ jobs:
           echo "ref=$(cat scripts/bakeoff/addon-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "srfc=$(cat scripts/bakeoff/scanrulerfc-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "orca=$(cat scripts/bakeoff/orcalink-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
+          echo "workshop=$(cat scripts/bakeoff/workshop-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
       - name: The add-on, from its repository
         uses: actions/checkout@v5
         with:
@@ -65,6 +66,12 @@ jobs:
           repository: jamesK1000011/ScanRuler-FreeCAD
           ref: ${{ steps.ref.outputs.srfc }}
           path: scanrulerfc-addon
+      - name: FreeCAD Workshop, beside it
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/FreeCAD-Workshop
+          ref: ${{ steps.ref.outputs.workshop }}
+          path: workshop-addons
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc
@@ -85,7 +92,7 @@ jobs:
           # Both add-ons importable, as in FreeCAD's Mod folder: Agent Link
           # from the fork, ScanRuler for FreeCAD from this repo.
           echo "AGENTLINK_RENDERS=$GITHUB_WORKSPACE/bakeoff-out/freecad/renders" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/scanrulerfc-addon" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Common:$GITHUB_WORKSPACE/workshop-addons/Parts" >> "$GITHUB_ENV"
           echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
@@ -197,6 +204,7 @@ jobs:
           echo "ref=$(cat scripts/bakeoff/addon-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "srfc=$(cat scripts/bakeoff/scanrulerfc-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "orca=$(cat scripts/bakeoff/orcalink-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
+          echo "workshop=$(cat scripts/bakeoff/workshop-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
       - name: The add-on, from its repository
         uses: actions/checkout@v5
         with:
@@ -215,6 +223,12 @@ jobs:
           repository: jamesK1000011/ScanRuler-FreeCAD
           ref: ${{ steps.ref.outputs.srfc }}
           path: scanrulerfc-addon
+      - name: FreeCAD Workshop, beside it
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/FreeCAD-Workshop
+          ref: ${{ steps.ref.outputs.workshop }}
+          path: workshop-addons
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc${{ matrix.series }}
@@ -229,7 +243,7 @@ jobs:
       - name: FreeCAD imports
         run: |
           echo "FREECAD_LIB=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/scanrulerfc-addon" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Common:$GITHUB_WORKSPACE/workshop-addons/Parts" >> "$GITHUB_ENV"
           echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD; print('FreeCAD', FreeCAD.Version()[:3])"
       - name: Coverage audit on this release
