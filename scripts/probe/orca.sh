@@ -4,6 +4,7 @@
 # artifact store isn't reachable from every agent): an unsliced project from
 # two STLs with Agent Link's minimal profiles, the same project sliced, and
 # the CLI's help. Files print between ==== BEGIN <name> / ==== END markers.
+[ -n "$AGENTLINK_PROBE_ORCA_SAMPLES" ] || exit 0
 out="$1"; orca="$AGENTLINK_ORCASLICER"
 AL="$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink"
 python3 - "$out" "$AL" <<'PY'
