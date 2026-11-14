@@ -20,7 +20,7 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash -el {0}
@@ -47,6 +47,35 @@ jobs:
             gmsh
             numpy
           cache-environment: true
+      - name: OrcaSlicer
+        # The latest release's Linux AppImage, unpacked, as the bake-off has it.
+        timeout-minutes: 6
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name=$(gh api repos/OrcaSlicer/OrcaSlicer/releases/latest -q '[.assets[].name | select(endswith(".AppImage"))] | map(select(test("aarch64") | not)) | (map(select(test("2404"))) + .)[0]')
+          echo "asset: $name"
+          gh release download --repo OrcaSlicer/OrcaSlicer --pattern "$name" --dir "$RUNNER_TEMP/orca"
+          cd "$RUNNER_TEMP/orca" && chmod +x "$name" && "./$name" --appimage-extract > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends xvfb libopengl0 libegl1 libgl1 libwebkit2gtk-4.1-0 libgstreamer-plugins-base1.0-0 > /dev/null || true
+          echo "AGENTLINK_ORCASLICER=$RUNNER_TEMP/orca/squashfs-root/AppRun" >> "$GITHUB_ENV"
+          echo "AGENTLINK_ORCA_PRESETS=$RUNNER_TEMP/orca/squashfs-root/resources/profiles" >> "$GITHUB_ENV"
+      - name: Orca samples
+        # scripts/probe/orca.sh, when there: the Orca command line's own
+        # projects and answers, kept as an artifact to read.
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          mkdir -p "$RUNNER_TEMP/orca-out"
+          [ -f scripts/probe/orca.sh ] && timeout 540 bash scripts/probe/orca.sh "$RUNNER_TEMP/orca-out" || echo "no orca.sh"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orca-out
+          path: ${{ runner.temp }}/orca-out
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Probe
         run: |
           export FREECAD_LIB=$CONDA_PREFIX/lib
@@ -58,4 +87,4 @@ jobs:
           export PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon/src/Mod/AgentLink:$GITHUB_WORKSPACE/freecad/ScanRulerFC
           cd freecad-addon/src/Mod/AgentLink/tests
           ids=$(grep -v '^#' $GITHUB_WORKSPACE/scripts/probe/tests 2>/dev/null | xargs)
-          [ -n "$ids" ] && timeout 900 python -X faulthandler -m unittest -v $ids || true
+          [ -n "$ids" ] && timeout 900 xvfb-run -a python -X faulthandler -m unittest -v $ids || true
