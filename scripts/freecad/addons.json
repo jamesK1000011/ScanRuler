@@ -56,6 +56,13 @@
       "folder": "Electronics",
       "dest": "WorkshopElectronics",
       "pin": "scripts/bakeoff/workshop-ref"
+    },
+    {
+      "repo": "Workshop-FreeCAD",
+      "branch": "main",
+      "folder": "Documents",
+      "dest": "WorkshopDocuments",
+      "pin": "scripts/bakeoff/workshop-ref"
     }
   ]
 }
