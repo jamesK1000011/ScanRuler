@@ -17,7 +17,6 @@ import FreeCAD
 OWNER = "jamesK1000011"
 SOURCES = [
     # (repo, branch, folder in the repo, folder in Mod)
-    ("AddonKit-FreeCAD", "main", "", "AddonKit"),
     ("AgentLink-FreeCAD", "main", "", "AgentLink"),
     ("ScanRuler-FreeCAD", "main", "", "ScanRulerFC"),
     ("AgentLink-OrcaSlicer", "main", "", "OrcaLink"),
@@ -26,6 +25,7 @@ SOURCES = [
     ("Workshop-FreeCAD", "main", "Make", "WorkshopMake"),
     ("Workshop-FreeCAD", "main", "Electronics", "WorkshopElectronics"),
     ("Workshop-FreeCAD", "main", "Documents", "WorkshopDocuments"),
+    ("Texturizer-FreeCAD", "main", "", "Texturizer"),
 ]
 MOD = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")
 

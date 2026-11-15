@@ -2,13 +2,6 @@
   "about": "The add-ons the Claude extension's launcher installs into FreeCAD's Mod folder, each at the commit pinned in its file under scripts/bakeoff (bumped only once the bake-off is green). repo: a repository of jamesK1000011's; folder: the add-on's folder in it ('' for the root); dest: its folder in Mod. install_addons.py reads it too.",
   "sources": [
     {
-      "repo": "AddonKit-FreeCAD",
-      "branch": "main",
-      "folder": "",
-      "dest": "AddonKit",
-      "pin": "scripts/bakeoff/addonkit-ref"
-    },
-    {
       "repo": "AgentLink-FreeCAD",
       "branch": "main",
       "folder": "",
@@ -63,6 +56,13 @@
       "folder": "Documents",
       "dest": "WorkshopDocuments",
       "pin": "scripts/bakeoff/workshop-ref"
+    },
+    {
+      "repo": "Texturizer-FreeCAD",
+      "branch": "main",
+      "folder": "",
+      "dest": "Texturizer",
+      "pin": "scripts/bakeoff/texturizer-ref"
     }
   ]
 }
