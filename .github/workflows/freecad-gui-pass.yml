@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The automated GUI pass (scripts/freecad/gui-shots.sh): every add-on's
+# workbench, toolbars, docks, task panels and dialogs opened in FreeCAD's
+# Light and Dark and Agent Link's Studio Light and Dark, pictured and checked
+# by machine. The add-ons come from their main branches (not the bake-off
+# pins), so a fix pushed there is seen by the next run. Runs only on
+# request: "[guipass]" in a commit message, or Run workflow.
+name: FreeCAD GUI pass
+
+on:
+  push:
+    branches: [freecad-spike]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guipass
+  cancel-in-progress: true
+
+jobs:
+  gui:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[guipass]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/AgentLink-FreeCAD, path: freecad-addon }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/AgentLink-OrcaSlicer, path: orcalink-addon }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/ScanRuler-FreeCAD, path: scanrulerfc-addon }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/Texturizer-FreeCAD, path: texturizer-addon }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/SafetyNet-FreeCAD, path: safetynet-addon }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/Workshop-FreeCAD, path: workshop-addons }
+      - name: Which commits
+        run: for d in freecad-addon orcalink-addon scanrulerfc-addon texturizer-addon safetynet-addon workshop-addons; do echo "$d $(git -C $d rev-parse --short HEAD)"; done
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: fc
+          create-args: >-
+            -c conda-forge
+            freecad
+            python=3.11
+            numpy
+          cache-environment: true
+      - name: A virtual screen
+        run: sudo apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends xvfb > /dev/null
+      - name: The pass
+        timeout-minutes: 65
+        run: |
+          bash scripts/freecad/gui-shots.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/gui-out"
+          cat gui-out/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: The reports, in the log
+        if: always()
+        run: for f in gui-out/*/gui-report.json; do echo "=== REPORT $f"; cat "$f"; echo; echo "=== END"; done
+      - name: The pictures, in the log
+        if: always()
+        # The artifact store is out of reach from where the pictures are
+        # looked at; the log is not.
+        run: |
+          python - <<'PY'
+          import base64, glob, os
+          for p in sorted(glob.glob("gui-out/*/*.png")):
+              data = base64.b64encode(open(p, "rb").read()).decode()
+              print(f"=== RENDER {os.path.relpath(p, 'gui-out')} {len(data)}")
+              for i in range(0, len(data), 4000):
+                  print(data[i:i + 4000])
+              print("=== END")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gui-pass
+          path: gui-out/
+          if-no-files-found: warn
