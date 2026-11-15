@@ -18,6 +18,7 @@ const path = require('path')
 const net = require('net')
 const { spawn, spawnSync } = require('child_process')
 const readline = require('readline')
+const { PassThrough, Writable } = require('stream')
 
 const HOME = os.homedir()
 // The launcher itself updates too: a newer copy fetched last time (see
@@ -26,9 +27,9 @@ const HOME = os.homedir()
 const LAUNCHER = path.join(HOME, '.config', 'freecad-agentlink', 'launcher', 'index.js')
 // This launcher's own stamp: a cached copy older than the one installed
 // with the extension never runs in its place (no downgrade). Bumped with
-// every launcher change (16 Nov 2026: companions and the fallback list come
-// from addons.json; no add-on named beyond it).
-const LAUNCHER_STAMP = 20261116
+// every launcher change (17 Nov 2026: a newer launcher takes over in this
+// process, not as a spawned Node, which Claude's built-in Node refuses).
+const LAUNCHER_STAMP = 20261117
 const stampOf = (file) => {
   try {
     const m = /const LAUNCHER_STAMP = (\d+)/.exec(fs.readFileSync(file, 'utf8'))
@@ -50,6 +51,10 @@ if (!process.env.AGENTLINK_BUNDLE && process.env.AGENTLINK_UPDATE !== 'false' &&
     process.stderr.write(`freecad-agentlink: the updated launcher did not load (${e.message}); the installed one serves\n`)
   }
 }
+// The streams this copy serves on: the process's own, or, for a launcher
+// that took over from an older one in the same process (startHandedOver),
+// the ones that one hands it.
+let IO = { stdin: process.stdin, stdout: process.stdout }
 const HERE = process.env.AGENTLINK_BUNDLE || path.dirname(__dirname)
 const ADDONS = path.join(HERE, 'addons')
 const PORT = Number(process.env.AGENTLINK_PORT || 7318)
@@ -544,7 +549,7 @@ function windowLink() {
 function protocolOut(stream, tag) {
   const rl = readline.createInterface({ input: stream })
   rl.on('line', (line) => {
-    if (line.startsWith('{')) process.stdout.write(line + '\n')
+    if (line.startsWith('{')) IO.stdout.write(line + '\n')
     else if (line.trim()) log(`${tag}:`, line)
   })
   return rl
@@ -592,7 +597,7 @@ async function main() {
   const sock = fc.py || fc.cmd ? null : await windowLink()
   if (sock) {
     log(`relaying to the FreeCAD window on port ${PORT}`)
-    process.stdin.pipe(sock)
+    IO.stdin.pipe(sock)
     protocolOut(sock, 'window')
     sock.on('close', () => process.exit(0))
     return
@@ -872,7 +877,7 @@ function headless(exe, args, e, inst = {}) {
   let restarts = []
   let version = inst.version
   const reply = (id, payload, isError = false) =>
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(payload) }], isError } }) + '\n')
+    IO.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(payload) }], isError } }) + '\n')
   async function selfUpdate(id) {
     const before = version
     try {
@@ -905,15 +910,16 @@ function headless(exe, args, e, inst = {}) {
       }
       updating = true
       const windowed = await restartWindow()
-      if (newerLauncher()) {
+      const next = newerLauncher() ? loadNewer() : null
+      if (next) {
         // A newer launcher came with these add-ons: it takes over this
         // connection in place of this one, no restart of Claude.
         reply(id, { before, after: version, restarted: true, launcher: 'updated: the new launcher serves from now on', ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), note: 'FreeCAD started again on the new add-ons, under the new launcher. New tools are listed.' })
-        handover()
+        handover(next)
         return
       }
       child.kill()
-      reply(id, { before, after: version, restarted: true, ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), note: windowed && windowed.refused
+      reply(id, { before, after: version, restarted: true, ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), ...(next === false ? { launcher: 'kept: the updated launcher did not load, so this one keeps serving (launcher.log says why)' } : {}), note: windowed && windowed.refused
         ? `The hidden FreeCAD runs the new add-ons, but the window did not restart and keeps the old ones: ${windowed.refused} Then app_restart.`
         : windowed
           ? 'FreeCAD started again on the new add-ons: the window reopens its documents (calls wait for it, up to 90 s), the one in front back in front. New tools are listed.'
@@ -961,7 +967,7 @@ function headless(exe, args, e, inst = {}) {
           }
         } catch {}
       }
-      process.stdout.write(line + '\n')
+      IO.stdout.write(line + '\n')
     })
     readline.createInterface({ input: child.stderr }).on('line', (l) => logFile.write(`freecad! ${l}\n`))
     child.on('exit', (code, sig) => {
@@ -975,7 +981,7 @@ function headless(exe, args, e, inst = {}) {
       const why = planned ? 'was started again on the updated add-ons' : sig ? `stopped by ${sig}` : `exited with code ${code}`
       for (const [id, method] of pending) {
         const text = JSON.stringify({ error: { code: 'failed', message: `FreeCAD ${why} during this call and has been started again: the document and everything not saved in it is gone. session_state shows the fresh one; make the part again or doc_open what was saved. If the same call does this again, it is the call — try another way.` } })
-        process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result: method === 'tools/call' ? { content: [{ type: 'text', text }], isError: true } : {} }) + '\n')
+        IO.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result: method === 'tools/call' ? { content: [{ type: 'text', text }], isError: true } : {} }) + '\n')
       }
       pending.clear()
       const now = Date.now()
@@ -989,49 +995,58 @@ function headless(exe, args, e, inst = {}) {
       // The fresh process is told the session has begun.
       send(JSON.stringify({ jsonrpc: '2.0', id: '__restart', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }))
       send(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))
-      if (planned) process.stdout.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n')
+      if (planned) IO.stdout.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n')
     })
   }
-  // Handover: the newer launcher runs as a child of this one, which from then
-  // on only relays lines both ways. It is told the session has begun; the
+  // Handover: the newer launcher runs in this same process, on streams this
+  // one hands it; from then on this one only passes lines both ways. It is
+  // not started as a second Node: Claude Desktop's built-in Node (Electron's
+  // helper) refuses child_process.fork and spawning process.execPath, and a
+  // refused spawn once left the client with no server until Claude
+  // restarted the extension. The new one is told the session has begun; the
   // client is told the tool list changed.
   let relay = null
-  function handover() {
+  function handover(next) {
+    const input = new PassThrough()
+    let buf = ''
+    const output = new Writable({
+      write(chunk, _enc, done) {
+        buf += chunk
+        let i
+        while ((i = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, i)
+          buf = buf.slice(i + 1)
+          let mid
+          try {
+            mid = JSON.parse(line).id
+          } catch {}
+          IO.stdout.write(mid === '__handover' ? JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n' : line + '\n')
+        }
+        done()
+      },
+    })
+    relay = input
     ending = true
     if (child) child.kill()
-    // Claude Desktop's own Node is an Electron binary: it runs a script as
-    // Node only when told so.
-    const env4 = { ...process.env, AGENTLINK_BUNDLE: HERE, ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }
-    const next = spawn(process.execPath, [LAUNCHER], { env: env4, stdio: ['pipe', 'pipe', 'pipe'] })
-    relay = next
-    const began = Date.now()
-    log('handed over to the updated launcher', LAUNCHER, process.execPath, process.versions.electron ? `(electron ${process.versions.electron})` : '')
-    readline.createInterface({ input: next.stderr }).on('line', (l) => logFile.write(`launcher! ${l}\n`))
-    next.on('error', (err) => log('the updated launcher did not start:', err.message))
-    readline.createInterface({ input: next.stdout }).on('line', (line) => {
-      let id
-      try {
-        id = JSON.parse(line).id
-      } catch {}
-      if (id === '__handover') {
-        process.stdout.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n')
-        return
-      }
-      process.stdout.write(line + '\n')
-    })
-    next.on('exit', (code, sig) => {
-      // Ended: so does this one, and Claude starts the extension again on
-      // the updated launcher at the next call.
-      log(`the updated launcher ended (${code ?? sig}) after ${Math.round((Date.now() - began) / 1000)} s`)
-      process.exit(code ?? 0)
-    })
-    next.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: '__handover', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }) + '\n')
-    next.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n')
+    log('handed over to the updated launcher in this process', LAUNCHER, process.versions.electron ? `(electron ${process.versions.electron})` : `(node ${process.version})`)
+    Promise.resolve()
+      .then(() => next.startHandedOver({ stdin: input, stdout: output, state: { bundle: HERE, version } }))
+      .catch((err) => {
+        // It failed to start: this one serves again, on a fresh FreeCAD.
+        log(`the updated launcher did not start (${err && err.message}); this one keeps serving`)
+        relay = null
+        ending = false
+        start()
+        send(JSON.stringify({ jsonrpc: '2.0', id: '__restart', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }))
+        send(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))
+      })
+    input.write(JSON.stringify({ jsonrpc: '2.0', id: '__handover', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'freecad-agentlink-launcher', version: '1' } } }) + '\n')
+    input.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n')
   }
   start()
-  readline.createInterface({ input: process.stdin }).on('line', (line) => {
+  readline.createInterface({ input: IO.stdin }).on('line', (line) => {
     if (relay) {
-      relay.stdin.write(line + '\n')
+      relay.write(line + '\n')
       return
     }
     let msg = null
@@ -1048,7 +1063,7 @@ function headless(exe, args, e, inst = {}) {
     send(line)
   }).on('close', () => {
     ending = true
-    if (relay) relay.stdin.end()
+    if (relay) relay.end()
     if (child) child.stdin.end()
   })
 }
@@ -1065,9 +1080,54 @@ function newerLauncher() {
   }
 }
 
+/** The newer launcher, loaded into this process to take over (handover),
+ *  or false, said once in the log, if it cannot: it does not load, cannot
+ *  take over a running connection, or is a copy already loaded here. */
+const failedLoads = new Set()
+function loadNewer() {
+  const crypto = require('crypto')
+  const hash = (b) => crypto.createHash('sha256').update(b).digest('hex')
+  const loaded = (global.__agentlinkLaunchers = global.__agentlinkLaunchers || new Set())
+  loaded.add(hash(OWN_TEXT))
+  let key = ''
+  try {
+    const text = fs.readFileSync(LAUNCHER)
+    key = hash(text)
+    if (loaded.has(key)) throw new Error('that copy is already loaded in this process')
+    // One that does not know startHandedOver would start serving on the
+    // process's own stdin beside this one as it loads.
+    if (!text.includes('startHandedOver')) throw new Error('it cannot take over a running connection')
+    delete require.cache[require.resolve(LAUNCHER)]
+    process.env.AGENTLINK_BUNDLE = HERE
+    global.__agentlinkHandover = true
+    let mod
+    try {
+      mod = require(LAUNCHER)
+    } finally {
+      global.__agentlinkHandover = false
+    }
+    if (!mod || typeof mod.startHandedOver !== 'function') throw new Error('it has no startHandedOver')
+    loaded.add(key)
+    return mod
+  } catch (e) {
+    if (!failedLoads.has(key)) log(`the updated launcher did not load (${e.message}); this one keeps serving`)
+    failedLoads.add(key)
+    return false
+  }
+}
+
+/** Serves on streams an older launcher in this process hands over, from
+ *  the session it began: rejects if it cannot start, so that one serves on. */
+function startHandedOver({ stdin, stdout, state = {} }) {
+  IO = { stdin, stdout }
+  log(`took over from the launcher in this process (add-ons ${state.version || '?'})`)
+  return main()
+}
+module.exports = { startHandedOver }
+
 /** No FreeCAD: still a server, so Claude shows why instead of a dead entry. */
 function serveError(message) {
-  const rl = readline.createInterface({ input: process.stdin })
+  const rl = readline.createInterface({ input: IO.stdin })
   rl.on('line', (line) => {
     let msg
     try {
@@ -1081,11 +1141,11 @@ function serveError(message) {
     else if (msg.method === 'tools/list') result = { tools: [{ name: 'freecad_status', description: 'Why Agent Link for FreeCAD is not running.', inputSchema: { type: 'object', properties: {} } }] }
     else if (msg.method === 'tools/call') result = { content: [{ type: 'text', text: message }], isError: true }
     else result = {}
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }) + '\n')
+    IO.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }) + '\n')
   })
 }
 
-if (!delegated) {
+if (!delegated && !global.__agentlinkHandover) {
   main().catch((e) => {
     log('launcher failed:', e.stack || e.message)
     process.exit(1)
