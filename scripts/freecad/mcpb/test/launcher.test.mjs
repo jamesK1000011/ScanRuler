@@ -10,6 +10,16 @@ import readline from 'node:readline'
 import assert from 'node:assert/strict'
 
 const here = path.dirname(new URL(import.meta.url).pathname)
+
+// The launcher names no add-on beyond the data list: its built-in fallbacks
+// are the lists in scripts/freecad/addons.json, field for field.
+{
+  const text = fs.readFileSync(path.join(here, '..', 'server', 'index.js'), 'utf8')
+  const data = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'addons.json'), 'utf8'))
+  const literal = (name) => new Function(`return ${new RegExp(`const ${name} = (\\[[\\s\\S]*?\\n\\])`).exec(text)[1]}`)()
+  assert.deepEqual(literal('SOURCES'), data.sources.map((s) => ({ repo: s.repo, branch: s.branch, folder: s.folder, dest: s.dest, pin: s.pin })), 'the built-in SOURCES are addons.json\'s sources')
+  assert.deepEqual(literal('COMPANIONS_DEFAULT'), data.companions, 'the built-in companions are addons.json\'s companions')
+}
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentlink-launcher-'))
 const app = path.join(root, 'FreeCAD.app')
 const bin = path.join(app, 'Contents', 'Resources', 'bin')
@@ -154,7 +164,7 @@ try {
   const upd = list.result.tools.find((t) => t.name === 'agentlink_update')
   assert.match(upd.description, /^NEWER/, 'the new launcher serves')
   assert.equal((await tool('anything')).result.content[0].text, '4.0')
-  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update, installs a new add-on, hands over to a newer launcher')
+  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update, installs a new add-on, hands over to a newer launcher; its built-in lists are addons.json\'s')
 } finally {
   child.stdin.end()
   child.kill()

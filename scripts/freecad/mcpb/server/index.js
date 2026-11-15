@@ -25,8 +25,10 @@ const HOME = os.homedir()
 // are. A copy that fails to load leaves this one to serve.
 const LAUNCHER = path.join(HOME, '.config', 'freecad-agentlink', 'launcher', 'index.js')
 // This launcher's own stamp: a cached copy older than the one installed
-// with the extension never runs in its place (no downgrade).
-const LAUNCHER_STAMP = 20261115
+// with the extension never runs in its place (no downgrade). Bumped with
+// every launcher change (16 Nov 2026: companions and the fallback list come
+// from addons.json; no add-on named beyond it).
+const LAUNCHER_STAMP = 20261116
 const stampOf = (file) => {
   try {
     const m = /const LAUNCHER_STAMP = (\d+)/.exec(fs.readFileSync(file, 'utf8'))
@@ -127,35 +129,38 @@ function userDir(fc) {
 // a fix reaches this Mac without a new extension. The bundled copy is the
 // fallback when GitHub cannot be reached.
 const OWNER = 'jamesK1000011'
-// The list below is the fallback: the list in force is
-// scripts/freecad/addons.json at the pinned channel commit (same fields),
-// so a new add-on needs no new launcher.
+// The list below is only the fallback, kept equal to addons.json (the
+// launcher test checks): the list in force is scripts/freecad/addons.json
+// at the pinned channel commit (same fields), so a new add-on needs no new
+// launcher, and this file names no add-on beyond that list.
 const SOURCES = [
-  // AddonKit for FreeCAD (14 Nov 2026): the library Agent Link and the
-  // add-ons share (records, shapes, fits, data files).
-  { repo: 'AddonKit-FreeCAD', branch: 'main', folder: '', dest: 'AddonKit', pin: 'scripts/bakeoff/addonkit-ref' },
-  // Agent Link in its own repository since 14 Nov 2026 (it was the FreeCAD
-  // fork's agent-link branch, src/Mod/AgentLink): the add-on at its root.
+  // The hub: Agent Link, its own repository since 14 Nov 2026.
   { repo: 'AgentLink-FreeCAD', branch: 'main', folder: '', dest: 'AgentLink', pin: 'scripts/bakeoff/addon-ref' },
-  // ScanRuler for FreeCAD in its own repository since 14 Nov 2026 (it was
-  // ScanRuler's freecad/ScanRulerFC).
   { repo: 'ScanRuler-FreeCAD', branch: 'main', folder: '', dest: 'ScanRulerFC', pin: 'scripts/bakeoff/scanrulerfc-ref' },
-  // Agent Link for OrcaSlicer (no FreeCAD in it): Agent Link's orca tools,
-  // found beside it in the Mod folder.
   { repo: 'AgentLink-OrcaSlicer', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'scripts/bakeoff/orcalink-ref' },
-  // Workshop for FreeCAD (14 Nov 2026): plain FreeCAD add-ons whose tools load
-  // in Agent Link — Common (the Workshop workbench), Parts (gen_make, gen_part) and Make (fits, threads, encased parts so far).
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Common', dest: 'WorkshopCommon', pin: 'scripts/bakeoff/workshop-ref' },
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Parts', dest: 'WorkshopParts', pin: 'scripts/bakeoff/workshop-ref' },
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Make', dest: 'WorkshopMake', pin: 'scripts/bakeoff/workshop-ref' },
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Electronics', dest: 'WorkshopElectronics', pin: 'scripts/bakeoff/workshop-ref' },
+  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Documents', dest: 'WorkshopDocuments', pin: 'scripts/bakeoff/workshop-ref' },
+  { repo: 'Texturizer-FreeCAD', branch: 'main', folder: '', dest: 'Texturizer', pin: 'scripts/bakeoff/texturizer-ref' },
+  { repo: 'SafetyNet-FreeCAD', branch: 'main', folder: '', dest: 'SafetyNet', pin: 'scripts/bakeoff/safetynet-ref' },
 ]
 // What is installed is what CI checked: each add-on at the commit pinned in
 // ScanRuler's freecad-spike (bumped only once the bake-off is green), and
 // this launcher from the same commit of ScanRuler.
 const CHANNEL = { repo: 'ScanRuler', branch: 'freecad-spike', launcher: 'scripts/freecad/mcpb/server/index.js' }
 const MANIFEST = 'scripts/freecad/addons.json'
-const NAMES = SOURCES.map((s) => s.dest)
+/** The Mod folders of ours when none were written down at install: the
+ *  list the current add-ons came with, else the built-in one. */
+function knownNames() {
+  try {
+    const st = readState()
+    const listed = checkSources(JSON.parse(fs.readFileSync(path.join(verDir(st.current), '.sources.json'), 'utf8')))
+    if (listed) return listed.map((s) => s.dest)
+  } catch {}
+  return SOURCES.map((s) => s.dest)
+}
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 /** A manifest's sources, each checked: a repository of OWNER's, a folder in
@@ -180,11 +185,11 @@ function namesIn(dir) {
     const listed = JSON.parse(fs.readFileSync(path.join(dir, 'AgentLink', '.installed-names'), 'utf8'))
     if (Array.isArray(listed) && listed.every((n) => SAFE_NAME.test(n))) return listed
   } catch {}
-  if (path.basename(dir) === 'Mod') return NAMES
+  if (path.basename(dir) === 'Mod') return knownNames()
   try {
     return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && SAFE_NAME.test(d.name) && d.name !== 'launcher').map((d) => d.name)
   } catch {
-    return NAMES
+    return knownNames()
   }
 }
 
@@ -254,7 +259,7 @@ async function addonFiles(s, sha) {
 }
 
 /** The cached add-ons brought up to the branches' heads. Returns the folder
- *  holding AgentLink and ScanRulerFC, and its version, or null. */
+ *  holding the add-ons the list names, and its version, or null. */
 /** A fetched launcher must parse before it is kept: as Node loads a file,
  *  a first line #! is not code. */
 function checkLauncher(text) {
@@ -321,7 +326,9 @@ async function update(check) {
   const channel = await headSha(CHANNEL.repo, CHANNEL.branch)
   let sources = SOURCES
   try {
-    const listed = checkSources(JSON.parse((await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${MANIFEST}`)).toString('utf8')).sources)
+    const manifest = JSON.parse((await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${MANIFEST}`)).toString('utf8'))
+    const listed = checkSources(manifest.sources)
+    keepCompanions(manifest.companions)
     if (listed) sources = listed
     else log(`${MANIFEST} at ${channel.slice(0, 7)} is not a list this launcher takes: the built-in one serves`)
   } catch (e) {
@@ -620,13 +627,48 @@ async function main() {
 // (BumpMesh), brought up to their branch by the same update, and their
 // running copy stopped so Claude starts it again on the new code. The list
 // is a local setting (~/AgentLink/companions.json, a list like the default);
-// a clone with work of its own is left as it is and said.
+// The list in force is the "companions" key of addons.json at the pinned
+// channel commit (kept by the last update, below), else the built-in one
+// here (kept equal to addons.json; the launcher test checks); a local
+// setting (~/AgentLink/companions.json, a list of the same shape) wins over
+// both. A clone with work of its own is left as it is and said.
 const COMPANIONS_DEFAULT = [
-  { name: 'bumpmesh', dir: '~/src/bumpmesh', url: `https://github.com/${OWNER}/stlTexturizer.git`, branch: 'agent-link', process: 'mcp/' },
+  { name: 'bumpmesh', dir: '~/src/bumpmesh', url: 'https://github.com/jamesK1000011/stlTexturizer.git', branch: 'agent-link', process: 'mcp/' },
 ]
+const COMPANIONS_KEPT = path.join(CACHE, 'companions.json')
+
+/** A companions list from the manifest, each checked: a name, a folder
+ *  under the home folder, a repository of OWNER's, a branch, a process
+ *  path. null if any is not. */
+function checkCompanions(list) {
+  if (!Array.isArray(list)) return null
+  for (const c of list) {
+    if (!c || !SAFE_NAME.test(c.name || '') || !SAFE_NAME.test(c.branch || '')) return null
+    if (!/^~\/./.test(c.dir || '') || !safeRel(String(c.dir).slice(2))) return null
+    if (!new RegExp(`^https://github\\.com/${OWNER}/[A-Za-z0-9._-]+\\.git$`).test(c.url || '')) return null
+    if (c.process && !/^[A-Za-z0-9_][A-Za-z0-9._\-/]*$/.test(c.process)) return null
+  }
+  return list.map((c) => ({ name: c.name, dir: c.dir, url: c.url, branch: c.branch, ...(c.process ? { process: c.process } : {}) }))
+}
+
+/** The manifest's companions kept for companions(); a list this launcher
+ *  does not take is said and left out (the one kept before serves). */
+function keepCompanions(list) {
+  if (list === undefined) return
+  const ok = checkCompanions(list)
+  if (!ok) return log(`${MANIFEST}'s companions are not a list this launcher takes: kept as they were`)
+  try {
+    fs.mkdirSync(CACHE, { recursive: true })
+    fs.writeFileSync(COMPANIONS_KEPT + '.tmp', JSON.stringify(ok))
+    fs.renameSync(COMPANIONS_KEPT + '.tmp', COMPANIONS_KEPT)
+  } catch {}
+}
 
 function companions() {
   let list = COMPANIONS_DEFAULT
+  try {
+    list = checkCompanions(JSON.parse(fs.readFileSync(COMPANIONS_KEPT, 'utf8'))) || list
+  } catch {}
   try {
     list = JSON.parse(fs.readFileSync(path.join(os.homedir(), 'AgentLink', 'companions.json'), 'utf8'))
   } catch {}
