@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Agent Link for FreeCAD's Claude Desktop extension (.mcpb), released: built
+# by scripts/freecad/mcpb/build.sh from the add-ons at the commits pinned in
+# scripts/bakeoff (the ones the bake-off passed), put through the privacy
+# and identity check, and only then attached to a release of the tag.
+# Tag-triggered only (agentlink-v*), so it costs no minutes otherwise; it
+# leaves ScanRuler's own release (release.yml, v* tags) alone.
+name: Agent Link extension release
+
+on:
+  push:
+    tags: ['agentlink-v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mcpb-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mcpb:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: The pinned commits
+        id: ref
+        run: |
+          for k in addon scanrulerfc orcalink workshop texturizer safetynet; do
+            echo "$k=$(cat scripts/bakeoff/$k-ref)" >> "$GITHUB_OUTPUT"
+          done
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/AgentLink-FreeCAD, ref: '${{ steps.ref.outputs.addon }}', path: pinned/agentlink }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/ScanRuler-FreeCAD, ref: '${{ steps.ref.outputs.scanrulerfc }}', path: pinned/scanrulerfc }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/AgentLink-OrcaSlicer, ref: '${{ steps.ref.outputs.orcalink }}', path: pinned/orcalink }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/Workshop-FreeCAD, ref: '${{ steps.ref.outputs.workshop }}', path: pinned/workshop }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/Texturizer-FreeCAD, ref: '${{ steps.ref.outputs.texturizer }}', path: pinned/texturizer }
+      - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/SafetyNet-FreeCAD, ref: '${{ steps.ref.outputs.safetynet }}', path: pinned/safetynet }
+      - name: Build the extension
+        run: |
+          mkdir -p dist
+          p="$PWD/pinned"
+          sh scripts/freecad/mcpb/build.sh "$p/agentlink" "$PWD/dist/freecad-agentlink.mcpb" \
+            "$p/scanrulerfc" "$p/orcalink" "$p/workshop" "$p/texturizer" "$p/safetynet"
+      # Findings fail the job: nothing is published until they are fixed.
+      - name: Privacy and identity check of the built file
+        run: python3 .github/privacy/check.py dist/
+      - name: Attach it to the tag's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/freecad-agentlink.mcpb --clobber
+          else
+            gh release create "$TAG" --verify-tag --title "Agent Link for FreeCAD ${TAG#agentlink-v}" --notes "Claude Desktop extension, built from the pinned add-ons and checked for privacy and identity before upload." dist/freecad-agentlink.mcpb
+          fi
