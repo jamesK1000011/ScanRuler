@@ -20,7 +20,6 @@ SOURCES = [
     ("AgentLink-FreeCAD", "main", "", "AgentLink"),
     ("ScanRuler-FreeCAD", "main", "", "ScanRulerFC"),
     ("AgentLink-OrcaSlicer", "main", "", "OrcaLink"),
-    ("Workshop-FreeCAD", "main", "Common", "WorkshopCommon"),
     ("Workshop-FreeCAD", "main", "Parts", "WorkshopParts"),
     ("Workshop-FreeCAD", "main", "Make", "WorkshopMake"),
     ("Workshop-FreeCAD", "main", "Electronics", "WorkshopElectronics"),

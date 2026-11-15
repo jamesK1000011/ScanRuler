@@ -106,7 +106,7 @@ jobs:
           # Both add-ons importable, as in FreeCAD's Mod folder: Agent Link
           # from the fork, ScanRuler for FreeCAD from this repo.
           echo "AGENTLINK_RENDERS=$GITHUB_WORKSPACE/bakeoff-out/freecad/renders" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/texturizer-addon:$GITHUB_WORKSPACE/safetynet-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Common:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make:$GITHUB_WORKSPACE/workshop-addons/Electronics:$GITHUB_WORKSPACE/workshop-addons/Documents:$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/texturizer-addon:$GITHUB_WORKSPACE/safetynet-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make:$GITHUB_WORKSPACE/workshop-addons/Electronics:$GITHUB_WORKSPACE/workshop-addons/Documents:$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
@@ -169,7 +169,7 @@ jobs:
           code=0
           python -X faulthandler -m unittest discover -s texturizer-addon/tests > "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           python -X faulthandler -m unittest discover -s safetynet-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
-          for d in Common Parts Make Electronics Documents; do python -X faulthandler -m unittest discover -s workshop-addons/$d/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?; done
+          for d in Parts Make Electronics Documents; do python -X faulthandler -m unittest discover -s workshop-addons/$d/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?; done
           python -X faulthandler -m unittest discover -s orcalink-addon/tests -p test_freecad_bridge.py >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           python -X faulthandler -m unittest discover -s scanrulerfc-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           grep -E '^(Ran|OK|FAILED|ERROR:|FAIL:)' "$RUNNER_TEMP/addons.log" | tail -n 60

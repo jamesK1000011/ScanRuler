@@ -25,13 +25,6 @@
     {
       "repo": "Workshop-FreeCAD",
       "branch": "main",
-      "folder": "Common",
-      "dest": "WorkshopCommon",
-      "pin": "scripts/bakeoff/workshop-ref"
-    },
-    {
-      "repo": "Workshop-FreeCAD",
-      "branch": "main",
       "folder": "Parts",
       "dest": "WorkshopParts",
       "pin": "scripts/bakeoff/workshop-ref"
