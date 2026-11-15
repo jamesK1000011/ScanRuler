@@ -32,8 +32,9 @@ PREFIXES = tuple(p for p in os.environ.get("GUI_PREFIXES", "AgentLink_,ScanRuler
 # Commands that would end the run or wait on something that never comes.
 SKIP = set(filter(None, os.environ.get("GUI_SKIP", "AgentLink_Update").split(",")))
 os.makedirs(OUT, exist_ok=True)
-faulthandler.enable(all_threads=True)
 print("gui-shots: script loaded", flush=True)
+_fault = open(os.path.join(OUT, "fault.txt"), "w")
+faulthandler.enable(file=_fault, all_threads=True)
 REPORT = os.path.join(OUT, "gui-report.json")
 state = {"theme": THEME, "surfaces": [], "findings": [], "commands": {}, "done": False}
 SMALL = re.compile(r"^(a|an|and|as|at|but|by|for|from|in|into|of|on|or|per|the|to|vs|via|with)$")
