@@ -13,6 +13,7 @@
 # GUI_SHOTS      where pictures and gui-report.json go
 # GUI_PREFIXES   command-name prefixes that are ours (comma-separated)
 # Results are written as they come, so a hang still leaves a report.
+import faulthandler
 import hashlib
 import json
 import os
@@ -31,6 +32,8 @@ PREFIXES = tuple(p for p in os.environ.get("GUI_PREFIXES", "AgentLink_,ScanRuler
 # Commands that would end the run or wait on something that never comes.
 SKIP = set(filter(None, os.environ.get("GUI_SKIP", "AgentLink_Update").split(",")))
 os.makedirs(OUT, exist_ok=True)
+faulthandler.enable(all_threads=True)
+print("gui-shots: script loaded", flush=True)
 REPORT = os.path.join(OUT, "gui-report.json")
 state = {"theme": THEME, "surfaces": [], "findings": [], "commands": {}, "done": False}
 SMALL = re.compile(r"^(a|an|and|as|at|but|by|for|from|in|into|of|on|or|per|the|to|vs|via|with)$")
@@ -364,8 +367,14 @@ def icon_key(action):
     return hashlib.sha1(data[: img.sizeInBytes()]).hexdigest()
 
 
+def say(*a):
+    print("gui-shots:", *a, flush=True)
+
+
 def main():
+    say("main")
     apply_theme()
+    say("theme applied")
     pump(500)
     mw = Gui.getMainWindow()
     mw.resize(1440, 900)
@@ -374,6 +383,7 @@ def main():
             sw.close()
     Gui.activateWorkbench("PartDesignWorkbench")
     doc, body, box = scene()
+    say("scene made")
     Gui.SendMsgToActiveView("ViewFit")
     pump(500)
     capture("window", "core", "main-partdesign", mw, lint_it=False)
@@ -386,6 +396,7 @@ def main():
             pump(300)
         except Exception:
             pass
+    say("core workbenches loaded")
     for name in Gui.Command.listAll():
         if ours(name):
             continue
@@ -396,6 +407,7 @@ def main():
                     core_icons.setdefault(k, name)
         except Exception:
             pass
+    say("core icons", len(core_icons))
     ours_wbs = []
     for name, wb in Gui.listWorkbenches().items():
         a = wb_addon(wb)
@@ -410,6 +422,7 @@ def main():
         except Exception as e:
             state["findings"].append({"surface": name, "addon": addon, "widget": "", "check": "workbench", "detail": f"would not open: {e!r}", "severity": "fail"})
             continue
+        say("workbench", name)
         pump(800)
         Gui.SendMsgToActiveView("ViewFit")
         capture("workbench", addon, name, mw, lint_it=False)

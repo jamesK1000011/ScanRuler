@@ -27,9 +27,9 @@ agent="$ws/freecad-addon"
 for pack in "$stock/FreeCAD Light/FreeCAD Light.cfg" "$stock/FreeCAD Dark/FreeCAD Dark.cfg" "$agent/Studio Light/Studio Light.cfg" "$agent/Studio Dark/Studio Dark.cfg"; do
   [ -f "$pack" ] || { echo "gui-shots: no pack $pack"; continue; }
   name=$(basename "$pack" .cfg); name=${name// /-}
-  env -u PYTHONPATH GUI_THEME_CFG="$pack" GUI_THEME="$name" GUI_SHOTS="$out" \
+  env -u PYTHONPATH PYTHONFAULTHANDLER=1 GUI_THEME_CFG="$pack" GUI_THEME="$name" GUI_SHOTS="$out" \
     timeout 900 xvfb-run -a -s "-screen 0 1600x1000x24" freecad "$here/gui-shots.py" > "$out/$name.log" 2>&1
-  code=$?; echo "gui-shots: $name exit $code"; [ $code -ne 0 ] && tail -n 40 "$out/$name.log"; grep -E '^gui-shots|Traceback|Error' "$out/$name.log" | tail -n 30
+  code=$?; echo "gui-shots: $name exit $code"; [ $code -ne 0 ] && tail -n 80 "$out/$name.log"; grep -E '^gui-shots|Traceback|Error' "$out/$name.log" | tail -n 30
 done
 python "$here/gui-summary.py" "$out" | tee "$out/summary.md"
 exit 0
