@@ -166,6 +166,8 @@ function knownNames() {
   return SOURCES.map((s) => s.dest)
 }
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+// Mod folder -> the <name> its package.xml carries, for add-ons we retired.
+const RETIRED = { WorkshopCommon: 'Workshop Common', AddonKit: 'AddonKit' }
 
 /** A manifest's sources, each checked: a repository of OWNER's, a folder in
  *  it, a Mod folder name, a pin file in the channel. null if any is not. */
@@ -454,6 +456,17 @@ function install(modDir, src = ADDONS, v = bundledVersion()) {
     }
   })()
   fs.writeFileSync(path.join(modDir, 'AgentLink', '.installed-names'), JSON.stringify(names.filter((n) => fs.existsSync(path.join(modDir, n)))))
+  // Add-ons we shipped once and retired: set aside whether or not the list
+  // above names them (a copy installed before the list existed is never on
+  // it: a stale WorkshopCommon showed an empty "Workshop" workbench on the
+  // Mac). Only when its package.xml says it is ours.
+  for (const [dir, pkg] of Object.entries(RETIRED)) {
+    try {
+      const xml = fs.readFileSync(path.join(modDir, dir, 'package.xml'), 'utf8')
+      const own = (xml.match(/<name>([^<]*)<\/name>/) || [])[1] || ''
+      if (!names.includes(dir) && own.includes(pkg) && !before.includes(dir)) before.push(dir)
+    } catch {}
+  }
   for (const gone of before.filter((n) => !names.includes(n) && SAFE_NAME.test(n) && n !== 'AgentLink')) {
     // An add-on the new set no longer has: set aside, not deleted.
     try {
