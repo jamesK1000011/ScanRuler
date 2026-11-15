@@ -26,6 +26,7 @@ SOURCES = [
     ("Workshop-FreeCAD", "main", "Electronics", "WorkshopElectronics"),
     ("Workshop-FreeCAD", "main", "Documents", "WorkshopDocuments"),
     ("Texturizer-FreeCAD", "main", "", "Texturizer"),
+    ("SafetyNet-FreeCAD", "main", "", "SafetyNet"),
 ]
 MOD = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")
 

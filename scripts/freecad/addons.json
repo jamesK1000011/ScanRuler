@@ -63,6 +63,13 @@
       "folder": "",
       "dest": "Texturizer",
       "pin": "scripts/bakeoff/texturizer-ref"
+    },
+    {
+      "repo": "SafetyNet-FreeCAD",
+      "branch": "main",
+      "folder": "",
+      "dest": "SafetyNet",
+      "pin": "scripts/bakeoff/safetynet-ref"
     }
   ]
 }
