@@ -32,11 +32,28 @@ PREFIXES = tuple(p for p in os.environ.get("GUI_PREFIXES", "AgentLink_,ScanRuler
 # Commands that would end the run or wait on something that never comes.
 SKIP = set(filter(None, os.environ.get("GUI_SKIP", "AgentLink_Update").split(",")))
 os.makedirs(OUT, exist_ok=True)
+REPORT = os.path.join(OUT, "gui-report.json")
 print("gui-shots: script loaded", flush=True)
 _fault = open(os.path.join(OUT, "fault.txt"), "w")
 faulthandler.enable(file=_fault, all_threads=True)
-REPORT = os.path.join(OUT, "gui-report.json")
 state = {"theme": THEME, "surfaces": [], "findings": [], "commands": {}, "done": False}
+# A command that took FreeCAD down: gui-shots.sh restarts the run, which
+# picks up the report so far, marks that command crashed and goes on.
+CURRENT = os.path.join(OUT, "current.txt")
+if os.path.exists(REPORT):
+    try:
+        with open(REPORT) as f:
+            state.update(json.load(f))
+        state["done"] = False
+    except Exception:
+        pass
+if os.path.exists(CURRENT):
+    with open(CURRENT) as f:
+        dead = f.read().strip()
+    os.remove(CURRENT)
+    if dead:
+        state["commands"][dead] = {"addon": dead.split("_")[0], "state": "crashed"}
+        state["findings"].append({"surface": dead, "addon": dead.split("_")[0], "widget": "", "check": "crash", "detail": f"running {dead} crashed FreeCAD (segfault)", "severity": "fail"})
 SMALL = re.compile(r"^(a|an|and|as|at|but|by|for|from|in|into|of|on|or|per|the|to|vs|via|with)$")
 
 
@@ -209,7 +226,7 @@ def lint(surface, root):
                     find(surface, root, a, "overlap", f"overlaps {path_of(b, root)} by {inter.width()}x{inter.height()}", "fail")
 
 
-SHOT_N = [0]
+SHOT_N = [len(state["surfaces"])]
 
 
 def capture(kind, addon, name, widget, lint_it=True):
@@ -301,13 +318,17 @@ def run_command(addon, cmd, doc, box):
         info["menu"], info["tooltip"] = ri.get("menuText", ""), ri.get("toolTip", "")
     except Exception:
         pass
+    with open(CURRENT, "w") as f:
+        f.write(cmd)
     if cmd in SKIP:
         info["state"] = "skipped"
+        os.remove(CURRENT)
         return
     select(doc, box)
     pump(100)
     if not c.isActive():
         info["state"] = "inactive"
+        os.remove(CURRENT)
         return
     before_docks, before_top = set(docks()), toplevels()
     caught = []
@@ -356,6 +377,7 @@ def run_command(addon, cmd, doc, box):
                 pass
     Gui.Selection.clearSelection()
     save_report()
+    os.remove(CURRENT)
 
 
 def icon_key(action):
@@ -426,7 +448,10 @@ def main():
         say("workbench", name)
         pump(800)
         Gui.SendMsgToActiveView("ViewFit")
-        capture("workbench", addon, name, mw, lint_it=False)
+        seen = name in state.setdefault("wb_seen", [])
+        if not seen:
+            capture("workbench", addon, name, mw, lint_it=False)
+            state["wb_seen"].append(name)
         try:
             bars = wb.getToolbarItems()
         except Exception:
@@ -439,7 +464,7 @@ def main():
         cmds = []
         for bar_name, items in bars.items():
             for tb in mw.findChildren(QtWidgets.QToolBar):
-                if tb.isVisible() and (tb.objectName() == bar_name or tb.windowTitle() == bar_name):
+                if not seen and tb.isVisible() and (tb.objectName() == bar_name or tb.windowTitle() == bar_name):
                     s = capture("toolbar", addon, f"{name}-{bar_name}", tb)
                     for act in tb.actions():
                         if act.isSeparator() or not act.isVisible():
