@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # What OrcaSlicer's command line can do headless, from the build CI has: its
 # options, a cube sliced with a system printer preset (inheritance resolved
-# by Agent Link), and everything it hands back — result.json and the sliced
+# by OrcaLink's presets), and everything it hands back — result.json and the sliced
 # 3MF's own files (plate info, warnings, settings). A report for designing
 # the two-way FreeCAD <-> OrcaSlicer loop; never a failure.
 
@@ -20,8 +20,14 @@ import subprocess  # noqa: E402,F401
 import sys  # noqa: E402,F811
 import tempfile  # noqa: E402
 import zipfile  # noqa: E402,F401
-from agentlink import slicer_presets as sp  # noqa: E402
-from agentlink import slicers  # noqa: E402
+# The slicers' presets and command lines moved out of Agent Link in the
+# split: Agent Link for OrcaSlicer's orcalink package has them (its checkout
+# on PYTHONPATH, or named by AGENTLINK_ORCALINK), and Workshop Make reads
+# a project's 3MF back (workshop_make.threemf).
+if os.environ.get("AGENTLINK_ORCALINK"):
+    sys.path.append(os.environ["AGENTLINK_ORCALINK"])
+from orcalink import cli as slicers  # noqa: E402
+from orcalink import presets as sp  # noqa: E402
 
 exe = slicers.find("orcaslicer")
 print("orca:", exe)
@@ -102,8 +108,9 @@ if gc:
     tail = [l for l in head[-600:] if l.startswith(";")]
     print("=== gcode tail\n" + "\n".join(tail[-120:])[:5000])
 
-# Back again: the project read (threemf.read), then sliced as it stands.
-from agentlink import threemf  # noqa: E402
+# Back again: the project read (Workshop Make's threemf.read), then sliced as
+# it stands.
+from workshop_make import threemf  # noqa: E402
 
 if os.path.isfile(tm):
     idx2 = {}
