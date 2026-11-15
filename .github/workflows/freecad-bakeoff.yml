@@ -19,6 +19,7 @@ on:
     paths:
       - 'freecad/**'
       - 'scripts/freecad/**'
+      - '!scripts/freecad/gui-*'
       - 'scripts/bakeoff/**'
       - '.github/workflows/freecad-bakeoff.yml'
   workflow_dispatch:
