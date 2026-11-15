@@ -19,9 +19,9 @@ STAGE=$(mktemp -d)
 cp "$HERE/manifest.json" "$STAGE/"
 mkdir -p "$STAGE/server" "$STAGE/addons"
 cp "$HERE/server/index.js" "$STAGE/server/"
-copy() { # copy SRC DEST: the files FILES lists, less tests
+copy() { # copy SRC DEST: the files FILES lists, tests too (addon_test runs them)
   [ -f "$1/FILES" ] || return 0
-  grep -v -E '^(tests/|#)|^$' "$1/FILES" | while read -r f; do
+  grep -v -E '^#|^$|(^|/)__pycache__/' "$1/FILES" | while read -r f; do
     mkdir -p "$STAGE/addons/$2/$(dirname "$f")"
     cp "$1/$f" "$STAGE/addons/$2/$f"
   done

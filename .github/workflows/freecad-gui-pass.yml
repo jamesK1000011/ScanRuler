@@ -40,9 +40,11 @@ jobs:
       - uses: actions/checkout@v5
         with: { repository: jamesK1000011/SafetyNet-FreeCAD, path: safetynet-addon }
       - uses: actions/checkout@v5
+        with: { repository: jamesK1000011/Tutor-FreeCAD, path: tutor-addon }
+      - uses: actions/checkout@v5
         with: { repository: jamesK1000011/Workshop-FreeCAD, path: workshop-addons }
       - name: Which commits
-        run: for d in freecad-addon orcalink-addon scanrulerfc-addon texturizer-addon safetynet-addon workshop-addons; do echo "$d $(git -C $d rev-parse --short HEAD)"; done
+        run: for d in freecad-addon orcalink-addon scanrulerfc-addon texturizer-addon safetynet-addon tutor-addon workshop-addons; do echo "$d $(git -C $d rev-parse --short HEAD)"; done
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: fc

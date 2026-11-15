@@ -149,6 +149,7 @@ const SOURCES = [
   { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Documents', dest: 'WorkshopDocuments', pin: 'scripts/bakeoff/workshop-ref' },
   { repo: 'Texturizer-FreeCAD', branch: 'main', folder: '', dest: 'Texturizer', pin: 'scripts/bakeoff/texturizer-ref' },
   { repo: 'SafetyNet-FreeCAD', branch: 'main', folder: '', dest: 'SafetyNet', pin: 'scripts/bakeoff/safetynet-ref' },
+  { repo: 'Tutor-FreeCAD', branch: 'main', folder: '', dest: 'Tutor', pin: 'scripts/bakeoff/tutor-ref' },
 ]
 // What is installed is what CI checked: each add-on at the commit pinned in
 // ScanRuler's freecad-spike (bumped only once the bake-off is green), and
@@ -350,7 +351,9 @@ async function update(check) {
     }
     return headSha(s.repo, s.branch)
   }))
-  const version = 'github+' + shas.map((x) => x.slice(0, 7)).join('+') + '+' + channel.slice(0, 7)
+  // '+t': fetched with the add-ons' tests; a copy fetched before, without
+  // them, has another version and is fetched again.
+  const version = 'github+' + shas.map((x) => x.slice(0, 7)).join('+') + '+' + channel.slice(0, 7) + '+t'
   const st = readState()
   if (st.current === version && fs.existsSync(path.join(verDir(version), 'AgentLink'))) return { dir: verDir(version), version }
   if ((st.bad || []).includes(version)) {
@@ -360,7 +363,9 @@ async function update(check) {
   const stage = fs.mkdtempSync(path.join(CACHE, 'stage-'))
   try {
     for (const [i, s] of sources.entries()) {
-      const listed = (await addonFiles(s, shas[i])).filter((p) => !/(^|\/)(__pycache__|tests)\//.test(p))
+      // tests/ comes too: Agent Link's addon_test runs an add-on's own tests
+      // in FreeCAD on this computer.
+      const listed = (await addonFiles(s, shas[i])).filter((p) => !/(^|\/)__pycache__\//.test(p))
       const bad = listed.filter((p) => !safeRel(p))
       if (bad.length) throw new Error(`${s.repo}'s FILES names paths that are not plain file names inside it: ${bad.slice(0, 3).join(', ')}`)
       for (let k = 0; k < listed.length; k += 8) {

@@ -51,6 +51,7 @@ jobs:
           echo "workshop=$(cat scripts/bakeoff/workshop-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "texturizer=$(cat scripts/bakeoff/texturizer-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
           echo "safetynet=$(cat scripts/bakeoff/safetynet-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
+          echo "tutor=$(cat scripts/bakeoff/tutor-ref 2>/dev/null || echo main)" >> "$GITHUB_OUTPUT"
       - name: The add-on, from its repository
         uses: actions/checkout@v5
         with:
@@ -81,6 +82,12 @@ jobs:
           repository: jamesK1000011/SafetyNet-FreeCAD
           ref: ${{ steps.ref.outputs.safetynet }}
           path: safetynet-addon
+      - name: Tutor for FreeCAD, beside it
+        uses: actions/checkout@v5
+        with:
+          repository: jamesK1000011/Tutor-FreeCAD
+          ref: ${{ steps.ref.outputs.tutor }}
+          path: tutor-addon
       - name: Workshop for FreeCAD, beside it
         uses: actions/checkout@v5
         with:
@@ -107,7 +114,7 @@ jobs:
           # Both add-ons importable, as in FreeCAD's Mod folder: Agent Link
           # from the fork, ScanRuler for FreeCAD from this repo.
           echo "AGENTLINK_RENDERS=$GITHUB_WORKSPACE/bakeoff-out/freecad/renders" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/texturizer-addon:$GITHUB_WORKSPACE/safetynet-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make:$GITHUB_WORKSPACE/workshop-addons/Electronics:$GITHUB_WORKSPACE/workshop-addons/Documents:$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/texturizer-addon:$GITHUB_WORKSPACE/safetynet-addon:$GITHUB_WORKSPACE/tutor-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make:$GITHUB_WORKSPACE/workshop-addons/Electronics:$GITHUB_WORKSPACE/workshop-addons/Documents:$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
@@ -170,6 +177,7 @@ jobs:
           code=0
           python -X faulthandler -m unittest discover -s texturizer-addon/tests > "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           python -X faulthandler -m unittest discover -s safetynet-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
+          AGENTLINK_SRC=$GITHUB_WORKSPACE/freecad-addon python -X faulthandler -m unittest discover -s tutor-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           for d in Parts Make Electronics Documents; do python -X faulthandler -m unittest discover -s workshop-addons/$d/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?; done
           python -X faulthandler -m unittest discover -s orcalink-addon/tests -p test_freecad_bridge.py >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           python -X faulthandler -m unittest discover -s scanrulerfc-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?

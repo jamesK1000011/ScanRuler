@@ -63,6 +63,13 @@
       "folder": "",
       "dest": "SafetyNet",
       "pin": "scripts/bakeoff/safetynet-ref"
+    },
+    {
+      "repo": "Tutor-FreeCAD",
+      "branch": "main",
+      "folder": "",
+      "dest": "Tutor",
+      "pin": "scripts/bakeoff/tutor-ref"
     }
   ],
   "companions": [
