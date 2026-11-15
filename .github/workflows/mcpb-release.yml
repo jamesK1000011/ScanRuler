@@ -43,7 +43,10 @@ jobs:
           sh scripts/freecad/mcpb/build.sh "$PWD/pinned" "$PWD/dist/freecad-agentlink.mcpb"
       # Findings fail the job: nothing is published until they are fixed.
       - name: Privacy and identity check of the built file
-        run: python3 .github/privacy/check.py dist/
+        run: |
+          set -- dist/
+          for f in pinned/*/.github/privacy/images.txt; do [ -f "$f" ] && set -- --images "$f" "$@"; done
+          python3 .github/privacy/check.py "$@"
       - name: Attach it to the tag's release
         env:
           GH_TOKEN: ${{ github.token }}

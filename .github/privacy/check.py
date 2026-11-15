@@ -154,11 +154,18 @@ class Terms:
 
 
 class Checker:
-    def __init__(self):
+    def __init__(self, more_images=()):
         self.terms = Terms()
         self.allow = [re.compile(p) for p in load_lines("allow.txt")]
         self.images = {}
-        for l in load_lines("images.txt"):
+        # images.txt here, plus the reviewed lists of the repos whose files
+        # are being checked (--images FILE): an add-on's own images were
+        # looked at and recorded in its own repository.
+        lines = load_lines("images.txt")
+        for extra in more_images:
+            with open(extra, encoding="utf-8") as f:
+                lines += [l.strip() for l in f if l.strip() and not l.lstrip().startswith("#")]
+        for l in lines:
             digest, _, path = l.partition(" ")
             self.images[digest] = path.strip()
         self.findings = []
@@ -289,8 +296,13 @@ def main(argv):
         i = argv.index("--since")
         since = argv[i + 1]
         argv = argv[:i] + argv[i + 2:]
+    more = []
+    while "--images" in argv:
+        i = argv.index("--images")
+        more.append(argv[i + 1])
+        argv = argv[:i] + argv[i + 2:]
     roots = [a for a in argv if not a.startswith("--")] or ["."]
-    c = Checker()
+    c = Checker(more)
     for root in roots:
         c.tree(root, tracked=git, base=upstream)
         if git:
