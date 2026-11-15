@@ -24,30 +24,23 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - name: The pinned commits
-        id: ref
+      - name: Check out the pinned add-ons (the list is addons.json)
         run: |
-          for k in addon scanrulerfc orcalink workshop texturizer safetynet; do
-            echo "$k=$(cat scripts/bakeoff/$k-ref)" >> "$GITHUB_OUTPUT"
+          mkdir -p pinned
+          python3 -c "
+          import json
+          seen = set()
+          for s in json.load(open('scripts/freecad/addons.json'))['sources']:
+              if s['repo'] not in seen:
+                  seen.add(s['repo']); print(s['repo'], open(s['pin']).read().strip())
+          " | while read -r repo ref; do
+            git clone -q "https://github.com/jamesK1000011/$repo" "pinned/$repo"
+            git -C "pinned/$repo" checkout -q "$ref"
           done
-      - uses: actions/checkout@v5
-        with: { repository: jamesK1000011/AgentLink-FreeCAD, ref: '${{ steps.ref.outputs.addon }}', path: pinned/agentlink }
-      - uses: actions/checkout@v5
-        with: { repository: jamesK1000011/ScanRuler-FreeCAD, ref: '${{ steps.ref.outputs.scanrulerfc }}', path: pinned/scanrulerfc }
-      - uses: actions/checkout@v5
-        with: { repository: jamesK1000011/AgentLink-OrcaSlicer, ref: '${{ steps.ref.outputs.orcalink }}', path: pinned/orcalink }
-      - uses: actions/checkout@v5
-        with: { repository: jamesK1000011/Workshop-FreeCAD, ref: '${{ steps.ref.outputs.workshop }}', path: pinned/workshop }
-      - uses: actions/checkout@v5
-        with: { repository: jamesK1000011/Texturizer-FreeCAD, ref: '${{ steps.ref.outputs.texturizer }}', path: pinned/texturizer }
-      - uses: actions/checkout@v5
-        with: { repository: jamesK1000011/SafetyNet-FreeCAD, ref: '${{ steps.ref.outputs.safetynet }}', path: pinned/safetynet }
       - name: Build the extension
         run: |
           mkdir -p dist
-          p="$PWD/pinned"
-          sh scripts/freecad/mcpb/build.sh "$p/agentlink" "$PWD/dist/freecad-agentlink.mcpb" \
-            "$p/scanrulerfc" "$p/orcalink" "$p/workshop" "$p/texturizer" "$p/safetynet"
+          sh scripts/freecad/mcpb/build.sh "$PWD/pinned" "$PWD/dist/freecad-agentlink.mcpb"
       # Findings fail the job: nothing is published until they are fixed.
       - name: Privacy and identity check of the built file
         run: python3 .github/privacy/check.py dist/
