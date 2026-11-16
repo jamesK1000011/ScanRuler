@@ -33,6 +33,18 @@ for s in json.load(open(sys.argv[1]))['sources']:
 " "$HERE/../addons.json" | while read -r repo folder dest; do
   copy "$CHECKOUTS/$repo/$folder" "$dest"
 done
+# The icon is Agent Link's (packaging/mcpb/icon.png in its repo): named in
+# the staged manifest only when the pinned Agent Link has it.
+if [ -f "$AGENTLINK/packaging/mcpb/icon.png" ]; then
+  cp "$AGENTLINK/packaging/mcpb/icon.png" "$STAGE/icon.png"
+  python3 -c "
+import json, sys
+p = sys.argv[1]
+m = json.load(open(p))
+m['icon'] = 'icon.png'
+json.dump(m, open(p, 'w'), indent=2, ensure_ascii=False)
+" "$STAGE/manifest.json"
+fi
 VERSION=$(python3 -c "import json;print(json.load(open('$HERE/manifest.json'))['version'])")
 echo "$VERSION+$(git -C "$AGENTLINK" rev-parse --short HEAD)+$(git -C "$HERE" rev-parse --short HEAD)" > "$STAGE/addons/VERSION"
 rm -f "$OUT"

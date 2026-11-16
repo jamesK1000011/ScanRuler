@@ -3,12 +3,16 @@
   "name": "freecad-agentlink",
   "display_name": "Agent Link for FreeCAD",
   "version": "0.4.1",
-  "description": "Drive FreeCAD from Claude: parts, printability, strength, drawings, scans (ScanRuler for FreeCAD), and pictures of the work — headless, or in the FreeCAD window when its link is on.",
-  "long_description": "Finds FreeCAD on this Mac and installs the Agent Link and ScanRuler for FreeCAD add-ons into its Mod folder. Works headless with no FreeCAD window open. To watch the work, open FreeCAD, pick the Agent Link workbench and press Start link, then start a new chat: the extension relays to the window. Agent Link is LGPL-2.1-or-later; ScanRuler for FreeCAD is AGPL-3.0-only, ported from ScanRuler by CNC Kitchen (Stefan Hermann).",
+  "description": "Drive FreeCAD from Claude: parts, printability, strength, drawings, scans, textures and lessons, headless or live in the FreeCAD window.",
+  "long_description": "Finds FreeCAD on this Mac and installs Agent Link for FreeCAD and its add-ons into FreeCAD's Mod folder: ScanRuler for FreeCAD (scan measuring, ported from ScanRuler by Stefan Hermann, CNC Kitchen), Workshop (standard parts, making, electronics, drawings, SafetyNet), Texturizer (BumpMesh's surface textures, also by Stefan Hermann, CNC Kitchen), Tutor (lessons in your own window) and Agent Link for OrcaSlicer. Works headless with no FreeCAD window open. To watch the work, open FreeCAD, pick the Agent Link workbench and press Start Link, then start a new chat: the extension relays to the window. Agent Link, Workshop, Tutor and the OrcaSlicer add-on are LGPL-2.1-or-later (data CC-BY-4.0); ScanRuler for FreeCAD and Texturizer are AGPL-3.0-only (fonts OFL-1.1). Not affiliated with or endorsed by the FreeCAD project, the FPA or CNC Kitchen.",
   "author": {
     "name": "jamesK1000011"
   },
-  "license": "LGPL-2.1-or-later AND AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesK1000011/AgentLink-FreeCAD"
+  },
+  "license": "LGPL-2.1-or-later AND AGPL-3.0-only AND CC-BY-4.0 AND OFL-1.1",
   "server": {
     "type": "node",
     "entry_point": "server/index.js",
@@ -42,7 +46,7 @@
     "auto_update": {
       "type": "boolean",
       "title": "Keep the add-ons up to date",
-      "description": "At each start, fetch the newest Agent Link and ScanRuler for FreeCAD from GitHub when they have changed.",
+      "description": "At each start, fetch the newest pinned Agent Link and its add-ons from GitHub when they have changed.",
       "default": true,
       "required": false
     }
@@ -54,5 +58,8 @@
     "runtimes": {
       "node": ">=18.0.0"
     }
-  }
+  },
+  "homepage": "https://github.com/jamesK1000011/AgentLink-FreeCAD",
+  "documentation": "https://github.com/jamesK1000011/AgentLink-FreeCAD#readme",
+  "support": "https://github.com/jamesK1000011/AgentLink-FreeCAD/issues"
 }
