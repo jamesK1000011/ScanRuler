@@ -25,29 +25,8 @@
     {
       "repo": "Workshop-FreeCAD",
       "branch": "main",
-      "folder": "Parts",
-      "dest": "WorkshopParts",
-      "pin": "scripts/bakeoff/workshop-ref"
-    },
-    {
-      "repo": "Workshop-FreeCAD",
-      "branch": "main",
-      "folder": "Make",
-      "dest": "WorkshopMake",
-      "pin": "scripts/bakeoff/workshop-ref"
-    },
-    {
-      "repo": "Workshop-FreeCAD",
-      "branch": "main",
-      "folder": "Electronics",
-      "dest": "WorkshopElectronics",
-      "pin": "scripts/bakeoff/workshop-ref"
-    },
-    {
-      "repo": "Workshop-FreeCAD",
-      "branch": "main",
-      "folder": "Documents",
-      "dest": "WorkshopDocuments",
+      "folder": "",
+      "dest": "Workshop",
       "pin": "scripts/bakeoff/workshop-ref"
     },
     {
@@ -56,13 +35,6 @@
       "folder": "",
       "dest": "Texturizer",
       "pin": "scripts/bakeoff/texturizer-ref"
-    },
-    {
-      "repo": "SafetyNet-FreeCAD",
-      "branch": "main",
-      "folder": "",
-      "dest": "SafetyNet",
-      "pin": "scripts/bakeoff/safetynet-ref"
     },
     {
       "repo": "Tutor-FreeCAD",

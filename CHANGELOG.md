@@ -7,6 +7,16 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **FreeCAD launcher: Workshop as one add-on** (2026-11-15). The Claude
+  extension's launcher (`scripts/freecad/addons.json`, `install_addons.py`
+  and the launcher's built-in list) installs Workshop for FreeCAD as one
+  add-on, `Mod/Workshop`, which now holds Parts, Make, Electronics,
+  Documents and SafetyNet. SafetyNet is no longer installed on its own. The
+  old `WorkshopParts`, `WorkshopMake`, `WorkshopElectronics`,
+  `WorkshopDocuments` and `SafetyNet` folders are set aside the way
+  WorkshopCommon and AddonKit were, but only when their package.xml says
+  they're ours. The bake-off and the GUI pass take either Workshop layout,
+  so the pin decides which one runs.
 - **Generate: Gridfinity bins and baseplates without sliver faces**
   (2026-11-09). The stacking lip's and the pockets' cutters overshot by
   0.01 mm with their inset held flat, leaving a 0.01 mm ledge round the

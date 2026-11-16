@@ -143,12 +143,10 @@ const SOURCES = [
   { repo: 'AgentLink-FreeCAD', branch: 'main', folder: '', dest: 'AgentLink', pin: 'scripts/bakeoff/addon-ref' },
   { repo: 'ScanRuler-FreeCAD', branch: 'main', folder: '', dest: 'ScanRulerFC', pin: 'scripts/bakeoff/scanrulerfc-ref' },
   { repo: 'AgentLink-OrcaSlicer', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'scripts/bakeoff/orcalink-ref' },
-  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Parts', dest: 'WorkshopParts', pin: 'scripts/bakeoff/workshop-ref' },
-  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Make', dest: 'WorkshopMake', pin: 'scripts/bakeoff/workshop-ref' },
-  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Electronics', dest: 'WorkshopElectronics', pin: 'scripts/bakeoff/workshop-ref' },
-  { repo: 'Workshop-FreeCAD', branch: 'main', folder: 'Documents', dest: 'WorkshopDocuments', pin: 'scripts/bakeoff/workshop-ref' },
+  // Workshop: one add-on since 15 Nov 2026 (Parts, Make, Electronics,
+  // Documents and SafetyNet combined; its package.xml's name).
+  { repo: 'Workshop-FreeCAD', branch: 'main', folder: '', dest: 'Workshop', pin: 'scripts/bakeoff/workshop-ref' },
   { repo: 'Texturizer-FreeCAD', branch: 'main', folder: '', dest: 'Texturizer', pin: 'scripts/bakeoff/texturizer-ref' },
-  { repo: 'SafetyNet-FreeCAD', branch: 'main', folder: '', dest: 'SafetyNet', pin: 'scripts/bakeoff/safetynet-ref' },
   { repo: 'Tutor-FreeCAD', branch: 'main', folder: '', dest: 'Tutor', pin: 'scripts/bakeoff/tutor-ref' },
 ]
 // What is installed is what CI checked: each add-on at the commit pinned in
@@ -168,7 +166,18 @@ function knownNames() {
 }
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 // Mod folder -> the <name> its package.xml carries, for add-ons we retired.
-const RETIRED = { WorkshopCommon: 'Workshop Common', AddonKit: 'AddonKit' }
+// The four Workshop folders and SafetyNet are inside Workshop since it
+// became one add-on: a copy left beside it would register every command
+// and tool twice.
+const RETIRED = {
+  WorkshopCommon: 'Workshop Common',
+  AddonKit: 'AddonKit',
+  WorkshopParts: 'Workshop Parts',
+  WorkshopMake: 'Workshop Make',
+  WorkshopElectronics: 'Workshop Electronics',
+  WorkshopDocuments: 'Workshop Documents',
+  SafetyNet: 'SafetyNet',
+}
 
 /** A manifest's sources, each checked: a repository of OWNER's, a folder in
  *  it, a Mod folder name, a pin file in the channel. null if any is not. */

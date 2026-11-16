@@ -20,12 +20,8 @@ SOURCES = [
     ("AgentLink-FreeCAD", "main", "", "AgentLink"),
     ("ScanRuler-FreeCAD", "main", "", "ScanRulerFC"),
     ("AgentLink-OrcaSlicer", "main", "", "OrcaLink"),
-    ("Workshop-FreeCAD", "main", "Parts", "WorkshopParts"),
-    ("Workshop-FreeCAD", "main", "Make", "WorkshopMake"),
-    ("Workshop-FreeCAD", "main", "Electronics", "WorkshopElectronics"),
-    ("Workshop-FreeCAD", "main", "Documents", "WorkshopDocuments"),
+    ("Workshop-FreeCAD", "main", "", "Workshop"),
     ("Texturizer-FreeCAD", "main", "", "Texturizer"),
-    ("SafetyNet-FreeCAD", "main", "", "SafetyNet"),
     ("Tutor-FreeCAD", "main", "", "Tutor"),
 ]
 MOD = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")

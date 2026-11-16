@@ -159,18 +159,31 @@ try {
   const newer = fs.readFileSync(path.join(here, '..', 'server', 'index.js'), 'utf8').replace("description: 'Fetch the newest", "description: 'NEWER Fetch the newest")
   assert.ok(newer.includes('NEWER'))
   fs.writeFileSync(path.join(fresh, 'launcher', 'index.js'), newer)
+  // Add-ons now inside Workshop, left in Mod from before: set aside (their
+  // package.xml says they are ours); a folder of the same name that is not
+  // ours stays.
+  const leftover = (dir, name) => {
+    fs.mkdirSync(path.join(ud, 'Mod', dir), { recursive: true })
+    fs.writeFileSync(path.join(ud, 'Mod', dir, 'package.xml'), `<package format="1"><name>${name}</name></package>\n`)
+  }
+  leftover('WorkshopMake', 'Workshop Make')
+  leftover('SafetyNet', 'SafetyNet')
+  leftover('WorkshopParts', 'Someone else\'s parts')
   const hand = await tool('agentlink_update')
   const handSaid = JSON.parse(hand.result.content[0].text)
   assert.equal(hand.result.isError, false, JSON.stringify(handSaid))
   assert.match(handSaid.launcher || '', /new launcher/)
   assert.ok(fs.existsSync(path.join(ud, 'Mod', 'Extra', 'marker')), 'the new add-on folder is installed')
   assert.ok(JSON.parse(fs.readFileSync(path.join(ud, 'Mod', 'AgentLink', '.installed-names'), 'utf8')).includes('Extra'))
+  assert.ok(!fs.existsSync(path.join(ud, 'Mod', 'WorkshopMake')), 'a retired Workshop folder is set aside')
+  assert.ok(!fs.existsSync(path.join(ud, 'Mod', 'SafetyNet')), 'a retired SafetyNet is set aside')
+  assert.ok(fs.existsSync(path.join(ud, 'Mod', 'WorkshopParts')), 'a folder that is not ours stays')
   await wait(1500)
   list = await call('tools/list')
   const upd = list.result.tools.find((t) => t.name === 'agentlink_update')
   assert.match(upd.description, /^NEWER/, 'the new launcher serves')
   assert.equal((await tool('anything')).result.content[0].text, '4.0')
-  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update, installs a new add-on, hands over to a newer launcher; its built-in lists are addons.json\'s')
+  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update, installs a new add-on, sets aside retired ones, hands over to a newer launcher; its built-in lists are addons.json\'s')
 } finally {
   child.stdin.end()
   child.kill()

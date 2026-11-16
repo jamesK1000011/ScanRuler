@@ -114,7 +114,14 @@ jobs:
           # Both add-ons importable, as in FreeCAD's Mod folder: Agent Link
           # from the fork, ScanRuler for FreeCAD from this repo.
           echo "AGENTLINK_RENDERS=$GITHUB_WORKSPACE/bakeoff-out/freecad/renders" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/texturizer-addon:$GITHUB_WORKSPACE/safetynet-addon:$GITHUB_WORKSPACE/tutor-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make:$GITHUB_WORKSPACE/workshop-addons/Electronics:$GITHUB_WORKSPACE/workshop-addons/Documents:$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
+          # Workshop: one add-on with SafetyNet inside since 15 Nov 2026; a
+          # pin from before has the four folders and SafetyNet beside it.
+          if [ -d workshop-addons/Parts ]; then
+            ws="$GITHUB_WORKSPACE/safetynet-addon:$GITHUB_WORKSPACE/workshop-addons/Parts:$GITHUB_WORKSPACE/workshop-addons/Make:$GITHUB_WORKSPACE/workshop-addons/Electronics:$GITHUB_WORKSPACE/workshop-addons/Documents"
+          else
+            ws="$GITHUB_WORKSPACE/workshop-addons"
+          fi
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/freecad-addon:$GITHUB_WORKSPACE/texturizer-addon:$GITHUB_WORKSPACE/tutor-addon:$GITHUB_WORKSPACE/scanrulerfc-addon:$ws:$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           echo "AGENTLINK_ORCALINK=$GITHUB_WORKSPACE/orcalink-addon" >> "$GITHUB_ENV"
           export FREECAD_LIB=$CONDA_PREFIX/lib
           python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCAD, Part, MeshPart; print('FreeCAD', FreeCAD.Version()[:3])"
@@ -176,9 +183,14 @@ jobs:
         run: |
           code=0
           python -X faulthandler -m unittest discover -s texturizer-addon/tests > "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
-          python -X faulthandler -m unittest discover -s safetynet-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           AGENTLINK_SRC=$GITHUB_WORKSPACE/freecad-addon python -X faulthandler -m unittest discover -s tutor-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
-          for d in Parts Make Electronics Documents; do python -X faulthandler -m unittest discover -s workshop-addons/$d/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?; done
+          if [ -d workshop-addons/Parts ]; then
+            python -X faulthandler -m unittest discover -s safetynet-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
+            for d in Parts Make Electronics Documents; do python -X faulthandler -m unittest discover -s workshop-addons/$d/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?; done
+          else
+            AGENTLINK_DIR=$GITHUB_WORKSPACE/freecad-addon python -X faulthandler -m unittest discover -s workshop-addons/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
+            for d in parts make electronics documents safetynet; do AGENTLINK_HOME="$(mktemp -d)" AGENTLINK_DIR=$GITHUB_WORKSPACE/freecad-addon python -X faulthandler -m unittest discover -s workshop-addons/tests/$d >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?; done
+          fi
           python -X faulthandler -m unittest discover -s orcalink-addon/tests -p test_freecad_bridge.py >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           python -X faulthandler -m unittest discover -s scanrulerfc-addon/tests >> "$RUNNER_TEMP/addons.log" 2>&1 || code=$?
           grep -E '^(Ran|OK|FAILED|ERROR:|FAIL:)' "$RUNNER_TEMP/addons.log" | tail -n 60

@@ -15,7 +15,7 @@ res=$(python -c "import sys; sys.path.append('$CONDA_PREFIX/lib'); import FreeCA
 mkdir -p "$user/Mod" "$out"
 # addons.json's dest -> the checkout the bake-off made for it.
 declare -A src=([AgentLink]=freecad-addon [ScanRulerFC]=scanrulerfc-addon [OrcaLink]=orcalink-addon [Texturizer]=texturizer-addon [SafetyNet]=safetynet-addon [Tutor]=tutor-addon
-  [WorkshopParts]=workshop-addons/Parts [WorkshopMake]=workshop-addons/Make [WorkshopElectronics]=workshop-addons/Electronics [WorkshopDocuments]=workshop-addons/Documents)
+  [Workshop]=workshop-addons [WorkshopParts]=workshop-addons/Parts [WorkshopMake]=workshop-addons/Make [WorkshopElectronics]=workshop-addons/Electronics [WorkshopDocuments]=workshop-addons/Documents)
 for dest in $(python -c "import json; print(' '.join(s['dest'] for s in json.load(open('$here/addons.json'))['sources']))"); do
   from="$ws/${src[$dest]:-}"
   [ -d "$from" ] || { echo "gui-shots: no checkout for $dest"; continue; }
