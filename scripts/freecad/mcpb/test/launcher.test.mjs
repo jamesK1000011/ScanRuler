@@ -21,8 +21,9 @@ const here = path.dirname(new URL(import.meta.url).pathname)
   assert.deepEqual(literal('SOURCES'), data.sources.map((s) => ({ repo: s.repo, branch: s.branch, folder: s.folder, dest: s.dest, pin: s.pin })), 'the built-in SOURCES are addons.json\'s sources')
   assert.deepEqual(literal('COMPANIONS_DEFAULT'), data.companions, 'the built-in companions are addons.json\'s companions')
 }
-async function launch(nodeArgs = () => []) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentlink-launcher-'))
+async function launch(nodeArgs = () => [], again = null) {
+  // again: a root from an earlier launch, started once more as it was left.
+  const root = again || fs.mkdtempSync(path.join(os.tmpdir(), 'agentlink-launcher-'))
   const app = path.join(root, 'FreeCAD.app')
   const bin = path.join(app, 'Contents', 'Resources', 'bin')
   fs.mkdirSync(bin, { recursive: true })
@@ -30,6 +31,11 @@ async function launch(nodeArgs = () => []) {
   const ud = path.join(root, 'userdata')
   // The real interpreter by its path: the launcher puts the fake's folder
   // first on PATH, as FreeCAD's bin is.
+  const fresh = path.join(root, 'fresh')
+  const ext = path.join(root, 'ext', 'server')
+  // Left at the outer indent: the files below are written from template
+  // literals whose indentation is their content.
+  if (!again) {
   const realPython = execFileSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim()
   const server = path.join(root, 'fake_server.py')
   // A fake FreeCAD Python: answers the user-folder question, else serves MCP,
@@ -58,7 +64,6 @@ case "$1" in *smoke.py) exec ${JSON.stringify(realPython)} "$1";; esac
 exec ${JSON.stringify(realPython)} ${JSON.stringify(server)}
 `, { mode: 0o755 })
   // The add-ons an update brings.
-  const fresh = path.join(root, 'fresh')
   for (const n of ['AgentLink', 'ScanRulerFC']) fs.mkdirSync(path.join(fresh, n), { recursive: true })
   fs.writeFileSync(path.join(fresh, 'AgentLink', 'VERSION'), '2.0\n')
   fs.writeFileSync(path.join(fresh, 'VERSION'), '2.0\n')
@@ -68,10 +73,10 @@ exec ${JSON.stringify(realPython)} ${JSON.stringify(server)}
 
   // The launcher as the extension holds it: its own folder, no package.json
   // saying ES module (this repository's does).
-  const ext = path.join(root, 'ext', 'server')
   fs.mkdirSync(ext, { recursive: true })
   fs.copyFileSync(path.join(here, '..', 'server', 'index.js'), path.join(ext, 'index.js'))
   fs.writeFileSync(path.join(root, 'ext', 'package.json'), '{"type": "commonjs"}\n')
+  }
   const child = spawn(process.execPath, [...nodeArgs(root), path.join(ext, 'index.js')], {
     env: { ...process.env, HOME: root, FREECAD_APP: app, AGENTLINK_UPDATE: 'false', AGENTLINK_UPDATE_FROM: fresh, AGENTLINK_PORT: '1', AGENTLINK_OUT: path.join(root, 'out') },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -183,7 +188,41 @@ try {
   const upd = list.result.tools.find((t) => t.name === 'agentlink_update')
   assert.match(upd.description, /^NEWER/, 'the new launcher serves')
   assert.equal((await tool('anything')).result.content[0].text, '4.0')
-  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update, installs a new add-on, sets aside retired ones, hands over to a newer launcher; its built-in lists are addons.json\'s')
+  // A retired add-on left by an older launcher's install: the next update
+  // sweeps it even with nothing new, and FreeCAD starts again without it.
+  leftover('SafetyNet', 'SafetyNet')
+  const swept = JSON.parse((await tool('agentlink_update')).result.content[0].text)
+  assert.deepEqual(swept.retired, ['SafetyNet'], JSON.stringify(swept))
+  assert.equal(swept.restarted, true)
+  assert.ok(!fs.existsSync(path.join(ud, 'Mod', 'SafetyNet')), 'swept on an update with nothing new')
+  await wait(500)
+  assert.equal((await tool('anything')).result.content[0].text, '4.0')
+  const quiet = JSON.parse((await tool('agentlink_update')).result.content[0].text)
+  assert.equal(quiet.restarted, false, 'nothing left to sweep: nothing restarted')
+  leftover('WorkshopElectronics', 'Workshop Electronics')
+  const late = JSON.parse((await tool('agentlink_update')).result.content[0].text)
+  assert.equal(late.before, late.after, JSON.stringify(late))
+  assert.deepEqual(late.retired, ['WorkshopElectronics'], JSON.stringify(late))
+  assert.equal(late.restarted, true)
+  assert.match(late.note, /Already the newest; set aside/)
+  await wait(500)
+  assert.equal((await tool('anything')).result.content[0].text, '4.0')
+  // And at the next start, with the add-ons already in place.
+  leftover('WorkshopDocuments', 'Workshop Documents')
+  child.stdin.end()
+  child.kill()
+  await wait(500)
+  const second = await launch(() => [], root)
+  try {
+    await second.call('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })
+    assert.ok(!fs.existsSync(path.join(ud, 'Mod', 'WorkshopDocuments')), 'swept at the next start')
+    assert.ok(fs.existsSync(path.join(ud, 'Mod', 'WorkshopParts')), 'still not ours: stays')
+    assert.equal(fs.readFileSync(path.join(ud, 'Mod', 'AgentLink', 'VERSION'), 'utf8').trim(), '4.0')
+  } finally {
+    second.child.stdin.end()
+    second.child.kill()
+  }
+  console.log('launcher: serves, restarts a crash, updates without dropping the connection, rolls back a failed update, installs a new add-on, sets aside retired ones (at install, at an update with nothing new, at the next start), hands over to a newer launcher; its built-in lists are addons.json\'s')
 } finally {
   child.stdin.end()
   child.kill()

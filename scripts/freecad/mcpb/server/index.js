@@ -442,6 +442,9 @@ function install(modDir, src = ADDONS, v = bundledVersion()) {
     // An install from before the names were written down: written now.
     const listed = path.join(modDir, 'AgentLink', '.installed-names')
     if (!fs.existsSync(listed)) fs.writeFileSync(listed, JSON.stringify(namesIn(src).filter((n) => fs.existsSync(path.join(modDir, n)))))
+    // Nothing new to copy, but retired add-ons are still swept: an install
+    // made by an older launcher (one without them in RETIRED) left them.
+    retireSweep(modDir, namesIn(src))
     return false
   }
   fs.mkdirSync(modDir, { recursive: true })
@@ -470,25 +473,45 @@ function install(modDir, src = ADDONS, v = bundledVersion()) {
     }
   })()
   fs.writeFileSync(path.join(modDir, 'AgentLink', '.installed-names'), JSON.stringify(names.filter((n) => fs.existsSync(path.join(modDir, n)))))
-  // Add-ons we shipped once and retired: set aside whether or not the list
-  // above names them (a copy installed before the list existed is never on
-  // it: a stale WorkshopCommon showed an empty "Workshop" workbench on the
-  // Mac). Only when its package.xml says it is ours.
+  for (const gone of before.filter((n) => !names.includes(n) && SAFE_NAME.test(n) && n !== 'AgentLink')) setAside(modDir, gone)
+  retireSweep(modDir, names)
+  log(`installed the add-ons (${v}) into ${modDir}`)
+  return true
+}
+
+/** An add-on folder of ours moved out of the Mod folder: set aside, not
+ *  deleted. True when it was moved. */
+function setAside(modDir, name) {
+  try {
+    fs.mkdirSync(CACHE, { recursive: true })
+    fs.renameSync(path.join(modDir, name), path.join(CACHE, `retired-${name}-${process.pid}-${Date.now()}`))
+    log(`set aside ${name} from ${modDir}`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Add-ons we shipped once and retired, set aside whether or not any list
+ *  names them (a copy installed before the list existed, or by a launcher
+ *  that did not know them yet, is never on it: a stale WorkshopCommon showed
+ *  an empty "Workshop" workbench, a stale SafetyNet shadowed Workshop's on
+ *  the Mac). Only when its package.xml says it is ours. Run at every
+ *  install, at every start and every update, "nothing to do" included.
+ *  Returns the folders set aside (also kept in lastRetired). */
+let lastRetired = []
+function retireSweep(modDir, names = []) {
+  const out = []
   for (const [dir, pkg] of Object.entries(RETIRED)) {
+    if (names.includes(dir)) continue
     try {
       const xml = fs.readFileSync(path.join(modDir, dir, 'package.xml'), 'utf8')
       const own = (xml.match(/<name>([^<]*)<\/name>/) || [])[1] || ''
-      if (!names.includes(dir) && own.includes(pkg) && !before.includes(dir)) before.push(dir)
+      if (own.includes(pkg) && setAside(modDir, dir)) out.push(dir)
     } catch {}
   }
-  for (const gone of before.filter((n) => !names.includes(n) && SAFE_NAME.test(n) && n !== 'AgentLink')) {
-    // An add-on the new set no longer has: set aside, not deleted.
-    try {
-      fs.renameSync(path.join(modDir, gone), path.join(CACHE, `retired-${gone}-${process.pid}`))
-    } catch {}
-  }
-  log(`installed the add-ons (${v}) into ${modDir}`)
-  return true
+  lastRetired = out
+  return out
 }
 
 /** The window link's pairing (agentlink/link_token.py in Agent Link): each
@@ -608,13 +631,16 @@ async function main() {
   }
   const ud = userDir(fc)
   let modDir = null
+  let retired = []
   if (ud) {
     modDir = path.join(ud, 'Mod')
+    lastRetired = []
     try {
       install(modDir, src.dir, src.version)
     } catch (e) {
       log('install failed:', e.message)
     }
+    retired = lastRetired
   }
 
   // With a FreeCAD Python to hand, the server runs headless and sends each
@@ -639,6 +665,13 @@ async function main() {
   const [exe, args] = fc.py ? [fc.py, [script, '--out', OUT]] : [fc.cmd, [script]]
   log('headless:', exe, args.join(' '))
   headless(exe, args, e, { modDir, base, version: src.version })
+  // Taken over mid-update from an older launcher, which had already
+  // restarted the window on its install: what this one set aside is still
+  // loaded there, so the window starts again once more.
+  if (retired.length && HANDED_OVER) {
+    log(`retired ${retired.join(', ')} after the handover: the window starts again without them`)
+    restartWindow().catch(() => {})
+  }
   if (updates && !process.env.AGENTLINK_UPDATE_FROM) {
     setTimeout(() => {
       update((dir) => smokeTest(exe, e, dir))
@@ -912,6 +945,7 @@ function headless(exe, args, e, inst = {}) {
       const got = await update((dir) => smokeTest(exe, e, dir))
       if (!got) throw new Error('GitHub gave nothing')
       let snapshot = null
+      lastRetired = []
       if (inst.modDir && got.version !== before) {
         keepPrevious(inst.modDir)
         snapshot = snapshotSettings(exe, e)
@@ -928,11 +962,23 @@ function headless(exe, args, e, inst = {}) {
         }
         recordVersions({ addons: before }, { addons: got.version }, smoke.skipped ? `installed (${smoke.skipped})` : 'smoke passed')
       } else if (inst.modDir) install(inst.modDir, got.dir, got.version)
+      // Retired add-on folders set aside by this install (or, with nothing
+      // new, by its sweep): said in the answer.
+      const retired = lastRetired
       version = got.version
       const comp = updateCompanions()
       if (comp.some((c) => c.from && c.to && c.from !== c.to)) recordVersions({ companions: comp.map((c) => `${c.name}@${c.from}`) }, { companions: comp.map((c) => `${c.name}@${c.to}`) }, 'companions moved')
-      if (got.version === before) {
+      if (got.version === before && !retired.length) {
         reply(id, { before, after: version, restarted: false, ...(comp.length ? { companions: comp } : {}), note: 'Already the newest: nothing to do.' })
+        return
+      }
+      if (got.version === before) {
+        // The newest already, but old add-on folders were set aside: FreeCAD
+        // starts again without them.
+        updating = true
+        const windowed = await restartWindow()
+        child.kill()
+        reply(id, { before, after: version, restarted: true, retired, ...(comp.length ? { companions: comp } : {}), note: `Already the newest; set aside the retired add-on folders ${retired.join(', ')} and started FreeCAD again without them.${windowed && windowed.refused ? ` The window did not restart: ${windowed.refused} Then app_restart.` : ''}` })
         return
       }
       updating = true
@@ -941,12 +987,12 @@ function headless(exe, args, e, inst = {}) {
       if (next) {
         // A newer launcher came with these add-ons: it takes over this
         // connection in place of this one, no restart of Claude.
-        reply(id, { before, after: version, restarted: true, launcher: 'updated: the new launcher serves from now on', ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), note: 'FreeCAD started again on the new add-ons, under the new launcher. New tools are listed.' })
+        reply(id, { before, after: version, restarted: true, ...(retired.length ? { retired } : {}), launcher: 'updated: the new launcher serves from now on', ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), note: 'FreeCAD started again on the new add-ons, under the new launcher. New tools are listed.' })
         handover(next)
         return
       }
       child.kill()
-      reply(id, { before, after: version, restarted: true, ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), ...(next === false ? { launcher: 'kept: the updated launcher did not load, so this one keeps serving (launcher.log says why)' } : {}), note: windowed && windowed.refused
+      reply(id, { before, after: version, restarted: true, ...(retired.length ? { retired } : {}), ...(snapshot ? { settingsSnapshot: snapshot } : {}), ...(comp.length ? { companions: comp } : {}), ...(next === false ? { launcher: 'kept: the updated launcher did not load, so this one keeps serving (launcher.log says why)' } : {}), note: windowed && windowed.refused
         ? `The hidden FreeCAD runs the new add-ons, but the window did not restart and keeps the old ones: ${windowed.refused} Then app_restart.`
         : windowed
           ? 'FreeCAD started again on the new add-ons: the window reopens its documents (calls wait for it, up to 90 s), the one in front back in front. New tools are listed.'
@@ -1145,8 +1191,10 @@ function loadNewer() {
 
 /** Serves on streams an older launcher in this process hands over, from
  *  the session it began: rejects if it cannot start, so that one serves on. */
+let HANDED_OVER = false
 function startHandedOver({ stdin, stdout, state = {} }) {
   IO = { stdin, stdout }
+  HANDED_OVER = true
   log(`took over from the launcher in this process (add-ons ${state.version || '?'})`)
   return main()
 }

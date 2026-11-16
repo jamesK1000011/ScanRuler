@@ -7,6 +7,14 @@ saves carry the same number as `appVersion`. How a release is cut is in
 
 ## Unreleased
 
+- **FreeCAD launcher: retired add-ons swept on every start and update**
+  (2026-11-15). An install made by an older launcher could leave the old
+  Workshop and SafetyNet folders in Mod, where they shadowed the combined
+  add-on. The launcher now checks for retired folders on every start and
+  every agentlink_update, including one with nothing new. When it finds
+  some, it sets them aside and starts FreeCAD again without them. A
+  launcher that takes over mid-update starts the window once more after
+  its own sweep. The package.xml ownership check is unchanged.
 - **FreeCAD launcher: Workshop as one add-on** (2026-11-15). The Claude
   extension's launcher (`scripts/freecad/addons.json`, `install_addons.py`
   and the launcher's built-in list) installs Workshop for FreeCAD as one
