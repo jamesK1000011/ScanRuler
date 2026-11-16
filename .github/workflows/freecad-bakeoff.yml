@@ -13,15 +13,12 @@ name: FreeCAD bake-off
 # change is asked for by pinning its commit in scripts/bakeoff/addon-ref.
 # The browser bake-off (the scanruler job) runs only on request: "[bakeoff]"
 # in the commit message, or Run workflow.
+#
+# Manual only since 16 Nov 2026: the bake-off that gates the Claude
+# extension's pins runs in AgentLink-FreeCAD (.github/workflows/bakeoff.yml,
+# pins in packaging/pins). This one stays for the coverage audit, the
+# probes and the browser side, on request.
 on:
-  push:
-    branches: [freecad-spike, 'freecad-spike-*']
-    paths:
-      - 'freecad/**'
-      - 'scripts/freecad/**'
-      - '!scripts/freecad/gui-*'
-      - 'scripts/bakeoff/**'
-      - '.github/workflows/freecad-bakeoff.yml'
   workflow_dispatch:
 
 permissions:
@@ -196,6 +193,7 @@ jobs:
           grep -E '^(Ran|OK|FAILED|ERROR:|FAIL:)' "$RUNNER_TEMP/addons.log" | tail -n 60
           test "$code" -eq 0
       - name: The Claude extension's launcher, against a fake FreeCAD
+        # The hop copy of the launcher (its full test is AgentLink-FreeCAD's).
         run: node scripts/freecad/mcpb/test/launcher.test.mjs
       - name: The pictures, in the log
         if: always()

@@ -1,5 +1,8 @@
 #!/bin/sh
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Moved to AgentLink-FreeCAD (packaging/mcpb/build.sh) on 16 Nov 2026 and
+# relicensed there; this copy builds from the old manifest until installed
+# extensions have moved to the new update channel.
 # Build Agent Link for FreeCAD as a Claude Desktop extension (.mcpb): the
 # launcher, this manifest, and the add-ons it installs. The add-ons come
 # from scripts/freecad/addons.json: each source's folder in its checkout

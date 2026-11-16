@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: LGPL-2.1-or-later
 // Agent Link for FreeCAD as a Claude Desktop extension: the MCP server Claude
 // starts. It finds FreeCAD on this Mac, puts the two add-ons bundled with it
 // (Agent Link and ScanRuler for FreeCAD) into FreeCAD's Mod folder so the
@@ -28,8 +28,10 @@ const LAUNCHER = path.join(HOME, '.config', 'freecad-agentlink', 'launcher', 'in
 // This launcher's own stamp: a cached copy older than the one installed
 // with the extension never runs in its place (no downgrade). Bumped with
 // every launcher change (17 Nov 2026: a newer launcher takes over in this
-// process, not as a spawned Node, which Claude's built-in Node refuses).
-const LAUNCHER_STAMP = 20261117
+// process, not as a spawned Node, which Claude's built-in Node refuses;
+// 18 Nov 2026: its channel is AgentLink-FreeCAD's main, ScanRuler's
+// freecad-spike only the fallback).
+const LAUNCHER_STAMP = 20261118
 const stampOf = (file) => {
   try {
     const m = /const LAUNCHER_STAMP = (\d+)/.exec(fs.readFileSync(file, 'utf8'))
@@ -135,25 +137,31 @@ function userDir(fc) {
 // fallback when GitHub cannot be reached.
 const OWNER = 'jamesK1000011'
 // The list below is only the fallback, kept equal to addons.json (the
-// launcher test checks): the list in force is scripts/freecad/addons.json
+// launcher test checks): the list in force is packaging/addons.json
 // at the pinned channel commit (same fields), so a new add-on needs no new
 // launcher, and this file names no add-on beyond that list.
 const SOURCES = [
   // The hub: Agent Link, its own repository since 14 Nov 2026.
-  { repo: 'AgentLink-FreeCAD', branch: 'main', folder: '', dest: 'AgentLink', pin: 'scripts/bakeoff/addon-ref' },
-  { repo: 'ScanRuler-FreeCAD', branch: 'main', folder: '', dest: 'ScanRulerFC', pin: 'scripts/bakeoff/scanrulerfc-ref' },
-  { repo: 'AgentLink-OrcaSlicer', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'scripts/bakeoff/orcalink-ref' },
+  { repo: 'AgentLink-FreeCAD', branch: 'main', folder: '', dest: 'AgentLink', pin: 'packaging/pins/addon-ref' },
+  { repo: 'ScanRuler-FreeCAD', branch: 'main', folder: '', dest: 'ScanRulerFC', pin: 'packaging/pins/scanrulerfc-ref' },
+  { repo: 'AgentLink-OrcaSlicer', branch: 'main', folder: '', dest: 'OrcaLink', pin: 'packaging/pins/orcalink-ref' },
   // Workshop: one add-on since 15 Nov 2026 (Parts, Make, Electronics,
   // Documents and SafetyNet combined; its package.xml's name).
-  { repo: 'Workshop-FreeCAD', branch: 'main', folder: '', dest: 'Workshop', pin: 'scripts/bakeoff/workshop-ref' },
-  { repo: 'Texturizer-FreeCAD', branch: 'main', folder: '', dest: 'Texturizer', pin: 'scripts/bakeoff/texturizer-ref' },
-  { repo: 'Tutor-FreeCAD', branch: 'main', folder: '', dest: 'Tutor', pin: 'scripts/bakeoff/tutor-ref' },
+  { repo: 'Workshop-FreeCAD', branch: 'main', folder: '', dest: 'Workshop', pin: 'packaging/pins/workshop-ref' },
+  { repo: 'Texturizer-FreeCAD', branch: 'main', folder: '', dest: 'Texturizer', pin: 'packaging/pins/texturizer-ref' },
+  { repo: 'Tutor-FreeCAD', branch: 'main', folder: '', dest: 'Tutor', pin: 'packaging/pins/tutor-ref' },
 ]
 // What is installed is what CI checked: each add-on at the commit pinned in
-// ScanRuler's freecad-spike (bumped only once the bake-off is green), and
-// this launcher from the same commit of ScanRuler.
-const CHANNEL = { repo: 'ScanRuler', branch: 'freecad-spike', launcher: 'scripts/freecad/mcpb/server/index.js' }
-const MANIFEST = 'scripts/freecad/addons.json'
+// AgentLink-FreeCAD's main (packaging/pins, bumped only once the bake-off is
+// green), and this launcher from the same commit.
+const CHANNEL = { repo: 'AgentLink-FreeCAD', branch: 'main', launcher: 'packaging/mcpb/server/index.js' }
+const MANIFEST = 'packaging/addons.json'
+// The channel before 16 Nov 2026, read only when the one above cannot be
+// (its manifest or a pin missing or unreadable): ScanRuler's freecad-spike
+// kept its manifest, pins and a copy of this launcher in step through the
+// move.
+const OLD_CHANNEL = { repo: 'ScanRuler', branch: 'freecad-spike', launcher: 'scripts/freecad/mcpb/server/index.js', manifest: 'scripts/freecad/addons.json' }
+const CHANNELS = [{ ...CHANNEL, manifest: MANIFEST }, OLD_CHANNEL]
 /** The Mod folders of ours when none were written down at install: the
  *  list the current add-ons came with, else the built-in one. */
 function knownNames() {
@@ -186,7 +194,7 @@ function checkSources(list) {
   for (const s of list) {
     if (!s || !SAFE_NAME.test(s.repo || '') || !SAFE_NAME.test(s.dest || '') || !SAFE_NAME.test(s.branch || '')) return null
     if (s.folder && !safeRel(s.folder)) return null
-    if (s.pin && !/^scripts\/bakeoff\/[A-Za-z0-9._-]+$/.test(s.pin)) return null
+    if (s.pin && !/^(packaging\/pins|scripts\/bakeoff)\/[A-Za-z0-9._-]+$/.test(s.pin)) return null
   }
   if (!list.some((s) => s.dest === 'AgentLink')) return null
   return list.map((s) => ({ repo: s.repo, branch: s.branch, folder: s.folder || '', dest: s.dest, pin: s.pin }))
@@ -313,6 +321,36 @@ function cachedAddons() {
   return null
 }
 
+/** The channel to update from: the first of CHANNELS whose head, manifest
+ *  and every pin can be read, so a launcher never mixes one channel's list
+ *  with another's pins. Returns { channel, sha, sources, shas, companions }
+ *  (shas: each source's pinned commit, its branch head where it has no pin
+ *  file). Throws when none can be read: what is installed keeps serving.
+ *  io stands in for GitHub under test. */
+async function resolveChannel(io = { headSha, getFile }, channels = CHANNELS) {
+  const failed = []
+  for (const c of channels) {
+    try {
+      const sha = await io.headSha(c.repo, c.branch)
+      const raw = (file) => `https://raw.githubusercontent.com/${OWNER}/${c.repo}/${sha}/${file}`
+      const manifest = JSON.parse((await io.getFile(raw(c.manifest))).toString('utf8'))
+      const sources = checkSources(manifest.sources)
+      if (!sources) throw new Error(`${c.manifest} is not a list this launcher takes`)
+      const shas = await Promise.all(sources.map(async (s) => {
+        if (!s.pin) return io.headSha(s.repo, s.branch)
+        const pinned = (await io.getFile(raw(s.pin))).toString('utf8').trim()
+        if (!/^[0-9a-f]{40}$/.test(pinned)) throw new Error(`${s.pin} holds no commit`)
+        return pinned
+      }))
+      if (c !== channels[0]) log(`update channel ${channels[0].repo}/${channels[0].branch} could not be read (${failed.join('; ')}): ${c.repo}/${c.branch} serves`)
+      return { channel: c, sha, sources, shas, companions: manifest.companions }
+    } catch (e) {
+      failed.push(`${c.repo}: ${e.message}`)
+    }
+  }
+  throw new Error(`no update channel could be read: ${failed.join('; ')}`)
+}
+
 /** The pinned commits on GitHub, fetched into a folder of their own when
  *  they are new, smoke-tested there (check(dir) → { ok, failures }), and
  *  only then made current — with the launcher of the same channel commit.
@@ -339,27 +377,8 @@ async function update(check) {
     return { dir: from, version: v }
   }
   fs.mkdirSync(CACHE, { recursive: true })
-  const channel = await headSha(CHANNEL.repo, CHANNEL.branch)
-  let sources = SOURCES
-  try {
-    const manifest = JSON.parse((await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${MANIFEST}`)).toString('utf8'))
-    const listed = checkSources(manifest.sources)
-    keepCompanions(manifest.companions)
-    if (listed) sources = listed
-    else log(`${MANIFEST} at ${channel.slice(0, 7)} is not a list this launcher takes: the built-in one serves`)
-  } catch (e) {
-    log(`no ${MANIFEST} at ${channel.slice(0, 7)} (${e.message}): the built-in list serves`)
-  }
-  const shas = await Promise.all(sources.map(async (s) => {
-    if (s.pin) {
-      try {
-        const pinned = (await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${s.pin}`)).toString('utf8').trim()
-        if (/^[0-9a-f]{40}$/.test(pinned)) return pinned
-      } catch {}
-      log(`no pin for ${s.repo} at ${channel.slice(0, 7)}: its branch head is taken`)
-    }
-    return headSha(s.repo, s.branch)
-  }))
+  const { channel: ch, sha: channel, sources, shas, companions } = await resolveChannel()
+  keepCompanions(companions)
   // '+t': fetched with the add-ons' tests; a copy fetched before, without
   // them, has another version and is fetched again.
   const version = 'github+' + shas.map((x) => x.slice(0, 7)).join('+') + '+' + channel.slice(0, 7) + '+t'
@@ -388,7 +407,7 @@ async function update(check) {
         }))
       }
     }
-    const launcher = await getFile(`https://raw.githubusercontent.com/${OWNER}/${CHANNEL.repo}/${channel}/${CHANNEL.launcher}`)
+    const launcher = await getFile(`https://raw.githubusercontent.com/${OWNER}/${ch.repo}/${channel}/${ch.launcher}`)
     checkLauncher(launcher) // parses, or throws
     fs.writeFileSync(path.join(stage, '.launcher.js'), launcher)
     fs.writeFileSync(path.join(stage, '.sources.json'), JSON.stringify(sources))
@@ -1198,7 +1217,7 @@ function startHandedOver({ stdin, stdout, state = {} }) {
   log(`took over from the launcher in this process (add-ons ${state.version || '?'})`)
   return main()
 }
-module.exports = { startHandedOver }
+module.exports = { startHandedOver, resolveChannel, checkSources, CHANNELS }
 
 /** No FreeCAD: still a server, so Claude shows why instead of a dead entry. */
 function serveError(message) {

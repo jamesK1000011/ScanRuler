@@ -3,13 +3,14 @@
 # by scripts/freecad/mcpb/build.sh from the add-ons at the commits pinned in
 # scripts/bakeoff (the ones the bake-off passed), put through the privacy
 # and identity check, and only then attached to a release of the tag.
-# Tag-triggered only (agentlink-v*), so it costs no minutes otherwise; it
-# leaves ScanRuler's own release (release.yml, v* tags) alone.
-name: Agent Link extension release
+# Moved to AgentLink-FreeCAD on 16 Nov 2026 (its mcpb-release.yml, on its own
+# agentlink-v* tags): manual only here, so a tag in this repository never
+# releases the extension a second time. Kept until installed extensions
+# have moved to the new update channel.
+name: Agent Link extension release (moved)
 
 on:
-  push:
-    tags: ['agentlink-v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
